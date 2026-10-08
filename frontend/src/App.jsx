@@ -17,6 +17,7 @@ import ProductListPage from "./pages/admin/ProductListPage";
 import OfferBannerPage from "./pages/admin/OfferBannerPage";
 import VideoBannerPage from "./pages/admin/VideoBannerPage";
 import CategoryBannerPage from "./pages/admin/CategoryBannerPage";
+import CategoriesPage from "./pages/admin/CategoriesPage";
 import Home from "./pages/Home";
 import CategoryProductsPage from "./pages/CategoryProductsPage";
 import SingleProductPage from "./pages/SingleProductPage";
@@ -287,6 +288,8 @@ export default function App() {
           <Route path="products" element={<ProductListPage />} />
           <Route path="offer-banner" element={<OfferBannerPage />} />
           <Route path="video-banner" element={<VideoBannerPage />} />
+          <Route path="categories" element={<CategoriesPage />} />
+          {/* Legacy page, replaced by Categories — kept reachable by URL for now */}
           <Route path="category-banner" element={<CategoryBannerPage />} />
           <Route path="art-categories" element={<ArtCategoriesPage />} />
           <Route path="art-designs" element={<ArtDesignsPage />} />

@@ -18,6 +18,7 @@ IDENTEE is an AI-powered custom apparel e-commerce platform ("Your Style, Your S
 | Order permissions | Any logged-in user could change status / mark paid / read others' orders | Admin-only changes, owner-only reading, delivery staff only on assigned orders, valid status transitions, new **Cancelled** status |
 | Stock & coupons | Overselling possible; cart removal added stock; coupon expiry / per-user limits not enforced at payment | Atomic stock, cart bug fixed, coupons fully validated |
 | Custom-design checkout | Crashed | Works (garment base price + art prices) |
+| Categories | Free text in 3 places, test values on the live home page, images on one laptop | One admin-managed list, home tiles + category page with filters, images on Cloudinary |
 | Address entry | Only "required" + PIN/phone digit checks in the checkout form; city could be anything; Account form barely checked | Full validation (browser + server), **📍 Use my current location**, PIN → city/state autofill |
 | Docs | Default Vite README only | This document |
 
@@ -71,7 +72,7 @@ AI design generation (text/image → design), AI background removal (package ins
 
 **Phase 1 (current):** make these four flows production-ready:
 1. Login (email OTP) ✅ **done**
-2. Product & category browsing — next (real Category model + home page category tiles)
+2. Product & category browsing — ✅ **categories done** (see section 6); search & product-page fixes still open
 3. Customization
 4. Ordering (cart → checkout → payment → order) ✅ **done** (security fixes + address validation; test payment passed)
 
@@ -282,7 +283,56 @@ Guarantees:
 
 ---
 
-## 6. Phase 1 — remaining steps (audit findings)
+## 6. Phase 1 — Step 3: Categories (DONE — needs live data step)
+
+### 6.1 Before
+- "Category" was free text in three unrelated places: product `garmentStyle`, Category Banner name, Garment Type `category`. Typos and test values (`re`, `pants`, `Blacers`, duplicate `tshirt`) showed on the live home page.
+- Home showed one uneven "bento" banner per garment style; navbar loaded **every product** to build its menu; the category page flashed the previous category while loading and showed each colour as a separate product; no search/filter/sort/pagination.
+- Category banner images were stored on one developer's disk (`server/uploads`, not in git) — missing on every other machine.
+- Garment-type admin endpoints had **no login check** (anyone could create/delete them).
+
+### 6.2 Now
+- **One `Category` list managed in Admin → Categories** (replaces "Category Banner" in the sidebar): name, web address (`/category/t-shirts`), description, **styles**, tile image (4:5), optional banner image (16:5), display order (▲▼), **Visible / Customizable / Coming soon** switches.
+- **How products join a category:** a product belongs to the category whose *styles* include its Garment Style (case-insensitive). Customizer garment types match the same way. Adding a style instantly brings matching products in — no product edits needed.
+- **Launch categories:** T-Shirts (Round Neck, V-Neck, Oversized, Full Sleeve) · Polos (Polo, Full Sleeve Polo) · Hoodies (Hoodie, Zip Hoodie) · Sweatshirts (Sweatshirt) · Kids' Wear (Kids T-Shirt, Kids Hoodie — shop only).
+- **Home page:** category tiles (5 across desktop, 3 tablet, 2 phone) with **Design your own** (customizable categories) and **Shop**; branded garment-outline placeholder when no photo; "Coming soon" tiles greyed out.
+- **Category page:** header with banner, description and "Design your own"; **style chips**; **size filter** (in stock only); **sort** (newest, popular, price ↑/↓); one card per product with colour count; OUT OF STOCK / % OFF badges; **Load more**; empty and error states; old links like `/category/Round%20Neck` redirect to `/category/t-shirts?style=Round Neck`.
+- **Navbar Products menu** and the **customizer's Choose a product page** (with category chips) are built from the same list.
+- **Admin product form:** Category and Garment Style dropdowns come from the categories (grouped).
+- **Images on Cloudinary** (account `vy728xfe`): uploaded via the admin page, auto-resized and served as WebP; JPG/PNG/WebP only (SVG blocked), max 5 MB; replaced/removed images are deleted from Cloudinary.
+- Garment-type create/edit/delete now **require an admin login**.
+
+### 6.3 API
+| Method | Endpoint | Access |
+|---|---|---|
+| GET | `/api/categories` | Public — active categories in order, with product counts |
+| GET | `/api/categories/:slug` | Public — one category (also resolves an old style name) |
+| GET | `/api/categories/:slug/products?style=&size=&sort=&page=&limit=` | Public |
+| GET | `/api/categories/:slug/garments` | Public — garment types for "Design your own" |
+| GET | `/api/categories/admin/all` | Admin |
+| POST / PUT / DELETE | `/api/categories`, `/api/categories/:id` (multipart: `image`, `bannerImage`) | Admin |
+| PUT | `/api/categories/reorder` `{ ids }` | Admin |
+
+### 6.4 Files
+**New:** `server/models/categoryModel.js`, `server/controllers/categoryController.js`, `server/routes/categoryRoutes.js`, `server/middleware/imageUpload.js`, `server/utils/imageStorage.js`, `server/scripts/migrateCategories.js`; frontend `components/CategoryTile.jsx`, `pages/admin/CategoriesPage.jsx`, `redux/slices/categorySlice.js`, `services/categoryService.js`, `utils/imageUrl.js`
+**Changed:** `server/server.js`, `server/routes/garmentTypeRoutes.js`; frontend `pages/Home.jsx`, `pages/CategoryProductsPage.jsx` (rewritten), `pages/ChooseProductPage.jsx`, `components/Navbar.jsx`, `components/AdminSidebar.jsx`, `App.jsx`, `redux/store.js`, `pages/admin/ProductUploadPage.jsx`, `services/garmentTypeService.js`
+**Config:** `CLOUDINARY_NAME`, `CLOUDINARY_APIKEY`, `CLOUDINARY_SECRETKEY` in `server/.env` (IDENTEE's own account). Without them images fall back to `server/uploads/` (dev only).
+
+### 6.5 Testing done
+- 34 automated API checks on a throwaway DB incl. a real Cloudinary upload + delete: admin-only changes, SVG rejected, slugs, duplicate names, ordering, hidden categories, product grouping by colour, messy style text, style/size filters, sorting, pagination, no leakage of other styles, old-URL redirect, customizer garments, garment-type auth.
+- Browser: home tiles, category page (redirect, chips, badges), admin Categories list + edit form.
+
+### 6.6 To go live
+1. Run on the real database (dry run first — already reviewed: 6 Round Neck → T-Shirts, 2 Polo → Polos, 2 Sweatshirt → Sweatshirts; Blacers/Jump Suits not shown):
+   ```bash
+   cd server && node scripts/migrateCategories.js --apply
+   ```
+2. Upload a tile photo per category in **Admin → Categories**.
+3. Product photos are still stored in `server/uploads` (one machine) — moving product images to Cloudinary is a follow-up.
+
+---
+
+## 7. Phase 1 — remaining steps (audit findings)
 
 ### Step 3: Customization
 - Design is lost on page reload (no draft saving).
@@ -293,20 +343,20 @@ Guarantees:
 ### Step 4: Products & categories
 - No real Category model (three free-text strings that drift apart).
 - Navbar search does nothing; no filter/sort UI; no pagination; same product shown once per colour.
-- Kids' sizes hidden on product page; pending/rejected reviews leak publicly; garment-type admin routes unauthenticated; sellers can edit each other's products.
+- Kids' sizes hidden on product page; pending/rejected reviews leak publicly; ~~garment-type admin routes unauthenticated~~ (fixed); sellers can edit each other's products.
 
 ---
 
-## 7. Agreed ideas / proposals (not built yet)
+## 8. Agreed ideas / proposals (not built yet)
 
-### 7.1 After login
+### 8.1 After login
 Current behaviour: users return to the page they came from (e.g. checkout); otherwise Home; admins → `/admin/dashboard`.
 Proposed:
 - **Welcome step (new users only, ~30 s, skippable):** "What are you here for?" (design my own / buy ready-made / team or event order) + usual size → buttons "Start designing" / "Browse products".
 - **Personalised strip on Home (logged-in):** "Hi <name>", latest order status + Track, "Continue your design" (needs draft saving from Step 3), later "Picked for you".
 - Later: "My Designs" gallery, team-order shortcut, profile-completion nudge.
 
-### 7.2 Home-page categories (Step 4)
+### 8.2 Home-page categories (Step 4)
 Current data is test-quality: category banners include `re`, `pants`, `tshirt` (duplicate of Round Neck), `Blacers` (typo); only Round Neck has colours; the customizer supports 6 garments (Round Neck, Oversized, V-Neck, Polo, Hoodie, Crew Sweatshirt).
 Proposed launch categories (DTF-friendly):
 - **Phase 1:** T-Shirts (round, V-neck, oversized, full sleeve), Polo T-Shirts, Hoodies (pullover, zip), Sweatshirts — plus **Jackets** tile marked "Coming soon".
@@ -315,9 +365,9 @@ Proposed launch categories (DTF-friendly):
 - Hide Blazers and Jump Suits.
 Plan: real `Category` model (name, image, order, active, customizable) managed from admin; link garment types/products to it; clean test data (list shown to the team before deleting); category tiles on Home with "Design your own" / "Shop ready-made".
 
-### 7.3 Differentiators discussed (later phases)
+### 8.3 Differentiators discussed (later phases)
 Group order links for schools/companies, brand-kit lock + approval for corporate clients, QR/NFC "smart garments", school uniform programmes, print-aware AI design checks, price/print-method comparison, bulk size predictor, WhatsApp ordering, photo of the real print before dispatch, AR try-on.
 
-### 7.4 Small UI clean-ups noted
+### 8.4 Small UI clean-ups noted
 - Payment step shows separate "UPI" and "Card" options that both open the same Razorpay popup → replace with one "Pay online" option.
 - Remove the obsolete admin **Settings → Security → change password** form.

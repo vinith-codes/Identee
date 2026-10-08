@@ -2,7 +2,8 @@
 import { useState, useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
-import { getShowcase } from "../redux/slices/categoryBannerSlice";
+import { fetchCategories } from "../redux/slices/categorySlice";
+import { CategoryGrid } from "../components/CategoryTile";
 import { getVideoBanner } from "../redux/slices/bannerSlice";
 import homeBannerVideo from "../assets/videos/homebanner-video.mp4";
 import customizeVideo from "../assets/videos/sub-video2.mp4";
@@ -280,109 +281,6 @@ function PastelCard({ item, bg, big }) {
 
 const BACKEND_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
-function CategoryBanner({ item, variant, navigate }) {
-  const isDark = variant === "dark";
-  const imgSrc = item.image ? `${BACKEND_URL}${item.image}` : null;
-
-  return (
-    <div
-      className="identee-cat-banner"
-      onClick={() => navigate("/category/" + encodeURIComponent(item.category))}
-      style={{
-        position: "relative",
-        borderRadius: 20,
-        overflow: "hidden",
-        height: "100%",
-        minHeight: 130,
-        display: "flex",
-        cursor: "pointer",
-        background: isDark
-          ? `linear-gradient(90deg, ${C.navy} 0%, ${C.navy} 58%, ${C.yellow} 58%, ${C.yellow} 100%)`
-          : C.bgAlt,
-      }}
-    >
-      <div
-        style={{
-          flex: "1 1 55%",
-          display: "flex",
-          flexDirection: "column",
-          justifyContent: "center",
-          padding: "24px 28px",
-          zIndex: 2,
-        }}
-      >
-        <h3
-          style={{
-            margin: 0,
-            fontFamily: FONT_DISPLAY,
-            fontWeight: 800,
-            fontSize: "clamp(18px, 2.2vw, 30px)",
-            color: isDark ? "#FFF8EC" : C.ink,
-            lineHeight: 1.15,
-          }}
-        >
-          {item.category}
-        </h3>
-        <p
-          style={{
-            margin: "10px 0 0",
-            fontSize: 13.5,
-            color: isDark ? "#D8D2C4" : C.muted,
-            maxWidth: 220,
-            lineHeight: 1.6,
-          }}
-        >
-          {item.productCount > 0
-            ? `${item.productCount} product${item.productCount > 1 ? "s" : ""} available`
-            : "Explore the collection"}
-        </p>
-      </div>
-      <div
-        style={{
-          flex: "1 1 45%",
-          position: "relative",
-          overflow: "hidden",
-          background: C.bgAlt,
-        }}
-      >
-        {imgSrc && (
-          <img
-            className="identee-cat-banner-img"
-            src={imgSrc}
-            alt={item.category}
-            style={{
-              position: "absolute",
-              inset: 0,
-              width: "100%",
-              height: "100%",
-              objectFit: "cover",
-            }}
-          />
-        )}
-      </div>
-    </div>
-  );
-}
-
-// Renders EVERY category banner returned by the API — no slicing.
-// The uneven "bento" look is done purely in CSS via nth-child(6n+…)
-// selectors below, so the pattern repeats every 6 items and keeps
-// working no matter how many categories you upload (1, 7, 20, …).
-function CategoryBannerGrid({ items, navigate }) {
-  if (!items || items.length === 0) return null;
-  return (
-    <div className="identee-cat-banner-grid">
-      {items.map((item, i) => (
-        <CategoryBanner
-          key={item.category}
-          item={item}
-          variant={i % 2 === 0 ? "dark" : "light"}
-          navigate={navigate}
-        />
-      ))}
-    </div>
-  );
-}
 /* ------------------------------------------------------------------ */
 /*  STYLE OUTLOOK — big video + two side videos, editorial layout      */
 /* ------------------------------------------------------------------ */
@@ -772,7 +670,9 @@ export default function Home() {
   const [heroColorIdx, setHeroColorIdx] = useState(0);
   const dispatch = useDispatch();
   const navigate = useNavigate();
-  const { showcase } = useSelector((s) => s.categoryBanner);
+  const { items: categories, status: categoriesStatus } = useSelector(
+    (s) => s.categories,
+  );
   const { videoBanners } = useSelector((s) => s.banner);
   const { values: publicSettings, isLoaded: settingsLoaded } = useSelector(
     (s) => s.publicSettings,
@@ -797,7 +697,7 @@ export default function Home() {
     getSectionVideoUrl("designYourOwn") || customizeVideo;
 
   useEffect(() => {
-    dispatch(getShowcase());
+    dispatch(fetchCategories());
     dispatch(getVideoBanner());
     if (!settingsLoaded) dispatch(fetchPublicSettings());
   }, [dispatch, settingsLoaded]);
@@ -824,26 +724,6 @@ export default function Home() {
         .identee-cta-btn:hover { transform: translateY(-2px); }
         .identee-testimonial-avatar { position: relative; width: 56px; height: 56px; border-radius: 50%; overflow: hidden; margin-bottom: 14px; border: 1px solid ${C.border}; background: ${C.bg}; }
         .identee-testimonial-avatar video { position: absolute; top: 50%; left: 50%; width: 100%; height: 100%; min-width: 100%; min-height: 100%; transform: translate(-50%, -50%); object-fit: cover; object-position: center; }
-
-        /* ---- category banner grid — uneven bento layout that REPEATS every    ---- */
-        /* ---- 6 items via nth-child(6n+…), so it scales to any banner count ---- */
-        .identee-cat-banner-grid {
-          display: grid;
-          grid-template-columns: repeat(3, 1fr);
-          grid-auto-rows: 150px;
-          grid-auto-flow: dense;
-          gap: 16px;
-        }
-        .identee-cat-banner-grid > *:nth-child(6n+1) { grid-column: span 2; grid-row: span 2; }
-        .identee-cat-banner-grid > *:nth-child(6n+2) { grid-column: span 1; grid-row: span 1; }
-        .identee-cat-banner-grid > *:nth-child(6n+3) { grid-column: span 1; grid-row: span 1; }
-        .identee-cat-banner-grid > *:nth-child(6n+4) { grid-column: span 2; grid-row: span 1; }
-        .identee-cat-banner-grid > *:nth-child(6n+5) { grid-column: span 1; grid-row: span 2; }
-        .identee-cat-banner-grid > *:nth-child(6n)   { grid-column: span 2; grid-row: span 1; }
-        .identee-cat-banner { transition: transform 0.35s ease, box-shadow 0.35s ease; }
-        .identee-cat-banner:hover { transform: translateY(-4px); box-shadow: ${C.shadow}; }
-        .identee-cat-banner-img { transition: transform 0.6s ease; }
-        .identee-cat-banner:hover .identee-cat-banner-img { transform: scale(1.06); }
 
        /* ---- style outlook editorial grid ---- */
         .identee-style-outlook-grid {
@@ -1126,7 +1006,10 @@ export default function Home() {
         >
           Shop by Category
         </p>
-        <CategoryBannerGrid items={showcase} navigate={navigate} />
+        <CategoryGrid
+          categories={categories}
+          loading={categoriesStatus === "loading" || categoriesStatus === "idle"}
+        />
       </section>
 
       {/* ================= STYLE OUTLOOK — VIDEO EDITORIAL ================= */}

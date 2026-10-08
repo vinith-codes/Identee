@@ -214,7 +214,7 @@ const NAV_GROUPS = [
         label: "Video Banner",
       },
       {
-        to: "/admin/category-banner",
+        to: "/admin/categories",
         icon: (
           <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
             <path
@@ -224,7 +224,7 @@ const NAV_GROUPS = [
             />
           </svg>
         ),
-        label: "Category Banner",
+        label: "Categories",
       },
       {
         to: "/admin/reviews",

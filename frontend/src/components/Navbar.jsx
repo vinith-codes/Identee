@@ -7,6 +7,7 @@ import { THEME } from "../theme/theme";
 import { getActiveOffer } from "../redux/slices/bannerSlice";
 import { fetchFavorites, fetchCart } from "../redux/slices/cartWishlistSlice";
 import { fetchPublicSettings } from "../redux/slices/publicSettingsSlice";
+import { fetchCategories } from "../redux/slices/categorySlice";
 
 const BACKEND_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
@@ -45,7 +46,6 @@ export default function Navbar({ phone = "+91 636 652 6449" }) {
   const [mobileProductsOpen, setMobileProductsOpen] = useState(false);
   const [mobileItemOpen, setMobileItemOpen] = useState(null); // which sub-item's subcategories are expanded (mobile)
   const [user, setUser] = useState(getUserInfo());
-  const [categoryMap, setCategoryMap] = useState({}); // { "Round Neck": ["Oversized", ...], ... } — live from backend
   const navigate = useNavigate();
   const dispatch = useDispatch();
   const { activeOffer } = useSelector((s) => s.banner);
@@ -80,33 +80,24 @@ export default function Navbar({ phone = "+91 636 652 6449" }) {
 
   const displayPhone = publicSettings["general.phoneNumber"] || phone;
 
-  // ── Fetch live categories from the backend — updates whenever an admin
-  // creates a new category/product, no code changes needed on the frontend.
+  // ── Storefront categories (Admin → Categories), shared with the Home page.
+  const { items: storeCategories } = useSelector((s) => s.categories);
   useEffect(() => {
-    const fetchCategories = async () => {
-      try {
-        const res = await fetch(`${BACKEND_URL}/api/products/categories`);
-        if (!res.ok) return;
-        const data = await res.json();
-        setCategoryMap(data || {});
-      } catch (err) {
-        console.error("Failed to load categories for navbar:", err);
-      }
-    };
-    fetchCategories();
-  }, []);
+    dispatch(fetchCategories());
+  }, [dispatch]);
 
-  // Build the "Products" mega-dropdown from live category data.
-  // Each top-level category becomes a clickable item; its subcategories
-  // (if any) show in the hover flyout that used to list sizes.
+  // Build the "Products" mega-dropdown: each category is a link and its
+  // styles (Round Neck, V-Neck…) show in the hover flyout.
   const productCategoryItems = useMemo(
     () =>
-      Object.entries(categoryMap).map(([category, subcategories]) => ({
-        label: category,
-        to: `/category/${encodeURIComponent(category)}`,
-        subcategories: subcategories || [],
-      })),
-    [categoryMap],
+      storeCategories
+        .filter((c) => !c.comingSoon)
+        .map((c) => ({
+          label: c.name,
+          to: `/category/${c.slug}`,
+          subcategories: c.styles || [],
+        })),
+    [storeCategories],
   );
 
   const NAV_LINKS = useMemo(() => {
@@ -568,7 +559,7 @@ export default function Navbar({ phone = "+91 636 652 6449" }) {
                                       {item.subcategories.map((sub) => (
                                         <NavLink
                                           key={sub}
-                                          to={`${item.to}?subcategory=${encodeURIComponent(sub)}`}
+                                          to={`${item.to}?style=${encodeURIComponent(sub)}`}
                                           className="size-chip"
                                         >
                                           {sub}
@@ -732,7 +723,7 @@ export default function Navbar({ phone = "+91 636 652 6449" }) {
                                       {item.subcategories.map((sub) => (
                                         <Link
                                           key={sub}
-                                          to={`${item.to}?subcategory=${encodeURIComponent(sub)}`}
+                                          to={`${item.to}?style=${encodeURIComponent(sub)}`}
                                           onClick={() => {
                                             setMobileOpen(false);
                                             setMobileItemOpen(null);

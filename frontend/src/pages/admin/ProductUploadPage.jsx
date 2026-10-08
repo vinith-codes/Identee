@@ -6,7 +6,7 @@ import { createProduct, reset } from "../../redux/slices/productSlice";
 import { toast } from "react-toastify";
 import { THEME, SIZE_CHARTS, inputStyle, labelStyle } from "../../theme/theme";
 import "react-toastify/dist/ReactToastify.css";
-import { getAllCategoryBanners } from "../../redux/slices/categoryBannerSlice";
+import categoryService from "../../services/categoryService";
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 const WASH_OPTIONS = [
@@ -398,9 +398,20 @@ function VariantCard({
             style={inputStyle}
           >
             <option value="">Select…</option>
-            {garmentStyleOptions.map((s) => (
-              <option key={s}>{s}</option>
+            {garmentStyleOptions.map((g) => (
+              <optgroup key={g.category} label={g.category}>
+                {g.styles.map((s) => (
+                  <option key={s}>{s}</option>
+                ))}
+              </optgroup>
             ))}
+            {/* keep an old value that is no longer in any category visible */}
+            {variant.garmentStyle &&
+              !garmentStyleOptions.some((g) => g.styles.includes(variant.garmentStyle)) && (
+                <option value={variant.garmentStyle}>
+                  {variant.garmentStyle} (not in any category)
+                </option>
+              )}
           </select>
         </Field>
       </div>
@@ -555,17 +566,25 @@ export default function ProductUploadPage() {
   const { isLoading, isError, isSuccess, message } = useSelector(
     (state) => state.product,
   );
-  const { banners } = useSelector((state) => state.categoryBanner);
-  const garmentStyleOptions = banners.map((b) => b.category);
+  // Garment Style options come from Admin → Categories (grouped by category),
+  // so every uploaded product lands in a storefront category.
+  const [styleGroups, setStyleGroups] = useState([]);
+  const garmentStyleOptions = styleGroups;
   const [form, setForm] = useState(emptyForm());
   const [formErrors, setFormErrors] = useState({});
 
   useEffect(() => {
-    dispatch(getAllCategoryBanners());
-  }, [dispatch]);
-  useEffect(() => {
-    dispatch(getAllCategoryBanners());
-  }, [dispatch]);
+    categoryService
+      .adminGetCategories()
+      .then((cats) =>
+        setStyleGroups(
+          cats
+            .filter((c) => c.styles.length)
+            .map((c) => ({ category: c.name, styles: c.styles })),
+        ),
+      )
+      .catch(() => setStyleGroups([]));
+  }, []);
 
   useEffect(() => {
     if (isSuccess) {
@@ -890,9 +909,9 @@ export default function ProductUploadPage() {
               style={inputStyle}
             >
               <option value="">Select…</option>
-              {banners.map((b) => (
-                <option key={b._id} value={b.category}>
-                  {b.category}
+              {styleGroups.map((g) => (
+                <option key={g.category} value={g.category}>
+                  {g.category}
                 </option>
               ))}
             </select>

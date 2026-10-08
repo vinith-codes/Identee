@@ -1,10 +1,15 @@
-import { useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
-import { fetchGarmentTypes } from "../redux/slices/garmentTypeSlice";
-import { getShowcase } from "../redux/slices/categoryBannerSlice";
+import { fetchCategories } from "../redux/slices/categorySlice";
+import categoryService from "../services/categoryService";
+import GarmentSilhouette from "../components/GarmentSilhouette";
+import { imageUrl } from "../utils/imageUrl";
 
-const BACKEND_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
+// Outline shown when a category has no photo yet.
+const shapeFor = (key = "") =>
+  /hood/i.test(key) ? "hoodie" : /polo/i.test(key) ? "polo" : /sweat/i.test(key)
+    ? "sweatshirt" : /v-?neck/i.test(key) ? "vneck" : /oversize/i.test(key) ? "tee-oversized" : "tee";
 
 const C = {
   bg: "#FFFFFF",
@@ -17,20 +22,41 @@ const C = {
 export default function ChooseProductPage() {
   const navigate = useNavigate();
   const dispatch = useDispatch();
-  const { items: garmentTypes } = useSelector((s) => s.garmentType);
-  const { showcase: banners, isLoading } = useSelector((s) => s.categoryBanner);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const selected = searchParams.get("category") || "";
+  const { items: categories, status } = useSelector((s) => s.categories);
+  // { [categorySlug]: garmentType[] } — garments the customizer supports
+  const [garmentsByCategory, setGarmentsByCategory] = useState(null);
 
   useEffect(() => {
-    dispatch(fetchGarmentTypes());
-    dispatch(getShowcase());
+    dispatch(fetchCategories());
   }, [dispatch]);
 
-  const availableGarments = banners
-    .map((b) => {
-      const g = garmentTypes.find((g) => g.category === b.category);
-      return g ? { ...g, bannerImage: b.image } : null;
-    })
-    .filter(Boolean);
+  const customizable = categories.filter((c) => c.isCustomizable && !c.comingSoon);
+  const customizableKey = customizable.map((c) => c.slug).join(",");
+
+  useEffect(() => {
+    if (!customizableKey) return;
+    let cancelled = false;
+    Promise.all(
+      customizableKey.split(",").map((slug) =>
+        categoryService.getCategoryGarments(slug).then((g) => [slug, g]).catch(() => [slug, []]),
+      ),
+    ).then((pairs) => !cancelled && setGarmentsByCategory(Object.fromEntries(pairs)));
+    return () => {
+      cancelled = true;
+    };
+  }, [customizableKey]);
+
+  const isLoading = status !== "succeeded" && status !== "failed"
+    ? true
+    : customizable.length > 0 && !garmentsByCategory;
+
+  const availableGarments = customizable
+    .filter((c) => !selected || c.slug === selected)
+    .flatMap((c) =>
+      (garmentsByCategory?.[c.slug] || []).map((g) => ({ ...g, categoryImage: c.image })),
+    );
 
   return (
     <div
@@ -52,6 +78,33 @@ export default function ChooseProductPage() {
         >
           CHOOSE A PRODUCT
         </h1>
+
+        {customizable.length > 1 && (
+          <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: 8, margin: "-28px 0 36px" }}>
+            {[{ slug: "", name: "All" }, ...customizable].map((c) => {
+              const active = selected === c.slug;
+              return (
+                <button
+                  key={c.slug || "all"}
+                  type="button"
+                  onClick={() => setSearchParams(c.slug ? { category: c.slug } : {}, { replace: true })}
+                  style={{
+                    padding: "7px 16px",
+                    borderRadius: 999,
+                    border: `1px solid ${active ? C.title : C.border}`,
+                    background: active ? C.title : "#fff",
+                    color: active ? "#fff" : C.ink,
+                    fontWeight: 600,
+                    fontSize: 13,
+                    cursor: "pointer",
+                  }}
+                >
+                  {c.name}
+                </button>
+              );
+            })}
+          </div>
+        )}
 
         {isLoading && (
           <p style={{ textAlign: "center", color: C.muted }}>
@@ -104,11 +157,18 @@ export default function ChooseProductPage() {
                   background: "#F7F5F0",
                 }}
               >
-                <img
-                  src={`${BACKEND_URL}${g.bannerImage}`}
-                  alt={g.label}
-                  style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                />
+                {g.categoryImage ? (
+                  <img
+                    src={imageUrl(g.categoryImage, 500)}
+                    alt={g.label}
+                    loading="lazy"
+                    style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                  />
+                ) : (
+                  <div style={{ padding: "12%" , height: "100%", boxSizing: "border-box" }}>
+                    <GarmentSilhouette shape={shapeFor(g.key)} color="#2B2560" />
+                  </div>
+                )}
               </div>
               <span
                 style={{

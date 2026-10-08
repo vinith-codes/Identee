@@ -15,6 +15,7 @@ import shippingReducer from "./slices/shippingSlice";
 import settingReducer from "./slices/settingSlice";
 import notificationReducer from "./slices/notificationSlice";
 import publicSettingsReducer from "./slices/publicSettingsSlice";
+import categoryReducer from "./slices/categorySlice";
 
 export const store = configureStore({
   reducer: {
@@ -34,6 +35,7 @@ export const store = configureStore({
     settings: settingReducer,
     notifications: notificationReducer,
     publicSettings: publicSettingsReducer,
+    categories: categoryReducer,
   },
   devTools: process.env.NODE_ENV !== "production",
 });
