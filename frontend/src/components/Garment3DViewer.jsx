@@ -8,6 +8,7 @@ import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls, useGLTF, Decal } from "@react-three/drei";
 import * as THREE from "three";
+import { imageUrl } from "../utils/imageUrl";
 
 const CANVAS_SIZE = 1024;
 
@@ -24,7 +25,7 @@ function loadImage(src) {
 // Draws one side's text/image elements onto a square canvas, using the
 // same x/y/width/height percentages as the flat 2D editor — so the
 // design lines up the same way in 3D as it did while editing.
-async function drawElementsToCanvas(elements, backendUrl) {
+async function drawElementsToCanvas(elements) {
   const canvas = document.createElement("canvas");
   canvas.width = CANVAS_SIZE;
   canvas.height = CANVAS_SIZE;
@@ -47,7 +48,7 @@ async function drawElementsToCanvas(elements, backendUrl) {
       try {
         const src = el.src.startsWith("http")
           ? el.src
-          : `${backendUrl}/${el.src.replace(/^\//, "")}`;
+          : imageUrl(el.src);
         const img = await loadImage(src);
         ctx.drawImage(img, -w / 2, -h / 2, w, h);
       } catch {
@@ -234,7 +235,6 @@ export default function Garment3DViewer({
   leftElements,
   color = "#1B1B1B",
   modelPath,
-  backendUrl,
 }) {
   const [frontCanvas, setFrontCanvas] = useState(null);
   const [backCanvas, setBackCanvas] = useState(null);
@@ -243,43 +243,43 @@ export default function Garment3DViewer({
 
   useEffect(() => {
     let cancelled = false;
-    drawElementsToCanvas(frontElements, backendUrl).then((c) => {
+    drawElementsToCanvas(frontElements).then((c) => {
       if (!cancelled) setFrontCanvas(c);
     });
     return () => {
       cancelled = true;
     };
-  }, [frontElements, backendUrl]);
+  }, [frontElements]);
 
   useEffect(() => {
     let cancelled = false;
-    drawElementsToCanvas(backElements, backendUrl).then((c) => {
+    drawElementsToCanvas(backElements).then((c) => {
       if (!cancelled) setBackCanvas(c);
     });
     return () => {
       cancelled = true;
     };
-  }, [backElements, backendUrl]);
+  }, [backElements]);
 
   useEffect(() => {
     let cancelled = false;
-    drawElementsToCanvas(rightElements, backendUrl).then((c) => {
+    drawElementsToCanvas(rightElements).then((c) => {
       if (!cancelled) setRightCanvas(c);
     });
     return () => {
       cancelled = true;
     };
-  }, [rightElements, backendUrl]);
+  }, [rightElements]);
 
   useEffect(() => {
     let cancelled = false;
-    drawElementsToCanvas(leftElements, backendUrl).then((c) => {
+    drawElementsToCanvas(leftElements).then((c) => {
       if (!cancelled) setLeftCanvas(c);
     });
     return () => {
       cancelled = true;
     };
-  }, [leftElements, backendUrl]);
+  }, [leftElements]);
 
   return (
     <Canvas camera={{ position: [0, 0, 2.4], fov: 30 }} shadows>

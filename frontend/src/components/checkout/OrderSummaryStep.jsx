@@ -2,15 +2,15 @@ import { useState } from "react";
 import { useSelector } from "react-redux";
 import { THEME, inputStyle } from "../../theme/theme";
 import checkoutService from "../../services/checkoutService";
+import { imageUrl } from "../../utils/imageUrl";
 
 const EMPTY_CART_ITEMS = [];
 
-const BACKEND_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
 function getImageUrl(path) {
   if (!path) return "";
   if (/^https?:\/\//i.test(path)) return path;
-  return `${BACKEND_URL}/${path.replace(/^\/+/, "")}`;
+  return imageUrl(path.replace(/^\/+/, ""));
 }
 
 function formatAddress(addr) {

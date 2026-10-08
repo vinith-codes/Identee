@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useSelector } from "react-redux";
 import { THEME } from "../../theme/theme";
+import { imageUrl } from "../../utils/imageUrl";
 import reviewService from "../../services/reviewServices"; // ✅ FIXED — was "reviewServices" (typo, no such file)
 
 const REJECTION_REASONS = [
@@ -134,7 +135,7 @@ export default function ReviewDetailModal({ review, onClose, onChanged }) {
             {review.photos.map((src, i) => (
               <img
                 key={i}
-                src={src}
+                src={imageUrl(src, 400)}
                 alt=""
                 style={{
                   width: 72,

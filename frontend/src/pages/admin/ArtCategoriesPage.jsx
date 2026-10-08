@@ -5,8 +5,8 @@ import {
   createArtCategory,
   deleteArtCategory,
 } from "../../redux/slices/artCategorySlice";
+import { imageUrl } from "../../utils/imageUrl";
 
-const BACKEND_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
 const C = {
   bg: "#0B0B0C",
@@ -21,7 +21,7 @@ const C = {
 function imgUrl(path) {
   if (!path) return null;
   if (path.startsWith("http")) return path;
-  return `${BACKEND_URL}/${path.replace(/^\//, "")}`;
+  return imageUrl(path.replace(/^\//, ""));
 }
 
 export default function ArtCategoriesPage() {

@@ -19,6 +19,7 @@ IDENTEE is an AI-powered custom apparel e-commerce platform ("Your Style, Your S
 | Stock & coupons | Overselling possible; cart removal added stock; coupon expiry / per-user limits not enforced at payment | Atomic stock, cart bug fixed, coupons fully validated |
 | Custom-design checkout | Crashed | Works (garment base price + art prices) |
 | Categories | Free text in 3 places, test values on the live home page, images on one laptop | One admin-managed list, home tiles + category page with filters, images on Cloudinary |
+| Image storage | Files on one developer laptop (`server/uploads`), full size, SVG allowed | All uploads on Cloudinary, auto-resized, old files deleted on replace, SVG blocked |
 | Address entry | Only "required" + PIN/phone digit checks in the checkout form; city could be anything; Account form barely checked | Full validation (browser + server), **📍 Use my current location**, PIN → city/state autofill |
 | Docs | Default Vite README only | This document |
 
@@ -328,7 +329,36 @@ Guarantees:
    cd server && node scripts/migrateCategories.js --apply
    ```
 2. Upload a tile photo per category in **Admin → Categories**.
-3. Product photos are still stored in `server/uploads` (one machine) — moving product images to Cloudinary is a follow-up.
+3. ~~Product photos still in `server/uploads`~~ — all uploads now go to Cloudinary (section 6b); old files still need migrating.
+
+---
+
+## 6b. All uploads moved to Cloudinary (DONE — old files need migrating)
+
+### Before
+Every upload (products, garment photos, art, banners, videos, profile pictures, review photos, customer designs, logos) was written to `server/uploads/` on whichever computer ran the backend. That folder is not in git, so images were missing on every other machine and would be lost on redeploy. Images were served at full size; SVG uploads were accepted (can carry scripts); old files were often left behind.
+
+### Now
+- **One upload pipeline** (`server/multer/multer.js`): files are held in memory, stored by `server/utils/imageStorage.js` and the **Cloudinary URL** is saved in MongoDB. Same middleware names as before, so routes didn't change. Without Cloudinary keys it falls back to `server/uploads/` (dev only).
+- **Cloudinary folders** (account `vy728xfe`, all under `identee/`): `products`, `size-charts`, `garments`, `art-categories`, `art-designs`, `banners/images`, `banners/videos`, `categories`, `profiles`, `reviews`, `designs`, `settings`.
+- **Types:** JPG, PNG, WebP, AVIF, MP4/WebM/MOV videos, PDF size charts (stored as raw files). **SVG blocked.** Limits: images 10 MB (Cloudinary free plan), videos 100 MB.
+- **Clean-up:** replacing or deleting a profile picture, banner, video, garment photo, art category/design or category image also **deletes the old file from Cloudinary**.
+- **Bulk ZIP uploads** (products, art designs) upload each image to Cloudinary too.
+- **Frontend:** all 24 places that built image addresses now use `utils/imageUrl.js`, which serves Cloudinary images resized + WebP and still understands old `uploads/...` paths. Review photos now display correctly (they used a broken relative path before).
+- Removed the separate local-disk upload setups in the art, garment-photo and customizer routes (`middleware/uploadMiddleware.js` deleted).
+
+### Existing files (migration)
+`server/scripts/migrateUploadsToCloudinary.js` scans every collection for old `uploads/...` paths, uploads the file if it exists on this machine and swaps in the Cloudinary URL (dry run by default, `--apply` to do it; local files are never deleted).
+Dry run on the real database (8 Oct): **154 references, only 2 files exist on this machine** — the rest (products 39, garments 44, banners 11, designs 9, art 7, profiles 3, settings 2, review 1, video 1) are on a teammate's computer.
+To finish: copy the teammate's `server/uploads/` folder into `server/uploads/` here, then:
+```bash
+cd server && node scripts/migrateUploadsToCloudinary.js          # check "Missing here" is 0
+cd server && node scripts/migrateUploadsToCloudinary.js --apply
+```
+Anything still missing must be re-uploaded in the admin panel.
+
+### Testing done
+12 end-to-end checks on a throwaway DB with real Cloudinary uploads: customer design, SVG rejected, art category (upload + delete removes file), garment photo (upload, replace deletes old, delete colour deletes photos), profile picture (upload, replace, remove), settings logo, nothing written to `server/uploads`. Test files were removed from Cloudinary afterwards. Frontend builds; lint has fewer problems than before.
 
 ---
 

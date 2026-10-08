@@ -16,13 +16,13 @@ import { useEffect, useState } from "react";
 import { useSelector } from "react-redux";
 import { THEME } from "../theme/theme";
 import reviewService from "../services/reviewServices";
+import { imageUrl } from "../utils/imageUrl";
 
-const BACKEND_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
 function getImageUrl(path) {
   if (!path) return "";
   if (/^https?:\/\//i.test(path)) return path;
-  return `${BACKEND_URL}/${path.replace(/^\/+/, "")}`;
+  return imageUrl(path.replace(/^\/+/, ""));
 }
 
 function StarPicker({ value, onChange }) {

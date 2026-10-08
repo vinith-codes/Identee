@@ -1,4 +1,5 @@
 import asyncHandler from "express-async-handler";
+import { deleteStoredFile, uploadFile, mimeFromName } from "../utils/imageStorage.js";
 import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
@@ -42,7 +43,7 @@ export const createArtDesign = asyncHandler(async (req, res) => {
     name: name.trim(),
     category,
     price: Number(price),
-    imageUrl: `uploads/art-designs/${req.file.filename}`,
+    imageUrl: req.file.path,
   });
   res.status(201).json(design);
 });
@@ -54,10 +55,7 @@ export const deleteArtDesign = asyncHandler(async (req, res) => {
     res.status(404);
     throw new Error("Design not found");
   }
-  if (design.imageUrl) {
-    const imgPath = path.join(process.cwd(), design.imageUrl);
-    if (fs.existsSync(imgPath)) fs.unlinkSync(imgPath);
-  }
+  if (design.imageUrl) await deleteStoredFile(design.imageUrl);
   await design.deleteOne();
   res.json({ message: "Design deleted" });
 });
@@ -118,14 +116,10 @@ export const bulkUploadArtDesigns = asyncHandler(async (req, res) => {
   const sheet = workbook.Sheets[workbook.SheetNames[0]];
   const rows = XLSX.utils.sheet_to_json(sheet, { defval: "" });
 
-  const saveEntryToDisk = (entry, relativeFolder) => {
-    const absFolder = path.join(PROJECT_ROOT, relativeFolder);
-    ensureDir(absFolder);
-    const ext = path.extname(entry.entryName).toLowerCase();
-    const filename = `artdesign-${Date.now()}-${Math.round(Math.random() * 1e6)}${ext}`;
-    const destAbs = path.join(absFolder, filename);
-    fs.writeFileSync(destAbs, entry.getData());
-    return `${relativeFolder}/${filename}`.replace(/\\/g, "/");
+  // Stores a ZIP entry via utils/imageStorage (Cloudinary) and returns its URL.
+  const saveEntry = async (entry, folder) => {
+    const { url } = await uploadFile(entry.getData(), mimeFromName(entry.entryName), folder, entry.entryName);
+    return url;
   };
 
   let created = 0;
@@ -153,7 +147,7 @@ export const bulkUploadArtDesigns = asyncHandler(async (req, res) => {
         throw new Error(`Image "${basename}" not found inside the ZIP`);
       }
 
-      const imageUrl = saveEntryToDisk(entry, "uploads/art-designs");
+      const imageUrl = await saveEntry(entry, "art-designs");
 
       // ✅ Auto-create category if it doesn't exist yet
       //    (uses this design's image as the category thumbnail —

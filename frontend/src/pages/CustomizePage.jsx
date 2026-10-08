@@ -20,6 +20,7 @@ import GarmentVisual from "../components/GarmentVisual";
 import ColorPickerPanel from "../components/ColorPickerPanel";
 import Garment3DViewer from "../components/Garment3DViewer";
 import tshirtModel from "../assets/models/tshirt.glb";
+import { imageUrl } from "../utils/imageUrl";
 const C = {
   bg: "#FFFCF7",
   panel: "#F7F2E7",
@@ -144,13 +145,12 @@ function clamp(n, min, max) {
 function makeId() {
   return `el-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
-function imgUrl(path, backendUrl) {
+function imgUrl(path) {
   if (!path) return undefined;
   if (path.startsWith("http")) return path;
-  return `${backendUrl}/${path.replace(/^\//, "")}`;
+  return imageUrl(path);
 }
 
-const BACKEND_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
 export default function CustomizePage() {
   const { type } = useParams();
@@ -618,7 +618,7 @@ export default function CustomizePage() {
         >
           {el.type === "image" ? (
             <img
-              src={imgUrl(el.src, BACKEND_URL)}
+              src={imgUrl(el.src)}
               alt=""
               draggable={false}
               style={{
@@ -1098,7 +1098,6 @@ export default function CustomizePage() {
                   frontElements={elements.filter((el) => el.side === "front")}
                   backElements={elements.filter((el) => el.side === "back")}
                   modelPath={tshirtModel}
-                  backendUrl={BACKEND_URL}
                 />
               ) : (
                 <CrossfadeGarment
@@ -2210,7 +2209,7 @@ function ArtPanel({
                 }}
               >
                 <img
-                  src={imgUrl(cat.thumbnail, BACKEND_URL)}
+                  src={imgUrl(cat.thumbnail)}
                   alt={cat.name}
                   style={{
                     width: "100%",
@@ -2286,7 +2285,7 @@ function ArtPanel({
                 }}
               >
                 <img
-                  src={imgUrl(d.imageUrl, BACKEND_URL)}
+                  src={imgUrl(d.imageUrl)}
                   alt={d.name}
                   style={{
                     width: "100%",

@@ -8,8 +8,8 @@ import {
   reset,
 } from "../../redux/slices/bannerSlice";
 import { THEME, getInputStyle, getLabelStyle } from "../../theme/theme";
+import { imageUrl } from "../../utils/imageUrl";
 
-const BACKEND_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
 const SECTIONS = [
   {
@@ -107,7 +107,7 @@ function SectionVideoCard({
       {existing ? (
         <div>
           <video
-            src={`${BACKEND_URL}${existing.videoUrl}`}
+            src={imageUrl(existing.videoUrl)}
             controls
             style={{
               width: "100%",

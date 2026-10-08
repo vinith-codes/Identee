@@ -1,168 +1,139 @@
 import multer from "multer";
-import path from "path";
-import fs from "fs";
-import { fileURLToPath } from "url";
+import { uploadFile } from "../utils/imageStorage.js";
+
+/*
+ * Shared upload middleware for the whole API.
+ *
+ * Files are held in memory, then stored via utils/imageStorage.js
+ * (Cloudinary, or server/uploads/ in development without Cloudinary keys).
+ * Afterwards every uploaded file has:
+ *   file.path     -> the URL to save in the database (Cloudinary https URL,
+ *                    or "/uploads/..." for the local fallback)
+ *   file.filename -> same value (some older controllers read this)
+ *   file.publicId -> Cloudinary id ("" locally)
+ */
 
 /* ==========================
-   ABSOLUTE PROJECT ROOT
+   WHERE EACH FILE GOES (folder under identee/ in Cloudinary)
 ========================== */
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const PROJECT_ROOT = path.resolve(__dirname, "../");
-
-/* ==========================
-   UTILITY: Ensure Directory
-========================== */
-const ensureDir = (dir) => {
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+const folderFor = (req, file) => {
+  if (file.fieldname === "profilePicture") return "profiles";
+  if (file.fieldname === "bannerImage") return "banners/images";
+  if (file.fieldname === "images" && req.originalUrl.includes("/reviews")) return "reviews";
+  if (file.fieldname === "images") return "products";
+  if (file.fieldname === "sizeChart") return "size-charts";
+  if (file.fieldname === "design") return "designs";
+  if (file.fieldname === "settingsAsset") return "settings";
+  if (file.fieldname === "photo") return "garments";
+  if (file.fieldname === "thumbnail") return "art-categories";
+  if (file.fieldname === "image" && req.originalUrl.includes("/art-designs")) return "art-designs";
+  if (
+    file.fieldname === "image" &&
+    (req.originalUrl.includes("/api/banners") || req.originalUrl.includes("/api/categorybanner"))
+  ) {
+    return "banners/images";
+  }
+  if (file.mimetype.startsWith("video/")) return "banners/videos";
+  if (file.mimetype === "application/pdf") return "pdfs";
+  return "others";
 };
 
 /* ==========================
-   STORAGE ENGINE
+   FILE FILTER (SVG is not accepted — it can carry scripts)
 ========================== */
-const storage = multer.diskStorage({
-  destination(req, file, cb) {
-    let relDir = "uploads/others";
+const ALLOWED = [
+  "image/jpeg",
+  "image/png",
+  "image/jpg",
+  "image/webp",
+  "image/avif",
+  "image/jfif",
+  "video/mp4",
+  "video/avi",
+  "video/quicktime",
+  "video/webm",
+  "video/x-matroska",
+  "application/pdf",
+];
 
-    if (file.fieldname === "profilePicture") {
-      relDir = "uploads/profiles";
-    } else if (file.fieldname === "bannerImage") {
-      relDir = "uploads/banners/images";
-    } else if (
-      file.fieldname === "images" &&
-      req.originalUrl.includes("/reviews")
-    ) {
-      // ✅ Review photos → their own folder, kept separate from product
-      // catalog images even though they share the "images" field name.
-      relDir = "uploads/reviews";
-    } else if (file.fieldname === "images") {
-      // ✅ ALL product images → products/images regardless of mimetype
-      relDir = "uploads/products/images";
-    } else if (file.fieldname === "sizeChart") {
-      // ✅ sizeChart always goes to pdfs folder (handles both PDF and image size charts)
-      relDir = "uploads/pdfs";
-    } else if (file.fieldname === "design") {
-      // ✅ customization designs (uploaded logos/artwork) → uploads/designs
-      relDir = "uploads/designs";
-    } else if (file.fieldname === "settingsAsset") {
-      // ✅ Settings assets (store logo, favicon) → uploads/settings
-      relDir = "uploads/settings";
-    } else if (
-      file.fieldname === "image" &&
-      (req.originalUrl.includes("/api/banners") ||
-        req.originalUrl.includes("/api/categorybanner"))
-    ) {
-      relDir = "uploads/banners/images";
-    } else if (file.mimetype.startsWith("video/")) {
-      relDir = "uploads/banners/videos";
-    } else if (file.mimetype === "application/pdf") {
-      relDir = "uploads/pdfs";
-    }
-
-    const absDir = path.join(PROJECT_ROOT, relDir);
-    ensureDir(absDir);
-
-    // Store relDir so filename() can build the relative path
-    file._relDir = relDir;
-
-    cb(null, absDir);
-  },
-
-  filename(req, file, cb) {
-    const ext = path.extname(file.originalname).toLowerCase();
-    const filename = `${file.fieldname}-${Date.now()}-${Math.round(Math.random() * 1e6)}${ext}`;
-    file._relativePath = `${file._relDir}/${filename}`.replace(/\\/g, "/");
-    cb(null, filename);
-  },
-});
-
-/* ==========================
-   FILE FILTER
-========================== */
 const fileFilter = (req, file, cb) => {
-  const allowed = [
-    "image/jpeg",
-    "image/png",
-    "image/jpg",
-    "image/webp",
-    "image/avif",
-    "image/jfif",
-    "video/mp4",
-    "video/avi",
-    "video/quicktime",
-    "video/webm",
-    "video/x-matroska",
-    "application/pdf",
-    "application/octet-stream",
-  ];
-  if (allowed.includes(file.mimetype)) {
+  if (ALLOWED.includes(file.mimetype)) {
     cb(null, true);
   } else {
-    cb(new Error(`Unsupported file type: ${file.mimetype}`), false);
+    cb(Object.assign(new Error(`Unsupported file type: ${file.mimetype}`), { status: 400 }), false);
   }
 };
 
-/* ==========================
-   MULTER INSTANCE
-========================== */
 const upload = multer({
-  storage,
+  storage: multer.memoryStorage(),
   fileFilter,
+  // Videos up to 100 MB (Cloudinary free plan limit); images are capped at
+  // 10 MB by Cloudinary itself and rejected with a clear message.
   limits: { fileSize: 100 * 1024 * 1024 },
 });
 
 /* ==========================
-   PATH REWRITER MIDDLEWARE
-   Ensures file.path is always the relative DB-safe path
+   STORE FILES, THEN SET file.path TO THE SAVED URL
 ========================== */
-const rewritePaths = (req, res, next) => {
-  if (req.file?._relativePath) {
-    req.file.path = req.file._relativePath;
-  }
-  if (Array.isArray(req.files)) {
-    req.files.forEach((f) => {
-      if (f._relativePath) f.path = f._relativePath;
-    });
-  }
-  if (req.files && typeof req.files === "object" && !Array.isArray(req.files)) {
-    Object.values(req.files).forEach((arr) => {
-      arr.forEach((f) => {
-        if (f._relativePath) f.path = f._relativePath;
-      });
-    });
-  }
-  next();
+const allFiles = (req) => {
+  if (req.file) return [req.file];
+  if (Array.isArray(req.files)) return req.files;
+  if (req.files && typeof req.files === "object") return Object.values(req.files).flat();
+  return [];
 };
 
+const storeFiles = async (req, res, next) => {
+  try {
+    await Promise.all(
+      allFiles(req).map(async (f) => {
+        const { url, publicId } = await uploadFile(f.buffer, f.mimetype, folderFor(req, f), f.originalname);
+        f.path = url;
+        f.filename = url;
+        f.publicId = publicId;
+        f.buffer = undefined; // free memory
+      }),
+    );
+    next();
+  } catch (err) {
+    res.status(err.status || 502);
+    next(err);
+  }
+};
+
+// Wraps a multer handler so its errors (size limit, file type) become 400s.
+const withErrors = (handler) => (req, res, next) =>
+  handler(req, res, (err) => {
+    if (!err) return next();
+    res.status(err.status || 400);
+    next(
+      err.code === "LIMIT_FILE_SIZE" ? new Error("File is too large (max 100 MB)") : err,
+    );
+  });
+
+const pipeline = (handler) => [withErrors(handler), storeFiles];
+
 /* ==========================
-   EXPORTS
+   EXPORTS (names unchanged — routes keep working)
 ========================== */
-export const uploadSingleImage = [upload.single("image"), rewritePaths];
-export const uploadSingleVideo = [upload.single("video"), rewritePaths];
-
-export const uploadReviewImages = [upload.array("images", 5), rewritePaths];
-
-export const uploadProfileImage = [
-  upload.single("profilePicture"),
-  rewritePaths,
-];
-
-// ✅ For variant image replacement — allow up to 5 files
-export const uploadMultipleImages = [upload.array("images", 5), rewritePaths];
-
-// ✅ For product create/update — handles both "images" and "sizeChart" fields
-export const uploadProductFiles = [
+export const uploadSingleImage = pipeline(upload.single("image"));
+export const uploadSingleVideo = pipeline(upload.single("video"));
+export const uploadReviewImages = pipeline(upload.array("images", 5));
+export const uploadProfileImage = pipeline(upload.single("profilePicture"));
+// Variant image replacement — up to 5 files
+export const uploadMultipleImages = pipeline(upload.array("images", 5));
+// Product create/update — "images" and "sizeChart"
+export const uploadProductFiles = pipeline(
   upload.fields([
     { name: "images", maxCount: 50 },
     { name: "sizeChart", maxCount: 1 },
   ]),
-  rewritePaths,
-];
-
-export const uploadDesignFile = [upload.single("design"), rewritePaths];
-
-// ✅ For Settings module — store logo / favicon uploads
-export const uploadSettingsAsset = [
-  upload.single("settingsAsset"),
-  rewritePaths,
-];
+);
+// Customer artwork uploaded in the customizer
+export const uploadDesignFile = pipeline(upload.single("design"));
+// Settings — store logo / favicon
+export const uploadSettingsAsset = pipeline(upload.single("settingsAsset"));
+// Customizer garment photos (Admin → Garment Photos)
+export const uploadGarmentPhoto = pipeline(upload.single("photo"));
+// Art library (Admin → Art Categories / Art Designs)
+export const uploadArtThumbnail = pipeline(upload.single("thumbnail"));
+export const uploadArtImage = pipeline(upload.single("image"));

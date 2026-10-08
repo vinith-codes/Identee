@@ -2,16 +2,16 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useSelector } from "react-redux";
 import { THEME } from "../theme/theme";
+import { imageUrl } from "../utils/imageUrl";
 import orderService from "../services/orderService"; // your existing service (getMyOrders → GET /orders/myorders)
 
-const BACKEND_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
 // Product/order images are stored as relative paths (e.g. "uploads/xyz.jpg").
 // This resolves them against the backend origin instead of the frontend's.
 function getImageUrl(path) {
   if (!path) return "";
   if (/^https?:\/\//i.test(path)) return path;
-  return `${BACKEND_URL}/${path.replace(/^\/+/, "")}`;
+  return imageUrl(path.replace(/^\/+/, ""));
 }
 
 const STATUS_TONES = {

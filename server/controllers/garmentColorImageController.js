@@ -1,6 +1,7 @@
 // controllers/garmentColorImageController.js
 
 import GarmentColorImage from "../models/garmentColorImageModel.js";
+import { deleteStoredFile } from "../utils/imageStorage.js";
 
 const VALID_VIEWS = ["front", "back", "left", "right"];
 
@@ -96,6 +97,7 @@ export const deleteGarmentImage = async (req, res) => {
     if (!doc) {
       return res.status(404).json({ message: "Not found" });
     }
+    await Promise.all(VALID_VIEWS.map((v) => deleteStoredFile(doc[v]?.imageUrl)));
     res.json({ message: "Deleted" });
   } catch (err) {
     res
@@ -119,7 +121,9 @@ export const uploadGarmentViewPhoto = async (req, res) => {
       return res.status(400).json({ message: "No photo uploaded" });
     }
 
-   const imageUrl = `uploads/garments/${req.file.filename}`;
+    const imageUrl = req.file.path;
+    const previous = await GarmentColorImage.findOne({ garmentType, colorSlug });
+    const oldUrl = previous?.[view]?.imageUrl;
 
     const doc = await GarmentColorImage.findOneAndUpdate(
       { garmentType, colorSlug },
@@ -132,6 +136,7 @@ export const uploadGarmentViewPhoto = async (req, res) => {
       },
       { new: true, upsert: true, setDefaultsOnInsert: true },
     );
+    if (oldUrl && oldUrl !== imageUrl) await deleteStoredFile(oldUrl);
 
     res.status(201).json(doc);
   } catch (err) {

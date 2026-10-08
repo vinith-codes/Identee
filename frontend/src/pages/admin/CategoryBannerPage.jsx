@@ -8,8 +8,8 @@ import {
   reset,
 } from "../../redux/slices/categoryBannerSlice";
 import { THEME, SIZE_CHARTS, labelStyle, inputStyle } from "../../theme/theme";
+import { imageUrl } from "../../utils/imageUrl";
 
-const BACKEND_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 const GARMENT_STYLES = Object.keys(SIZE_CHARTS);
 
 function CategoryCard({ category, banner, onUpload, onDelete, isLoading }) {
@@ -50,7 +50,7 @@ function CategoryCard({ category, banner, onUpload, onDelete, isLoading }) {
       >
         {banner?.image ? (
           <img
-            src={`${BACKEND_URL}${banner.image}`}
+            src={imageUrl(banner.image)}
             alt={category}
             style={{ width: "100%", height: "100%", objectFit: "cover" }}
           />

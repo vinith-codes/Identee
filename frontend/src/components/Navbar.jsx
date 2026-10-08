@@ -8,8 +8,8 @@ import { getActiveOffer } from "../redux/slices/bannerSlice";
 import { fetchFavorites, fetchCart } from "../redux/slices/cartWishlistSlice";
 import { fetchPublicSettings } from "../redux/slices/publicSettingsSlice";
 import { fetchCategories } from "../redux/slices/categorySlice";
+import { imageUrl } from "../utils/imageUrl";
 
-const BACKEND_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
 const slugify = (s) => s.toLowerCase().replace(/\s+/g, "-");
 
@@ -428,7 +428,7 @@ export default function Navbar({ phone = "+91 636 652 6449" }) {
                 >
                   {user?.profilePicture ? (
                     <img
-                      src={`${BACKEND_URL}${user.profilePicture}`}
+                      src={imageUrl(user.profilePicture)}
                       alt="avatar"
                       style={{
                         width: "100%",

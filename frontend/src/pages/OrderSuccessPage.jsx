@@ -5,15 +5,15 @@ import { THEME } from "../theme/theme";
 import orderService from "../services/orderService";
 import reviewService from "../services/reviewServices";
 import WriteReviewModal from "../components/WriteReviewModal";
+import { imageUrl } from "../utils/imageUrl";
 
-const BACKEND_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
 // Product/order images are stored as relative paths (e.g. "uploads/xyz.jpg").
 // This resolves them against the backend origin instead of the frontend's.
 function getImageUrl(path) {
   if (!path) return "";
   if (/^https?:\/\//i.test(path)) return path;
-  return `${BACKEND_URL}/${path.replace(/^\/+/, "")}`;
+  return imageUrl(path.replace(/^\/+/, ""));
 }
 
 // ✅ NEW — banner copy now depends on the order's CURRENT status, not just

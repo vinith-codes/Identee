@@ -1,4 +1,5 @@
 import asyncHandler from "express-async-handler";
+import { deleteStoredFile } from "../utils/imageStorage.js";
 import path from "path";
 import fs from "fs";
 import CategoryBanner from "../models/categoryBannerModel.js";
@@ -16,13 +17,10 @@ export const upsertCategoryBanner = asyncHandler(async (req, res) => {
       .json({ message: "Category and image are required." });
   }
   const trimmedCategory = category.trim();
-  const imagePath = `/${req.file.path}`; // ✅ use the REAL path multer saved to
+  const imagePath = req.file.path;
   const existing = await CategoryBanner.findOne({ category: trimmedCategory });
 
-  if (existing?.image) {
-    const oldPath = path.join(process.cwd(), existing.image);
-    if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
-  }
+  if (existing?.image) await deleteStoredFile(existing.image);
 
   const banner = await CategoryBanner.findOneAndUpdate(
     { category: trimmedCategory },
@@ -51,10 +49,7 @@ export const deleteCategoryBanner = asyncHandler(async (req, res) => {
     res.status(404);
     throw new Error("Category banner not found");
   }
-  if (banner.image) {
-    const imgPath = path.join(process.cwd(), banner.image);
-    if (fs.existsSync(imgPath)) fs.unlinkSync(imgPath);
-  }
+  if (banner.image) await deleteStoredFile(banner.image);
   await banner.deleteOne();
   res.json({ message: "Category banner deleted" });
 });

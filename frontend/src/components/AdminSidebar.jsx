@@ -3,8 +3,8 @@ import { NavLink, useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { logout } from "../redux/slices/authSlice";
 import logo from "../assets/logo.png";
+import { imageUrl } from "../utils/imageUrl";
 
-const BACKEND_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 const logoPath = logo;
 
 const NAV_GROUPS = [
@@ -393,7 +393,7 @@ export default function AdminSidebar({ collapsed, onToggle }) {
         {!collapsed &&
           (user?.profilePicture ? (
             <img
-              src={`${BACKEND_URL}/${user.profilePicture.replace(/^\//, "")}`}
+              src={imageUrl(user.profilePicture.replace(/^\//, ""))}
               alt=""
               style={{
                 height: 44,
@@ -516,7 +516,7 @@ export default function AdminSidebar({ collapsed, onToggle }) {
       >
         {user?.profilePicture ? (
           <img
-            src={`${BACKEND_URL}/${user.profilePicture.replace(/^\//, "")}`}
+            src={imageUrl(user.profilePicture.replace(/^\//, ""))}
             alt=""
             style={{
               width: 30,

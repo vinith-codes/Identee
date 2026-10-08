@@ -4,6 +4,7 @@ import OfferBanner from "../models/offerBannerModel.js";
 import VideoBanner from "../models/videoBannerModel.js";
 
 import asyncHandler from "express-async-handler";
+import { deleteStoredFile } from "../utils/imageStorage.js";
 import path from "path";
 import fs from "fs";
 import mongoose from "mongoose";
@@ -58,7 +59,7 @@ const addBanner = asyncHandler(async (req, res) => {
 
   // ✅ 6. Create banner object
   const banner = {
-    image: `/uploads/banners/images/${req.file.filename}`,
+    image: req.file.path,
     title: title.trim(),
     subtitle: subtitle.trim(),
     productId: trimmedProductId,
@@ -92,16 +93,7 @@ const deleteBanner = asyncHandler(async (req, res) => {
   const bannerToDelete = product.banners.find((b) => b._id.toString() === id);
 
   // 3️⃣ Delete image file from server
-  if (bannerToDelete?.image) {
-    // If image is like: /uploads/banners/images/xxx.jpg
-    const relativePath = bannerToDelete.image.replace(/^https?:\/\/[^/]+/, "");
-
-    const imagePath = path.join(process.cwd(), relativePath);
-
-    if (fs.existsSync(imagePath)) {
-      fs.unlinkSync(imagePath);
-    }
-  }
+  if (bannerToDelete?.image) await deleteStoredFile(bannerToDelete.image);
 
   // 4️⃣ Remove banner from DB
   product.banners = product.banners.filter(
@@ -166,17 +158,13 @@ const addvideobanner = asyncHandler(async (req, res) => {
     });
   }
 
-  const newVideoUrl = `/uploads/banners/videos/${req.file.filename}`;
+  const newVideoUrl = req.file.path;
 
   // A video for this section already exists → replace it (delete old file)
   const existing = await VideoBanner.findOne({ section });
 
   if (existing) {
-    const relativePath = existing.videoUrl.replace(/^https?:\/\/[^/]+/, "");
-    const oldFilePath = path.join(process.cwd(), relativePath);
-    if (fs.existsSync(oldFilePath)) {
-      fs.unlinkSync(oldFilePath);
-    }
+    await deleteStoredFile(existing.videoUrl);
 
     existing.videoUrl = newVideoUrl;
     await existing.save();
@@ -219,15 +207,7 @@ const deletevideobanner = asyncHandler(async (req, res) => {
     return res.status(404).json({ message: "Video not found" });
   }
 
-  // Delete file from server
-  const relativePath = video.videoUrl.replace(/^https?:\/\/[^/]+/, "");
-  const filePath = path.join(process.cwd(), relativePath);
-
-  fs.unlink(filePath, (err) => {
-    if (err) {
-      console.error("Video file delete failed:", err.message);
-    }
-  });
+  await deleteStoredFile(video.videoUrl);
 
   await video.deleteOne();
 

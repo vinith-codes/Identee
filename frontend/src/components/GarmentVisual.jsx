@@ -8,13 +8,13 @@
 
 import { useSelector } from "react-redux";
 import GarmentSilhouette from "./GarmentSilhouette";
+import { imageUrl } from "../utils/imageUrl";
 
-const BACKEND_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
 function imgUrl(path) {
   if (!path) return null;
   if (path.startsWith("http")) return path;
-  return `${BACKEND_URL}/${path.replace(/^\//, "")}`;
+  return imageUrl(path.replace(/^\//, ""));
 }
 
 export default function GarmentVisual({

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useSelector } from "react-redux";
+import { imageUrl } from "../utils/imageUrl";
 
 const BACKEND_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
@@ -72,7 +73,7 @@ export default function FavoritesPage() {
               >
                 {p.images?.[0] && (
                   <img
-                    src={`${BACKEND_URL}/${p.images[0]}`}
+                    src={imageUrl(p.images[0])}
                     alt={p.brandname}
                     style={{ width: "100%", aspectRatio: "1/1", objectFit: "cover" }}
                   />

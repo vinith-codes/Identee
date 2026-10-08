@@ -6,7 +6,7 @@ import {
   createCustomization,
   getCustomizationById,
 } from "../controllers/customizationController.js";
-import { uploadDesignFile } from "../middleware/uploadMiddleware.js";
+import { uploadDesignFile } from "../multer/multer.js";
 
 const router = express.Router();
 

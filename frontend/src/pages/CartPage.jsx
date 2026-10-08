@@ -8,8 +8,8 @@ import {
   updateCartItemQty,
   removeCartItem,
 } from "../redux/slices/cartWishlistSlice";
+import { imageUrl } from "../utils/imageUrl";
 
-const BACKEND_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
 const C = {
   bg: "#FFFFFF",
@@ -132,7 +132,7 @@ export default function CartPage() {
             >
               {item.product?.images?.[0] && (
                 <img
-                  src={`${BACKEND_URL}/${item.product.images[0]}`}
+                  src={imageUrl(item.product.images[0])}
                   alt={item.product.brandname}
                   style={{
                     width: 72,

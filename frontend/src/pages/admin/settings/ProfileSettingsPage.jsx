@@ -4,8 +4,8 @@ import { toast } from "react-toastify";
 import { THEME, getInputStyle, getLabelStyle } from "../../../theme/theme";
 import { updateProfile } from "../../../redux/slices/authSlice";
 import profileService from "../../../services/profileService";
+import { imageUrl } from "../../../utils/imageUrl";
 
-const BACKEND_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
 export default function ProfileSettingsPage() {
   const dispatch = useDispatch();
@@ -77,7 +77,7 @@ export default function ProfileSettingsPage() {
   const currentPhoto =
     photoPreview ||
     (form.profilePicture
-      ? `${BACKEND_URL}/${form.profilePicture.replace(/^\//, "")}?v=${form.profilePictureUpdatedAt || Date.now()}`
+      ? `${imageUrl(form.profilePicture)}?v=${form.profilePictureUpdatedAt || Date.now()}`
       : "");
 
   return (

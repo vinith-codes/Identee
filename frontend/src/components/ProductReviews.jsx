@@ -1,5 +1,6 @@
 // components/ProductReviews.jsx
 import { THEME } from "../theme/theme";
+import { imageUrl } from "../utils/imageUrl";
 function Stars({ value, size = 16 }) {
   return (
     <span style={{ color: THEME.gold, fontSize: size, letterSpacing: 1 }}>
@@ -185,7 +186,7 @@ export default function ProductReviews({ product }) {
                   {r.photos.map((src, i) => (
                     <img
                       key={i}
-                      src={src}
+                      src={imageUrl(src, 400)}
                       alt="Review"
                       style={{
                         width: 64,

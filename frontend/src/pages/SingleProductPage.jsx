@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import ProductReviews from "../components/ProductReviews";
+import { imageUrl } from "../utils/imageUrl";
 
 const BACKEND_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
@@ -340,7 +341,7 @@ export default function SingleProductPage() {
           >
             {images[mainImageIdx] && (
               <img
-                src={`${BACKEND_URL}/${images[mainImageIdx]}`}
+                src={imageUrl(images[mainImageIdx])}
                 alt={activeVariant.brandname}
                 style={{ width: "100%", height: "100%", objectFit: "cover" }}
                 draggable={false}
@@ -390,7 +391,7 @@ export default function SingleProductPage() {
                 borderRadius: 14,
                 border: `1px solid ${C.ink}`,
                 boxShadow: "0 12px 32px rgba(21,19,15,0.18)",
-                backgroundImage: `url(${BACKEND_URL}/${images[mainImageIdx]})`,
+                backgroundImage: `url(${imageUrl(images[mainImageIdx])})`,
                 backgroundSize: "220%",
                 backgroundPosition: `${zoomPos.x}% ${zoomPos.y}%`,
                 backgroundRepeat: "no-repeat",
@@ -431,7 +432,7 @@ export default function SingleProductPage() {
                   }}
                 >
                   <img
-                    src={`${BACKEND_URL}/${img}`}
+                    src={imageUrl(img)}
                     alt=""
                     style={{
                       width: "100%",
@@ -528,7 +529,7 @@ export default function SingleProductPage() {
                 >
                   {v.images?.[0] && (
                     <img
-                      src={`${BACKEND_URL}/${v.images[0]}`}
+                      src={imageUrl(v.images[0])}
                       alt={v.productdetails?.color}
                       style={{
                         width: "100%",
@@ -663,7 +664,7 @@ export default function SingleProductPage() {
               type="button"
               onClick={() =>
                 window.open(
-                  `${BACKEND_URL}/${activeVariant.sizeChart}`,
+                  imageUrl(activeVariant.sizeChart),
                   "_blank",
                   "noopener,noreferrer",
                 )

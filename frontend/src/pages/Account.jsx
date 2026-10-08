@@ -6,6 +6,7 @@ import MyOrdersPage from "./MyOrderPage"; //
 import { validateAddress } from "../utils/address";
 import usePincodeAutofill from "../utils/usePincodeAutofill";
 import { UseLocationButton } from "../components/AddressAutofill";
+import { imageUrl } from "../utils/imageUrl";
 
 const FieldError = ({ msg }) =>
   msg ? (
@@ -142,7 +143,7 @@ export default function Account() {
         });
         setAddresses(Array.isArray(data.addresses) ? data.addresses : []);
         if (data.profilePicture) {
-          setAvatarPreview(`${BACKEND_URL}${data.profilePicture}`);
+          setAvatarPreview(imageUrl(data.profilePicture));
         }
       })
       .catch((err) => {
@@ -205,7 +206,7 @@ export default function Account() {
       const updated = await saveToBackend();
       setMsg({ type: "ok", text: "Profile updated successfully." });
       if (updated?.profilePicture) {
-        setAvatarPreview(`${BACKEND_URL}${updated.profilePicture}`);
+        setAvatarPreview(imageUrl(updated.profilePicture));
       }
       setAvatarFile(null);
 

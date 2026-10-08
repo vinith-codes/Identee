@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import asyncHandler from "express-async-handler";
+import { uploadFile, mimeFromName } from "../utils/imageStorage.js";
 import multer from "multer";
 import { fileURLToPath } from "url";
 import AdmZip from "adm-zip";
@@ -848,34 +849,23 @@ const uploadProducts = asyncHandler(async (req, res) => {
   const rows = XLSX.utils.sheet_to_json(sheet, { defval: "" });
 
   // ✅ Write ZIP entry to disk → return RELATIVE path for DB
-  const saveEntryToDisk = (entry, relativeFolder) => {
-    const absFolder = path.join(PROJECT_ROOT, relativeFolder); // ✅ absolute on disk
-    ensureDir(absFolder);
-    const ext = path.extname(entry.entryName).toLowerCase();
-    const filename = `images-${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`;
-    const destAbs = path.join(absFolder, filename);
-    fs.writeFileSync(destAbs, entry.getData());
-    // ✅ relative path stored in DB — matches what static server serves
-    return `${relativeFolder}/${filename}`.replace(/\\/g, "/");
+  // Stores a ZIP entry via utils/imageStorage (Cloudinary) and returns its URL.
+  const saveEntry = async (entry, folder) => {
+    const { url } = await uploadFile(entry.getData(), mimeFromName(entry.entryName), folder, entry.entryName);
+    return url;
   };
 
   // ✅ Resolve pipe-separated filenames from Excel cell
-  const resolveFiles = (cellValue, folder) => {
+  const resolveFiles = async (cellValue, folder) => {
     if (!cellValue) return [];
-    return cellValue
-      .split("|")
-      .map((p) => p.trim())
-      .filter(Boolean)
-      .reduce((acc, p) => {
-        const basename = path.basename(p); // handles "img.jpg" or "D:/path/img.jpg"
-        const entry = imageEntryMap[basename];
-        if (entry) {
-          acc.push(saveEntryToDisk(entry, folder));
-        } else {
-          console.warn(`Not found in ZIP: ${basename}`);
-        }
-        return acc;
-      }, []);
+    const urls = [];
+    for (const p of String(cellValue).split("|").map((x) => x.trim()).filter(Boolean)) {
+      const basename = path.basename(p); // handles "img.jpg" or "D:/path/img.jpg"
+      const entry = imageEntryMap[basename];
+      if (entry) urls.push(await saveEntry(entry, folder));
+      else console.warn(`Not found in ZIP: ${basename}`);
+    }
+    return urls;
   };
 
   const groupMap = {};
@@ -902,8 +892,8 @@ const uploadProducts = asyncHandler(async (req, res) => {
     }
 
     // 🔹 Images & sizeChart from ZIP
-    const images = resolveFiles(row.images, "uploads/products/images");
-    const pdfPaths = resolveFiles(row.sizeChart, "uploads/pdfs");
+    const images = await resolveFiles(row.images, "products");
+    const pdfPaths = await resolveFiles(row.sizeChart, "size-charts");
     const sizeChart = pdfPaths[0] || "";
     const washCare = row.washCare
       ? row.washCare

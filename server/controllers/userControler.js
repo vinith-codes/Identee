@@ -1,4 +1,5 @@
 import asyncHandler from "express-async-handler";
+import { deleteStoredFile } from "../utils/imageStorage.js";
 import generateToken from "../utils/generateToken.js";
 import User from "../models/userModel.js";
 import Product from "../models/productModel.js";
@@ -233,10 +234,7 @@ const deleteProfilePicture = asyncHandler(async (req, res) => {
   }
 
   if (user.profilePicture && !user.profilePicture.includes("default-profile")) {
-    const imagePath = path.join(process.cwd(), user.profilePicture);
-    if (fs.existsSync(imagePath)) {
-      fs.unlinkSync(imagePath);
-    }
+    await deleteStoredFile(user.profilePicture);
   }
 
   user.profilePicture = "/images/default-profile.png";
@@ -411,7 +409,7 @@ const updateUserProfile = asyncHandler(async (req, res) => {
   /* ---------- PROFILE IMAGE ---------- */
   if (req.file) {
     // Set new profile picture path
-    user.profilePicture = `/uploads/profiles/${req.file.filename}`;
+    user.profilePicture = req.file.path;
   }
 
   // Save the updated user FIRST
@@ -428,15 +426,7 @@ const updateUserProfile = asyncHandler(async (req, res) => {
     !oldProfilePicture.includes("default-profile") &&
     oldProfilePicture !== updatedUser.profilePicture
   ) {
-    try {
-      const oldPath = path.join(process.cwd(), oldProfilePicture);
-      if (fs.existsSync(oldPath)) {
-        fs.unlinkSync(oldPath);
-      }
-    } catch (error) {
-      // Log error but don't fail the request
-      console.error("Failed to delete old profile picture:", error);
-    }
+    await deleteStoredFile(oldProfilePicture); // never throws
   }
 
   res.json({

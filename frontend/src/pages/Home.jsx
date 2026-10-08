@@ -14,6 +14,7 @@ import subVideo9 from "../assets/videos/suv-video9.mp4";
 import hoodieVideo from "../assets/videos/hoodie.mp4";
 import polosVideo from "../assets/videos/polos.mp4";
 import { fetchPublicSettings } from "../redux/slices/publicSettingsSlice";
+import { imageUrl } from "../utils/imageUrl";
 
 /* ------------------------------------------------------------------ */
 /*  PALETTE — white base, yellow accent, black ink (NO dark bg)       */
@@ -279,7 +280,6 @@ function PastelCard({ item, bg, big }) {
   );
 }
 
-const BACKEND_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
 /* ------------------------------------------------------------------ */
 /*  STYLE OUTLOOK — big video + two side videos, editorial layout      */
@@ -681,7 +681,7 @@ export default function Home() {
   // Helper: find the admin-uploaded video for a given section, e.g. "hero"
   const getSectionVideoUrl = (section) => {
     const match = (videoBanners || []).find((v) => v.section === section);
-    return match?.videoUrl ? `${BACKEND_URL}${match.videoUrl}` : null;
+    return match?.videoUrl ? imageUrl(match.videoUrl) : null;
   };
 
   // Each section falls back to its bundled local clip if no admin

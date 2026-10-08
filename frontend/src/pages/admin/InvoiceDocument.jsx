@@ -1,8 +1,8 @@
 import { forwardRef } from "react";
 import logo from "../../assets/identee-logo.png";
 import { THEME } from "../../theme/theme";
+import { imageUrl } from "../../utils/imageUrl";
 
-const BACKEND_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
 const GOLD_GRADIENT = `linear-gradient(135deg, #D4AF6A 0%, #C9973F 45%, #9C6F23 100%)`;
 const NAVY = "#15130F"; // swap this for a real navy hex if you want it closer to the sample
@@ -33,7 +33,7 @@ function formatAddress(addr) {
 function getImageUrl(path) {
   if (!path) return "";
   if (/^https?:\/\//i.test(path)) return path;
-  return `${BACKEND_URL}/${path.replace(/^\/+/, "")}`;
+  return imageUrl(path.replace(/^\/+/, ""));
 }
 
 // Navigate back to the admin invoices list

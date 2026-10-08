@@ -2,8 +2,8 @@ import { useEffect, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { getProducts } from "../redux/slices/productSlice";
+import { imageUrl } from "../utils/imageUrl";
 
-const BACKEND_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
 const C = {
   bg: "#FFFFFF",
@@ -138,7 +138,7 @@ export default function AllProductsPage() {
                   >
                     {p.images?.[0] && (
                       <img
-                        src={`${BACKEND_URL}/${p.images[0]}`}
+                        src={imageUrl(p.images[0])}
                         alt={p.brandname}
                         style={{
                           width: "100%",

@@ -8,8 +8,8 @@ import {
 } from "../../../redux/slices/settingSlice";
 import settingService from "../../../services/settingService";
 import { fetchPublicSettings } from "../../../redux/slices/publicSettingsSlice";
+import { imageUrl } from "../../../utils/imageUrl";
 
-const BACKEND_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
 export default function GeneralSettingsPage() {
   const dispatch = useDispatch();
@@ -361,7 +361,7 @@ function ImageField({ label, value, uploading, onUpload }) {
       >
         {value && (
           <img
-            src={`${BACKEND_URL}/${value}`}
+            src={imageUrl(value)}
             alt=""
             style={{
               width: 48,

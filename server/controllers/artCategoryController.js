@@ -1,4 +1,5 @@
 import asyncHandler from "express-async-handler";
+import { deleteStoredFile } from "../utils/imageStorage.js";
 import path from "path";
 import fs from "fs";
 import ArtCategory from "../models/artCategoryModel.js";
@@ -31,7 +32,7 @@ export const createArtCategory = asyncHandler(async (req, res) => {
 
   const category = await ArtCategory.create({
     name: name.trim(),
-    thumbnail: `uploads/art-categories/${req.file.filename}`,
+    thumbnail: req.file.path,
   });
   res.status(201).json(category);
 });
@@ -43,10 +44,7 @@ export const deleteArtCategory = asyncHandler(async (req, res) => {
     res.status(404);
     throw new Error("Category not found");
   }
-  if (category.thumbnail) {
-    const imgPath = path.join(process.cwd(), category.thumbnail);
-    if (fs.existsSync(imgPath)) fs.unlinkSync(imgPath);
-  }
+  if (category.thumbnail) await deleteStoredFile(category.thumbnail);
   await category.deleteOne();
   res.json({ message: "Category deleted" });
 });

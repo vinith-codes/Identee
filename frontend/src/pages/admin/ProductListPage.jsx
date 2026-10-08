@@ -8,6 +8,7 @@ import {
 } from "../../redux/slices/productSlice";
 import { toast } from "react-toastify";
 import { THEME, SIZE_CHARTS, inputStyle, labelStyle } from "../../theme/theme";
+import { imageUrl } from "../../utils/imageUrl";
 
 // ─── Edit Modal ─────────────────────────────────────────────────────────────
 function EditProductModal({ product, onClose, onSaved }) {
@@ -455,7 +456,7 @@ export default function ProductListPage() {
                       <img
                         src={
                           p.images?.[0]
-                            ? `${import.meta.env.VITE_API_URL || "http://localhost:5000"}/${p.images[0]}`
+                            ? imageUrl(p.images[0])
                             : ""
                         }
                         alt=""
