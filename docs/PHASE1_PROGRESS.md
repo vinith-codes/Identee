@@ -1,0 +1,323 @@
+# IDENTEE — Project Status & Phase 1 Progress
+
+_Last updated: 8 Oct 2026 (after login, ordering and address work)_
+
+IDENTEE is an AI-powered custom apparel e-commerce platform ("Your Style, Your Story, Your Identity"). Customers design their own T-shirts/hoodies/polos and order them; the admin team manages catalog, orders and fulfilment.
+
+> **Status:** Phase 1 steps 1 (login) and 2 (ordering + addresses) are done and tested. Changes are **not committed to git yet** (working tree on `main`).
+
+## At a glance — before vs now
+
+| Area | Before | Now |
+|---|---|---|
+| Sign up / login | Email + password; separate Register page (email OTP only to verify signup); Forgot/Reset password pages | One **/login** page: email → 6-digit OTP → (new users: name) → logged in. No passwords. |
+| Login security | OTP stored as plain text and printed to console; "temp" users with password `temp1234`; reset email linked to another company's site | OTP hashed, single use, 10-min expiry, attempt + resend limits, per-IP limit; old flows removed |
+| Profile | Email (and password) could be changed without verification | Email read-only (verified identity); `lastLoginAt` recorded |
+| Checkout prices | Sent by the browser and saved as-is | Computed on the server (price, GST, shipping, coupon) |
+| Online payment | Order marked **paid** if the browser sent any payment id | Server verifies the payment with Razorpay, one order per payment, webhook backup, auto-refund if stock ran out |
+| Order permissions | Any logged-in user could change status / mark paid / read others' orders | Admin-only changes, owner-only reading, delivery staff only on assigned orders, valid status transitions, new **Cancelled** status |
+| Stock & coupons | Overselling possible; cart removal added stock; coupon expiry / per-user limits not enforced at payment | Atomic stock, cart bug fixed, coupons fully validated |
+| Custom-design checkout | Crashed | Works (garment base price + art prices) |
+| Address entry | Only "required" + PIN/phone digit checks in the checkout form; city could be anything; Account form barely checked | Full validation (browser + server), **📍 Use my current location**, PIN → city/state autofill |
+| Docs | Default Vite README only | This document |
+
+---
+
+## 1. Tech stack (as built)
+
+| Layer | Technology |
+|---|---|
+| Frontend | React 19 + Vite, Redux Toolkit, Tailwind CSS, React Router 7, three.js (3D garment viewer) |
+| Backend | Node.js + Express (ES modules) |
+| Database | **MongoDB** (Mongoose 9) + GridFS. _Note: the original spec says MySQL — the team is staying on MongoDB._ |
+| Payments | Razorpay (UPI, cards, wallets) + Cash on Delivery |
+| Email | Nodemailer over Gmail SMTP |
+| Shipping | FedEx services (used by delivery routes) |
+| Media | Local `server/uploads/`, Cloudinary dependency present |
+
+Run locally:
+
+```bash
+cd server && npm run dev      # nodemon, port from server/.env (PORT=3001)
+cd frontend && npm run dev    # Vite on http://localhost:5173 (VITE_API_URL in frontend/.env.local)
+```
+
+---
+
+## 2. What already existed before Phase 1
+
+### Customer side
+- Landing/Home page with video banners, offer and category banners, client logos
+- Product browsing: all products, category pages, single product page, favourites, reviews
+- Customizer: choose garment → choose colour → design editor (text, fonts, text effects, art library, own image upload, layers, undo, front/back/sleeve views, 3D T-shirt viewer)
+- Cart, Buy Now, 3-step checkout (address → summary → payment), order success, My Orders
+- Account page (profile, avatar, addresses)
+- About Us, Contact Us
+
+### Admin panel (`/admin`)
+- Dashboard, orders, users, reviews, transactions, sellers
+- Products (single + Excel bulk upload), art designs & categories (+ bulk upload)
+- Garment types and garment colour photos
+- Banners (offer, video, category), offers/coupons
+- Shipping rules, billing invoices (PDF), subscription plans & subscribers
+- Settings: general, profile, security, appearance, maintenance mode
+
+### Spec items NOT yet built (from the Identee spec PDF)
+AI design generation (text/image → design), AI background removal (package installed, not wired), AI upscaling, DPI/print-quality checks, save design as draft/template, 360° AI virtual try-on, re-order, print-operator production panel, DTF print-file export / production queue, refunds, support tickets, role-based access beyond `isAdmin`, SMS/WhatsApp notifications.
+
+---
+
+## 3. Phase plan
+
+**Phase 1 (current):** make these four flows production-ready:
+1. Login (email OTP) ✅ **done**
+2. Product & category browsing — next (real Category model + home page category tiles)
+3. Customization
+4. Ordering (cart → checkout → payment → order) ✅ **done** (security fixes + address validation; test payment passed)
+
+Later phases: production/operator panel, AI features, try-on, phone/WhatsApp, analytics, etc.
+
+---
+
+## 4. Phase 1 — Step 1: OTP Login (DONE)
+
+### 4.0 How login worked before
+- **Register page:** name + email + password → email OTP to verify → account created. Requesting an OTP created a placeholder user named "temp" with password `temp1234`.
+- **Login page:** email + password.
+- **Forgot / Reset password pages:** OTP by email; the email linked to `viyavarfashions.com` (copied from another project).
+- OTPs were stored in plain text on the user record and printed to the server console; no limits on attempts or resends.
+
+### 4.1 What changed for users
+- One page at **`/login`**: enter email → receive 6-digit code → enter code.
+  - **Existing user** → logged straight in.
+  - **New user** → asked for their name once → account created.
+- **No passwords anymore.** `/register`, `/forgot-password`, `/reset-password` now redirect to `/login`.
+- After login, users go back to the page they came from (e.g. checkout). Admins go to `/admin/dashboard`.
+- Account page: email is shown **read-only** (it is the verified login identity).
+
+### 4.2 API
+
+| Method | Endpoint | Body | Result |
+|---|---|---|---|
+| POST | `/api/users/otp/request` | `{ identifier }` | Sends code. `{ message, channel, resendAfter }` |
+| POST | `/api/users/otp/verify` | `{ identifier, otp }` | Existing user → user object + `token`. New user → `{ needsProfile: true, signupToken }` |
+| POST | `/api/users/otp/complete` | `{ signupToken, name }` | Creates account → user object + `token` |
+
+**Removed endpoints:** `POST /api/users` (register), `/login`, `/sendOtp`, `/verifyOtp`, `/forgotPassword`, `/resetPassword`.
+
+### 4.3 Security rules
+- Code: 6 digits, cryptographically random, valid **10 minutes**, **single use**, stored only as an HMAC hash (never plain text).
+- Max **5 wrong attempts** per code, then a new code is required.
+- Resend allowed after **30 s**; max **5 codes per 15 min** per email.
+- Max **30 OTP requests per 15 min per IP** (in-memory limiter).
+- Requesting a code never creates a user (pending codes live in a separate `otpchallenges` collection that auto-deletes after ~30 min).
+- `signupToken` is a 15-minute JWT that only works for `/otp/complete`; it cannot access any other API.
+
+### 4.4 What is saved in the database
+- **`users` collection** — new users: `name`, `email` (lower-case), `isEmailVerified: true`, `lastLoginAt`, empty `addresses`, role flags false. No password.
+- **Returning users** — `lastLoginAt` updated on every login; `isEmailVerified` set to true.
+- Profile details (last name, gender, DOB, avatar, addresses) are saved later from the Account page.
+- The login **token** is stored in the browser (`localStorage.userInfo`), valid 30 days. Logout removes it.
+- Legacy half-finished "temp" users from the old signup flow are asked for their name on login and their old `temp1234` password is discarded.
+
+### 4.5 Other fixes made along the way
+| Problem found | Fix |
+|---|---|
+| Users could change their email from the profile API without verifying it (account-takeover risk) | Email/phone can no longer be changed via `PUT /api/users/profile`; password field ignored |
+| Old signup created "temp" users with known password `temp1234` | Old flow removed; migration script cleans them up |
+| Password-reset email linked to another company's site (viyavarfashions.com) with the OTP in the URL | Old reset flow removed; new branded IDENTEE email |
+| OTP printed to server console and stored in plain text | Hashed; console only for dev mode without SMTP |
+| Auth middleware logged every user's JWT; deleted users' tokens still worked | Log removed; token rejected if user no longer exists |
+| Order emails would crash order placement for users without an email | `sendEmail` skips when there is no address |
+
+### 4.6 Phone (mobile) OTP — built but switched OFF
+Phone login is fully implemented and tested but disabled until an SMS provider is approved (Indian SMS requires DLT registration; no provider is free long-term).
+
+To enable later:
+```
+# server/.env
+PHONE_LOGIN_ENABLED=true
+SMS_PROVIDER=msg91
+MSG91_AUTH_KEY=...
+MSG91_OTP_TEMPLATE_ID=...      # DLT-approved template with variable "otp"
+
+# frontend/.env.local
+VITE_PHONE_LOGIN=true
+```
+`SMS_PROVIDER=console` (default) prints codes to the server console in development only. The MSG91 integration is written but untested until an account exists.
+
+### 4.7 Files
+
+**New**
+- `server/models/otpChallengeModel.js` — pending codes + rate-limit counters
+- `server/utils/otp.js` — normalise email/phone, generate/hash/compare codes, limits
+- `server/services/otpSender.js` — email sender + pluggable SMS providers
+- `server/middleware/rateLimit.js` — per-IP limiter
+- `server/scripts/migrateUserAuthIndexes.js` — one-off DB migration
+
+**Changed**
+- `server/controllers/userControler.js` — new OTP handlers; old register/login/reset removed; profile update hardened
+- `server/routes/userRoutes.js`, `server/models/userModel.js` (email optional+sparse, `phone`, `isPhoneVerified`, `lastLoginAt`, password optional)
+- `server/middleware/authMiddleware.js`, `server/utils/sendEmail.js`, `server/server.js` (`TRUST_PROXY`)
+- `frontend/src/pages/LoginPage.jsx` (rewritten), `App.jsx`, `components/Navbar.jsx`, `pages/Account.jsx`, `services/authService.js`, `redux/slices/authSlice.js`
+
+**Deleted**
+- `frontend/src/pages/RegisterPage.jsx`, `ForgotPasswordPage.jsx`, `ResetPasswordPage.jsx`
+- `server/utils/registerEmailOtp.js`, `server/utils/resetEmailOtp.js`
+
+### 4.8 Configuration
+
+| Variable | Where | Purpose |
+|---|---|---|
+| `EMAIL_USER`, `EMAIL_PASS` | server/.env | Gmail account + app password used to send codes |
+| `JWT_SECRET` | server/.env | Signs login tokens and hashes OTPs |
+| `TRUST_PROXY=1` | server/.env | **Set in production behind nginx**, otherwise all visitors share one IP for rate limiting |
+| `PHONE_LOGIN_ENABLED`, `SMS_PROVIDER`, `MSG91_*` | server/.env | Phone login (off) |
+| `VITE_PHONE_LOGIN` | frontend/.env.local | Show phone option on login page (off) |
+
+### 4.9 Deployment checklist for this step
+1. Dry run the migration, then apply it:
+   ```bash
+   cd server && node scripts/migrateUserAuthIndexes.js
+   cd server && node scripts/migrateUserAuthIndexes.js --apply --delete-temp
+   ```
+   (Lower-cases emails, replaces the old email index with a sparse one, creates the phone index, deletes "temp" users with no orders.)
+2. Set `TRUST_PROXY=1` on the server.
+3. ~~Remove the Razorpay debug `console.log` lines~~ — done in Step 2.
+
+### 4.10 Testing done
+- 18 automated API checks against a throwaway local MongoDB: new email/phone signup, returning user, mixed-case email, wrong code, lockout after 5 attempts, single-use code, resend cooldown, signup token can't access API, profile can't change email, old endpoints return 404, migration on simulated old data.
+- Manual browser test of the full flow; manual test by the team with a real Gmail address ✅.
+
+### 4.11 Known issues / to do
+- **Emails land in spam (Gmail) or are blocked (college/company mail servers).** Cause: sent from a personal Gmail account with no domain authentication. **Fix before launch:** send from a domain address (e.g. `no-reply@identee.in`) via Brevo (300/day free) or Resend (3,000/month free) with SPF + DKIM DNS records. Needs: a domain with DNS access + a Brevo/Resend account.
+- Users without an email (future phone users) get no order emails until an "add & verify email" option is added to the Account page.
+- Admin **Settings → Security** "change password" form is now obsolete and should be removed.
+- Rate limiter is in-memory — fine for one server; needs Redis if the API is scaled to multiple instances.
+
+---
+
+## 5. Phase 1 — Step 2: Ordering security (DONE)
+
+### 5.1 What was wrong (before)
+| Severity | Problem |
+|---|---|
+| Critical | Any logged-in user could create a **paid** order without paying — the server trusted any `paymentResult.id` from the browser. |
+| Critical | Order items, prices, tax, shipping, total and coupon were **saved exactly as the browser sent them**. |
+| Critical | Any logged-in user could change any order's status, mark any order paid, assign delivery, generate invoices, and read anyone's order (name, address, email). |
+| High | Customized T-shirts couldn't be checked out (missing imports crashed the price calculation) and the order had no link to the design. |
+| High | One payment could be replayed into many orders; a failed order after payment left money taken with no order. Webhook was never mounted. |
+| High | Stock: checked after the order was saved, not atomic (overselling); removing a cart item **added** stock that was never taken. |
+| Medium | Coupons: expiry/start date, per-user reuse and "0 = unlimited" not enforced at payment; coupon code used as a raw regex. |
+| Medium | Razorpay secret key printed to the server log; error responses leaked stack traces; broken Stripe route. |
+
+### 5.2 How checkout works now
+All amounts are computed on the server (`server/services/checkoutService.js`). The browser only says **what** is bought and **where** to ship.
+
+```
+Request body (all checkout endpoints):
+{ shippingAddress, couponCode,
+  buyNow?: { productId, items: [{ size, qty }] }      // Buy Now product
+         | { customizationId, qty, size } }          // custom design
+  (no buyNow = the user's cart)
+```
+
+| Method | Endpoint | What it does |
+|---|---|---|
+| POST | `/api/orders/quote` | Price preview (subtotal, CGST/SGST 2.5% each, shipping by state, coupon, total). No side effects. |
+| POST | `/api/orders` | **Cash on Delivery** — prices on server, takes stock, creates order (`CREATED`, unpaid). Rejects any non-COD payment method. |
+| POST | `/api/orders/razorpay` | **Online** — prices on server, checks stock, creates the Razorpay order and stores a `PendingCheckout` snapshot (items + prices). |
+| POST | `/api/orders/razorpay/verify` | Checks the signature, then **asks Razorpay** that the payment exists, belongs to this order, is the right amount and is captured (captures it if only authorized). Then creates the order (`CONFIRMED`, paid). |
+| POST | `/api/orders/razorpay/webhook` | Same completion if the browser closes after paying. Needs `RAZORPAY_WEBHOOK_SECRET`. |
+
+Guarantees:
+- **One order per payment** — unique index on `Order.razorpayOrderId`; verify and webhook can both run safely.
+- **Stock is taken atomically** at order time, for all items or none. If an item sells out while the customer is paying, the **payment is refunded automatically** and the customer sees why.
+- **Coupons** re-validated at payment: active dates, total usage limit (0 = unlimited), one use per user; `usedCount`/`usedBy` updated when the order is placed.
+- Cart is emptied (server + screen) only after a cart order succeeds.
+
+### 5.3 Who can do what
+| Action | Allowed |
+|---|---|
+| Read an order | Owner, any admin, or the assigned delivery person (others get 404) |
+| Change status, mark paid, mark delivered, assign delivery, generate invoice | Admin only |
+| Accept / reject / complete / return a delivery | Only the delivery person **assigned** to that order |
+| Assign delivery | Only to users flagged as delivery persons, and only before the order ships |
+
+### 5.4 Order status rules
+`CREATED → CONFIRMED → PACKED → OUT_FOR_DELIVERY → DELIVERED` (forward jumps allowed, never backwards)
+- `DELIVERED → RETURN_APPROVED → RETURN_COMPLETED`
+- **New: `CANCELLED`** from CREATED / CONFIRMED / PACKED — puts the stock back. For an order paid online the admin sees a reminder to refund it from the Razorpay dashboard (automatic refunds on cancel are a later step).
+- COD orders are marked paid automatically when delivered.
+
+### 5.5 Files
+**New:** `server/services/checkoutService.js` (pricing, coupon, stock), `server/services/orderPlacement.js` (creates orders once), `server/models/pendingCheckoutModel.js`
+**Changed:** `server/controllers/orderControler.js`, `server/routes/orderRoutes.js`, `server/models/orderModel.js` (custom-design items, `CANCELLED`, `cancelledAt`, unique `razorpayOrderId`), `server/middleware/authMiddleware.js` (`admin`), `server/middleware/errorMiddleware.js`, `server/server.js` (webhook with raw body, debug logs removed), `server/controllers/productControler.js` (cart stock bugs), `server/utils/sendEmail.js` (custom items in order email); frontend `components/checkout/PaymentStep.jsx`, `CheckoutFlow.jsx`, `services/checkoutService.js`, `pages/admin/AdminOrdersPage.jsx` (Cancelled status)
+**Removed:** Stripe payment route (was broken).
+
+### 5.6 Testing done
+- 32 automated API checks on a throwaway local MongoDB with Razorpay **test** keys: server pricing, tampered client prices ignored, expired/reused/regex coupons, negative qty, custom-design pricing, COD order + stock + coupon + cart, oversell rejected with no partial stock change, all access-control rules, invalid status changes, cancel returns stock, Razorpay order amount from server, forged signature, someone else's checkout, signature-valid-but-unpaid, bad webhook signature.
+- Browser: Buy Now → address → summary → payment showed the server total and opened Razorpay test checkout.
+- **Team test (8 Oct 2026) ✅:** real test-mode payment via **Netbanking → Success** → order `VF-2026-0021` saved as CONFIRMED / paid / payment captured, amount matched, exactly one order for the payment.
+
+### 5.7 Before go-live
+1. ~~Do a test payment~~ ✅ done. Note: Razorpay checkout no longer offers "pay with UPI ID" (UPI collect was discontinued) — in test mode use **Netbanking → any bank → Success**, or a test card from Razorpay's docs.
+2. Razorpay Dashboard → Webhooks → add `https://<api-domain>/api/orders/razorpay/webhook` with events `payment.captured` and `order.paid`; put its secret in `RAZORPAY_WEBHOOK_SECRET`.
+3. Switch to live keys (`rzp_live_…`) only on the production server.
+
+### 5.8 Known gaps (later)
+- Cancelling a paid order doesn't refund automatically yet (manual from Razorpay dashboard).
+- Sellers (`isSeller`) can still see the full admin order list — decide what sellers should see.
+- Order number prefix is still `VF-` (left over from another project) — change to an IDENTEE prefix if wanted.
+- Custom-design orders still lack a print-ready file and a garment size picker → Customization step.
+
+### 5.9 Address validation & autofill (added)
+- **Before:** checkout form only checked required fields, 6-digit PIN and 10-digit phone (any digits); city accepted anything (a test order was saved with city `" a,.v ,.fv"`); the Account form only required city/state/PIN; the server only checked the state.
+- **Rules** (checkout, Account page and server): door no. required; street 3–100 chars; city letters only; state must be one we ship to; PIN = 6 digits not starting with 0; phone = 10-digit Indian mobile (starts 6–9). PIN/phone inputs accept digits only.
+- **📍 Use my current location** button (checkout + Account): browser GPS → OpenStreetMap Nominatim reverse lookup → fills street, landmark, city, state, PIN. The user still checks it and adds the door number. Needs HTTPS in production (browsers block location on plain HTTP, except localhost).
+- **PIN autofill**: typing a 6-digit PIN fills city + state via the free India Post API (`api.postalpincode.in`) and shows "Chennai, Tamil Nadu" or "We don't deliver to … yet".
+- **Server** rejects invalid addresses at checkout (`Shipping address: … Please update the address.`) and when saving new/edited addresses on the profile. Old saved addresses aren't re-validated on profile save (so they don't block other edits) but can't be used at checkout until fixed.
+- Files: `frontend/src/utils/address.js`, `frontend/src/utils/usePincodeAutofill.js`, `frontend/src/components/AddressAutofill.jsx`, `components/checkout/AddressStep.jsx`, `pages/Account.jsx`, `server/utils/address.js`, `server/services/checkoutService.js`, `server/controllers/userControler.js`.
+- Note: Nominatim is free but limited to ~1 request/second and asks for fair use; if traffic grows, switch to a paid geocoder (Google Maps / MapmyIndia) — only `addressFromCurrentLocation()` needs to change.
+
+---
+
+## 6. Phase 1 — remaining steps (audit findings)
+
+### Step 3: Customization
+- Design is lost on page reload (no draft saving).
+- No print-ready output: only % positions are saved — no high-res file per side, no real-world size, no preview image.
+- Garment size hard-coded to "Custom"; text effect not saved; no touch support on mobile; design can go outside the print area.
+- Uploads: no auth, SVG allowed (XSS risk), extension-only type check.
+
+### Step 4: Products & categories
+- No real Category model (three free-text strings that drift apart).
+- Navbar search does nothing; no filter/sort UI; no pagination; same product shown once per colour.
+- Kids' sizes hidden on product page; pending/rejected reviews leak publicly; garment-type admin routes unauthenticated; sellers can edit each other's products.
+
+---
+
+## 7. Agreed ideas / proposals (not built yet)
+
+### 7.1 After login
+Current behaviour: users return to the page they came from (e.g. checkout); otherwise Home; admins → `/admin/dashboard`.
+Proposed:
+- **Welcome step (new users only, ~30 s, skippable):** "What are you here for?" (design my own / buy ready-made / team or event order) + usual size → buttons "Start designing" / "Browse products".
+- **Personalised strip on Home (logged-in):** "Hi <name>", latest order status + Track, "Continue your design" (needs draft saving from Step 3), later "Picked for you".
+- Later: "My Designs" gallery, team-order shortcut, profile-completion nudge.
+
+### 7.2 Home-page categories (Step 4)
+Current data is test-quality: category banners include `re`, `pants`, `tshirt` (duplicate of Round Neck), `Blacers` (typo); only Round Neck has colours; the customizer supports 6 garments (Round Neck, Oversized, V-Neck, Polo, Hoodie, Crew Sweatshirt).
+Proposed launch categories (DTF-friendly):
+- **Phase 1:** T-Shirts (round, V-neck, oversized, full sleeve), Polo T-Shirts, Hoodies (pullover, zip), Sweatshirts — plus **Jackets** tile marked "Coming soon".
+- **Phase 2:** Jackets, Kids' T-Shirts, Tank Tops, Sports Jerseys, Uniform Shirts.
+- **Phase 3:** Caps, Tote Bags, Aprons.
+- Hide Blazers and Jump Suits.
+Plan: real `Category` model (name, image, order, active, customizable) managed from admin; link garment types/products to it; clean test data (list shown to the team before deleting); category tiles on Home with "Design your own" / "Shop ready-made".
+
+### 7.3 Differentiators discussed (later phases)
+Group order links for schools/companies, brand-kit lock + approval for corporate clients, QR/NFC "smart garments", school uniform programmes, print-aware AI design checks, price/print-method comparison, bulk size predictor, WhatsApp ordering, photo of the real print before dispatch, AR try-on.
+
+### 7.4 Small UI clean-ups noted
+- Payment step shows separate "UPI" and "Card" options that both open the same Razorpay popup → replace with one "Pay online" option.
+- Remove the obsolete admin **Settings → Security → change password** form.
