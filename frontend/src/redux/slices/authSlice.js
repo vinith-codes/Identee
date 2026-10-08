@@ -13,34 +13,6 @@ const initialState = {
   message: "",
 };
 
-// REGISTER
-export const register = createAsyncThunk(
-  "auth/register",
-  async (userData, thunkAPI) => {
-    try {
-      return await authService.register(userData);
-    } catch (error) {
-      const message = error.response?.data?.message || error.message;
-
-      return thunkAPI.rejectWithValue(message);
-    }
-  },
-);
-
-// LOGIN
-export const login = createAsyncThunk(
-  "auth/login",
-  async (userData, thunkAPI) => {
-    try {
-      return await authService.login(userData);
-    } catch (error) {
-      const message = error.response?.data?.message || error.message;
-
-      return thunkAPI.rejectWithValue(message);
-    }
-  },
-);
-
 // GET PROFILE
 export const getProfile = createAsyncThunk(
   "auth/profile",
@@ -73,54 +45,6 @@ export const updateProfile = createAsyncThunk(
   },
 );
 
-// SEND OTP
-export const sendOtp = createAsyncThunk(
-  "auth/sendOtp",
-  async (emailData, thunkAPI) => {
-    try {
-      return await authService.sendOtp(emailData);
-    } catch (error) {
-      return thunkAPI.rejectWithValue(error.response?.data?.message);
-    }
-  },
-);
-
-// VERIFY OTP
-export const verifyOtp = createAsyncThunk(
-  "auth/verifyOtp",
-  async (otpData, thunkAPI) => {
-    try {
-      return await authService.verifyOtp(otpData);
-    } catch (error) {
-      return thunkAPI.rejectWithValue(error.response?.data?.message);
-    }
-  },
-);
-
-// FORGOT PASSWORD
-export const forgotPassword = createAsyncThunk(
-  "auth/forgotPassword",
-  async (emailData, thunkAPI) => {
-    try {
-      return await authService.forgotPassword(emailData);
-    } catch (error) {
-      return thunkAPI.rejectWithValue(error.response?.data?.message);
-    }
-  },
-);
-
-// RESET PASSWORD
-export const resetPassword = createAsyncThunk(
-  "auth/resetPassword",
-  async (resetData, thunkAPI) => {
-    try {
-      return await authService.resetPassword(resetData);
-    } catch (error) {
-      return thunkAPI.rejectWithValue(error.response?.data?.message);
-    }
-  },
-);
-
 // LOGOUT
 export const logout = createAsyncThunk("auth/logout", async () => {
   authService.logout();
@@ -131,6 +55,10 @@ const authSlice = createSlice({
   initialState,
 
   reducers: {
+    // Called by the OTP login page once authService has stored the user.
+    setCredentials: (state, action) => {
+      state.user = action.payload;
+    },
     reset: (state) => {
       state.isLoading = false;
       state.isSuccess = false;
@@ -141,27 +69,6 @@ const authSlice = createSlice({
 
   extraReducers: (builder) => {
     builder
-
-      // REGISTER
-      .addCase(register.fulfilled, (state, action) => {
-        state.user = action.payload;
-        state.isSuccess = true;
-      })
-
-      // LOGIN
-      .addCase(login.pending, (state) => {
-        state.isLoading = true;
-      })
-      .addCase(login.fulfilled, (state, action) => {
-        state.isLoading = false;
-        state.user = action.payload;
-        state.isSuccess = true;
-      })
-      .addCase(login.rejected, (state, action) => {
-        state.isLoading = false;
-        state.isError = true;
-        state.message = action.payload;
-      })
 
       // PROFILE
       .addCase(getProfile.fulfilled, (state, action) => {
@@ -182,6 +89,6 @@ const authSlice = createSlice({
   },
 });
 
-export const { reset } = authSlice.actions;
+export const { reset, setCredentials } = authSlice.actions;
 
 export default authSlice.reducer;

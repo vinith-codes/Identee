@@ -9,6 +9,9 @@ const transporter = nodemailer.createTransport({
 });
 
 const sendEmail = async ({ email, status, order, invoice, attachments }) => {
+  // Users who signed up with a mobile number have no email on file.
+  if (!email) return;
+
   status = status.toUpperCase();
 
   // INVOICE emails carry their own PDF and don't need the order-status
@@ -76,17 +79,18 @@ const sendEmail = async ({ email, status, order, invoice, attachments }) => {
   const BASE_URL = process.env.BACKEND_URL;
   const productRows = order.orderItems
     .map((item) => {
-      const imagePath = item.product.images?.[0];
+      // Custom-design items have no product document (and may have no image).
+      const imagePath = item.product?.images?.[0] || item.image;
 
-      if (!imagePath) return "";
-
-      const imageUrl = imagePath.startsWith("http")
-        ? imagePath
-        : `${BASE_URL}/${imagePath.replace(/\\/g, "/")}`;
+      const imageUrl = !imagePath
+        ? ""
+        : imagePath.startsWith("http")
+          ? imagePath
+          : `${BASE_URL}/${imagePath.replace(/\\/g, "/")}`;
       return `
       <tr>
         <td style="padding:10px">
-          <img src="${imageUrl}" width="80" style="border-radius:6px" />
+          ${imageUrl ? `<img src="${imageUrl}" width="80" style="border-radius:6px" />` : ""}
         </td>
         <td style="padding:10px">
           <strong>${item.name}</strong><br/>

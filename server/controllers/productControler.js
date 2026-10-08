@@ -454,11 +454,10 @@ const addToCart = asyncHandler(async (req, res) => {
       existingCartItem.price =
         existingCartItem.qty * pricedProduct.subscriptionPrice;
     } else {
+      if (Number(qty) > sizeStock.stock) {
+        return res.status(400).json({ message: "Not enough stock available" });
+      }
       const pricedProduct = applySubscriptionPrice(product.toObject(), user);
-      console.log(
-        "💰 new item pricedProduct.subscriptionPrice:",
-        pricedProduct.subscriptionPrice,
-      );
 
       user.cartItems.push({
         product: product._id,
@@ -536,20 +535,7 @@ const deleteCartItem = asyncHandler(async (req, res) => {
     return res.status(404).json({ message: "Cart item not found" });
   }
 
-  // 🔁 RESTORE STOCK
-  const product = await Product.findById(cartItem.product._id);
-
-  if (product) {
-    const sizeStock = product.productdetails.stockBySize.find(
-      (s) => s.size === cartItem.size,
-    );
-
-    if (sizeStock) {
-      sizeStock.stock += cartItem.qty;
-
-      await product.save();
-    }
-  }
+  // No stock to restore: stock is only taken when an order is placed.
 
   // 🗑 REMOVE ITEM
   user.cartItems = user.cartItems.filter(

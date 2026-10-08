@@ -18,7 +18,7 @@ import {
   generateInvoice,
   incomebycity,
   getTransactions,
-  StripePayment,
+  getCheckoutQuote,
   getUndeliveredOrders,
   updateOrderStatus,
   getOrderStatusCounts,
@@ -30,6 +30,7 @@ import {
 } from "../controllers/orderControler.js";
 import {
   protect,
+  admin,
   adminOrSeller,
   isDelivery,
 } from "../middleware/authMiddleware.js";
@@ -40,7 +41,7 @@ router.route("/delivery").get(protect, isDelivery, getOrdersForDeliveryPerson);
 router.route("/status-count").get(protect, adminOrSeller, getOrderStatusCounts);
 router.route("/transactions").get(protect, adminOrSeller, getTransactions);
 router.route("/myorders").get(protect, GetMyOrders);
-router.route("/stripePayment").post(protect, StripePayment);
+router.route("/quote").post(protect, getCheckoutQuote);
 
 router
   .route("/")
@@ -62,10 +63,10 @@ router.route("/undelivered").get(protect, adminOrSeller, getUndeliveredOrders);
 
 router
   .route("/admin/orders/assign/:id")
-  .put(protect, assignOrderToDeliveryPerson);
+  .put(protect, admin, assignOrderToDeliveryPerson);
 
 
-router.route("/admin/order/:id/invoice").get(protect, generateInvoice);
+router.route("/admin/order/:id/invoice").get(protect, admin, generateInvoice);
 
 router.route("/admin/invoices").get(protect, adminOrSeller, getAllInvoices);
 
@@ -91,11 +92,10 @@ router.route("/razorpay").post(protect, createRazorpayOrder);
 router.route("/razorpay/verify").post(protect, verifyRazorpayPayment);
 
 
-router.route("/:id/pay").put(protect, updateOrderToPaid);
-router
-  .route("/:id/deliver")
-  .put(protect, adminOrSeller, updateOrderToDelivered);
-router.route("/:id/updateorderstatus").put(protect, updateOrderStatus);
+// Admin only: payment and status changes (status rules live in the controller).
+router.route("/:id/pay").put(protect, admin, updateOrderToPaid);
+router.route("/:id/deliver").put(protect, admin, updateOrderToDelivered);
+router.route("/:id/updateorderstatus").put(protect, admin, updateOrderStatus);
 
 router.route("/:id").get(protect, getOrderById);
 

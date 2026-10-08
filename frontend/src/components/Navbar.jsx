@@ -25,7 +25,7 @@ const getUserInfo = () => {
     const raw = localStorage.getItem("userInfo");
     if (!raw) return null;
     const parsed = JSON.parse(raw);
-    if (parsed && parsed._id && parsed.email) return parsed;
+    if (parsed && parsed._id && parsed.token) return parsed;
     return null;
   } catch {
     return null;

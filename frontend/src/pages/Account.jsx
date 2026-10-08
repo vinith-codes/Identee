@@ -3,6 +3,14 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
 import MyOrdersPage from "./MyOrderPage"; //
+import { validateAddress } from "../utils/address";
+import usePincodeAutofill from "../utils/usePincodeAutofill";
+import { UseLocationButton } from "../components/AddressAutofill";
+
+const FieldError = ({ msg }) =>
+  msg ? (
+    <p style={{ color: "#DC2626", fontSize: 11, margin: "-8px 0 10px" }}>{msg}</p>
+  ) : null;
 const BACKEND_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
 const MENU = [
@@ -55,6 +63,7 @@ export default function Account() {
     name: "",
     lastName: "",
     email: "",
+    phone: "",
     dateOfBirth: "",
     gender: "Male",
   });
@@ -64,6 +73,7 @@ export default function Account() {
   const [addresses, setAddresses] = useState([]);
   const [editingAddress, setEditingAddress] = useState(null); // index or "new"
   const [addressForm, setAddressForm] = useState(emptyAddress);
+  const [addressErrors, setAddressErrors] = useState({});
 
   // Live shipping rules — feeds the State <select> below so a saved address
   // can never contain a state string that doesn't exactly match what's
@@ -73,6 +83,15 @@ export default function Account() {
   const [rulesLoading, setRulesLoading] = useState(true);
 
   const authToken = user?.token;
+
+  const deliverableStates = shippingRules.map((r) => r.state);
+  const fillAddress = (fields) => setAddressForm((f) => ({ ...f, ...fields }));
+  const pinHint = usePincodeAutofill(
+    addressForm.pin,
+    addressForm.city,
+    deliverableStates,
+    fillAddress,
+  );
 
   // ── Load shipping rules on mount ─────────────────────────────
   useEffect(() => {
@@ -115,6 +134,7 @@ export default function Account() {
           name: data.name || "",
           lastName: data.lastName || "",
           email: data.email || "",
+          phone: data.phone || "",
           dateOfBirth: data.dateOfBirth
             ? new Date(data.dateOfBirth).toISOString().split("T")[0]
             : "",
@@ -148,7 +168,7 @@ export default function Account() {
     }
   };
 
-  // ── Save profile fields (name/lastName/email/dob/gender/avatar) ─
+  // ── Save profile fields (name/lastName/dob/gender/avatar) ─
   const saveToBackend = async (extraFormData) => {
     if (!authToken) {
       setMsg({ type: "error", text: "Please log in again." });
@@ -157,7 +177,6 @@ export default function Account() {
     const fd = new FormData();
     fd.append("name", form.name);
     fd.append("lastName", form.lastName);
-    fd.append("email", form.email);
     if (form.dateOfBirth) fd.append("dateOfBirth", form.dateOfBirth);
     fd.append("gender", form.gender);
     if (avatarFile) fd.append("profilePicture", avatarFile);
@@ -210,16 +229,19 @@ export default function Account() {
   };
   // ── Address handlers ─────────────────────────────────────────
   const openNewAddress = () => {
+    setAddressErrors({});
     setAddressForm(emptyAddress);
     setEditingAddress("new");
   };
 
   const openEditAddress = (idx) => {
+    setAddressErrors({});
     setAddressForm({ ...addresses[idx] });
     setEditingAddress(idx);
   };
 
   const cancelAddressEdit = () => {
+    setAddressErrors({});
     setEditingAddress(null);
     setAddressForm(emptyAddress);
   };
@@ -242,8 +264,10 @@ export default function Account() {
   };
 
   const handleSaveAddress = () => {
-    if (!addressForm.state || !addressForm.city || !addressForm.pin) {
-      setMsg({ type: "error", text: "City, State and PIN are required." });
+    const errs = validateAddress(addressForm, deliverableStates);
+    setAddressErrors(errs);
+    if (Object.keys(errs).length > 0) {
+      setMsg({ type: "error", text: "Please fix the highlighted address fields." });
       return;
     }
 
@@ -568,13 +592,13 @@ export default function Account() {
               />
             </Field>
 
-            <Field label="Email">
+            {/* Login identifier — verified by OTP, so read-only here */}
+            <Field label={form.email ? "Email" : "Mobile Number"}>
               <input
-                type="email"
-                value={form.email}
-                onChange={handleChange("email")}
-                placeholder="you@example.com"
-                style={inputStyle}
+                value={form.email || form.phone}
+                readOnly
+                title="Used to log in — can't be changed here"
+                style={{ ...inputStyle, opacity: 0.7, cursor: "not-allowed" }}
               />
             </Field>
 
@@ -741,6 +765,10 @@ export default function Account() {
                   padding: 16,
                 }}
               >
+                <UseLocationButton
+                  deliverableStates={deliverableStates}
+                  onFill={fillAddress}
+                />
                 <Field label="Door No.">
                   <input
                     value={addressForm.doorNo}
@@ -750,6 +778,7 @@ export default function Account() {
                     style={inputStyle}
                   />
                 </Field>
+                <FieldError msg={addressErrors.doorNo} />
                 <Field label="Street">
                   <input
                     value={addressForm.street}
@@ -759,6 +788,7 @@ export default function Account() {
                     style={inputStyle}
                   />
                 </Field>
+                <FieldError msg={addressErrors.street} />
                 <Field label="Nearest Landmark">
                   <input
                     value={addressForm.nearestLandmark}
@@ -780,6 +810,7 @@ export default function Account() {
                     style={inputStyle}
                   />
                 </Field>
+                <FieldError msg={addressErrors.city} />
 
                 <Field label="State">
                   {rulesLoading ? (
@@ -817,28 +848,45 @@ export default function Account() {
                     />
                   )}
                 </Field>
+                <FieldError msg={addressErrors.state} />
 
                 <Field label="PIN Code">
                   <input
                     value={addressForm.pin}
-                    onChange={(e) =>
-                      setAddressForm((f) => ({ ...f, pin: e.target.value }))
-                    }
-                    style={inputStyle}
-                  />
-                </Field>
-                <Field label="Phone Number">
-                  <input
-                    value={addressForm.phoneNumber}
+                    inputMode="numeric"
+                    maxLength={6}
+                    placeholder="6-digit PIN — fills city & state"
                     onChange={(e) =>
                       setAddressForm((f) => ({
                         ...f,
-                        phoneNumber: e.target.value,
+                        pin: e.target.value.replace(/\D/g, ""),
                       }))
                     }
                     style={inputStyle}
                   />
                 </Field>
+                <FieldError msg={addressErrors.pin} />
+                {pinHint && !addressErrors.pin && (
+                  <p style={{ color: "#71695B", fontSize: 11, margin: "-8px 0 10px" }}>
+                    {pinHint}
+                  </p>
+                )}
+                <Field label="Phone Number">
+                  <input
+                    value={addressForm.phoneNumber}
+                    inputMode="numeric"
+                    maxLength={10}
+                    placeholder="10-digit mobile number"
+                    onChange={(e) =>
+                      setAddressForm((f) => ({
+                        ...f,
+                        phoneNumber: e.target.value.replace(/\D/g, ""),
+                      }))
+                    }
+                    style={inputStyle}
+                  />
+                </Field>
+                <FieldError msg={addressErrors.phoneNumber} />
                 <label
                   style={{
                     display: "flex",

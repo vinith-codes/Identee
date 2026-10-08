@@ -3,8 +3,6 @@ import asyncHandler from "express-async-handler";
 import User from "../models/userModel.js";
 
 const protect = asyncHandler(async (req, res, next) => {
-  console.log("Token header:", req.headers.authorization);
-
   let token;
 
   if (
@@ -15,13 +13,19 @@ const protect = asyncHandler(async (req, res, next) => {
       token = req.headers.authorization.split(" ")[1];
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-      req.user = await User.findById(decoded.id).select("-password");
-      next();
+      req.user = decoded.id
+        ? await User.findById(decoded.id).select("-password")
+        : null;
     } catch (error) {
-      console.error(error);
+      req.user = null;
+    }
+
+    // Bad/expired token, a signup-only token, or a deleted account.
+    if (!req.user) {
       res.status(401);
       throw new Error("Not authorized, token failed");
     }
+    return next();
   }
 
   if (!token) {
@@ -55,4 +59,14 @@ const adminOnly = (req, res, next) => {
   }
 };
 
-export { protect, adminOrSeller, isDelivery, adminOnly };
+// Any admin (also admins who are sellers).
+const admin = (req, res, next) => {
+  if (req.user && req.user.isAdmin) {
+    next();
+  } else {
+    res.status(403);
+    throw new Error("Not authorized as Admin");
+  }
+};
+
+export { protect, admin, adminOrSeller, isDelivery, adminOnly };

@@ -9,7 +9,9 @@ const errorHandler = (err, req, res, next) => {
   console.error("💥 ERROR:", err.message);
   console.error(err.stack);
 
-  const statusCode = res.statusCode === 200 ? 500 : res.statusCode;
+  // Errors may carry their own status (e.g. HttpError from checkoutService).
+  const statusCode =
+    res.statusCode !== 200 ? res.statusCode : err.status || 500;
   res.status(statusCode);
   res.json({
     message: err.message,

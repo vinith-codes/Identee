@@ -22,17 +22,24 @@ export default function CheckoutFlow({ items: itemsProp, buyNow: buyNowProp }) {
     setItems(itemsProp || null);
   }, [itemsProp]);
 
-  // Recompute the total quantity being bought whenever a size's quantity
-  // changes on the Order Summary step, so the price quote fetched in
-  // PaymentStep always matches exactly what's shown on screen.
-  const buyNow = buyNowProp
-    ? {
-        ...buyNowProp,
-        qty: items
-          ? items.reduce((sum, it) => sum + it.qty, 0)
-          : buyNowProp.qty,
-      }
-    : buyNowProp;
+  // What the server should price (it never trusts client prices). Rebuilt
+  // from the editable items so the quote always matches what's on screen.
+  //   product:       { productId, items: [{ size, qty }] }
+  //   custom design: { customizationId, qty, size }
+  const buyNow = !buyNowProp
+    ? null
+    : buyNowProp.isCustomization
+      ? {
+          customizationId: buyNowProp.productId,
+          qty: items
+            ? items.reduce((sum, it) => sum + it.qty, 0)
+            : buyNowProp.qty,
+          size: items?.[0]?.size || "Custom",
+        }
+      : {
+          productId: buyNowProp.productId,
+          items: (items || []).map((it) => ({ size: it.size, qty: it.qty })),
+        };
 
   return (
     <div
@@ -66,7 +73,6 @@ export default function CheckoutFlow({ items: itemsProp, buyNow: buyNowProp }) {
 
         {step === 3 && (
           <PaymentStep
-            items={items}
             buyNow={buyNow}
             shippingAddress={shippingAddress}
             coupon={coupon}

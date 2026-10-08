@@ -5,12 +5,10 @@ import {
   Route,
   Navigate,
   Outlet,
+  useLocation,
 } from "react-router-dom";
 
 import LoginPage from "./pages/LoginPage";
-import RegisterPage from "./pages/RegisterPage";
-import ForgotPasswordPage from "./pages/ForgotPasswordPage";
-import ResetPasswordPage from "./pages/ResetPasswordPage";
 import Navbar from "./components/Navbar";
 import AdminLayout from "./layouts/AdminLayout";
 import AdminDashboard from "./pages/admin/AdminDashboard";
@@ -156,7 +154,8 @@ const getUserInfo = () => {
     const raw = localStorage.getItem("userInfo");
     if (!raw) return null;
     const parsed = JSON.parse(raw);
-    if (parsed && parsed._id && parsed.email) return parsed;
+    // email OR phone users — the token is what matters
+    if (parsed && parsed._id && parsed.token) return parsed;
     return null;
   } catch {
     return null;
@@ -189,7 +188,10 @@ const GuestRoute = ({ children }) => {
 // ✅ NEW: Logged-in customers only — checkout/order pages need an authenticated user
 const PrivateRoute = ({ children }) => {
   const user = getUserInfo();
-  if (!user) return <Navigate to="/login" replace />;
+  const location = useLocation();
+  // Remember where they were going; LoginPage sends them back after OTP.
+  if (!user)
+    return <Navigate to="/login" replace state={{ from: location.pathname }} />;
   return children;
 };
 // ──────────────────────────────────────────────────────────────────────────
@@ -207,16 +209,16 @@ export default function App() {
             </GuestRoute>
           }
         />
+        {/* Login is OTP-only: sign-up and password reset happen on /login */}
+        <Route path="/register" element={<Navigate to="/login" replace />} />
         <Route
-          path="/register"
-          element={
-            <GuestRoute>
-              <RegisterPage />
-            </GuestRoute>
-          }
+          path="/forgot-password"
+          element={<Navigate to="/login" replace />}
         />
-        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-        <Route path="/reset-password" element={<ResetPasswordPage />} />
+        <Route
+          path="/reset-password"
+          element={<Navigate to="/login" replace />}
+        />
 
         {/* Everything with the Navbar — Home is PUBLIC (no login required) */}
         <Route element={<CustomerLayout />}>

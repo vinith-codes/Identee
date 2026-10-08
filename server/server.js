@@ -29,8 +29,14 @@ import cors from "cors";
 import "./utils/subscriptionCron.js";
 import "./utils/razorpayInstance.js";
 import notificationRoutes from "./routes/notificationRoutes.js";
+import { razorpayWebhook } from "./controllers/orderControler.js";
 connectDB();
 const app = express();
+// Behind nginx/a load balancer set TRUST_PROXY=1 so req.ip is the real client
+// IP — otherwise every visitor shares one IP and per-IP rate limits misfire.
+if (process.env.TRUST_PROXY) {
+  app.set("trust proxy", Number(process.env.TRUST_PROXY) || 1);
+}
 app.use(
   cors({
     origin: [
@@ -46,6 +52,15 @@ app.use(
 // https://ecom.vercel.app
 
 app.options("*", cors());
+
+// Razorpay webhook needs the exact raw body for its signature, so it is
+// mounted before express.json.
+app.post(
+  "/api/orders/razorpay/webhook",
+  express.raw({ type: "application/json", limit: "1mb" }),
+  razorpayWebhook,
+);
+
 app.use(express.json({ limit: "500mb" }));
 app.use(express.urlencoded({ limit: "500mb", extended: true }));
 

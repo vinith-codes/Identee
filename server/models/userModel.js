@@ -25,11 +25,23 @@ const userSchema = mongoose.Schema(
       type: String,
       required: true,
     },
+    // A user signs in with a verified email OR phone, so either may be absent.
+    // Run scripts/migrateUserAuthIndexes.js once so these sparse indexes replace
+    // the old non-sparse email index.
     email: {
       type: String,
-      required: true,
       unique: true,
+      sparse: true,
+      lowercase: true,
+      trim: true,
     },
+    phone: {
+      type: String, // E.164, e.g. +919876543210
+      unique: true,
+      sparse: true,
+    },
+    isPhoneVerified: { type: Boolean, default: false },
+    lastLoginAt: { type: Date, default: null },
     isSubscribed: { type: Boolean, default: false },
     subscription: {
       type: userSubscriptionSchema,
@@ -39,9 +51,9 @@ const userSchema = mongoose.Schema(
     otp: { type: String },
     expiresAt: { type: Date },
     isEmailVerified: { type: Boolean, default: false },
+    // Legacy: login is OTP-only now; kept so existing hashes aren't lost.
     password: {
       type: String,
-      required: true,
     },
     isAdmin: {
       type: Boolean,

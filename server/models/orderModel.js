@@ -60,10 +60,14 @@ const orderSchema = mongoose.Schema(
         image: { type: String },
         price: { type: Number, required: true },
         size: { type: String, required: true },
+        // Exactly one of product / customization is set.
         product: {
           type: mongoose.Schema.Types.ObjectId,
-          required: true,
           ref: "Product",
+        },
+        customization: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "Customization",
         },
       },
     ],
@@ -98,9 +102,11 @@ const orderSchema = mongoose.Schema(
         "RETURN_APPROVED",
         "RETURN_COMPLETED",
         "DELIVERED",
+        "CANCELLED",
       ],
       default: "CREATED",
     },
+    cancelledAt: { type: Date },
     size: { type: String, required: false },
     paymentResult: {
       id: { type: String },
@@ -135,6 +141,13 @@ const orderSchema = mongoose.Schema(
     transaction: { type: [transactionSchema], default: [] },
   },
   { timestamps: true },
+);
+
+// One order per Razorpay payment order — blocks replaying a payment into
+// several orders. Partial so the many COD orders without one don't collide.
+orderSchema.index(
+  { razorpayOrderId: 1 },
+  { unique: true, partialFilterExpression: { razorpayOrderId: { $type: "string" } } },
 );
 
 const Order = mongoose.model("Order", orderSchema);

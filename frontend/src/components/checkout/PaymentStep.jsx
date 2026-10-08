@@ -1,12 +1,11 @@
 import { useState, useEffect } from "react";
-import { useSelector } from "react-redux";
+import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
 import { THEME } from "../../theme/theme";
 import checkoutService from "../../services/checkoutService";
 import orderService from "../../services/orderService";
-
-const EMPTY_CART_ITEMS = [];
+import { fetchCart } from "../../redux/slices/cartWishlistSlice";
 
 const loadRazorpayScript = () =>
   new Promise((resolve) => {
@@ -67,23 +66,14 @@ function PriceRow({ label, value, bold, negative }) {
   );
 }
 
-// items: optional override — array of { product: {_id, brandname, images}, size, qty, price }
-// buyNow: optional { productId, qty } — when set, tells the backend to price
-// a single product directly instead of pulling the user's cart.
-export default function PaymentStep({
-  shippingAddress,
-  coupon,
-  onBack,
-  items: itemsProp,
-  buyNow,
-}) {
-  const cartItems = useSelector(
-    (state) => state.cartWishlist?.cartItems || EMPTY_CART_ITEMS,
-  );
+// buyNow: optional server-side description of a Buy Now purchase
+//   { productId, items: [{ size, qty }] } | { customizationId, qty, size }
+// (built by CheckoutFlow). Without it the server prices the user's cart.
+// Prices are never sent from here — the server computes every amount.
+export default function PaymentStep({ shippingAddress, coupon, onBack, buyNow }) {
   const { user } = useSelector((state) => state.auth);
+  const dispatch = useDispatch();
   const navigate = useNavigate();
-
-  const items = itemsProp || cartItems;
 
   const [quote, setQuote] = useState(null);
   const [loadingQuote, setLoadingQuote] = useState(true);
@@ -91,26 +81,18 @@ export default function PaymentStep({
   const [method, setMethod] = useState("UPI");
   const [placing, setPlacing] = useState(false);
 
+  const checkout = {
+    shippingAddress,
+    couponCode: coupon?.code || null,
+    buyNow: buyNow || undefined,
+  };
+
   useEffect(() => {
     const fetchQuote = async () => {
       setLoadingQuote(true);
       setQuoteError("");
       try {
-        const result = await checkoutService.createRazorpayOrder(
-          {
-            shippingAddress,
-            couponCode: coupon?.code || null,
-            buyNowProductId: buyNow?.isCustomization
-              ? null
-              : buyNow?.productId || null,
-            buyNowCustomizationId: buyNow?.isCustomization
-              ? buyNow.productId
-              : null,
-            qty: buyNow?.qty || null,
-          },
-          user.token,
-        );
-        setQuote(result);
+        setQuote(await checkoutService.getQuote(checkout, user.token));
       } catch (error) {
         setQuoteError(
           error.response?.data?.message || "Couldn't calculate order total",
@@ -123,36 +105,20 @@ export default function PaymentStep({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const buildOrderItems = () =>
-    items.map((item) => ({
-      product: item.product._id,
-      name: item.product.brandname,
-      image: item.product.images?.[0],
-      size: item.size,
-      qty: item.qty,
-      price: item.price,
-    }));
+  const onOrderPlaced = (order) => {
+    if (!buyNow) dispatch(fetchCart(user.token)); // server emptied the cart
+    toast.success("Order placed successfully!");
+    navigate(`/order-success/${order._id}`);
+  };
 
   const placeCodOrder = async () => {
     setPlacing(true);
     try {
-      const orderPayload = {
-        orderItems: buildOrderItems(),
-        shippingAddress,
-        paymentMethod: "COD",
-        cgstPrice: quote.priceBreakdown.cgstAmount,
-        sgstPrice: quote.priceBreakdown.sgstAmount,
-        taxPrice: quote.priceBreakdown.taxAmount,
-        shippingPrice: quote.priceBreakdown.shippingAmount,
-        totalPrice: quote.priceBreakdown.total,
-        coupon: quote.coupon,
-      };
-      const createdOrder = await orderService.createOrder(
-        orderPayload,
+      const order = await orderService.createOrder(
+        { ...checkout, paymentMethod: "COD" },
         user.token,
       );
-      toast.success("Order placed successfully!");
-      navigate(`/order-success/${createdOrder._id}`);
+      onOrderPlaced(order);
     } catch (err) {
       toast.error(
         err.response?.data?.message ||
@@ -173,16 +139,23 @@ export default function PaymentStep({
         return;
       }
 
+      // Server re-prices, checks stock and remembers this checkout.
+      const rzpOrder = await checkoutService.createRazorpayOrder(
+        checkout,
+        user.token,
+      );
+
       const options = {
-        key: quote.keyId,
-        amount: quote.amount,
-        currency: quote.currency,
+        key: rzpOrder.keyId,
+        amount: rzpOrder.amount,
+        currency: rzpOrder.currency,
         name: "IDENTEE",
         description: "Order Payment",
-        order_id: quote.id,
+        order_id: rzpOrder.id,
         handler: async (response) => {
           try {
-            const verification = await checkoutService.verifyRazorpayPayment(
+            // Server verifies with Razorpay and creates the order.
+            const order = await checkoutService.verifyRazorpayPayment(
               {
                 razorpay_order_id: response.razorpay_order_id,
                 razorpay_payment_id: response.razorpay_payment_id,
@@ -190,41 +163,12 @@ export default function PaymentStep({
               },
               user.token,
             );
-
-            if (!verification.success) {
-              toast.error("Payment verification failed");
-              setPlacing(false);
-              return;
-            }
-
-            const orderPayload = {
-              orderItems: buildOrderItems(),
-              shippingAddress,
-              paymentMethod: "RAZORPAY",
-              cgstPrice: quote.priceBreakdown.cgstAmount,
-              sgstPrice: quote.priceBreakdown.sgstAmount,
-              taxPrice: quote.priceBreakdown.taxAmount,
-              shippingPrice: quote.priceBreakdown.shippingAmount,
-              totalPrice: quote.priceBreakdown.total,
-              coupon: quote.coupon,
-              razorpayOrderId: quote.id,
-              paymentResult: {
-                id: verification.paymentId,
-                status: "success",
-                update_time: new Date().toISOString(),
-                email_adress: user.email || "",
-              },
-            };
-
-            const createdOrder = await orderService.createOrder(
-              orderPayload,
-              user.token,
-            );
-            toast.success("Order placed successfully!");
-            navigate(`/order-success/${createdOrder._id}`);
+            onOrderPlaced(order);
           } catch (err) {
             toast.error(
-              "Payment verified but order creation failed. Contact support.",
+              err.response?.data?.message ||
+                "We received your payment but couldn't confirm the order yet. It will appear in My Orders shortly — contact support if it doesn't.",
+              { autoClose: 10000 },
             );
           } finally {
             setPlacing(false);
@@ -242,7 +186,10 @@ export default function PaymentStep({
       const rzp = new window.Razorpay(options);
       rzp.open();
     } catch (error) {
-      toast.error("Couldn't initiate payment. Please try again.");
+      toast.error(
+        error.response?.data?.message ||
+          "Couldn't initiate payment. Please try again.",
+      );
       setPlacing(false);
     }
   };

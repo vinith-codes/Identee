@@ -1,8 +1,9 @@
 import express from "express";
 const router = express.Router();
 import {
-  authUser,
-  registerUser,
+  requestLoginOtp,
+  verifyLoginOtp,
+  completeOtpSignup,
   getUserProfile,
   updateUserProfile,
   getUsers,
@@ -12,10 +13,6 @@ import {
   toggleFavorite,
   getFavorites,
   getCart,
-  sendOtpToEmail,
-  verifyOtp,
-  PasswordResetOtp,
-  resetPasswordWithOtp,
   deleteProfilePicture,
 } from "../controllers/userControler.js";
 import { uploadProfileImage } from "../multer/multer.js";
@@ -24,14 +21,17 @@ import {
   adminOnly,
   protect,
 } from "../middleware/authMiddleware.js";
+import rateLimit from "../middleware/rateLimit.js";
 
-router.route("/").post(registerUser).get(protect, adminOrSeller, getUsers);
-router.route("/sendOtp").post(sendOtpToEmail);
-router.route("/verifyOtp").post(verifyOtp);
-router.post("/forgotPassword", PasswordResetOtp);
-router.post("/resetPassword", resetPasswordWithOtp);
+// Per-IP cap on top of the per-identifier limits in the OTP controller.
+const otpIpLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 30 });
 
-router.post("/login", authUser);
+router.route("/").get(protect, adminOrSeller, getUsers);
+
+// Login is OTP-only (email or mobile). See userControler.js for the flow.
+router.post("/otp/request", otpIpLimiter, requestLoginOtp);
+router.post("/otp/verify", otpIpLimiter, verifyLoginOtp);
+router.post("/otp/complete", otpIpLimiter, completeOtpSignup);
 router.route("/favorites/:id").post(protect, toggleFavorite);
 router.route("/getfavorites").get(protect, getFavorites);
 router.route("/cart").get(protect, getCart);

@@ -1,6 +1,9 @@
 import { useState, useEffect } from "react";
 import { useSelector } from "react-redux";
 import { THEME, inputStyle, labelStyle } from "../../theme/theme";
+import { validateAddress, isValidAddress } from "../../utils/address";
+import usePincodeAutofill from "../../utils/usePincodeAutofill";
+import { UseLocationButton } from "../AddressAutofill";
 
 const BACKEND_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
@@ -75,12 +78,18 @@ export default function AddressStep({ selectedAddress, onContinue }) {
   // shipping rules (case/whitespace-insensitive). Addresses saved before
   // the state <select> existed may have a typo'd or unsupported state —
   // this catches those before the user reaches payment and hits a 400.
+  const deliverableStates = shippingRules.map((r) => r.state);
   const isDeliverable = (addr) =>
-    shippingRules.some(
-      (r) =>
-        r.state.trim().toLowerCase() ===
-        (addr?.state || "").trim().toLowerCase(),
-    );
+    isValidAddress(addr || {}, deliverableStates);
+
+  // Merge autofilled fields into the new-address form.
+  const fillForm = (fields) => setForm((f) => ({ ...f, ...fields }));
+  const pinHint = usePincodeAutofill(
+    form.pin,
+    form.city,
+    deliverableStates,
+    fillForm,
+  );
 
   useEffect(() => {
     const fetchAddresses = async () => {
@@ -109,17 +118,7 @@ export default function AddressStep({ selectedAddress, onContinue }) {
   }, []);
 
   const validate = () => {
-    const errs = {};
-    if (!form.doorNo.trim()) errs.doorNo = "Required";
-    if (!form.street.trim()) errs.street = "Required";
-    if (!form.city.trim()) errs.city = "Required";
-    if (!form.state.trim()) errs.state = "Required";
-    if (!form.pin.toString().trim()) errs.pin = "Required";
-    else if (!/^\d{6}$/.test(form.pin.toString()))
-      errs.pin = "Enter a valid 6-digit PIN";
-    if (!form.phoneNumber.toString().trim()) errs.phoneNumber = "Required";
-    else if (!/^\d{10}$/.test(form.phoneNumber.toString()))
-      errs.phoneNumber = "Enter a valid 10-digit number";
+    const errs = validateAddress(form, deliverableStates);
     setFormErrors(errs);
     return Object.keys(errs).length === 0;
   };
@@ -304,10 +303,10 @@ export default function AddressStep({ selectedAddress, onContinue }) {
                   fontFamily: THEME.fontBody,
                 }}
               >
-                ⚠ We don't currently deliver to "
-                {selected.state || "this state"}" as saved on this address.
-                Please choose a different address or add a new one with a valid
-                state.
+                ⚠ This address can't be used: either we don't deliver to "
+                {selected.state || "this state"}" or its city, PIN or phone
+                number is invalid. Please choose another address or add a new
+                one.
               </p>
             )}
           </div>
@@ -465,6 +464,10 @@ export default function AddressStep({ selectedAddress, onContinue }) {
         {/* ── Add mode: inline new-address form ── */}
         {mode === "add" && (
           <div>
+            <UseLocationButton
+              deliverableStates={deliverableStates}
+              onFill={fillForm}
+            />
             <div
               style={{
                 display: "grid",
@@ -607,11 +610,28 @@ export default function AddressStep({ selectedAddress, onContinue }) {
               <Field label="Pincode *">
                 <input
                   value={form.pin}
+                  inputMode="numeric"
+                  maxLength={6}
                   onChange={(e) =>
-                    setForm((f) => ({ ...f, pin: e.target.value }))
+                    setForm((f) => ({
+                      ...f,
+                      pin: e.target.value.replace(/\D/g, ""),
+                    }))
                   }
+                  placeholder="6-digit PIN — fills city & state"
                   style={inputStyle}
                 />
+                {pinHint && !formErrors.pin && (
+                  <p
+                    style={{
+                      color: THEME.textMuted,
+                      fontSize: 11,
+                      margin: "3px 0 0",
+                    }}
+                  >
+                    {pinHint}
+                  </p>
+                )}
                 {formErrors.pin && (
                   <p
                     style={{
@@ -630,10 +650,15 @@ export default function AddressStep({ selectedAddress, onContinue }) {
               <Field label="Phone Number *">
                 <input
                   value={form.phoneNumber}
+                  inputMode="numeric"
+                  maxLength={10}
                   onChange={(e) =>
-                    setForm((f) => ({ ...f, phoneNumber: e.target.value }))
+                    setForm((f) => ({
+                      ...f,
+                      phoneNumber: e.target.value.replace(/\D/g, ""),
+                    }))
                   }
-                  placeholder="10-digit number"
+                  placeholder="10-digit mobile number"
                   style={inputStyle}
                 />
                 {formErrors.phoneNumber && (

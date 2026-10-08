@@ -1,64 +1,221 @@
-import { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useEffect, useRef, useState } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
+import { useDispatch } from "react-redux";
+import authService from "../services/authService";
+import { setCredentials } from "../redux/slices/authSlice";
 
-const API = import.meta.env.VITE_API_URL || "http://localhost:5000";
 const gold = "#C9A24B";
 const goldBright = "#F0D585";
 
+const EMAIL_RX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// Mirrors normalizeIdentifier on the server (10-digit Indian mobile, optional +91/0).
+const PHONE_RX = /^(?:\+?91|0)?[6-9]\d{9}$/;
+
+// Phone login is built but off until an SMS provider is set up (see server
+// PHONE_LOGIN_ENABLED). Set VITE_PHONE_LOGIN=true to show it.
+const PHONE_LOGIN = import.meta.env.VITE_PHONE_LOGIN === "true";
+const ID_LABEL = PHONE_LOGIN ? "Email or mobile number" : "Email address";
+const ID_ERROR = PHONE_LOGIN
+  ? "Enter a valid email address or 10-digit mobile number."
+  : "Enter a valid email address.";
+
+const isValidIdentifier = (value) => {
+  const v = value.trim();
+  if (!PHONE_LOGIN) return EMAIL_RX.test(v);
+  return v.includes("@")
+    ? EMAIL_RX.test(v)
+    : PHONE_RX.test(v.replace(/[\s\-()]/g, ""));
+};
+
+const apiError = (err) =>
+  err.response?.data?.message || err.message || "Something went wrong";
+
+const inputStyle = (hasError) => ({
+  background: "#1F1F24",
+  color: "#F3EFE6",
+  borderColor: hasError ? "#E2574C" : "#3A3A40",
+});
+
+const Label = ({ children }) => (
+  <label
+    className="block text-xs font-medium uppercase tracking-wider mb-1.5"
+    style={{ color: "#8A877F" }}
+  >
+    {children}
+  </label>
+);
+
+const ErrorText = ({ children }) =>
+  children ? (
+    <p className="text-xs mt-1" style={{ color: "#E2574C" }}>
+      {children}
+    </p>
+  ) : null;
+
+const PrimaryButton = ({ onClick, loading, children, loadingText }) => (
+  <button
+    onClick={onClick}
+    disabled={loading}
+    className="w-full py-2.5 text-sm font-medium rounded-lg transition-all active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed"
+    style={{
+      background: `linear-gradient(135deg, ${gold}, ${goldBright})`,
+      color: "#0B0B0C",
+    }}
+  >
+    {loading ? (
+      <span className="flex items-center justify-center gap-2">
+        <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
+          <circle
+            className="opacity-25"
+            cx="12"
+            cy="12"
+            r="10"
+            stroke="currentColor"
+            strokeWidth="4"
+          />
+          <path
+            className="opacity-75"
+            fill="currentColor"
+            d="M4 12a8 8 0 018-8v8z"
+          />
+        </svg>
+        {loadingText}
+      </span>
+    ) : (
+      children
+    )}
+  </button>
+);
+
+// Steps: "identifier" -> "otp" -> ("profile" for new users only)
 export default function LoginPage() {
   const navigate = useNavigate();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [showPass, setShowPass] = useState(false);
+  const location = useLocation();
+  const dispatch = useDispatch();
+
+  const [step, setStep] = useState("identifier");
+  const [identifier, setIdentifier] = useState("");
+  const [otp, setOtp] = useState("");
+  const [name, setName] = useState("");
+  const [signupToken, setSignupToken] = useState("");
+  const [sentTo, setSentTo] = useState("");
+  const [resendIn, setResendIn] = useState(0);
   const [loading, setLoading] = useState(false);
-  const [errors, setErrors] = useState({});
+  const [error, setError] = useState("");
   const [toast, setToast] = useState({ show: false, msg: "" });
+
+  const otpRef = useRef(null);
+  const nameRef = useRef(null);
+
+  useEffect(() => {
+    if (resendIn <= 0) return;
+    const t = setTimeout(() => setResendIn((s) => s - 1), 1000);
+    return () => clearTimeout(t);
+  }, [resendIn]);
+
+  useEffect(() => {
+    if (step === "otp") otpRef.current?.focus();
+    if (step === "profile") nameRef.current?.focus();
+  }, [step]);
 
   const showToast = (msg) => {
     setToast({ show: true, msg });
     setTimeout(() => setToast({ show: false, msg: "" }), 3000);
   };
 
-  const validate = () => {
-    const errs = {};
-    const emailRx = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRx.test(email)) errs.email = "Please enter a valid email.";
-    if (password.length < 6)
-      errs.password = "Password must be at least 6 characters.";
-    setErrors(errs);
-    return Object.keys(errs).length === 0;
+  const finishLogin = (user) => {
+    dispatch(setCredentials(user));
+    window.dispatchEvent(new Event("storage")); // Navbar reads localStorage
+    showToast(`Welcome, ${user.name}!`);
+
+    const from = location.state?.from;
+    setTimeout(() => {
+      if (user.isAdmin) navigate("/admin/dashboard", { replace: true });
+      else if (user.isSeller) navigate("/seller/dashboard", { replace: true });
+      else navigate(from || "/", { replace: true });
+    }, 600);
   };
 
-  const handleLogin = async () => {
-    if (!validate()) return;
+  const sendCode = async () => {
+    if (!isValidIdentifier(identifier)) {
+      setError(ID_ERROR);
+      return;
+    }
+    setError("");
     setLoading(true);
     try {
-      const res = await fetch(`${API}/api/users/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ email: email.trim(), password }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Login failed");
-
-      localStorage.setItem("userInfo", JSON.stringify(data));
-      showToast(`Welcome back, ${data.name}!`);
-
-      setTimeout(() => {
-        if (data.isAdmin) navigate("/admin/dashboard");
-        else if (data.isSeller) navigate("/seller/dashboard");
-        else navigate("/");
-      }, 800);
+      const data = await authService.requestOtp(identifier.trim());
+      setSentTo(data.message);
+      setResendIn(data.resendAfter || 30);
+      setOtp("");
+      setStep("otp");
     } catch (err) {
-      showToast(err.message || "Something went wrong");
+      setError(apiError(err));
     } finally {
       setLoading(false);
     }
   };
 
-  const handleKeyDown = (e) => {
-    if (e.key === "Enter") handleLogin();
+  const verifyCode = async () => {
+    if (!/^\d{6}$/.test(otp)) {
+      setError("Enter the 6-digit code.");
+      return;
+    }
+    setError("");
+    setLoading(true);
+    try {
+      const data = await authService.verifyOtp(identifier.trim(), otp);
+      if (data.needsProfile) {
+        setSignupToken(data.signupToken);
+        setStep("profile");
+      } else {
+        finishLogin(data);
+      }
+    } catch (err) {
+      setError(apiError(err));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const createAccount = async () => {
+    if (name.trim().length < 2) {
+      setError("Please enter your name.");
+      return;
+    }
+    setError("");
+    setLoading(true);
+    try {
+      const user = await authService.completeSignup(signupToken, name.trim());
+      finishLogin(user);
+    } catch (err) {
+      const msg = apiError(err);
+      // Signup token expired — start over.
+      if (err.response?.status === 401) {
+        setStep("identifier");
+        setOtp("");
+        setSignupToken("");
+      }
+      setError(msg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const changeIdentifier = () => {
+    setStep("identifier");
+    setOtp("");
+    setError("");
+  };
+
+  const onEnter = (action) => (e) => {
+    if (e.key === "Enter") action();
+  };
+
+  const headings = {
+    identifier: ["Welcome", `Log in or sign up with your ${ID_LABEL.toLowerCase()}`],
+    otp: ["Enter the code", sentTo],
+    profile: ["Almost there", "Tell us your name to finish creating your account"],
   };
 
   return (
@@ -175,146 +332,131 @@ export default function LoginPage() {
               fontFamily: "'Cormorant Garamond', serif",
             }}
           >
-            Welcome back
+            {headings[step][0]}
           </h2>
           <p className="text-sm mb-8" style={{ color: "#8A877F" }}>
-            Sign in to your account to continue
+            {headings[step][1]}
           </p>
 
-          {/* Email */}
-          <div className="mb-5">
-            <label
-              className="block text-xs font-medium uppercase tracking-wider mb-1.5"
-              style={{ color: "#8A877F" }}
-            >
-              Email address
-            </label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="you@example.com"
-              autoComplete="email"
-              className="w-full px-3.5 py-2.5 rounded-lg border text-sm outline-none transition-all"
-              style={{
-                background: "#1F1F24",
-                color: "#F3EFE6",
-                borderColor: errors.email ? "#E2574C" : "#3A3A40",
-              }}
-            />
-            {errors.email && (
-              <p className="text-xs mt-1" style={{ color: "#E2574C" }}>
-                {errors.email}
-              </p>
-            )}
-          </div>
-
-          {/* Password */}
-          <div className="mb-6">
-            <label
-              className="block text-xs font-medium uppercase tracking-wider mb-1.5"
-              style={{ color: "#8A877F" }}
-            >
-              Password
-            </label>
-            <div className="relative">
-              <input
-                type={showPass ? "text" : "password"}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder="••••••••"
-                autoComplete="current-password"
-                className="w-full px-3.5 py-2.5 pr-10 rounded-lg border text-sm outline-none transition-all"
-                style={{
-                  background: "#1F1F24",
-                  color: "#F3EFE6",
-                  borderColor: errors.password ? "#E2574C" : "#3A3A40",
-                }}
-              />
-              <button
-                type="button"
-                onClick={() => setShowPass(!showPass)}
-                className="absolute right-3 top-1/2 -translate-y-1/2"
-                style={{ color: "#8A877F" }}
-                aria-label="Toggle password"
+          {step === "identifier" && (
+            <>
+              <div className="mb-6">
+                <Label>{ID_LABEL}</Label>
+                <input
+                  value={identifier}
+                  onChange={(e) => setIdentifier(e.target.value)}
+                  onKeyDown={onEnter(sendCode)}
+                  type={PHONE_LOGIN ? "text" : "email"}
+                  placeholder={
+                    PHONE_LOGIN ? "you@example.com or 98765 43210" : "you@example.com"
+                  }
+                  autoComplete="username"
+                  autoFocus
+                  className="w-full px-3.5 py-2.5 rounded-lg border text-sm outline-none transition-all"
+                  style={inputStyle(!!error)}
+                />
+                <ErrorText>{error}</ErrorText>
+              </div>
+              <PrimaryButton
+                onClick={sendCode}
+                loading={loading}
+                loadingText="Sending code…"
               >
-                {showPass ? "🙈" : "👁"}
-              </button>
-            </div>
-            {errors.password && (
-              <p className="text-xs mt-1" style={{ color: "#E2574C" }}>
-                {errors.password}
-              </p>
-            )}
-            <div className="flex justify-end mt-1.5">
-              <Link
-                to="/forgot-password"
-                className="text-xs hover:underline"
-                style={{ color: goldBright }}
+                Continue
+              </PrimaryButton>
+              <p
+                className="text-xs text-center mt-6 leading-relaxed"
+                style={{ color: "#5A5852" }}
               >
-                Forgot password?
-              </Link>
-            </div>
-          </div>
+                New to IDENTEE? We'll create your account after you verify
+                the code.
+              </p>
+            </>
+          )}
 
-          {/* Login Button */}
-          <button
-            onClick={handleLogin}
-            disabled={loading}
-            className="w-full py-2.5 text-sm font-medium rounded-lg transition-all active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed"
-            style={{
-              background: `linear-gradient(135deg, ${gold}, ${goldBright})`,
-              color: "#0B0B0C",
-            }}
-          >
-            {loading ? (
-              <span className="flex items-center justify-center gap-2">
-                <svg
-                  className="animate-spin w-4 h-4"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                >
-                  <circle
-                    className="opacity-25"
-                    cx="12"
-                    cy="12"
-                    r="10"
-                    stroke="currentColor"
-                    strokeWidth="4"
-                  />
-                  <path
-                    className="opacity-75"
-                    fill="currentColor"
-                    d="M4 12a8 8 0 018-8v8z"
-                  />
-                </svg>
-                Signing in…
-              </span>
-            ) : (
-              "Sign in"
-            )}
-          </button>
+          {step === "otp" && (
+            <>
+              <div className="mb-6">
+                <div className="flex justify-between items-baseline">
+                  <Label>6-digit code</Label>
+                  <button
+                    type="button"
+                    onClick={changeIdentifier}
+                    className="text-xs hover:underline mb-1.5"
+                    style={{ color: goldBright }}
+                  >
+                    Change
+                  </button>
+                </div>
+                <input
+                  ref={otpRef}
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  maxLength={6}
+                  value={otp}
+                  onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
+                  onKeyDown={onEnter(verifyCode)}
+                  placeholder="••••••"
+                  className="w-full px-3.5 py-2.5 rounded-lg border text-lg tracking-[0.5em] text-center outline-none transition-all"
+                  style={inputStyle(!!error)}
+                />
+                <ErrorText>{error}</ErrorText>
+                <div className="flex justify-end mt-2">
+                  {resendIn > 0 ? (
+                    <span className="text-xs" style={{ color: "#5A5852" }}>
+                      Resend code in {resendIn}s
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={sendCode}
+                      disabled={loading}
+                      className="text-xs hover:underline disabled:opacity-60"
+                      style={{ color: goldBright }}
+                    >
+                      Resend code
+                    </button>
+                  )}
+                </div>
+              </div>
+              <PrimaryButton
+                onClick={verifyCode}
+                loading={loading}
+                loadingText="Verifying…"
+              >
+                Verify & continue
+              </PrimaryButton>
+            </>
+          )}
 
-          <div className="flex items-center gap-3 my-6">
-            <hr style={{ flex: 1, borderColor: "#2B2B30" }} />
-            <span className="text-xs" style={{ color: "#5A5852" }}>
-              new here?
-            </span>
-            <hr style={{ flex: 1, borderColor: "#2B2B30" }} />
-          </div>
-
-          <p className="text-center text-sm" style={{ color: "#8A877F" }}>
-            Don't have an account?{" "}
-            <Link
-              to="/register"
-              className="font-medium hover:underline"
-              style={{ color: goldBright }}
-            >
-              Create one
-            </Link>
-          </p>
+          {step === "profile" && (
+            <>
+              <div className="mb-6">
+                <Label>Your name</Label>
+                <input
+                  ref={nameRef}
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  onKeyDown={onEnter(createAccount)}
+                  placeholder="Full name"
+                  autoComplete="name"
+                  maxLength={50}
+                  className="w-full px-3.5 py-2.5 rounded-lg border text-sm outline-none transition-all"
+                  style={inputStyle(!!error)}
+                />
+                <ErrorText>{error}</ErrorText>
+              </div>
+              <PrimaryButton
+                onClick={createAccount}
+                loading={loading}
+                loadingText="Creating account…"
+              >
+                Create account
+              </PrimaryButton>
+            </>
+          )}
         </div>
       </div>
 

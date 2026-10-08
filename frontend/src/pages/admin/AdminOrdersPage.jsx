@@ -16,6 +16,7 @@ const STATUS_COLORS = {
   DELIVERED: { bg: "#10B98120", text: "#6EE7B7" },
   RETURN_APPROVED: { bg: "#F5970020", text: "#FCD34D" },
   RETURN_COMPLETED: { bg: "#EF444420", text: "#FCA5A5" },
+  CANCELLED: { bg: "#6B728020", text: "#9CA3AF" },
 };
 
 const STATUS_OPTIONS = Object.keys(STATUS_COLORS);

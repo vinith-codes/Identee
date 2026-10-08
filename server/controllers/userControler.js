@@ -2,253 +2,226 @@ import asyncHandler from "express-async-handler";
 import generateToken from "../utils/generateToken.js";
 import User from "../models/userModel.js";
 import Product from "../models/productModel.js";
-import RegisterEmailOtp from "../utils/registerEmailOtp.js";
-import ResetEmailOtp from "../utils/resetEmailOtp.js";
+import jwt from "jsonwebtoken";
+import OtpChallenge from "../models/otpChallengeModel.js";
+import { deliverOtp } from "../services/otpSender.js";
+import {
+  normalizeIdentifier,
+  generateOtp,
+  hashOtp,
+  otpMatches,
+  maskIdentifier,
+  OTP_TTL_MS,
+  RESEND_COOLDOWN_MS,
+  SEND_WINDOW_MS,
+  MAX_SENDS_PER_WINDOW,
+  MAX_VERIFY_ATTEMPTS,
+} from "../utils/otp.js";
 import Subscription from "../models/subscriptionModel.js";
 import Order from "../models/orderModel.js";
 import ShippingCost from "../models/shippingcostModel.js";
+import { addressProblem } from "../utils/address.js";
 import path from "path";
 import fs from "fs";
-// @desc Auth user & get token
-// @route POST /api/users/login
+/* ===================== OTP LOGIN (email or phone) =====================
+ * 1. POST /api/users/otp/request  { identifier }       -> code sent
+ * 2. POST /api/users/otp/verify   { identifier, otp }  -> logged in, or
+ *    { needsProfile, signupToken } when no account exists yet
+ * 3. POST /api/users/otp/complete { signupToken, name } -> account created
+ */
+
+const authPayload = (user) => ({
+  _id: user._id,
+  name: user.name,
+  email: user.email,
+  phone: user.phone,
+  isAdmin: user.isAdmin,
+  isSeller: user.isSeller,
+  isDelivery: user.isDelivery,
+  subscription: user.subscription,
+  token: generateToken(user._id),
+});
+
+const findUserByIdentifier = (identifier, channel) =>
+  User.findOne(channel === "email" ? { email: identifier } : { phone: identifier });
+
+// Phone login is built but off until an SMS provider is set up.
+// Turn on with PHONE_LOGIN_ENABLED=true (and VITE_PHONE_LOGIN=true on the frontend).
+const phoneLoginEnabled = () => process.env.PHONE_LOGIN_ENABLED === "true";
+
+const parseIdentifier = (req, res) => {
+  const parsed = normalizeIdentifier(req.body.identifier);
+  if (!parsed || (parsed.channel === "phone" && !phoneLoginEnabled())) {
+    res.status(400);
+    throw new Error(
+      phoneLoginEnabled()
+        ? "Enter a valid email address or 10-digit mobile number"
+        : "Enter a valid email address",
+    );
+  }
+  return parsed;
+};
+
+// @desc   Send a login OTP to an email or mobile number
+// @route  POST /api/users/otp/request
 // @access Public
-const authUser = asyncHandler(async (req, res) => {
-  const { email, password } = req.body;
+const requestLoginOtp = asyncHandler(async (req, res) => {
+  const { identifier, channel } = parseIdentifier(req, res);
+  const now = Date.now();
 
-  const user = await User.findOne({ email });
+  let challenge = await OtpChallenge.findOne({ identifier });
 
-  if (user && (await user.matchPassword(password))) {
-    res.json({
-      _id: user._id,
-      name: user.name,
-      email: user.email,
-      isAdmin: user.isAdmin,
-      subscription: user.subscription,
-      isSeller: user.isSeller,
-      isDelivery: user.isDelivery,
-
-      token: generateToken(user._id),
-    });
+  if (challenge) {
+    const sinceLast = now - (challenge.lastSentAt?.getTime() || 0);
+    if (sinceLast < RESEND_COOLDOWN_MS) {
+      const retryAfter = Math.ceil((RESEND_COOLDOWN_MS - sinceLast) / 1000);
+      res.status(429);
+      throw new Error(`Please wait ${retryAfter}s before requesting a new code`);
+    }
+    if (now - challenge.windowStart.getTime() > SEND_WINDOW_MS) {
+      challenge.windowStart = new Date(now);
+      challenge.sendCount = 0;
+    }
+    if (challenge.sendCount >= MAX_SENDS_PER_WINDOW) {
+      res.status(429);
+      throw new Error("Too many codes requested. Please try again in 15 minutes.");
+    }
   } else {
+    challenge = new OtpChallenge({ identifier, channel, windowStart: new Date(now) });
+  }
+
+  const code = generateOtp();
+
+  // Deliver first: if sending fails nothing is stored and the user can retry.
+  try {
+    await deliverOtp(channel, identifier, code);
+  } catch (err) {
+    res.status(err.status || 502);
+    throw err;
+  }
+
+  challenge.channel = channel;
+  challenge.codeHash = hashOtp(identifier, code);
+  challenge.expiresAt = new Date(now + OTP_TTL_MS);
+  challenge.attempts = 0;
+  challenge.lastSentAt = new Date(now);
+  challenge.sendCount += 1;
+  await challenge.save();
+
+  res.json({
+    message: `Code sent to ${maskIdentifier(identifier, channel)}`,
+    channel,
+    resendAfter: RESEND_COOLDOWN_MS / 1000,
+  });
+});
+
+// @desc   Verify a login OTP; logs in an existing user or starts signup
+// @route  POST /api/users/otp/verify
+// @access Public
+const verifyLoginOtp = asyncHandler(async (req, res) => {
+  const { identifier, channel } = parseIdentifier(req, res);
+  const otp = String(req.body.otp || "").trim();
+
+  const challenge = await OtpChallenge.findOne({ identifier });
+
+  if (!challenge?.codeHash || challenge.expiresAt < new Date()) {
+    res.status(400);
+    throw new Error("Code expired or not requested. Please request a new one.");
+  }
+
+  if (challenge.attempts >= MAX_VERIFY_ATTEMPTS) {
+    res.status(429);
+    throw new Error("Too many wrong attempts. Please request a new code.");
+  }
+
+  if (!otpMatches(identifier, otp, challenge.codeHash)) {
+    challenge.attempts += 1;
+    await challenge.save();
+    const left = MAX_VERIFY_ATTEMPTS - challenge.attempts;
+    res.status(400);
+    throw new Error(
+      left > 0
+        ? `Incorrect code. ${left} attempt${left === 1 ? "" : "s"} left.`
+        : "Too many wrong attempts. Please request a new code.",
+    );
+  }
+
+  // Single use: clear the code but keep the doc so send rate limits still apply.
+  challenge.codeHash = undefined;
+  challenge.expiresAt = undefined;
+  await challenge.save();
+
+  const user = await findUserByIdentifier(identifier, channel);
+
+  // name "temp" = half-finished signup from the old flow: ask for the name again.
+  if (user && user.name !== "temp") {
+    const verifiedField = channel === "email" ? "isEmailVerified" : "isPhoneVerified";
+    user[verifiedField] = true;
+    user.lastLoginAt = new Date();
+    await user.save({ validateBeforeSave: false });
+    return res.json(authPayload(user));
+  }
+
+  // New user: hand back a short-lived token proving this identifier was verified.
+  const signupToken = jwt.sign(
+    { purpose: "signup", identifier, channel },
+    process.env.JWT_SECRET,
+    { expiresIn: "15m" },
+  );
+  res.json({ needsProfile: true, signupToken, channel });
+});
+
+// @desc   Create the account for a verified identifier
+// @route  POST /api/users/otp/complete
+// @access Public (requires signupToken from verify)
+const completeOtpSignup = asyncHandler(async (req, res) => {
+  let decoded;
+  try {
+    decoded = jwt.verify(String(req.body.signupToken || ""), process.env.JWT_SECRET);
+  } catch {
+    decoded = null;
+  }
+  if (decoded?.purpose !== "signup") {
     res.status(401);
-    throw new Error("Invalid email or password");
+    throw new Error("Your verification expired. Please log in again.");
   }
-});
 
-// @desc Register a new user
-// @route POST /api/users
-// @access Public
-const registerUser = asyncHandler(async (req, res) => {
-  const { name, email, password, otp } = req.body;
-
-  const user = await User.findOne({ email }).select("+otp +expiresAt");
-
-  if (!user) {
+  const name = String(req.body.name || "").trim();
+  if (name.length < 2 || name.length > 50) {
     res.status(400);
-    throw new Error("User not found. Please send OTP first.");
+    throw new Error("Please enter your name (2–50 characters)");
   }
 
-  if (!user.isEmailVerified) {
-    res.status(400);
-    throw new Error("Email not verified. Please verify OTP first.");
+  const { identifier, channel } = decoded;
+
+  // Double submit / race: the account may already exist — just log in.
+  const existing = await findUserByIdentifier(identifier, channel);
+  if (existing) {
+    if (existing.name === "temp") {
+      // Legacy half-finished signup: claim it (its old password is discarded).
+      existing.name = name;
+      existing.password = undefined;
+      existing.otp = undefined;
+      existing.expiresAt = undefined;
+    }
+    existing[channel === "email" ? "isEmailVerified" : "isPhoneVerified"] = true;
+    existing.lastLoginAt = new Date();
+    await existing.save({ validateBeforeSave: false });
+    return res.json(authPayload(existing));
   }
 
-  // Defensive re-check: same otp that was verified, and not expired since.
-  if (user.otp !== otp) {
-    res.status(400);
-    throw new Error("Invalid OTP");
-  }
-
-  const isExpired = user.expiresAt && user.expiresAt < new Date();
-  if (isExpired) {
-    res.status(400);
-    throw new Error("OTP expired. Please request a new one.");
-  }
-
-  const tempUserCheck = await User.findOne({
-    email,
-    name: { $ne: "temp" },
+  const user = await User.create({
+    name,
+    ...(channel === "email"
+      ? { email: identifier, isEmailVerified: true }
+      : { phone: identifier, isPhoneVerified: true }),
+    addresses: [],
+    lastLoginAt: new Date(),
   });
 
-  if (tempUserCheck) {
-    res.status(400);
-    throw new Error("User already exists");
-  }
-
-  user.name = name;
-  user.password = password;
-  user.otp = undefined;
-  user.expiresAt = undefined;
-  user.isEmailVerified = true; // keep true; this IS the verified account now
-
-  await user.save();
-
-  res.status(201).json({
-    _id: user._id,
-    name: user.name,
-    email: user.email,
-    isAdmin: user.isAdmin,
-    isDelivery: user.isDelivery,
-    isSeller: user.isSeller,
-    token: generateToken(user._id),
-  });
+  res.status(201).json(authPayload(user));
 });
 
-// @desc SEND OTP
-// @route POST /api/users/otp
-// @access Public
-const sendOtpToEmail = asyncHandler(async (req, res) => {
-  const { email } = req.body;
-
-  if (!email) {
-    res.status(400);
-    throw new Error("Email is required");
-  }
-
-  const otp = Math.floor(100000 + Math.random() * 900000).toString();
-  console.log("OTP:", otp);
-  const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 mins
-
-  let user = await User.findOne({ email });
-
-  if (user) {
-    // Update existing user with new OTP
-    user.otp = otp;
-    user.expiresAt = expiresAt;
-    user.isEmailVerified = false; // Reset verification status when new OTP is sent
-    await user.save({ validateBeforeSave: false });
-  } else {
-    // Create new temp user
-    user = new User({
-      name: "temp",
-      email,
-      password: "temp1234",
-      otp,
-      expiresAt,
-      isEmailVerified: false,
-      addresses: [],
-    });
-    await user.save({ validateBeforeSave: false });
-  }
-
-  // Send email
-  await RegisterEmailOtp({
-    email,
-    status: "OTP Verification",
-    orderId: `OTP-${otp}`,
-    html: `<p>Your OTP for verification is <strong>${otp}</strong>. It will expire in 10 minutes.</p>`,
-  });
-
-  res.status(200).json({ message: "OTP sent successfully" });
-});
-
-// @route POST /api/users/verify-otp
-// @desc Verify OTP for email
-// @access Public
-const verifyOtp = asyncHandler(async (req, res) => {
-  const { email, otp } = req.body;
-
-  const user = await User.findOne({ email }).select("+otp +expiresAt");
-
-  if (!user) {
-    return res.status(400).json({ message: "User not found" });
-  }
-
-  if (!user.otp) {
-    return res
-      .status(400)
-      .json({ message: "No OTP found. Please request again." });
-  }
-
-  const isExpired = user.expiresAt && user.expiresAt < new Date();
-  if (isExpired) {
-    return res
-      .status(400)
-      .json({ message: "OTP expired. Please request again." });
-  }
-
-  if (user.otp !== otp) {
-    return res.status(400).json({ message: "Invalid OTP" });
-  }
-
-  // ✅ Mark verified, but DO NOT clear user.otp here.
-  // registerUser still needs to confirm this same otp later.
-  user.isEmailVerified = true;
-  await user.save({ validateBeforeSave: false });
-
-  res.status(200).json({ message: "OTP verified successfully", success: true });
-});
-// @desc Send OTP to email for password reset
-// @route POST /api/users/forgot-password
-// @access Public
-const PasswordResetOtp = asyncHandler(async (req, res) => {
-  const { email } = req.body;
-
-  const user = await User.findOne({ email });
-
-  if (!user) {
-    res.status(404);
-    throw new Error("User not found");
-  }
-
-  const otp = Math.floor(100000 + Math.random() * 900000).toString();
-  const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 mins
-
-  user.otp = otp;
-  user.expiresAt = expiresAt;
-  user.isPasswordResetVerified = false;
-  await user.save({ validateBeforeSave: false });
-
-  await ResetEmailOtp({
-    email,
-    status: "Password Reset OTP",
-    orderId: `RESET-${otp}`,
-    html: `<p>Your OTP for password reset is <strong>${otp}</strong>. It will expire in 10 minutes.</p>`,
-    otp,
-  });
-
-  res.status(200).json({ message: "OTP sent for password reset" });
-});
-
-// @desc Reset password using OTP
-// @route POST /api/users/reset-password
-// @access Public
-// CONTROLLER: api/users/resetPassword
-const resetPasswordWithOtp = asyncHandler(async (req, res) => {
-  const { email, otp, password } = req.body;
-
-  if (!email || !otp || !password || password.trim() === "") {
-    res.status(400);
-    throw new Error("Email, OTP, and a non-empty new password are required");
-  }
-
-  const user = await User.findOne({ email }).select("+otp +expiresAt");
-
-  if (!user) {
-    res.status(400);
-    throw new Error("User not found");
-  }
-
-  if (user.otp !== otp.toString()) {
-    res.status(400);
-    throw new Error("Invalid OTP");
-  }
-
-  const isExpired = user.expiresAt && user.expiresAt < new Date();
-  if (isExpired) {
-    res.status(400);
-    throw new Error("OTP expired");
-  }
-
-  user.password = password;
-  user.otp = undefined;
-  user.expiresAt = undefined;
-  user.isPasswordResetVerified = false;
-
-  await user.save();
-
-  res.status(200).json({ message: "Password reset successfully" });
-});
 // @desc Delete user's profile picture
 // @route DELETE /api/users/profile-picture
 // @access Private
@@ -318,6 +291,7 @@ const getUserProfile = asyncHandler(async (req, res) => {
       _id: user._id,
       name: user.name,
       email: user.email,
+      phone: user.phone,
       lastName: user.lastName,
       gender: user.gender,
       dateOfBirth: user.dateOfBirth,
@@ -362,15 +336,12 @@ const updateUserProfile = asyncHandler(async (req, res) => {
   const oldProfilePicture = user.profilePicture;
 
   /* ---------- BASIC FIELDS ---------- */
+  // email/phone are login identifiers verified by OTP, so they can't be
+  // changed here (that would let anyone claim an unverified address).
   user.name = req.body.name ?? user.name;
-  user.email = req.body.email ?? user.email;
   user.lastName = req.body.lastName ?? user.lastName;
   user.gender = req.body.gender ?? user.gender;
   user.dateOfBirth = req.body.dateOfBirth ?? user.dateOfBirth;
-
-  if (req.body.password?.trim()) {
-    user.password = req.body.password;
-  }
 
   /* ---------- ADDRESSES ---------- */
   if (req.body.addresses) {
@@ -418,6 +389,22 @@ const updateUserProfile = asyncHandler(async (req, res) => {
     // there's nothing to validate against, and blocking address saves
     // entirely in that case would be worse than letting them through.
 
+    // Validate new/edited addresses only, so an old saved address that
+    // predates these rules doesn't block every profile save.
+    const fieldsKey = (a) =>
+      ["doorNo", "street", "nearestLandmark", "city", "state", "pin", "phoneNumber"]
+        .map((k) => String(a?.[k] ?? "").trim())
+        .join("|");
+    const unchanged = new Set((user.addresses || []).map(fieldsKey));
+    for (const addr of addresses) {
+      if (unchanged.has(fieldsKey(addr))) continue;
+      const problem = addressProblem(addr);
+      if (problem) {
+        res.status(400);
+        throw new Error(problem);
+      }
+    }
+
     user.addresses = addresses;
   }
 
@@ -456,6 +443,7 @@ const updateUserProfile = asyncHandler(async (req, res) => {
     _id: updatedUser._id,
     name: updatedUser.name,
     email: updatedUser.email,
+    phone: updatedUser.phone,
     profilePicture: updatedUser.profilePicture,
     addresses: updatedUser.addresses,
     isAdmin: updatedUser.isAdmin,
@@ -622,10 +610,9 @@ const getCart = asyncHandler(async (req, res) => {
 // @access Private
 
 export {
-  authUser,
-  registerUser,
-  sendOtpToEmail,
-  verifyOtp,
+  requestLoginOtp,
+  verifyLoginOtp,
+  completeOtpSignup,
   getUserProfile,
   updateUserProfile,
   getUsers,
@@ -634,8 +621,6 @@ export {
   updateUser,
   toggleFavorite,
   getFavorites,
-  PasswordResetOtp,
   deleteProfilePicture,
-  resetPasswordWithOtp,
   getCart,
 };
