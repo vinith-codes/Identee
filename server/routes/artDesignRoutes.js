@@ -14,7 +14,7 @@ const router = express.Router();
 
 
 router.get("/", getArtDesigns);
-router.get("/all", getAllArtDesignsAdmin);
+router.get("/all", protect, adminOrSeller, getAllArtDesignsAdmin); // includes hidden ones
 
 // ⚠️ Static path — must come before any future "/:id" route
 router.post(
@@ -25,7 +25,8 @@ router.post(
   bulkUploadArtDesigns,
 );
 
-router.post("/", uploadArtImage, createArtDesign);
-router.delete("/:id", deleteArtDesign);
+// adding/removing needs an admin or seller login (uploads go to Cloudinary)
+router.post("/", protect, adminOrSeller, uploadArtImage, createArtDesign);
+router.delete("/:id", protect, adminOrSeller, deleteArtDesign);
 
 export default router;
