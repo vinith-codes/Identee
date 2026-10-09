@@ -119,6 +119,7 @@ export default function DesignRoomPage() {
   // returning to a saved design starts at the front view; new visits fly in after the fitting step
   const [camRequest, setCamRequest] = useState(() => (draft?.elements?.length ? { view: "front", ms: 1600, n: nextReq() } : null));
   const [shots, setShots] = useState(null);
+  const [spin, setSpin] = useState(true); // Review: the tee turns 360° until a side is picked
   const [toast, setToast] = useState("");
   const [busy, setBusy] = useState("");
   // the saved design this is (My designs); locked = already ordered → saving makes a copy
@@ -518,6 +519,7 @@ export default function DesignRoomPage() {
     if (!elements.length) return say("Add a design first — tap a print area or use Text, Upload or Art.");
     closeArea();
     setStep("review");
+    setSpin(true);
     setCamRequest({ position: [0, 0.4, 5], n: nextReq() });
     // let the outline disappear from the textures, then take pictures
     // (retry for a few seconds in case the 3D view is still starting)
@@ -583,6 +585,15 @@ export default function DesignRoomPage() {
       setBusy("");
       if (wasEditing && step === "design") openArea(wasEditing);
     }
+  };
+  // Review: show one side (stops the 360° turn) / turn again
+  const showSide = (view) => {
+    setSpin(false);
+    setCamRequest({ view, n: nextReq() });
+  };
+  const turn360 = () => {
+    setSpin(true);
+    setCamRequest({ position: [0, 0.4, 5], n: nextReq() });
   };
   const backToDesign = () => {
     setStep("design");
@@ -680,6 +691,7 @@ export default function DesignRoomPage() {
 
       <main className="dr-stage">
         {model && colour && (
+          <div className="dr-room">
           <Room3D
             ref={roomApi}
             model={model}
@@ -689,8 +701,9 @@ export default function DesignRoomPage() {
             camRequest={camRequest}
             interactive={step === "design"}
             still={!!active}
-            autoRotate={step === "review"}
+            autoRotate={step === "review" && spin}
           />
+          </div>
         )}
 
         {step === "design" && (
@@ -795,31 +808,44 @@ export default function DesignRoomPage() {
         )}
 
         {step === "review" && (
-          <section className="dr-review" aria-label="Review your design">
-            <div className="dr-shots">
-              {(shots || SIDES.map(([, label]) => ({ label, url: null }))).map((s) => (
-                <figure key={s.label} className="dr-shot">
-                  {s.url ? <img src={s.url} alt={`${s.label} mockup`} /> : <div className="ph" />}
-                  <figcaption>{s.label}</figcaption>
-                </figure>
-              ))}
+          <>
+            <div className="dr-spinbar" role="group" aria-label="3D view">
+              <button type="button" className={spin ? "on" : ""} onClick={turn360} aria-pressed={spin}>
+                ⟳ 360°
+              </button>
+              <button type="button" className={!spin ? "on" : ""} onClick={() => setSpin(false)} aria-pressed={!spin}>
+                ❚❚ Pause
+              </button>
             </div>
-            <div className="dr-summary">
+            <section className="dr-review" aria-label="Review your design">
               <div>
-                <div className="eyebrow">Your design</div>
-                <p>
-                  {garment.label} · {colour?.name} · size <b>{sizeNow}</b> · {new Set(elements.map((e) => e.position)).size} print area(s)
-                </p>
-                <p className="muted">
-                  {positions
-                    .filter((p) => elements.some((e) => e.position === p.key))
-                    .map((p) => `${p.label} ${areaCm(p, sizeNow).join(" × ")} cm`)
-                    .join(" · ")}
-                </p>
+                <div className="eyebrow">Review your design</div>
+                <p className="dr-review-hint">Tap a side to look at it on the tee, or watch it turn 360°.</p>
               </div>
-              <div className="dr-total">₹{unitPrice.toLocaleString("en-IN")}</div>
-            </div>
-          </section>
+              <div className="dr-shots">
+                {(shots || SIDES.map(([, label]) => ({ label, url: null }))).map((sh, i) => (
+                  <button key={sh.label} type="button" className="dr-shot" onClick={() => showSide(SIDES[i][0])} aria-label={`Show the ${sh.label.toLowerCase()} on the 3D tee`}>
+                    {sh.url ? <img src={sh.url} alt="" /> : <div className="ph" />}
+                    <span>{sh.label}</span>
+                  </button>
+                ))}
+              </div>
+              <div className="dr-summary">
+                <div>
+                  <p>
+                    {garment.label} · {colour?.name} · size <b>{sizeNow}</b>
+                  </p>
+                  <p className="muted">
+                    {positions
+                      .filter((p) => elements.some((e) => e.position === p.key))
+                      .map((p) => `${p.label} ${areaCm(p, sizeNow).join(" × ")} cm`)
+                      .join(" · ")}
+                  </p>
+                </div>
+                <div className="dr-total">₹{unitPrice.toLocaleString("en-IN")}</div>
+              </div>
+            </section>
+          </>
         )}
 
         {step === "fit" && (

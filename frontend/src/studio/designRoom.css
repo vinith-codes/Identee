@@ -6,7 +6,7 @@
   --display: "Bricolage Grotesque", "Helvetica Neue", Arial, sans-serif;
   --body: "Inter", "Helvetica Neue", Arial, sans-serif;
   --shadow: 0 18px 40px -18px rgba(20, 17, 16, .35);
-  position: fixed; inset: 0; z-index: 1000; display: grid; grid-template-rows: auto 1fr auto;
+  position: fixed; inset: 0; z-index: 1000; display: grid; grid-template-rows: auto 1fr auto; grid-template-columns: minmax(0, 1fr); overflow: hidden;
   background: var(--wall); color: var(--ink); font: 14px/1.45 var(--body);
 }
 :where(.dr-app) :where(button, input, select) { font: inherit; color: inherit; }
@@ -105,16 +105,25 @@
 .dr-artcat img, .dr-artitem img { width: 100%; aspect-ratio: 1; object-fit: contain; }
 .dr-artitem b { color: var(--gold-deep); font-size: 11px; }
 
-/* review */
-.dr-review { position: absolute; z-index: 6; left: 16px; right: 16px; bottom: 16px; display: grid; gap: 10px; }
-.dr-shots { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
-.dr-shot { margin: 0; background: var(--paper); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; display: grid; }
+/* review: the 3D tee turns on the left, the four sides + summary on the right */
+.dr-room { position: absolute; inset: 0; }
+.dr-app[data-step="review"] .dr-room { right: 412px; }
+.dr-review { position: absolute; z-index: 6; right: 16px; top: 16px; bottom: 16px; width: 380px; max-width: calc(100% - 32px); box-sizing: border-box;
+  background: var(--paper); border: 1px solid var(--line); border-radius: 20px; box-shadow: var(--shadow); padding: 16px; display: flex; flex-direction: column; gap: 12px; overflow-y: auto; }
+.dr-review-hint { margin: 4px 0 0; font-size: 12.5px; color: var(--muted); }
+.dr-shots { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.dr-shot { margin: 0; padding: 0; background: #fff; border: 1px solid var(--line); border-radius: 14px; overflow: hidden; display: grid; text-align: left; }
+.dr-shot:hover { border-color: var(--gold); }
 .dr-shot img, .dr-shot .ph { width: 100%; aspect-ratio: 4 / 5; object-fit: cover; display: block; background: var(--wall); }
-.dr-shot figcaption { font-size: 12px; font-weight: 700; padding: 6px 10px; }
-.dr-summary { display: flex; justify-content: space-between; align-items: center; gap: 16px; background: var(--paper); border: 1px solid var(--line); border-radius: 14px; padding: 12px 16px; }
+.dr-shot span { font-size: 12px; font-weight: 700; padding: 6px 10px; }
+.dr-summary { display: flex; justify-content: space-between; align-items: center; gap: 12px; border-top: 1px solid var(--line); padding-top: 12px; margin-top: auto; }
 .dr-summary p { margin: 2px 0 0; }
 .dr-summary .muted { color: var(--muted); font-size: 12.5px; }
 .dr-total { font: 800 22px/1 var(--display); font-variant-numeric: tabular-nums; }
+.dr-spinbar { position: absolute; z-index: 6; left: calc((100% - 412px) / 2); bottom: 18px; transform: translateX(-50%); display: flex; gap: 6px;
+  background: color-mix(in srgb, var(--paper) 88%, transparent); backdrop-filter: blur(8px); border: 1px solid var(--line); border-radius: 999px; padding: 4px; }
+.dr-spinbar button { border: 0; background: none; border-radius: 999px; padding: 8px 14px; font-weight: 700; font-size: 13px; }
+.dr-spinbar button.on { background: var(--ink); color: #fff; }
 .dr-app .eyebrow { font-size: 11px; letter-spacing: .2em; text-transform: uppercase; font-weight: 800; color: var(--gold-deep); }
 
 /* fitting */
@@ -158,8 +167,11 @@
   .dr-cta { margin-left: 0; width: 100%; }
   .dr-editor { left: 0; right: 0; bottom: 0; top: auto; width: auto; max-width: none; height: 58%; border-radius: 20px 20px 0 0; }
   .dr-flatwrap { padding-top: 10px; }
-  .dr-shots { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .dr-review { top: 12px; overflow-y: auto; align-content: end; }
+  .dr-app[data-step="review"] .dr-room { right: 0; bottom: 52%; }
+  .dr-review { left: 0; right: 0; bottom: 0; top: auto; width: auto; max-width: none; height: 52%; border-radius: 20px 20px 0 0; padding: 14px; }
+  .dr-shots { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+  .dr-shot span { font-size: 11px; padding: 4px 6px; }
+  .dr-spinbar { left: 50%; bottom: calc(52% + 10px); }
   .dr-swgrid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   .dr-sizes { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
