@@ -22,6 +22,7 @@ import { areaCm, modelForGarment, placeArea } from "./teeModel";
 import "./designRoom.css";
 
 const PX_PER_CM = 24; // texture / editor resolution (print files are made separately at 300 DPI)
+const MIN_AREA_PX = 480; // small areas (sleeves, chest) are drawn finer so they stay sharp on the 3D tee
 const FONTS = ["Anton", "Bebas Neue", "Oswald", "Montserrat", "Poppins", "Playfair Display", "Permanent Marker", "Pacifico", "Lobster", "Bangers"];
 const INKS = ["#FFFFFF", "#141110", "#C9A24B", "#C2352C", "#2441B5", "#1C5A2B", "#F0C24C", "#B7A2E0", "#F08A24", "#8DC1EC"];
 const IDEAS = ["BIRTHDAY SQUAD", "Just Married", "TEAM 07", "Chennai Born", "Stay Curious", "Class of 2026", "Bride Squad", "Founder Mode"];
@@ -162,7 +163,8 @@ export default function DesignRoomPage() {
   const areaPx = useCallback(
     (pos) => {
       const [w, h] = areaCm(pos, sizeNow);
-      return { W: Math.round(w * PX_PER_CM), H: Math.round(h * PX_PER_CM), wCm: w, hCm: h };
+      const pxPerCm = Math.max(PX_PER_CM, MIN_AREA_PX / Math.min(w, h));
+      return { W: Math.round(w * pxPerCm), H: Math.round(h * pxPerCm), wCm: w, hCm: h };
     },
     [sizeNow],
   );
@@ -597,7 +599,15 @@ export default function DesignRoomPage() {
   const sel = elements.find((e) => e.id === selectedId) || null;
   const activeEls = live?.key === active ? live.elements : elements.filter((e) => e.position === active);
   const usedSides = new Set(elements.map((e) => e.side));
-  const editorW = narrow ? Math.min(220, window.innerWidth - 64) : 300;
+  // Fit the print area in the panel without squeezing the controls below it:
+  // at most the panel width, and at most about a third of the screen height.
+  const editorW = (() => {
+    if (!activePos) return 300;
+    const { W, H } = areaPx(activePos);
+    const maxW = narrow ? Math.min(220, window.innerWidth - 64) : 300;
+    const maxH = narrow ? Math.min(170, window.innerHeight * 0.22) : Math.min(260, window.innerHeight * 0.34);
+    return Math.round(Math.max(120, Math.min(maxW, (maxH * W) / H)));
+  })();
 
   return (
     <div className="dr-app" data-step={step}>

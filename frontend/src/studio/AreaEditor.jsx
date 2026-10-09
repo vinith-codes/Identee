@@ -43,7 +43,8 @@ export default function AreaEditor({ elements, W, H, fabric, selectedId, onSelec
       rotationSnaps: [0, 90, 180, 270],
       ignoreStroke: true,
     });
-    const guide = new Konva.Line({ points: [0, 0, 0, 0], stroke: "#C9A24B", strokeWidth: 2, dash: [6, 6], visible: false });
+    // guides stay thin however much a small area is zoomed in
+    const guide = new Konva.Line({ points: [0, 0, 0, 0], stroke: "#C9A24B", strokeWidth: 1.5, dash: [6, 6], strokeScaleEnabled: false, visible: false });
     ui.add(tr, guide);
     st.current = { ...st.current, stage, bg, layer, ui, tr, guide };
 
@@ -122,7 +123,7 @@ export default function AreaEditor({ elements, W, H, fabric, selectedId, onSelec
 
     bg.destroyChildren();
     bg.add(new Konva.Rect({ width: W, height: H, fill: fabric }));
-    bg.add(new Konva.Line({ points: [W / 2, 0, W / 2, H], stroke: "rgba(201,162,75,.25)", strokeWidth: 2, dash: [4, 8] }));
+    bg.add(new Konva.Line({ points: [W / 2, 0, W / 2, H], stroke: "rgba(201,162,75,.35)", strokeWidth: 1, dash: [4 / scale, 6 / scale], strokeScaleEnabled: false }));
     bg.draw();
 
     let alive = true;
