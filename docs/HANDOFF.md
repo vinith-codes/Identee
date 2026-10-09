@@ -11,7 +11,7 @@ _Last updated: 9 Oct 2026 (end of chat 2). Read this first, then `docs/PHASE1_PR
 
 **MERGED to `main` (9 Oct 2026):** `feature-customizer-part-a`, `feature-admin-redesign`, `feature-garment-wizard` (fast-forward, pushed). Old branches can be deleted later.
 
-**Size-accurate print boxes** on branch `feature-size-accurate-prints` — see PHASE1_PROGRESS §6f. To activate on the real garment: wizard step 5 → Save photo ruler.
+**Size-accurate print boxes** — MERGED to `main` (9 Oct 2026), branch `feature-size-accurate-prints` — see PHASE1_PROGRESS §6f. To activate on the real garment: wizard step 5 → Save photo ruler.
 
 **NEXT (after "merge"):** customizer Part B (mobile/touch, saved drafts) or Part C (size × quantity, add custom designs to cart).
 
