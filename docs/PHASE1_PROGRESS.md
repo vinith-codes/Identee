@@ -501,7 +501,12 @@ get the classic flat studio. The studio code loads only on this page (lazy route
 Files: `frontend/src/studio/` (`DesignRoomPage.jsx`, `Room3D.jsx`, `AreaEditor.jsx`, `konvaRender.js`, `teeModel.js`,
 `StudioRoute.jsx`, `webgl.js`, `designRoom.css`), `frontend/public/models/oversized-tee.glb` + `ATTRIBUTION.txt`; new dependency `konva`.
 
-Next (studio Part 2): sizes × quantity + cart for custom designs, server drafts + "My designs", print files (Phase D).
+**Follow-ups (same day):** the Customizable page card shows the **white** tee with no colour dots and no "How it works" (colour is
+chosen in the fitting step; "Start designing" opens the room in white). **"Start designing" always starts a fresh design**
+(`?new=1`, dropped from the address immediately); an unfinished browser design is kept and offered in the fitting step ("Continue it"),
+and is only replaced once the new design has something in it.
+
+Next (studio Part 2): sizes × quantity + cart for custom designs, print files (Phase D).
 
 ## 6j. My designs + the designed tee in orders (DONE on branch `feature-design-room`)
 
