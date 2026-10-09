@@ -46,7 +46,12 @@ Security fix: adding/deleting art designs and art categories (and the admin art 
 Admin art page labels hidden art and shows "Picture missing" instead of broken images.
 Left for the user: re-add photos to 12 ready-made products; delete Cloudinary "samples" demo folder.
 
-**Next:** footer links (still list removed garments), Payments / Sellers admin pages; go-live items (Brevo email, deployment,
+**`fix-footer` — MERGED 9 Oct 2026:** one footer on every customer page (`components/SiteFooter.jsx`, in CustomerLayout):
+real links only (shop, live categories, account pages, about/contact), contact + address + map + social links from
+Admin → Settings (left out when empty; the social boxes currently hold "identee.co.in", not profile links).
+
+**Next:** policy pages (Privacy, Returns & refunds, Shipping, Terms — required by Razorpay for live payments; need the
+client's rules), Payments / Sellers admin pages; go-live items (Brevo email, deployment,
 Razorpay live keys). Gotcha: the C: drive is nearly full — keep throwaway test databases on E:.
 
 **Waiting on the client / user:** the print team's measurement answers (`docs/print-requests/IDENTEE_Oversized_Measurement_Request.pdf`:
