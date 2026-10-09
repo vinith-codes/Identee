@@ -139,6 +139,24 @@ printing, no print positions, no sizes/ordering).
 Not taken: 3D-only preview (can't show true print size), all-over pattern prints (IDENTEE prints fixed areas),
 saving files to the server disk, stock-photo fallbacks, browser-side API keys.
 
+## 5c. The 3D Design Room (decided 9 Oct 2026)
+
+Flow: Customizable card → **fitting step** (colour swatches + size with chest/length) → **Enter design room** →
+a warm studio (curved backdrop, floor, gold-rimmed plinth, soft spotlight) with the **chosen tee floating in the
+centre** → design → Review (turntable + 4 mockup pictures) → Sizes & qty → Cart.
+
+- **Model:** "oversized_t-shirt" by ap-school (Sketchfab, **CC BY 4.0** — credit line required on the site).
+  Its UVs are a real-scale sewing pattern (~130.7 cm per UV unit, front panel 56.8 × 72.4 cm ≈ S/M), optimised
+  from 42 MB to 1.7 MB. Files + measurements: `identee-private-assets/3D-models/`.
+- **Prints on 3D:** one decal per print area (three.js `DecalGeometry`), sized in real cm: print cm ÷ (size length ÷
+  model length) — so bigger sizes show the same print smaller, like the flat preview. Placement from measured neck
+  heights (e.g. Centre Front top ≈ 8 cm below the front neck — estimate until the print team answers).
+- **Editing:** tap a print-area chip or the print on the tee → camera glides to it → a flat editor for that area
+  (drag, two-finger pinch/rotate, sliders, centre snap, keyboard nudge) updates the 3D print live.
+- **Prototype:** https://claude.ai/artifact/CpC7keN2M9xQFhNaeSnyPY (source in `identee-private-assets/design-room-prototype/`).
+- For the real build: react-three-fiber (already installed) for the room, Konva for the flat editor and print files,
+  low-power fallback (the flat 4-photo view) for old phones.
+
 ## 6. Technical approach
 
 - **Editor engine (decided)** — **Konva (`react-konva`)**, a canvas library with built-in touch, drag,
@@ -159,7 +177,7 @@ Decided by the user (9 Oct 2026):
 | # | Question | Decision |
 |---|---|---|
 | 1 | Editor engine | **Konva (`react-konva`)** — touch, handles, high-res export for print files |
-| 2 | 3D view | **Hidden for now**; flat 4-side views + Review mockups. 3D later with a proper oversized-tee model |
+| 2 | 3D view | ~~Hidden for now~~ → **Changed 9 Oct: the studio is a 3D "Design Room"** (user: the customer should feel they entered a room made for customizing; selected tee in the middle). Editing stays on a flat, true-to-size layer per print area; prints are shown on the 3D tee as decals. See §5c. |
 | 3 | Quantity | **Many sizes per design, no minimum** (sizes × quantity table; 1 piece allowed) |
 | 4 | Pricing | **One price per tee + paid art** (current rule); per-side pricing later when the client decides |
 
