@@ -232,7 +232,7 @@ export default function CategoryProductsPage() {
           {category?.isCustomizable && (
             <button
               type="button"
-              onClick={() => navigate(`/customize/choose-product?category=${category.slug}`)}
+              onClick={() => navigate(`/customizable?category=${category.slug}`)}
               style={{
                 marginTop: 14, padding: "9px 18px", borderRadius: 999, border: "none", cursor: "pointer",
                 background: `linear-gradient(135deg, ${C.gold}, ${C.goldBright})`, color: C.ink, fontWeight: 700, fontSize: 13,

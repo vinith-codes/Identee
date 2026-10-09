@@ -38,7 +38,7 @@ export default function ChooseColorPage() {
     return (
       <div style={{ padding: 60, textAlign: "center", color: C.muted }}>
         We couldn't find that product.{" "}
-        <Link to="/customize/choose-product" style={{ color: C.title }}>
+        <Link to="/customizable" style={{ color: C.title }}>
           Choose a product
         </Link>
       </div>
@@ -57,7 +57,7 @@ export default function ChooseColorPage() {
     >
       <div style={{ maxWidth: 1180, margin: "0 auto", position: "relative" }}>
         <button
-          onClick={() => navigate("/customize/choose-product")}
+          onClick={() => navigate("/customizable")}
           style={{
             position: "absolute",
             top: 0,

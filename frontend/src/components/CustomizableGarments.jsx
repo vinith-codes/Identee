@@ -6,6 +6,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { imageUrl } from "../utils/imageUrl";
+import { isSellable } from "../utils/garments";
 
 const C = {
   ink: "#15130F",
@@ -79,15 +80,8 @@ function GarmentCard({ garment, photos }) {
   );
 }
 
-// Only garments that are ready to sell: a price, and at least one colour
-// with a front photo. (Old test garments without these stay off the home page.)
-const isSellable = (g, images) =>
-  g.basePrice > 0 &&
-  (g.colors || []).some((c) =>
-    images.some((p) => p.garmentType === g.key && p.colorSlug === c.slug && p.front?.imageUrl),
-  );
-
-export default function CustomizableGarments({ garments: all, images, loading }) {
+// howItWorks: show the "How it works" panel after the cards (once per page).
+export default function CustomizableGarments({ garments: all, images, loading, howItWorks = true }) {
   const garments = all.filter((g) => isSellable(g, images));
   if (loading && !garments.length) {
     return (
@@ -107,7 +101,7 @@ export default function CustomizableGarments({ garments: all, images, loading })
       {garments.map((g) => (
         <GarmentCard key={g._id} garment={g} photos={images.filter((p) => p.garmentType === g.key)} />
       ))}
-      <HowItWorks />
+      {howItWorks && <HowItWorks />}
       <Styles />
     </div>
   );

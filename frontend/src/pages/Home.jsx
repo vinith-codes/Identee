@@ -3,8 +3,8 @@ import { useState, useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import { fetchCategories } from "../redux/slices/categorySlice";
-import { CategoryGrid } from "../components/CategoryTile";
-import CustomizableGarments from "../components/CustomizableGarments";
+import ShopChoices from "../components/ShopChoices";
+import { coverPhoto, isSellable } from "../utils/garments";
 import { fetchGarmentTypes } from "../redux/slices/garmentTypeSlice";
 import { fetchAllGarmentImages } from "../redux/slices/garmentImageSlice";
 import { getVideoBanner } from "../redux/slices/bannerSlice";
@@ -706,10 +706,10 @@ export default function Home() {
   const [heroColorIdx, setHeroColorIdx] = useState(0);
   const dispatch = useDispatch();
   const navigate = useNavigate();
-  const { items: categories, status: categoriesStatus } = useSelector(
+  const { items: categories } = useSelector(
     (s) => s.categories,
   );
-  const { items: garmentTypes, isLoading: garmentsLoading } = useSelector((s) => s.garmentType);
+  const { items: garmentTypes } = useSelector((s) => s.garmentType);
   const { items: garmentImages } = useSelector((s) => s.garmentImage);
   const { videoBanners } = useSelector((s) => s.banner);
   const { values: publicSettings, isLoaded: settingsLoaded } = useSelector(
@@ -731,6 +731,20 @@ export default function Home() {
     getSectionVideoUrl("styleOutlookSide1") || hoodieVideo;
   const styleOutlookSide2Src =
     getSectionVideoUrl("styleOutlookSide2") || polosVideo;
+  // Summaries for the two "how would you like to shop?" cards.
+  const sellable = garmentTypes.filter((g) => isSellable(g, garmentImages));
+  const customizableSummary = {
+    count: sellable.length,
+    fromPrice: sellable.length ? Math.min(...sellable.map((g) => g.basePrice)) : null,
+    image: sellable.length ? coverPhoto(sellable[0], garmentImages) : null,
+  };
+  const liveCategories = categories.filter((c) => !c.comingSoon);
+  const readyMadeSummary = {
+    categoryCount: liveCategories.length,
+    productCount: liveCategories.reduce((n, c) => n + (c.productCount || 0), 0),
+    image: liveCategories.find((c) => c.image)?.image || null,
+  };
+
   const designYourOwnVideoSrc =
     getSectionVideoUrl("designYourOwn") || customizeVideo;
 
@@ -1031,28 +1045,15 @@ export default function Home() {
       </div>
 
       {/* ================= TWO WAYS TO SHOP =================
-          1. Design your own — live customizable garments (Admin → Customizable)
-          2. Ready-made — the categories the admin added (Admin → Storefront → Categories) */}
-      <section id="design-your-own" style={{ padding: "56px 24px 8px", maxWidth: 1280, margin: "0 auto" }}>
+          Customizable → /customizable (Admin → Customizable garments)
+          Ready-made   → /ready-made   (Admin → Storefront → Categories) */}
+      <section id="shop" style={{ padding: "56px 24px", maxWidth: 1280, margin: "0 auto" }}>
         <HomeSectionHeading
-          eyebrow="Design your own"
-          title="Customize your tee"
-          text="Pick a garment and colour, add your text, photos or artwork, and see it true to size before you order."
+          eyebrow="Shop"
+          title="How would you like to shop?"
+          text="Design your own tee, or pick from our ready-made collections."
         />
-        <CustomizableGarments garments={garmentTypes} images={garmentImages} loading={garmentsLoading} />
-
-      </section>
-
-      <section id="ready-made" style={{ padding: "48px 24px 56px", maxWidth: 1280, margin: "0 auto" }}>
-        <HomeSectionHeading
-          eyebrow="Ready-made"
-          title="Shop by category"
-          text="Finished designs, ready to wear."
-        />
-        <CategoryGrid
-          categories={categories}
-          loading={categoriesStatus === "loading" || categoriesStatus === "idle"}
-        />
+        <ShopChoices customizable={customizableSummary} readyMade={readyMadeSummary} />
       </section>
 
       {/* ================= STYLE OUTLOOK — VIDEO EDITORIAL ================= */}

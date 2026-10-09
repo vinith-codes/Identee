@@ -6,6 +6,7 @@ import {
   Navigate,
   Outlet,
   useLocation,
+  useSearchParams,
 } from "react-router-dom";
 
 import LoginPage from "./pages/LoginPage";
@@ -33,7 +34,8 @@ import FavoritesPage from "./pages/FavoritesPage";
 import CartPage from "./pages/CartPage";
 import AllProductsPage from "./pages/AllProductsPage";
 import Account from "./pages/Account";
-import ChooseProductPage from "./pages/ChooseProductPage";
+import CustomizablePage from "./pages/CustomizablePage";
+import ReadyMadePage from "./pages/ReadyMadePage";
 import ChooseColorPage from "./pages/ChooseColorPage";
 import AdminShippingPage from "./pages/admin/AdminShippingPage";
 import OffersPage from "./pages/admin/OffersPage";
@@ -82,6 +84,13 @@ const SellersPage = () => (
     desc="Wire your sellers API + table here."
   />
 );
+
+// /customize/choose-product?category=x  →  /customizable?category=x
+function LegacyChooseProduct() {
+  const [params] = useSearchParams();
+  const category = params.get("category");
+  return <Navigate to={`/customizable${category ? `?category=${encodeURIComponent(category)}` : ""}`} replace />;
+}
 
 function PlaceholderAdminPage({ title, desc }) {
   return (
@@ -233,10 +242,10 @@ export default function App() {
             path="/category/:categoryName"
             element={<CategoryProductsPage />}
           />
-          <Route
-            path="/customize/choose-product"
-            element={<ChooseProductPage />}
-          />
+          <Route path="/customizable" element={<CustomizablePage />} />
+          <Route path="/ready-made" element={<ReadyMadePage />} />
+          {/* old address of the customizable list */}
+          <Route path="/customize/choose-product" element={<LegacyChooseProduct />} />
           <Route
             path="/customize/choose-color/:type"
             element={<ChooseColorPage />}

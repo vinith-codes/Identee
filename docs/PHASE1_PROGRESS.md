@@ -458,13 +458,22 @@ Every admin page was opened and checked. Fixed:
 
 Still open (bigger, later): Payments + Sellers pages, ready-made product pages redesign (and sellers can edit other sellers' products), print-file download in Orders (customizer Part D).
 
-## 6h. Home page: "Design your own" and "Ready-made" as two sections (DONE on branch `feature-home-two-sections`)
+## 6h. Home page: two ways to shop — Customizable and Ready-made (DONE on branch `feature-home-two-sections`)
 
 **Before:** one "Shop by Category" grid; each tile had both "Design your own" and "Shop" buttons, mixing the two ways to buy.
 
-**Now:**
-1. **Design your own** (`#design-your-own`) — a card per live customizable garment from Admin → Customizable: photo, colour dots (tap to preview), "From ₹899 · XS–3XL · fabrics", **Start designing →** (opens the customizer in the picked colour), plus a "How it works" panel. Only garments that are sellable show (price > 0 and at least one colour with a front photo), so old test garments stay off the page. — `frontend/src/components/CustomizableGarments.jsx`
-2. **Ready-made** (`#ready-made`) — the categories the admin added (Admin → Storefront → Categories), each with its product count and **Shop now**. — `frontend/src/components/CategoryTile.jsx`
+**Now:** the home page asks **"How would you like to shop?"** with two big cards:
+
+| Card | Opens | What that page shows |
+|---|---|---|
+| **Customizable — Design your own** ("1 garment · from ₹899", Oversized Tee photo) | `/customizable` | Every live, sellable customizable garment (Admin → Customizable), **grouped by store category** (T-Shirts → Oversized Tee; later Polos → Polo …). Each card: photo, colour dots, price, sizes, fabrics, **Start designing →**; plus a "How it works" panel. `?category=<slug>` shows one category. |
+| **Ready-made — Shop ready-made** ("6 categories · 11 products") | `/ready-made` | The categories the admin added (Admin → Storefront → Categories), each with its product count and **Shop now**. |
+
+Each page links to the other ("Shop ready-made instead →"). The old `/customize/choose-product` page was replaced by `/customizable` (old links redirect, `?category=` kept). Only garments with a price and at least one colour photo show.
+
+Files: `components/ShopChoices.jsx`, `components/ShopPageHeader.jsx`, `components/CustomizableGarments.jsx`, `components/CategoryTile.jsx`, `pages/CustomizablePage.jsx`, `pages/ReadyMadePage.jsx`, `utils/garments.js`, `pages/Home.jsx`, `App.jsx`.
+
+**Data clean-up (same day, user's request):** deleted the 5 old test garments (jump-suits, tshirt, round-neck, blacers, sweatshirt), their 9 photo docs, 8 Cloudinary test photos and 17 test designs on them (none in orders/carts). Backup: `identee-private-assets/backup-2026-10-09-removed-garments/`.
 
 ## 7. Phase 1 — remaining steps (audit findings)
 

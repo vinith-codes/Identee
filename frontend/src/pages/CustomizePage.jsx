@@ -546,7 +546,7 @@ export default function CustomizePage() {
       <StudioShell>
         <CenterMessage color={C.danger}>
           We couldn't find that pattern/color.{" "}
-          <Link to="/customize/choose-product" style={{ color: C.gold }}>
+          <Link to="/customizable" style={{ color: C.gold }}>
             Choose a pattern
           </Link>
         </CenterMessage>
