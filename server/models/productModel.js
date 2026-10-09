@@ -240,6 +240,12 @@ const productSchema = mongoose.Schema(
       },
     },
     isFeatured: { type: Boolean, default: false },
+    // Admin → Ready-made → "Hide from shop": kept (orders still link to it)
+    // but not listed, not openable for buying, not addable to a cart.
+    isHidden: { type: Boolean, default: false },
+    // a colour removed in the wizard after it was ordered: hidden for good
+    // (kept only so its orders still link to it)
+    retired: { type: Boolean, default: false },
     sizeChart: {
       type: String, // This will store the PDF file path/URL
       default: "",
@@ -249,6 +255,11 @@ const productSchema = mongoose.Schema(
     timestamps: true,
   },
 );
+
+productSchema.index({ productGroupId: 1 });
+
+// Query part for products customers may see and buy.
+export const LIVE = { isHidden: { $ne: true } };
 
 const Product = mongoose.model("Product", productSchema);
 

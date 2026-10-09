@@ -583,6 +583,34 @@ admin only), `frontend/src/studio/printFiles.js`, `studio/fonts.js` (font list s
 **Note:** print sizes come from the garment's current print-area settings; until the print team answers the measurement
 sheet, the cm sizes are the PDF guide's.
 
+## 6m. Ready-made redesign — part A: admin (DONE on branch `feature-readymade-redesign`)
+
+A ready-made product = one **group** (`productGroupId`) of Product documents, one per colour. The admin now works with
+the group as one product.
+
+| Page | What it does | Files |
+|---|---|---|
+| **Add a product** (`/admin/upload-product`) and **Edit** (`/admin/products/:groupId/edit`) | 5-step wizard: **Basics** (name, shop place = category → style, description, fabric, for whom, featured) · **Colours & photos** (palette chips or own name; 1–8 photos per colour, drag-and-drop, reorder, first = main photo) · **Sizes, price & stock** (size chips; selling price + optional MRP with live "28% off" preview; same price for all colours or per colour; stock table colour × size with "Fill every box") · **More details — optional** (SKU made automatically if empty, HSN 6109, age group, occasion, sub-category, combo pack, wash care, size chart, parcel size/pickup address) · **Review & publish** (shop-card preview, facts, list of what's missing with "Fix in step N"; **Publish** or **Save as hidden (draft)**). Nothing saves until the last step; warns before leaving with unsaved changes. Removing a colour that was ordered hides it ("retired") instead of deleting. | `frontend/src/pages/admin/readymade/ProductWizard.jsx`, `readymadeUi.js` |
+| **All products** (`/admin/products`) | One card per product: photo, category → style (warns when the style isn't in any category), price range, stock, colours, sizes, badges (In the shop / Hidden / Low stock / Featured / "by <seller>"). Search (name, colour, code), category filter, chips All · In the shop · Hidden · Low stock with counts (`?status=low` from Admin → Home). Actions: Edit, **Restock** (colour × size boxes, red at ≤ 3), **Hide / Show in shop**, Delete (in-page confirm; refused with "hide it instead" if it was ever ordered). | `readymade/ProductsPage.jsx` |
+
+**Server:** `controllers/productAdminController.js` + routes `/api/products/admin/…` (options, groups list/get/create/save,
+visibility, delete, colour stock). New Product fields `isHidden` and `retired`; hidden products are left out of the shop
+lists, category counts and filters, the product's colour list, and can't be added to a cart or bought (cart, Buy now,
+checkout). Admin Home counts and low-stock ignore hidden products.
+
+**Safety fix:** sellers could edit/delete any seller's products. Now `utils/productAccess.js` checks ownership on every
+product-changing endpoint (old and new, plus review moderation): admins may change all, sellers only their own; the list
+shows sellers only their own products. CORS now allows PATCH.
+
+Old `pages/admin/ProductUploadPage.jsx` / `ProductListPage.jsx` removed. Bulk upload (spreadsheet) unchanged.
+
+**Tested** on a local copy (photos saved locally, not Cloudinary): 22 server checks (seller 403s, create/edit/reorder/
+remove colour, restock, hide → gone from shop and category count, cart refused, ordered product can't be deleted) and the
+wizard + list clicked through in the browser, including phone width.
+
+**Found:** 12 of the 13 existing products point to photo files from the old project (`uploads/products/images/…`) that
+no longer exist — their photos are broken on the site. One product's style "Blacers" isn't in any category.
+
 ## 7. Phase 1 — remaining steps (audit findings)
 
 ### Step 3: Customization

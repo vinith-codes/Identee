@@ -1,6 +1,6 @@
 import asyncHandler from "express-async-handler";
 import Category, { slugify } from "../models/categoryModel.js";
-import Product from "../models/productModel.js";
+import Product, { LIVE } from "../models/productModel.js";
 import GarmentType from "../models/garmentTypeModel.js";
 import { uploadImage, deleteImage } from "../utils/imageStorage.js";
 import { applySubscriptionPrice } from "../utils/applySubscriptionPrice.js";
@@ -41,6 +41,7 @@ const countProducts = async (styles) => {
   if (!styles.length) return 0;
   const groups = await Product.distinct("productGroupId", {
     "productdetails.garmentStyle": styleMatcher(styles),
+    ...LIVE,
   });
   return groups.length;
 };
@@ -106,6 +107,7 @@ export const getCategoryProducts = asyncHandler(async (req, res) => {
   );
   const match = {
     "productdetails.garmentStyle": styleMatcher(style ? [style] : category.styles),
+    ...LIVE,
   };
   if (req.query.size) {
     match["productdetails.stockBySize"] = {
@@ -156,7 +158,7 @@ export const getCategoryProducts = asyncHandler(async (req, res) => {
   ]);
 
   // Filter options: styles/sizes that actually have products in this category.
-  const all = { "productdetails.garmentStyle": styleMatcher(category.styles) };
+  const all = { "productdetails.garmentStyle": styleMatcher(category.styles), ...LIVE };
   const [presentStyles, presentSizes] = await Promise.all([
     Product.distinct("productdetails.garmentStyle", all),
     Product.distinct("productdetails.stockBySize.size", all),

@@ -43,6 +43,16 @@ import {
   uploadReviewImages,
 } from "../multer/multer.js";
 import { protect, adminOrSeller } from "../middleware/authMiddleware.js";
+import {
+  listGroups,
+  wizardOptions,
+  getGroup,
+  createGroup,
+  saveGroup,
+  setGroupVisibility,
+  setColourStock,
+  deleteGroup,
+} from "../controllers/productAdminController.js";
 import optionalAuth from "../middleware/optionalAuthMiddleware.js";
 
 // ============================================================
@@ -84,6 +94,15 @@ router.post(
   uploadProducts,
 );
 router.get("/categories", optionalAuth, getCategories);
+// ── Admin → Ready-made (wizard + list); sellers see only their own ──
+router.get("/admin/options", protect, adminOrSeller, wizardOptions);
+router.get("/admin/groups", protect, adminOrSeller, listGroups);
+router.post("/admin/groups", protect, adminOrSeller, uploadProductFiles, createGroup);
+router.get("/admin/groups/:groupId", protect, adminOrSeller, getGroup);
+router.put("/admin/groups/:groupId", protect, adminOrSeller, uploadProductFiles, saveGroup);
+router.patch("/admin/groups/:groupId/visibility", protect, adminOrSeller, setGroupVisibility);
+router.delete("/admin/groups/:groupId", protect, adminOrSeller, deleteGroup);
+router.patch("/admin/colours/:id/stock", protect, adminOrSeller, setColourStock);
 // ── 5. Group routes (all fixed, must be before /:id) ──
 // ⚠️  /group/comman/:groupId must be before /group/:groupId
 // ⚠️  /group/variant/:id   must be before /group/:groupId

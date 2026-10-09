@@ -116,6 +116,7 @@ const resolveLines = async (user, body) => {
     if (!isId(buyNow.productId)) throw new HttpError(400, "Invalid product");
     const product = await Product.findById(buyNow.productId);
     if (!product) throw new HttpError(404, "Product not found");
+    if (product.isHidden) throw new HttpError(400, "This product is no longer available");
 
     const sizes = Array.isArray(buyNow.items) ? buyNow.items : [];
     if (!sizes.length) throw new HttpError(400, "Select a size");
@@ -146,7 +147,7 @@ const resolveLines = async (user, body) => {
 
   function productCartLine(item) {
     const product = byId.get(item.product.toString());
-    if (!product) throw new HttpError(400, "An item in your cart is no longer available. Please remove it.");
+    if (!product || product.isHidden) throw new HttpError(400, "An item in your cart is no longer available. Please remove it.");
     if (!hasSize(product, item.size)) {
       throw new HttpError(400, `${product.brandname} is no longer available in size ${item.size}`);
     }

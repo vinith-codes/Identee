@@ -46,7 +46,7 @@ app.use(
       "http://localhost:5174",
       "http://localhost:5173",
     ], // Adjust for your frontend's URL
-    methods: ["GET", "POST", "PUT", "DELETE"],
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
     allowedHeaders: ["Content-Type", "Authorization"],
     credentials: true,
   }),

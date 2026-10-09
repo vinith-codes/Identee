@@ -6,7 +6,8 @@ import { fileURLToPath } from "url";
 import AdmZip from "adm-zip";
 import XLSX from "xlsx";
 import path from "path";
-import Product from "../models/productModel.js";
+import Product, { LIVE } from "../models/productModel.js";
+import { assertCanManage, assertCanManageGroup } from "../utils/productAccess.js";
 import ProductGroup from "../models/productgroupModel.js";
 import Order from "../models/orderModel.js";
 import User from "../models/userModel.js";
@@ -129,6 +130,7 @@ const getProducts = asyncHandler(async (req, res) => {
     : {};
   let filterCriteria = {
     ...keywordFilter,
+    ...LIVE,
   };
   if (brandname) filterCriteria.brandname = brandname;
   if (gender) filterCriteria["productdetails.gender"] = gender;
@@ -366,6 +368,7 @@ const getProductBySku = asyncHandler(async (req, res) => {
   // 3️⃣ Find all color variants
   const variants = await Product.find({
     SKU: { $regex: `^${baseSKU}-` },
+    ...LIVE,
   }).select("SKU productdetails.color images price productdetails.stockBySize");
 
   // 4️⃣ Response
@@ -398,6 +401,7 @@ const addToCart = asyncHandler(async (req, res) => {
 
     const product = await Product.findById(req.params.id);
     if (!product) return res.status(404).json({ message: "Product not found" });
+    if (product.isHidden) return res.status(400).json({ message: "This product is no longer available" });
 
     const user = await User.findById(userId);
     if (!user) return res.status(404).json({ message: "User not found" });
@@ -560,6 +564,7 @@ const deleteCartItem = asyncHandler(async (req, res) => {
 const deleteProduct = asyncHandler(async (req, res) => {
   const product = await Product.findById(req.params.id);
   if (product) {
+    assertCanManage(req.user, product);
     await Product.findByIdAndDelete(req.params.id);
     res.json({ message: "Product Removed" });
   } else {
@@ -704,6 +709,7 @@ const updateProduct = asyncHandler(async (req, res) => {
     res.status(404);
     throw new Error("Product not found");
   }
+  assertCanManage(req.user, product);
 
   // Basic fields
   product.brandname = req.body.brandname || product.brandname;
@@ -987,6 +993,7 @@ const uploadProducts = asyncHandler(async (req, res) => {
 // @access Private/Admin
 const approveReview = asyncHandler(async (req, res) => {
   const product = await Product.findById(req.params.id);
+  if (product) assertCanManage(req.user, product);
   if (!product) return res.status(404).json({ message: "Product not found" });
 
   const review = product.reviews.id(req.params.reviewId);
@@ -1006,6 +1013,7 @@ const approveReview = asyncHandler(async (req, res) => {
 const rejectReview = asyncHandler(async (req, res) => {
   const { reason } = req.body; // one of the rejectionReason enum values, optional
   const product = await Product.findById(req.params.id);
+  if (product) assertCanManage(req.user, product);
   if (!product) return res.status(404).json({ message: "Product not found" });
 
   const review = product.reviews.id(req.params.reviewId);
@@ -1027,6 +1035,8 @@ const unapproveReview = asyncHandler(async (req, res) => {
   const { id: productId, reviewId } = req.params;
 
   const product = await Product.findById(productId);
+
+  if (product) assertCanManage(req.user, product);
   if (!product) return res.status(404).json({ message: "Product not found" });
 
   const review = product.reviews.id(reviewId);
@@ -1045,6 +1055,7 @@ const unapproveReview = asyncHandler(async (req, res) => {
 // @access Private/Admin
 const toggleFeaturedReview = asyncHandler(async (req, res) => {
   const product = await Product.findById(req.params.id);
+  if (product) assertCanManage(req.user, product);
   if (!product) return res.status(404).json({ message: "Product not found" });
 
   const review = product.reviews.id(req.params.reviewId);
@@ -1074,6 +1085,8 @@ const respondToReview = asyncHandler(async (req, res) => {
   }
 
   const product = await Product.findById(req.params.id);
+
+  if (product) assertCanManage(req.user, product);
   if (!product) return res.status(404).json({ message: "Product not found" });
 
   const review = product.reviews.id(req.params.reviewId);
@@ -1332,6 +1345,7 @@ const getProductFullById = asyncHandler(async (req, res) => {
 
   const variants = await Product.find({
     productGroupId: product.productGroupId,
+    ...LIVE,
   }).lean();
   const group = await ProductGroup.findById(product.productGroupId).lean();
 
@@ -1364,6 +1378,7 @@ const getProductFullById = asyncHandler(async (req, res) => {
 });
 
 const updateGroupCommonFields = asyncHandler(async (req, res) => {
+  await assertCanManageGroup(req.user, req.params.groupId);
   console.log("📁 req.files:", req.files);
   console.log("📦 req.body:", req.body);
 
@@ -1416,6 +1431,7 @@ const updateGroupCommonFields = asyncHandler(async (req, res) => {
 });
 const addVariantToGroup = asyncHandler(async (req, res) => {
   const { groupId } = req.params;
+  await assertCanManageGroup(req.user, groupId);
 
   let { color, sizes, stockBySize, oldPrice, discount, price } = req.body;
 
@@ -1506,6 +1522,7 @@ const addVariantToGroup = asyncHandler(async (req, res) => {
 
 const updateProductGroup = asyncHandler(async (req, res) => {
   const { groupId } = req.params;
+  await assertCanManageGroup(req.user, groupId);
   const { brandname, description, price, oldPrice, discount, isFeatured } =
     req.body;
 
@@ -1544,7 +1561,7 @@ const getProductsByGroupId = asyncHandler(async (req, res) => {
     throw new Error("Group ID is required");
   }
 
-  const products = await Product.find({ productGroupId: groupId }).lean();
+  const products = await Product.find({ productGroupId: groupId, ...LIVE }).lean();
 
   const finalProducts = products.map((product) =>
     applySubscriptionPrice(product, req.user),
@@ -1558,6 +1575,7 @@ const getProductsByGroupId = asyncHandler(async (req, res) => {
   res.json(finalProducts); // ✅ Must return JSON
 });
 const getProductGroup = asyncHandler(async (req, res) => {
+  await assertCanManageGroup(req.user, req.params.groupId);
   const products = await Product.find({
     productGroupId: req.params.groupId,
   });
@@ -1604,6 +1622,7 @@ const updateVariant = asyncHandler(async (req, res) => {
     res.status(404);
     throw new Error("Variant not found");
   }
+  assertCanManage(req.user, product);
 
   // ── Prices ──────────────────────────────────────────────────
   if (req.body.oldPrice !== undefined && req.body.oldPrice !== "")
@@ -1656,7 +1675,7 @@ const updateVariant = asyncHandler(async (req, res) => {
 
 const getCategories = asyncHandler(async (req, res) => {
   const { gender } = req.query;
-  const filter = gender ? { "productdetails.gender": gender } : {};
+  const filter = gender ? { "productdetails.gender": gender, ...LIVE } : { ...LIVE };
 
   const products = await Product.find(filter)
     .select("productdetails -_id")

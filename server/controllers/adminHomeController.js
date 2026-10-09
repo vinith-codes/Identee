@@ -6,7 +6,7 @@
 
 import asyncHandler from "express-async-handler";
 import Order from "../models/orderModel.js";
-import Product from "../models/productModel.js";
+import Product, { LIVE } from "../models/productModel.js";
 import GarmentType from "../models/garmentTypeModel.js";
 import GarmentColorImage from "../models/garmentColorImageModel.js";
 import ShippingCost from "../models/shippingcostModel.js";
@@ -119,7 +119,7 @@ async function buildSetupSteps() {
   });
 
   // 5. Optional: a ready-made product
-  const products = await Product.countDocuments() // products have no on/off flag — all are live;
+  const products = await Product.countDocuments(LIVE); // hidden products don't count
   steps.push({
     key: "readymade",
     title: "Add a ready-made product",
@@ -184,6 +184,7 @@ async function buildAttention() {
   }
 
   const low = await Product.aggregate([
+    { $match: LIVE },
     { $unwind: "$productdetails.stockBySize" },
     { $match: { "productdetails.stockBySize.stock": { $lte: LOW_STOCK } } },
     {
@@ -206,7 +207,7 @@ async function buildAttention() {
         ` — ${first.stock} left` +
         (low.length > 1 ? ` (+${low.length - 1} more)` : ""),
       tone: "red",
-      href: "/admin/products",
+      href: "/admin/products?status=low",
     });
   }
 
@@ -225,7 +226,7 @@ async function buildToday() {
   const custom = orders.filter((o) =>
     o.orderItems?.some((i) => i.customization),
   ).length;
-  const productsLive = await Product.countDocuments() // products have no on/off flag — all are live;
+  const productsLive = await Product.countDocuments(LIVE); // hidden products don't count
   return [
     { key: "sales", label: "Sales", value: Math.round(sales), money: true },
     { key: "orders", label: "Orders", value: orders.length },

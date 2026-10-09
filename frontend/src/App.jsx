@@ -17,8 +17,8 @@ import AdminDashboard from "./pages/admin/AdminDashboard";
 import AdminHome from "./pages/admin/AdminHome";
 import CustomizableListPage from "./pages/admin/CustomizableListPage";
 import GarmentSetupWizard from "./pages/admin/GarmentSetupWizard";
-import ProductUploadPage from "./pages/admin/ProductUploadPage";
-import ProductListPage from "./pages/admin/ProductListPage";
+import ProductWizard from "./pages/admin/readymade/ProductWizard";
+import ProductsPage from "./pages/admin/readymade/ProductsPage";
 import OfferBannerPage from "./pages/admin/OfferBannerPage";
 import VideoBannerPage from "./pages/admin/VideoBannerPage";
 import CategoryBannerPage from "./pages/admin/CategoryBannerPage";
@@ -318,8 +318,9 @@ export default function App() {
           {/* The old dashboard (charts) now lives under Home → "See sales report" */}
           <Route path="reports" element={<AdminDashboard />} />
           <Route path="settings" element={<SettingsLayout />} />
-          <Route path="upload-product" element={<ProductUploadPage />} />
-          <Route path="products" element={<ProductListPage />} />
+          <Route path="upload-product" element={<ProductWizard />} />
+          <Route path="products" element={<ProductsPage />} />
+          <Route path="products/:groupId/edit" element={<ProductWizard key="edit" />} />
           <Route path="offer-banner" element={<OfferBannerPage />} />
           <Route path="video-banner" element={<VideoBannerPage />} />
           <Route path="categories" element={<CategoriesPage />} />
