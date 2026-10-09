@@ -11,6 +11,11 @@ _Last updated: 9 Oct 2026 (end of chat 3). Read this first, then `docs/PHASE1_PR
 3. Customizable page shows the **white** tee, no colour dots, no "How it works" (colour is picked in the room's first step).
 4. **"Start designing" = a fresh design** (`?new=1`, removed from the URL at once); an unfinished browser design is kept and
    offered in the first step ("Continue it") and only replaced once the new design has content.
+5. Later fixes (all tested): editor keeps the print area to ~⅓ of the screen height so the controls fit (sleeves); small areas
+   render ≥ 480 px; **smooth dragging** (editor not rebuilt mid-drag, 3D updated once per frame, one canvas per area);
+   **Review** = 3D tee turning 360° on the left (⟳ 360° / ❚❚ Pause, tap a side to view it) + the 4 sides and summary on the right
+   (phone: tee on top, sides below); the Save name box opens above the side panels; saving no longer jumps Review back to Design.
+   Verified in the real DB: mockups → Cloudinary `identee/mockups`, uploads → `identee/designs`, art → `identee/art-designs`.
 
 Merge = `git switch main && git pull --ff-only origin main && git merge --ff-only feature-design-room && git push origin main`.
 
