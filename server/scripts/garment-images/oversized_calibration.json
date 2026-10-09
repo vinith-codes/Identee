@@ -1,5 +1,5 @@
 {
-  "ppiAtSizeM": 21.333,
+  "ppiAtSizeM": 20.0,
   "sizeM": {
     "chestIn": 23,
     "lengthIn": 30
@@ -10,20 +10,20 @@
   ],
   "views": {
     "front": {
-      "top": 236,
-      "hem": 876,
+      "top": 273,
+      "hem": 874,
       "centerX": 400.0,
-      "chestPx": 490.7
+      "chestPx": 455
     },
     "back": {
-      "top": 236,
-      "hem": 876,
+      "top": 273,
+      "hem": 874,
       "centerX": 400.0,
-      "chestPx": 490.7
+      "chestPx": 455
     },
     "right": {
-      "top": 236,
-      "hem": 876,
+      "top": 273,
+      "hem": 874,
       "centerX": 400.0,
       "estimates": {
         "sleeveLengthIn": 9,
@@ -32,8 +32,8 @@
       }
     },
     "left": {
-      "top": 236,
-      "hem": 876,
+      "top": 273,
+      "hem": 874,
       "centerX": 400.0,
       "estimates": {
         "sleeveLengthIn": 9,
@@ -41,5 +41,6 @@
         "bodyDepthIn": 10
       }
     }
-  }
+  },
+  "note": "Measured on the generated images (9 Oct 2026): top = highest shoulder point where the collar meets the shoulder (y 273, 27.3%), hem y 874 (87.4%) -> 601 px = 30 in at size M (20.0 px/in); body ~455 px = 22.8 in flat (chart 23). The build script's SHIRT_TOP_Y=236 was the top of the HANGER, not the shirt. Admin -> Customizable -> step 5 'photo ruler' should be about 27.3% / 87.4%."
 }

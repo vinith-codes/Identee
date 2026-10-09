@@ -12,8 +12,11 @@ PHOTO, SIDE, OUT = sys.argv[1], sys.argv[2], sys.argv[3]
 CW, CH = 800, 1000
 BG = (241, 240, 236, 255)
 M_CHEST_IN, M_LENGTH_IN = 23, 30          # IDENTEE Oversized, size M (from the PDF)
-TARGET_LEN_PX = 640                        # collar -> hem on the canvas
-SHIRT_TOP_Y = 236                          # where the shirt top sits on the canvas
+# NOTE: `top` below is found from the photo's opaque rows, which include the
+# HANGER — so 640 px is hanger-top -> hem. The shirt itself (highest shoulder
+# point -> hem) measures ~601 px (y 273 -> 874); see oversized_calibration.json.
+TARGET_LEN_PX = 640                        # hanger top -> hem on the canvas
+SHIRT_TOP_Y = 236                          # where the hanger top sits on the canvas
 PPI = TARGET_LEN_PX / M_LENGTH_IN          # pixels per inch for size M
 
 COLOURS = {

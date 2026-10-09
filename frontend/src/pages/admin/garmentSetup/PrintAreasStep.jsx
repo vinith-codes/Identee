@@ -30,9 +30,9 @@ const stepOf = (g) => SIZE_GROUPS.find((x) => x[0] === g)[2];
 // [w, h] at M–XL -> cm per size range (print-guide rule: ±4 cm)
 const groupCm = (w, h) =>
   Object.fromEntries(SIZE_GROUPS.map(([g, , step]) => [g, [Math.max(2, w + step), Math.max(2, h + step)]]));
-// Starting ruler for the generated IDENTEE photos (800×1000 canvas: shoulder
-// top y=236, hem y=876 — server/scripts/garment-images/oversized_calibration.json).
-const DEFAULT_RULER = { topPct: 23.6, hemPct: 87.6 };
+// Starting ruler for the generated IDENTEE photos (800×1000 canvas: highest
+// shoulder point y≈273, hem y≈874 — server/scripts/garment-images/oversized_calibration.json).
+const DEFAULT_RULER = { topPct: 27.3, hemPct: 87.4 };
 const DEFAULT_ZONE = {
   front: { x: 36, y: 27, width: 28, height: 25.6 },
   back: { x: 31, y: 24, width: 38, height: 33.6 },

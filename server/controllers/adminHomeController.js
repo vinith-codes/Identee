@@ -36,10 +36,11 @@ async function buildSetupSteps() {
   const steps = [];
 
   // 1. Store details
+  // Settings keys are namespaced by tab, e.g. "general.storeName".
   const settings = await Setting.find({
-    key: { $in: ["storeName", "phoneNumber", "storeLogo"] },
+    key: { $in: ["general.storeName", "general.phoneNumber", "general.storeLogo"] },
   }).lean();
-  const s = Object.fromEntries(settings.map((x) => [x.key, x.value]));
+  const s = Object.fromEntries(settings.map((x) => [x.key.replace("general.", ""), x.value]));
   const missingStore = [
     !filled(s.storeName) && "name",
     !filled(s.storeLogo) && "logo",
@@ -52,7 +53,7 @@ async function buildSetupSteps() {
       ? `Add your ${missingStore.join(", ")}`
       : "Name, logo and contact number are set",
     done: missingStore.length === 0,
-    href: "/admin/settings",
+    href: "/admin/settings", // opens on Store Branding
   });
 
   // 2. Launch garment: colours, photos, price
