@@ -5,7 +5,9 @@ _Last updated: 9 Oct 2026 (end of chat 2). Read this first, then `docs/PHASE1_PR
 ## ⏭ Where we stopped (start here)
 **DONE end of chat 2:** 48 Oversized Tee images uploaded to Cloudinary `identee/garments/oversized-tee`; GarmentType `oversized-tee` (12 colours, category "Oversized" → T-Shirts, **basePrice 0 — set a price in Admin → Garment Types**) and 12 `garmentcolorimages` docs with print areas created in the real DB. Test: http://localhost:5173/customize/oversized-tee?color=black. Photo licence still unconfirmed (user chose to proceed).
 
-**NEXT (new chat): build the admin redesign** as prototyped (menu + Home first), then size-accurate print boxes.
+**DONE chat 3:** fixed the customizer "couldn't find" error (the 12 oversized photo docs lacked `isActive: true`; set it + added a loading guard). **Admin redesign Part 1** on branch `feature-admin-redesign` (from `feature-customizer-part-a`): 8-section menu, top bar, new Home with setup checklist / needs attention / today — see PHASE1_PROGRESS §6d.
+
+**NEXT:** user tests → "merge" (merge Part A first, then admin) → Oversized Tee setup wizard → size-accurate print boxes.
 
 **Still waiting on the user for:** (1) photo licence confirmation for the white oversized-tee mockup (or client's own photos), (2) "yes, set it up" to go live with the Oversized Tee garment, (3) "merge" for `feature-customizer-part-a`.
 

@@ -386,6 +386,22 @@ Element positions were % of the whole editor canvas; one hard-coded dashed box (
 
 ---
 
+## 6d. Admin redesign — Part 1: new menu + Home (DONE on branch `feature-admin-redesign`)
+
+**Before:** a 30-link sidebar in 7 technical groups ("Catalogue", "Commerce", "Logistics"…), 3 of them broken (Banners, Enquiries, Delivery), and a dashboard of charts with no guidance on what to do next.
+
+**Now (as in the admin prototype):**
+
+| Piece | What it does | Where |
+|---|---|---|
+| Menu | 8 plain sections — Home, Orders, Customizable, Ready-made, Design library, Storefront, Customers, Settings. Clicking a section opens its pages; the open section follows the page. Red badge = new orders. Folds to icons on small screens. Broken links removed; old URLs still work. | `frontend/src/utils/adminMenu.js`, `components/AdminSidebar.jsx` |
+| Top bar | "Section › Page" so you always know where you are, ← Back, View website | `components/AdminTopbar.jsx` |
+| Home | Greeting; **Set up your store** checklist (store details, Oversized Tee colours/photos/price, shipping rates, payments live/test, ready-made product — optional); **Needs your attention** (new orders to confirm, custom designs to print, reviews to approve, low stock ≤ 3); **Today** numbers; quick actions. The checklist card hides itself when all required steps are done. | `pages/admin/AdminHome.jsx` |
+| Server | `GET /api/admin/home` (admin only) works all of this out from real data; `GET /api/admin/badges` for the menu badge. Payment step only reports test/live mode — never the key. | `server/controllers/adminHomeController.js`, `server/routes/adminRoutes.js` |
+| Old dashboard | Kept at `/admin/reports` ("See sales report" on Home). | `App.jsx` |
+
+**Next:** Oversized Tee setup wizard (fabrics, sizes, colours, photos, 15-area print gallery) to replace "Garment Types" + "Garment Photos" under Customizable.
+
 ## 7. Phase 1 — remaining steps (audit findings)
 
 ### Step 3: Customization

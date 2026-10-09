@@ -1,17 +1,15 @@
 // components/AdminTopbar.jsx
-import { useNavigate } from "react-router-dom";
-import logo from "../assets/identee-logo.png";
+//
+// Shows where you are ("Orders › Invoices") plus Back and View website.
+// Sign out lives at the bottom of the menu.
+import { useLocation, useNavigate } from "react-router-dom";
+import { findMenuPage } from "../utils/adminMenu";
 
 export default function AdminTopbar() {
   const navigate = useNavigate();
-
-  const handleBack = () => navigate(-1);
-  const handlePreview = () => window.open("/", "_blank", "noopener,noreferrer");
-  const handleLogout = () => {
-    localStorage.removeItem("userInfo");
-    window.dispatchEvent(new Event("storage"));
-    navigate("/login", { replace: true });
-  };
+  const { pathname } = useLocation();
+  const where = findMenuPage(pathname);
+  const isHome = where?.section.key === "home";
 
   return (
     <header
@@ -19,40 +17,59 @@ export default function AdminTopbar() {
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
-        padding: "12px 28px",
-        background: "transparent",
-        borderBottom: "1px solid #E5E5E5",
+        gap: 12,
+        padding: "14px 28px",
+        borderBottom: "1px solid #E7DFCC",
+        background: "#FFFFFF",
+        fontFamily: "'Inter', sans-serif",
+        position: "sticky",
+        top: 0,
+        zIndex: 40,
       }}
     >
-      <img
-        src={logo}
-        alt="Logo"
-        style={{ height: 80, width: "60", objectFit: "contain" }}
-      />
+      <div style={{ fontSize: 14, color: "#6B6559", minWidth: 0 }}>
+        {where && (
+          <>
+            <span style={{ fontWeight: where.page ? 500 : 700, color: where.page ? "#6B6559" : "#141110" }}>
+              {where.section.label}
+            </span>
+            {where.page && (
+              <>
+                <span style={{ margin: "0 8px", color: "#A39C8C" }}>›</span>
+                <span style={{ fontWeight: 700, color: "#141110" }}>{where.page.label}</span>
+              </>
+            )}
+          </>
+        )}
+      </div>
 
-      <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
-        <button onClick={handlePreview} style={btnStyle("#111111", "#FFFFFF")}>
-          Preview
-        </button>
-        <button onClick={handleBack} style={btnStyle("#14B8A6", "#FFFFFF")}>
-          Back
-        </button>
-        <button onClick={handleLogout} style={btnStyle("#E879F9", "#1A1A1A")}>
-          Logout
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        {!isHome && (
+          <button type="button" onClick={() => navigate(-1)} style={btn(false)}>
+            ← Back
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={() => window.open("/", "_blank", "noopener,noreferrer")}
+          style={btn(true)}
+        >
+          View website ↗
         </button>
       </div>
     </header>
   );
 }
 
-const btnStyle = (bg, color) => ({
-  background: bg,
-  color,
-  border: "none",
-  borderRadius: 10,
-  padding: "9px 20px",
-  fontSize: 14,
-  fontWeight: 700,
+const btn = (dark) => ({
+  background: dark ? "#141110" : "#FFFFFF",
+  color: dark ? "#FFFFFF" : "#141110",
+  border: `1px solid ${dark ? "#141110" : "#D7CCB3"}`,
+  borderRadius: 999,
+  padding: "8px 16px",
+  minHeight: 36,
+  fontSize: 13,
+  fontWeight: 600,
   cursor: "pointer",
   fontFamily: "'Inter', sans-serif",
 });

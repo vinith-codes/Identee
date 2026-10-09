@@ -12,6 +12,7 @@ import LoginPage from "./pages/LoginPage";
 import Navbar from "./components/Navbar";
 import AdminLayout from "./layouts/AdminLayout";
 import AdminDashboard from "./pages/admin/AdminDashboard";
+import AdminHome from "./pages/admin/AdminHome";
 import ProductUploadPage from "./pages/admin/ProductUploadPage";
 import ProductListPage from "./pages/admin/ProductListPage";
 import OfferBannerPage from "./pages/admin/OfferBannerPage";
@@ -282,7 +283,10 @@ export default function App() {
             </AdminRoute>
           }
         >
-          <Route path="dashboard" element={<AdminDashboard />} />
+          <Route index element={<Navigate to="dashboard" replace />} />
+          <Route path="dashboard" element={<AdminHome />} />
+          {/* The old dashboard (charts) now lives under Home → "See sales report" */}
+          <Route path="reports" element={<AdminDashboard />} />
           <Route path="settings" element={<SettingsLayout />} />
           <Route path="upload-product" element={<ProductUploadPage />} />
           <Route path="products" element={<ProductListPage />} />

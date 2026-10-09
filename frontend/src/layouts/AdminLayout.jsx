@@ -5,20 +5,23 @@ import AdminSidebar from "../components/AdminSidebar";
 import AdminTopbar from "../components/AdminTopbar";
 
 export default function AdminLayout() {
-  const [collapsed, setCollapsed] = useState(false);
+  // Start with the menu folded on small screens so the page has room.
+  const [collapsed, setCollapsed] = useState(
+    () => typeof window !== "undefined" && window.innerWidth < 900,
+  );
 
   return (
-    <div style={{ minHeight: "100vh", background: "#0B0B0C" }}>
+    <div style={{ minHeight: "100vh", background: "#141110" }}>
       <AdminSidebar
         collapsed={collapsed}
         onToggle={() => setCollapsed((c) => !c)}
       />
       <main
         style={{
-          marginLeft: collapsed ? 64 : 220,
+          marginLeft: collapsed ? 68 : 240,
           transition: "margin-left 0.22s cubic-bezier(.4,0,.2,1)",
           minHeight: "100vh",
-          background: "#F5F5F4",
+          background: "#F6F2E9",
         }}
       >
         <AdminTopbar />
