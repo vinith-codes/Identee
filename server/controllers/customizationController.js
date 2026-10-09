@@ -3,6 +3,8 @@
 import mongoose from "mongoose";
 import Customization from "../models/customizationModel.js";
 import GarmentType from "../models/garmentTypeModel.js";
+import Order from "../models/orderModel.js";
+import { uploadFile, deleteStoredFile } from "../utils/imageStorage.js";
 import { positionsForGarment, SIZES, SIZE_GROUPS } from "../data/printPositions.js";
 
 const MAX_ELEMENTS = 40;
@@ -94,43 +96,165 @@ export const uploadDesignImage = (req, res) => {
   res.status(201).json({ path: req.file.path });
 };
 
+// Mockup pictures arrive as small JPEG/PNG data URLs (made in the browser
+// from the 3D view) and are stored in Cloudinary identee/mockups.
+const MOCKUP_VIEWS = ["front", "back", "left", "right"];
+const MAX_MOCKUP_BYTES = 800 * 1024;
+const DATA_URL = /^data:image\/(jpeg|png|webp);base64,([A-Za-z0-9+/=]+)$/;
+
+async function storeMockups(mockups) {
+  if (!mockups || typeof mockups !== "object") return null;
+  const out = {};
+  for (const view of MOCKUP_VIEWS) {
+    const m = DATA_URL.exec(String(mockups[view] || ""));
+    if (!m) continue;
+    const buffer = Buffer.from(m[2], "base64");
+    if (buffer.length > MAX_MOCKUP_BYTES) throw badRequest("A mockup picture is too large");
+    const { url } = await uploadFile(buffer, `image/${m[1]}`, "mockups", `${view}.${m[1] === "jpeg" ? "jpg" : m[1]}`);
+    out[view] = url;
+  }
+  return Object.keys(out).length ? out : null;
+}
+
+// Delete mockup files no other design still points at (duplicates share them).
+async function dropMockups(mockups, exceptId) {
+  for (const view of MOCKUP_VIEWS) {
+    const url = mockups?.[view];
+    if (!url) continue;
+    const shared = await Customization.exists({ _id: { $ne: exceptId }, $or: MOCKUP_VIEWS.map((v) => ({ [`mockups.${v}`]: url })) });
+    if (!shared) await deleteStoredFile(url);
+  }
+}
+
+// Validates garment / colour / size / elements; returns the fields to store.
+async function cleanDesign(body) {
+  const { garmentType, color, elements, size, name } = body;
+  if (!garmentType || !color) throw badRequest("garmentType and color are required");
+  if (!Array.isArray(elements) || elements.length === 0) throw badRequest("Add at least one design element before saving");
+  if (elements.length > MAX_ELEMENTS) throw badRequest(`A design can have at most ${MAX_ELEMENTS} elements`);
+  const garment = await GarmentType.findOne({ key: String(garmentType), isActive: true });
+  if (!garment) throw badRequest("This garment is not available");
+  // The size the customer designed for must be one this garment comes in.
+  const sizes = garment.sizes?.length ? garment.sizes : SIZES;
+  if (size !== undefined && size !== null && !sizes.includes(String(size))) {
+    throw badRequest("This size isn't available for this garment");
+  }
+  const positionByKey = Object.fromEntries(positionsForGarment(garment).positions.map((p) => [p.key, p]));
+  return {
+    garmentType: garment.key,
+    color: String(color).slice(0, 60),
+    size: size ? String(size) : null,
+    name: String(name || "").trim().slice(0, 60) || `${garment.label} design`,
+    layoutVersion: 2,
+    elements: elements.map(cleanElement(positionByKey)),
+  };
+}
+
+const sendError = (res, err, fallback) =>
+  res.status(err.status || 500).json({ message: err.message || fallback });
+
+// Owner's design (not hidden) or a 404.
+async function ownDesign(req) {
+  if (!mongoose.isValidObjectId(req.params.id)) throw Object.assign(new Error("Design not found"), { status: 404 });
+  const doc = await Customization.findById(req.params.id);
+  if (!doc || doc.hiddenAt || String(doc.user) !== String(req.user._id)) {
+    throw Object.assign(new Error("Design not found"), { status: 404 });
+  }
+  return doc;
+}
+
 // POST /api/customizations  (login required)
+// Body: { garmentType, color, size, elements, name?, mockups?: { front, back, left, right } (data URLs) }
 export const createCustomization = async (req, res) => {
   try {
-    const { garmentType, color, elements, size } = req.body;
-
-    if (!garmentType || !color) {
-      return res.status(400).json({ message: "garmentType and color are required" });
-    }
-    if (!Array.isArray(elements) || elements.length === 0) {
-      return res.status(400).json({ message: "Add at least one design element before saving" });
-    }
-    if (elements.length > MAX_ELEMENTS) {
-      return res.status(400).json({ message: `A design can have at most ${MAX_ELEMENTS} elements` });
-    }
-    const garment = await GarmentType.findOne({ key: String(garmentType), isActive: true });
-    if (!garment) return res.status(400).json({ message: "This garment is not available" });
-    // The size the customer designed for must be one this garment comes in.
-    const sizes = garment.sizes?.length ? garment.sizes : SIZES;
-    if (size !== undefined && size !== null && !sizes.includes(String(size))) {
-      return res.status(400).json({ message: "This size isn't available for this garment" });
-    }
-    const positionByKey = Object.fromEntries(
-      positionsForGarment(garment).positions.map((p) => [p.key, p]),
-    );
-
-    const customization = await Customization.create({
-      garmentType: garment.key,
-      color: String(color).slice(0, 60),
-      size: size ? String(size) : null,
-      user: req.user._id,
-      layoutVersion: 2,
-      elements: elements.map(cleanElement(positionByKey)),
-    });
-
+    const fields = await cleanDesign(req.body);
+    const mockups = await storeMockups(req.body.mockups);
+    const customization = await Customization.create({ ...fields, user: req.user._id, ...(mockups ? { mockups } : {}) });
     res.status(201).json(customization);
   } catch (err) {
-    res.status(err.status || 500).json({ message: err.message || "Could not save customization" });
+    sendError(res, err, "Could not save customization");
+  }
+};
+
+// PUT /api/customizations/:id  (owner) — update a saved design.
+// Ordered designs are locked: the client saves a copy instead (409).
+export const updateCustomization = async (req, res) => {
+  try {
+    const doc = await ownDesign(req);
+    if (doc.orderedAt) {
+      return res.status(409).json({ message: "This design has been ordered, so it can't change. Save it as a new design instead.", locked: true });
+    }
+    const fields = await cleanDesign(req.body);
+    const mockups = await storeMockups(req.body.mockups);
+    const old = doc.mockups?.toObject ? doc.mockups.toObject() : doc.mockups;
+    Object.assign(doc, fields);
+    if (mockups) doc.mockups = mockups;
+    await doc.save();
+    if (mockups && old) await dropMockups(old, doc._id);
+    res.json(doc);
+  } catch (err) {
+    sendError(res, err, "Could not save the design");
+  }
+};
+
+// GET /api/customizations/mine  (login) — the user's designs, newest first
+export const listMyCustomizations = async (req, res) => {
+  try {
+    const docs = await Customization.find({ user: req.user._id, hiddenAt: null })
+      .select("name garmentType color size mockups orderedAt createdAt updatedAt elements.position")
+      .sort({ updatedAt: -1 })
+      .limit(200)
+      .lean();
+    res.json(
+      docs.map(({ elements, ...d }) => ({
+        ...d,
+        elementCount: elements?.length || 0,
+        areaCount: new Set((elements || []).map((e) => e.position)).size,
+      })),
+    );
+  } catch (err) {
+    sendError(res, err, "Could not load your designs");
+  }
+};
+
+// POST /api/customizations/:id/duplicate  (owner) — a new, editable copy
+export const duplicateCustomization = async (req, res) => {
+  try {
+    const doc = await ownDesign(req);
+    const src = doc.toObject();
+    const copy = await Customization.create({
+      garmentType: src.garmentType,
+      color: src.color,
+      size: src.size,
+      user: req.user._id,
+      layoutVersion: src.layoutVersion,
+      elements: src.elements,
+      mockups: src.mockups,
+      name: `${src.name || "Design"} (copy)`.slice(0, 60),
+    });
+    res.status(201).json(copy);
+  } catch (err) {
+    sendError(res, err, "Could not copy the design");
+  }
+};
+
+// DELETE /api/customizations/:id  (owner)
+// Designs used in an order are only hidden (the order still needs them).
+export const deleteCustomization = async (req, res) => {
+  try {
+    const doc = await ownDesign(req);
+    const inOrder = doc.orderedAt || (await Order.exists({ "orderItems.customization": doc._id }));
+    if (inOrder) {
+      doc.hiddenAt = new Date();
+      await doc.save();
+    } else {
+      const mockups = doc.mockups?.toObject ? doc.mockups.toObject() : doc.mockups;
+      await doc.deleteOne();
+      await dropMockups(mockups, doc._id);
+    }
+    res.json({ message: "Deleted" });
+  } catch (err) {
+    sendError(res, err, "Could not delete the design");
   }
 };
 

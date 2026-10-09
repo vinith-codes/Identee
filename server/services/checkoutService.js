@@ -86,7 +86,7 @@ const customizationLine = async (customizationId, qty, size, user) => {
     product: null,
     customization: customization._id.toString(),
     name: `${garment.label} — Custom Design`,
-    image: "",
+    image: customization.mockups?.front || "", // picture of the designed tee
     size: chosen || "Custom",
     qty,
     unitPrice,

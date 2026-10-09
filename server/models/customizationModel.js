@@ -60,6 +60,16 @@ const customizationSchema = new mongoose.Schema(
     size: { type: String, default: null }, // garment size the customer designed for, e.g. "M"
     user: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
     layoutVersion: { type: Number, default: 1 },
+    name: { type: String, default: "", trim: true }, // "Birthday squad tee" — shown in My designs
+    // Pictures of the finished tee (Cloudinary identee/mockups), made in the 3D Design Room
+    mockups: {
+      front: { type: String, default: null },
+      back: { type: String, default: null },
+      left: { type: String, default: null },
+      right: { type: String, default: null },
+    },
+    orderedAt: { type: Date, default: null }, // set when ordered → the design is locked
+    hiddenAt: { type: Date, default: null }, // "deleted" by the customer but kept for an order
     elements: {
       type: [elementSchema],
       validate: (v) => Array.isArray(v) && v.length > 0,
@@ -67,5 +77,7 @@ const customizationSchema = new mongoose.Schema(
   },
   { timestamps: true },
 );
+
+customizationSchema.index({ user: 1, hiddenAt: 1, updatedAt: -1 });
 
 export default mongoose.model("Customization", customizationSchema);

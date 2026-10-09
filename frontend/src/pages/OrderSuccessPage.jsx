@@ -6,6 +6,7 @@ import orderService from "../services/orderService";
 import reviewService from "../services/reviewServices";
 import WriteReviewModal from "../components/WriteReviewModal";
 import { imageUrl } from "../utils/imageUrl";
+import DesignPreview from "../components/DesignPreview";
 
 
 // Product/order images are stored as relative paths (e.g. "uploads/xyz.jpg").
@@ -54,6 +55,7 @@ const STATUS_BANNER = {
 
 export default function OrderSuccessPage() {
   const { id } = useParams();
+  const [designView, setDesignView] = useState(null); // { id, size, qty }
   const { user } = useSelector((state) => state.auth);
 
   const [order, setOrder] = useState(null);
@@ -240,6 +242,8 @@ export default function OrderSuccessPage() {
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             {order.orderItems.map((item, i) => {
               const productId = item.product?._id;
+              // custom design: id of the saved design (populated or not)
+              const designId = item.customization?._id || item.customization || null;
               const itemEligibility = productId ? eligibility[productId] : null;
 
               return (
@@ -260,13 +264,16 @@ export default function OrderSuccessPage() {
                   <img
                     src={getImageUrl(item.image || item.product?.images?.[0])}
                     alt={item.name}
+                    onClick={designId ? () => setDesignView({ id: designId, size: item.size, qty: item.qty }) : undefined}
+                    title={designId ? "View your design" : undefined}
                     style={{
-                      width: 60,
-                      height: 60,
+                      width: designId ? 72 : 60,
+                      height: designId ? 90 : 60,
                       objectFit: "cover",
                       borderRadius: 8,
                       border: `1px solid ${THEME.border}`,
                       background: THEME.surface2,
+                      cursor: designId ? "pointer" : "default",
                     }}
                     onError={(e) => {
                       e.currentTarget.onerror = null;
@@ -295,6 +302,26 @@ export default function OrderSuccessPage() {
                     >
                       Size: {item.size} · Qty: {item.qty}
                     </p>
+                    {designId && (
+                      <button
+                        type="button"
+                        onClick={() => setDesignView({ id: designId, size: item.size, qty: item.qty })}
+                        style={{
+                          marginTop: 8,
+                          background: THEME.ink,
+                          color: "#fff",
+                          border: 0,
+                          borderRadius: 999,
+                          padding: "6px 14px",
+                          fontSize: 12,
+                          fontWeight: 700,
+                          cursor: "pointer",
+                          fontFamily: THEME.fontBody,
+                        }}
+                      >
+                        View your design
+                      </button>
+                    )}
 
                     {/* ✅ NEW — review CTA, only once delivered */}
                     {isDelivered && itemEligibility && (
@@ -457,6 +484,11 @@ export default function OrderSuccessPage() {
         orderId={order._id}
         onSubmitted={fetchEligibility}
       />
+
+      {/* custom design: pictures of the designed tee, every side */}
+      {designView && (
+        <DesignPreview designId={designView.id} extra={{ size: designView.size, qty: designView.qty }} onClose={() => setDesignView(null)} />
+      )}
     </div>
   );
 }

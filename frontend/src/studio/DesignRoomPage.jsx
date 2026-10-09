@@ -12,7 +12,7 @@ import { useDispatch, useSelector } from "react-redux";
 import { fetchGarmentTypes } from "../redux/slices/garmentTypeSlice";
 import { fetchArtCategories } from "../redux/slices/artCategorySlice";
 import { fetchArtDesigns } from "../redux/slices/artDesignSlice";
-import { saveCustomization, uploadDesignImage } from "../redux/slices/customizationSlice";
+import { uploadDesignImage } from "../redux/slices/customizationSlice";
 import customizationService from "../services/customizationService";
 import { imageUrl } from "../utils/imageUrl";
 import Room3D from "./Room3D";
@@ -52,6 +52,25 @@ const lum = (hex) => {
 let reqSeq = 0; // camera-move request counter
 const nextReq = () => ++reqSeq;
 const makeId = () => `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
+
+// A 4:5 picture of the tee from a full 3D-view snapshot (for mockups).
+function cropMockup(dataUrl, outW = 640, outH = 800) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const h = img.height * 0.96;
+      const w = h * (outW / outH);
+      const c = document.createElement("canvas");
+      c.width = outW;
+      c.height = outH;
+      c.getContext("2d").drawImage(img, (img.width - w) / 2, (img.height - h) / 2, w, h, 0, 0, outW, outH);
+      resolve(c.toDataURL("image/jpeg", 0.85));
+    };
+    img.onerror = () => resolve(null);
+    img.src = dataUrl;
+  });
+}
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // Load the studio fonts once (Konva needs them in the document).
 function useStudioFonts() {
@@ -96,6 +115,12 @@ export default function DesignRoomPage() {
   const [shots, setShots] = useState(null);
   const [toast, setToast] = useState("");
   const [busy, setBusy] = useState("");
+  // the saved design this is (My designs); locked = already ordered → saving makes a copy
+  const [designId, setDesignId] = useState(params.get("design") || draft?.designId || null);
+  const [designName, setDesignName] = useState(draft?.name || "");
+  const [locked, setLocked] = useState(false);
+  const [saveOpen, setSaveOpen] = useState(false);
+  const [savedAt, setSavedAt] = useState(null);
   const roomApi = useRef(null);
   const fileRef = useRef(null);
   const narrow = typeof window !== "undefined" && window.innerWidth < 760;
@@ -140,8 +165,34 @@ export default function DesignRoomPage() {
   /* ---------- autosave ---------- */
   useEffect(() => {
     if (!type) return;
-    writeJSON(DRAFT_KEY(type), { elements, colour: colour?.slug, size: sizeNow });
-  }, [type, elements, colour?.slug, sizeNow]);
+    writeJSON(DRAFT_KEY(type), { elements, colour: colour?.slug, size: sizeNow, designId, name: designName });
+  }, [type, elements, colour?.slug, sizeNow, designId, designName]);
+
+  /* ---------- open a saved design: /customize/<garment>?design=<id> ---------- */
+  const openId = params.get("design");
+  useEffect(() => {
+    if (!openId || !isLoggedIn()) return;
+    let alive = true;
+    customizationService
+      .getCustomizationById(openId)
+      .then((d) => {
+        if (!alive) return;
+        if (d.garmentType !== type) return navigate(`/customize/${d.garmentType}?design=${d._id}`, { replace: true });
+        setElements(d.elements.map((e) => ({ ...e, id: e._id || e.id || makeId() })));
+        setColourSlug(d.color);
+        if (d.size) setSize(d.size);
+        setDesignId(d._id);
+        setDesignName(d.name || "");
+        setLocked(!!d.orderedAt);
+        setStep("design");
+        setCamRequest({ view: "front", ms: 1400, n: nextReq() });
+        if (d.orderedAt) setToast("This design was ordered. Changes will be saved as a new design.");
+      })
+      .catch(() => alive && setToast("Couldn't open that design. It may have been deleted."));
+    return () => {
+      alive = false;
+    };
+  }, [openId, type]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ---------- history (undo / redo) ---------- */
   const elementsRef = useRef(elements);
@@ -422,13 +473,68 @@ export default function DesignRoomPage() {
     setCamRequest({ position: [0, 0.4, 5], n: nextReq() });
     // let the outline disappear from the textures, then take pictures
     // (retry for a few seconds in case the 3D view is still starting)
-    let tries = 0;
-    const shoot = () => {
-      const api = roomApi.current;
-      if (api) setShots(SIDES.map(([v, label]) => ({ label, url: api.snapshot(v) })));
-      else if (++tries < 12) setTimeout(shoot, 300);
-    };
-    setTimeout(shoot, 450);
+    captureMockups().then((m) => m && setShots(SIDES.map(([v, label]) => ({ label, url: m[v] }))));
+  };
+
+  // Pictures of each side (data URLs), taken from the 3D room without the editing outline.
+  const captureMockups = async () => {
+    await wait(450);
+    for (let tries = 0; tries < 12 && !roomApi.current; tries++) await wait(300);
+    const api = roomApi.current;
+    if (!api) return null;
+    const out = {};
+    for (const [v] of SIDES) out[v] = await cropMockup(api.snapshot(v));
+    return out;
+  };
+
+  // Save to My designs. Returns the saved design's id, or null.
+  const saveDesign = async ({ name = designName, quiet = false } = {}) => {
+    if (!isLoggedIn()) {
+      goToLogin();
+      return null;
+    }
+    if (!elements.length) {
+      say("Add a design first — tap a print area or use Text, Upload or Art.");
+      return null;
+    }
+    setSaveOpen(false);
+    const wasEditing = active;
+    closeArea();
+    setBusy("Saving your design…");
+    try {
+      const mockups = shots?.length === 4 && step === "review"
+        ? Object.fromEntries(shots.map((sh, i) => [SIDES[i][0], sh.url]))
+        : await captureMockups();
+      const body = { garmentType: type, color: colour.slug, size: sizeNow, elements, name: name || `${garment.label} design`, mockups: mockups || undefined };
+      let saved;
+      let copied = false;
+      if (designId && !locked) {
+        try {
+          saved = await customizationService.updateDesign(designId, body);
+        } catch (err) {
+          if (err.response?.status === 409 || err.response?.status === 404) {
+            saved = await customizationService.createDesign(body);
+            copied = true;
+          } else throw err;
+        }
+      } else {
+        saved = await customizationService.createDesign(body);
+        copied = !!(designId && locked);
+      }
+      setDesignId(saved._id);
+      setDesignName(saved.name);
+      setLocked(false);
+      setSavedAt(new Date());
+      navigate(`/customize/${type}?design=${saved._id}`, { replace: true });
+      if (!quiet) say(copied ? "Saved as a new design in My designs." : "Saved to My designs.");
+      return saved._id;
+    } catch (err) {
+      say(err.response?.data?.message || "Couldn't save your design. Please try again.");
+      return null;
+    } finally {
+      setBusy("");
+      if (wasEditing && step === "design") openArea(wasEditing);
+    }
   };
   const backToDesign = () => {
     setStep("design");
@@ -437,11 +543,9 @@ export default function DesignRoomPage() {
   };
   const order = async () => {
     if (!isLoggedIn()) return goToLogin();
-    setBusy("Saving your design…");
-    const res = await dispatch(saveCustomization({ garmentType: type, color: colour.slug, elements, size: sizeNow }));
-    setBusy("");
-    if (!saveCustomization.fulfilled.match(res)) return say(res.payload || "Couldn't save your design. Please try again.");
-    const id = res.payload._id;
+    // the ordered design is saved to My designs (with its mockups) and then locked
+    const id = await saveDesign({ quiet: true });
+    if (!id) return;
     navigate(`/buy-now/${id}`, {
       state: { product: { _id: id, brandname: `${garment.label} — Custom Design`, images: [], price: unitPrice }, size: sizeNow, qty: 1 },
     });
@@ -485,6 +589,31 @@ export default function DesignRoomPage() {
             );
           })}
         </nav>
+        <div className="dr-savebox">
+          {step !== "fit" && (
+            <button type="button" className="dr-save" onClick={() => (isLoggedIn() ? setSaveOpen((o) => !o) : goToLogin())} aria-expanded={saveOpen}>
+              {savedAt ? "Saved ✓" : "Save"}
+            </button>
+          )}
+          <Link to="/my-designs" className="dr-mydesigns">My designs</Link>
+          {saveOpen && (
+            <form
+              className="dr-savepop"
+              onSubmit={(e) => {
+                e.preventDefault();
+                saveDesign({ name: e.currentTarget.elements.dname.value.trim() });
+              }}
+            >
+              <label htmlFor="dr-dname">Design name</label>
+              <input id="dr-dname" name="dname" defaultValue={designName || `${garment.label} design`} maxLength={60} autoFocus />
+              {locked && <p>This design was ordered, so it will be saved as a new design.</p>}
+              <div className="dr-row">
+                <button type="button" className="dr-chip" onClick={() => setSaveOpen(false)}>Cancel</button>
+                <button type="submit" className="dr-chip on">{designId && !locked ? "Save changes" : "Save to My designs"}</button>
+              </div>
+            </form>
+          )}
+        </div>
         <div className="dr-price">
           ₹{unitPrice.toLocaleString("en-IN")}
           <small>{artTotal ? `incl. ₹${artTotal} art` : "per piece"}</small>

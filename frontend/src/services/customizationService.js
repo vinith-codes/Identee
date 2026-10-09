@@ -36,11 +36,25 @@ const getCustomizationById = async (id) => {
   return res.data;
 };
 
+// "My designs"
+// design = { garmentType, color, size, elements, name?, mockups?: { front, back, left, right } (data URLs) }
+const createDesign = async (design) => (await axios.post(API_URL, design, auth())).data;
+// 409 { locked: true } when the design was ordered — save a copy instead
+const updateDesign = async (id, design) => (await axios.put(`${API_URL}/${id}`, design, auth())).data;
+const listMyDesigns = async () => (await axios.get(`${API_URL}/mine`, auth())).data;
+const duplicateDesign = async (id) => (await axios.post(`${API_URL}/${id}/duplicate`, {}, auth())).data;
+const deleteDesign = async (id) => (await axios.delete(`${API_URL}/${id}`, auth())).data;
+
 const customizationService = {
   getPrintPositions,
   uploadDesignImage,
   saveCustomization,
   getCustomizationById,
+  createDesign,
+  updateDesign,
+  listMyDesigns,
+  duplicateDesign,
+  deleteDesign,
 };
 
 export default customizationService;

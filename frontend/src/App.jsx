@@ -48,6 +48,7 @@ import SubscribersPage from "./pages/admin/SubscribersPage";
 import CheckoutPage from "./pages/CheckoutPage";
 import OrderSuccessPage from "./pages/OrderSuccessPage";
 import MyOrdersPage from "./pages/MyOrderPage";
+import MyDesignsPage from "./pages/MyDesignsPage";
 // ──────────────────────────────────────────────────────────────────────────
 import GarmentPhotosPage from "./pages/admin/GarmentPhotosPage";
 import GarmentTypesPage from "./pages/admin/GarmentTypesPage";
@@ -290,6 +291,14 @@ export default function App() {
             element={
               <PrivateRoute>
                 <MyOrdersPage />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/my-designs"
+            element={
+              <PrivateRoute>
+                <MyDesignsPage />
               </PrivateRoute>
             }
           />

@@ -503,6 +503,28 @@ Files: `frontend/src/studio/` (`DesignRoomPage.jsx`, `Room3D.jsx`, `AreaEditor.j
 
 Next (studio Part 2): sizes × quantity + cart for custom designs, server drafts + "My designs", print files (Phase D).
 
+## 6j. My designs + the designed tee in orders (DONE on branch `feature-design-room`)
+
+**Where a designed T-shirt is stored**
+
+| Part | Where |
+|---|---|
+| The design (every element: type, text/font/colour or image URL, print area, x/y/width/height in % of the print box, rotation; garment, colour, size, name) | MongoDB `customizations` (one document per design) |
+| Pictures of the finished tee — front / back / left / right (640 × 800 JPEG, ~35 KB each) | Cloudinary `identee/mockups`, URLs in `customizations.mockups` |
+| Photos / logos the customer uploads | Cloudinary `identee/designs` (URL in the element) |
+| Art-library images | Cloudinary `identee/art` |
+| In an order | `orders.orderItems[].customization` (design id) + `orderItems[].image` (front mockup) |
+
+**New:** Design room **Save** (name the design; logged in) → saved with its 4 mockups; `/customize/<garment>?design=<id>` reopens it.
+**My designs** (`/my-designs`, T-shirt icon in the top bar, mobile menu): picture, name, garment · colour · size · print areas,
+Open · Duplicate · Delete, and a preview window with all 4 sides. **Ordering** saves the design (with mockups) and **locks** it
+(`orderedAt`): it can't be changed (saving makes a copy), and "deleting" an ordered design only hides it (`hiddenAt`) so the order
+keeps it. **My Orders** shows the designed tee as the item picture; on the order page **View your design** opens all 4 sides with
+the ordered size and quantity.
+
+API: `GET /api/customizations/mine`, `PUT /:id` (409 when ordered), `POST /:id/duplicate`, `DELETE /:id`; `POST /` and `PUT /:id`
+accept `name` and `mockups` (data URLs, ≤ 800 KB each). Designs saved before this have no pictures ("No picture").
+
 ## 7. Phase 1 — remaining steps (audit findings)
 
 ### Step 3: Customization

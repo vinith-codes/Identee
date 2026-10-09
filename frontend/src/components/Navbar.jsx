@@ -312,6 +312,21 @@ export default function Navbar({ phone = "+91 636 652 6449" }) {
               </svg>
             </Link>
 
+            {/* My designs — only when logged in */}
+            {user && (
+              <Link
+                to="/my-designs"
+                aria-label="My designs"
+                data-tooltip="My designs"
+                className="navbar-icon"
+                style={{ color: THEME.ink, display: "flex" }}
+              >
+                <svg viewBox="0 0 24 24" fill="none" width={20} height={20} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M8 3 4 6l2 4 2-1v12h8V9l2 1 2-4-4-3c-.5 1.5-2.2 2.5-4 2.5S8.5 4.5 8 3Z" />
+                </svg>
+              </Link>
+            )}
+
             {/* Orders icon — only when logged in */}
             {user && (
               <Link
@@ -784,6 +799,25 @@ export default function Navbar({ phone = "+91 636 652 6449" }) {
                 </NavLink>
               );
             })}
+
+            {/* My designs — mobile menu (only when logged in) */}
+            {user && (
+              <Link
+                to="/my-designs"
+                onClick={() => setMobileOpen(false)}
+                style={{
+                  display: "block",
+                  padding: "14px 0",
+                  borderBottom: `1px solid ${THEME.border}`,
+                  fontSize: 17,
+                  fontWeight: 600,
+                  color: THEME.ink,
+                  textDecoration: "none",
+                }}
+              >
+                My designs
+              </Link>
+            )}
 
             {/* My Orders — mobile menu (only when logged in) */}
             {user && (

@@ -9,7 +9,7 @@ _Last updated: 9 Oct 2026 (end of chat 2). Read this first, then `docs/PHASE1_PR
 
 **Garment set-up wizard** on branch `feature-garment-wizard` (from `feature-admin-redesign`): Admin → Customizable list + 6-step wizard, 15 print areas per garment, garment-photo writes now admin-only — see PHASE1_PROGRESS §6e.
 
-**3D Design Room (studio Part 1)** on branch `feature-design-room` — see PHASE1_PROGRESS §6i.
+**3D Design Room (studio Part 1)** + **My designs / designed tee in orders** on branch `feature-design-room` — see PHASE1_PROGRESS §6i–6j.
 
 **MERGED to `main` (9 Oct 2026):** `feature-customizer-part-a`, `feature-admin-redesign`, `feature-garment-wizard` (fast-forward, pushed). Old branches can be deleted later.
 

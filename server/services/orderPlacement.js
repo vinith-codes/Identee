@@ -1,5 +1,6 @@
 // Turns a server-built quote (see checkoutService.buildQuote) into an Order.
 // Used by COD checkout, the Razorpay verify endpoint and the Razorpay webhook.
+import Customization from "../models/customizationModel.js";
 import Order from "../models/orderModel.js";
 import User from "../models/userModel.js";
 import Offer from "../models/OfferModel.js";
@@ -78,6 +79,13 @@ export const placeOrder = async ({ userId, quote, paymentMethod, payment }) => {
   }
 
   // Side effects below must never undo a placed order.
+  // Lock ordered designs so the print team prints exactly what was paid for.
+  const designIds = quote.lines.map((l) => l.customization).filter(Boolean);
+  if (designIds.length) {
+    await Customization.updateMany({ _id: { $in: designIds }, orderedAt: null }, { $set: { orderedAt: new Date() } }).catch((e) =>
+      console.error("[order] design lock failed:", e.message),
+    );
+  }
   if (quote.coupon?.code) {
     await Offer.updateOne(
       { code: quote.coupon.code },
