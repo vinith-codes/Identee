@@ -1,6 +1,19 @@
 # IDENTEE — Handoff for the next chat
 
-_Last updated: 9 Oct 2026. Read this first, then `docs/PHASE1_PROGRESS.md` (full before/after history) and `docs/PRODUCT_SPEC.md` (products, sizes, print positions)._
+_Last updated: 9 Oct 2026 (end of chat 2). Read this first, then `docs/PHASE1_PROGRESS.md` (full before/after history) and `docs/PRODUCT_SPEC.md` (products, sizes, print positions)._
+
+## ⏭ Where we stopped (start here)
+**Waiting on the user for:** (1) photo licence confirmation for the white oversized-tee mockup (or client's own photos), (2) "yes, set it up" to go live with the Oversized Tee garment, (3) "merge" for `feature-customizer-part-a`.
+
+**"Set it up" means:** upload the 48 images in `E:\AI CUSTOMIZATION\identee-private-assets\oversized-images\` to Cloudinary `identee/garments`; create GarmentType `oversized-tee` (label "Oversized Tee", category string "Oversized" so it joins the T-Shirts category styles, 12 colours with slugs/hex from `server/scripts/garment-images/build_oversized.py`), and a `garmentcolorimages` doc per colour with front/back/left/right imageUrl; set print areas to match the images (see calibration below). Ask before writing to the shared DB. Optionally hide Polos/Hoodies/Sweatshirts/Kids' Wear categories (asked, not yet approved).
+
+**Then build (agreed order):** merge Part A → **size-accurate print boxes** (customer picks size while designing; box px = print cm × px-per-cm for that size; px-per-cm from the size chart length: M 30" = 640 px → 21.33 px/in; each size uses its own length/chest from the chart) → real admin menu + Home (as prototyped) → Oversized Tee setup wizard (incl. 15-area print-area gallery; garment's own size chart + per-garment print areas, "provisional" flag) → customer "Where do you want to print?" picker + mobile touch (Part B) → size × qty + fabric choice (Part C) → 300-DPI print files (Part D) → ready-made products.
+
+**Garment images (done this chat):** the user's white oversized-tee photo (front/back) is recoloured into 12 colours and **widened to IDENTEE proportions** (chest:length = 23:30, verified 23.0" at 30"); side views are a drawn profile (`server/scripts/garment-images/side_white.svg`) at the same scale with **estimated** sleeve 9" long / 8.5" opening. Calibration: `server/scripts/garment-images/oversized_calibration.json` (canvas 800×1000, shirt top y=236, hem y=876, centre x=400, 21.33 px/in at M). Tool + README in `server/scripts/garment-images/` (Python + Pillow/NumPy, install with `python -m pip install --target <dir> pillow numpy`). Private assets (NOT in git, repo is public): `E:\AI CUSTOMIZATION\identee-private-assets\` (source photo, side_white.png, 48 images, admin prototype source).
+
+**Sent to the client (awaiting answers):** `docs/print-requests/IDENTEE_Oversized_Measurement_Request.pdf` (sleeve length/opening, where each print starts in cm, sizes of the other 9 areas, Pantone codes, photo licence) and `IDENTEE_Polo_Print_Area_Request.pdf` (polo — later). When answers arrive: update `side_white.svg` scale / build script, rerun, and set print-area start distances.
+
+**Admin prototype:** https://claude.ai/artifact/KTSQYRRyRygFv3ndfmtDGc (Home with setup checklist + "needs attention", Customizable list, 6-step Oversized Tee setup wizard incl. 15-area print gallery, customer area picker). User liked the direction; asked why a to-do Home (explained) — keep sales numbers as a smaller strip.
 
 ## 0. Current focus (client decision, 9 Oct 2026)
 **Only the Oversized Tee for now** — customizable (240 GSM Cotton and French Terry, XS–3XL, 12 colours) plus ready-made oversized tees. Polo and other garments/categories come later "when needed": keep the system multi-garment capable, but build, test and set up only the Oversized Tee; hide other categories from the storefront. Polo print sizes were requested from the print team (`docs/print-requests/IDENTEE_Polo_Print_Area_Request.pdf`) — not needed now.
@@ -42,8 +55,10 @@ IDENTEE is a custom-apparel e-commerce web app (client project at Quindl): custo
 - Launch print positions = the 6 with sizes; sizes named XS, S, M, L, XL, 2XL, 3XL.
 - MOQ 3 pcs (from PDF) and blank-garment stock tracking: deferred.
 - Guests can design; login required to upload artwork / save / order.
-- Garment photos in DB are test images (tshirt/white has a lion print); real blank photos of the Oversized Tee (Cotton + French Terry, 12 colours) are needed, and print areas calibrated in Admin → Garment Photos.
-- Categories for launch: T-Shirts, Polos, Hoodies, Sweatshirts, Kids' Wear.
+- Garment photos in DB are test images (tshirt/white has a lion print). The generated Oversized Tee images (above) replace them once approved.
+- **Focus: Oversized Tee only** (client decision). Other categories (Polos, Hoodies, Sweatshirts, Kids' Wear) exist in code/DB but should be hidden until needed.
+- **Print boxes must be size-accurate** (user requirement): the preview changes with the chosen size, using the PDF size chart as the ruler. 15 print areas exist in the guide; 6 have sizes (offered), 9 "size not set". Exact print start positions (cm below collar etc.) are unknown — currently ~10 cm below the shoulder line; requested from the client.
+- Python tooling is fine for offline asset generation; the web app stays Node/React.
 
 ## 6. How the user likes to work
 - Vinith is learning (asked about git branching, revert, Cloudinary limits) → explain in plain words, step by step, with tables; give exact commands in separate code blocks.
