@@ -1,8 +1,5 @@
 // pages/AboutUs.jsx
-import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { useDispatch, useSelector } from "react-redux";
-import { fetchPublicSettings } from "../redux/slices/publicSettingsSlice";
 
 // Client logos — same asset paths used in the other Identee build
 import ohaaLogo from "../assets/clients/ohaa.png";
@@ -224,50 +221,14 @@ function JourneyRow({ stage, detail, index, total }) {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Footer + floating social — same markup as Home.jsx so every page  */
-/*  matches. If you pull these into a shared components/ file later,  */
-/*  swap this block for an import from there.                         */
+/*  (the footer is components/SiteFooter.jsx, shown on every page)    */
 /* ------------------------------------------------------------------ */
-function Footer({ settings = {} }) {
-  const email =
-    settings["general.storeEmail"] ||
-    settings["general.supportEmail"] ||
-    "work@yourdesignstore.in";
-  const phone = settings["general.phoneNumber"] || "+91 636 652 6449";
-  const storeName = settings["general.storeName"] || "Identee";
-
-  return (
-    <footer
-      style={{
-        borderTop: `1px solid ${C.border}`,
-        padding: "28px 24px",
-        textAlign: "center",
-        fontSize: 12,
-        color: C.muted,
-        background: C.bg,
-      }}
-    >
-      <p style={{ margin: 0 }}>
-        © {new Date().getFullYear()} {storeName}. All rights reserved. · {email}{" "}
-        · {phone}
-      </p>
-    </footer>
-  );
-}
 
 /* ------------------------------------------------------------------ */
 /*  Main component                                                     */
 /* ------------------------------------------------------------------ */
 export default function AboutUs() {
-  const dispatch = useDispatch();
   const navigate = useNavigate();
-  const { values: publicSettings, isLoaded: settingsLoaded } = useSelector(
-    (s) => s.publicSettings,
-  );
-
-  useEffect(() => {
-    if (!settingsLoaded) dispatch(fetchPublicSettings());
-  }, [dispatch, settingsLoaded]);
 
   return (
     <div
@@ -489,7 +450,6 @@ export default function AboutUs() {
         </button>
       </section>
 
-      <Footer settings={publicSettings} />
     </div>
   );
 }

@@ -12,6 +12,7 @@ import {
 
 import LoginPage from "./pages/LoginPage";
 import Navbar from "./components/Navbar";
+import SiteFooter from "./components/SiteFooter";
 import AdminLayout from "./layouts/AdminLayout";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import AdminHome from "./pages/admin/AdminHome";
@@ -160,6 +161,7 @@ const CustomerLayout = () => (
   <>
     <Navbar />
     <Outlet />
+    <SiteFooter />
   </>
 );
 

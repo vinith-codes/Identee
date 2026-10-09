@@ -4,7 +4,7 @@
 // tee changes colour while a print is typed on it, two ways to shop, the
 // Design Room steps, featured ready-made tees (Admin → Ready-made →
 // "Feature it"), plain promises, the three Style outlook videos (Admin →
-// Video banners) and a closing band. The footer is unchanged.
+// Video banners) and a closing band. The footer is components/SiteFooter.jsx (every page).
 import { useEffect, useRef, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { fetchCategories } from "../redux/slices/categorySlice";
@@ -31,77 +31,11 @@ import {
 import useReveal from "../components/home/useReveal";
 import "../components/home/home.css";
 
-const C = { 
-  bg: "#FFFFFF", // primary page background
-  bgAlt: "#FBF7EE", // soft warm cream for alternating sections
-  yellow: "#F4C43C", // primary accent — bands, marquee, highlights
-  yellowDeep: "#E3A72E", // hover / deeper accent
-  yellowSoft: "#FCEFC7", // light wash for chips/badges
-  gold: "#C9A24B", // brand gold, used sparingly for detail lines
-  ink: "#15130F", // buttons, headlines, primary text
-  text: "#221F1A",
-  muted: "#71695B",
-  border: "#ECE4D2",
-  card: "#FFFFFF",
-  shadow: "0 18px 36px -18px rgba(21,19,15,0.18)",
-  navy: "#1B2340",
-};
 
-const FONT_DISPLAY = "'Bricolage Grotesque', 'Helvetica Neue', Arial, sans-serif";
 
 // Hero colours, in this order when the garment has them.
 const HERO_ORDER = ["black", "white", "maroon", "navy", "bottle-green", "lavender", "beige", "royal-blue"];
 
-const FOOTER_LINKS = {
-  "Customise Products": [
-    "Women's Polo",
-    "Acid Wash Oversize T-Shirt",
-    "Pure Cotton V Neck T-Shirt",
-    "Optic Wash Oversize T-Shirt",
-    "Pure Cotton Oversized Roundneck T-shirt",
-    "Pure Cotton Long Sleeve T-Shirt",
-    "Dense Oversize T-Shirt",
-    "Pure Cotton Round Neck T-Shirt",
-  ],
-  "About Us": [
-    "Our Story",
-    "Team",
-    "Contact us",
-    "Privacy policy",
-    "Payment",
-    "Return and Refunds",
-    "Shipping Policy",
-    "Terms and conditions",
-  ],
-  "Work With Us": [
-    "Bulk & Custom Orders",
-    "Become A Partner",
-    "The Seller Academy",
-  ],
-};
-
-function MailIcon({ size = 18, color = C.ink }) {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 20 20"
-      fill="none"
-      stroke={color}
-      strokeWidth="1.4"
-    >
-      <rect x="2.5" y="4.5" width="15" height="11" rx="1.5" />
-      <path d="M3 5.5l7 5.5 7-5.5" />
-    </svg>
-  );
-}
-function PhoneIcon({ size = 18, color = C.ink }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 20 20" fill={color}>
-      <path d="M6.6 2.6 4 3.9c-1 .5-1.4 1.7-.9 2.7C5 11 9 15 13.4 16.9c1 .4 2.2 0 2.7-.9l1.3-2.6a1.2 1.2 0 0 0-.5-1.6l-2.8-1.4a1.2 1.2 0 0 0-1.4.2l-1 1a10 10 0 0 1-4.3-4.3l1-1c.4-.4.5-1 .2-1.4L7.2 2.1a1.2 1.2 0 0 0-1.6.5Z" />
-    </svg>
-  );
-}
 function WhatsAppIcon({ size = 18, color = "#25D366" }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill={color}>
@@ -110,6 +44,7 @@ function WhatsAppIcon({ size = 18, color = "#25D366" }) {
     </svg>
   );
 }
+
 function InstagramIcon({ size = 18, color = "#fff" }) {
   return (
     <svg
@@ -124,175 +59,6 @@ function InstagramIcon({ size = 18, color = "#fff" }) {
       <circle cx="12" cy="12" r="4" />
       <circle cx="17.2" cy="6.8" r="1" fill={color} stroke="none" />
     </svg>
-  );
-}
-
-function Footer({ settings = {} }) {
-  const email =
-    settings["general.storeEmail"] ||
-    settings["general.supportEmail"] ||
-    "work@yourdesignstore.in";
-  const phone = settings["general.phoneNumber"] || "+91 636 652 6449";
-  const whatsapp = settings["general.whatsappNumber"] || "+91 994 590 0292";
-  const phoneDigits = phone.replace(/\D/g, "");
-  const whatsappDigits = whatsapp.replace(/\D/g, "");
-  const storeName = settings["general.storeName"] || "Identee";
-  const address =
-    settings["general.businessAddress"] || "Coimbatore, Tamil Nadu";
-  const mapQuery = encodeURIComponent(address);
-
-  return (
-    <footer style={{ background: C.bg }}>
-      {/* ---- contact band ---- */}
-      <div style={{ background: "#F3F1EC", padding: "48px 24px" }}>
-        <div style={{ maxWidth: 1280, margin: "0 auto" }}>
-          <h2
-            style={{
-              margin: 0,
-              fontFamily: FONT_DISPLAY,
-              fontWeight: 800,
-              fontSize: "clamp(26px, 3.4vw, 36px)",
-              color: C.ink,
-            }}
-          >
-            Contact Us
-          </h2>
-          <div
-            style={{
-              display: "flex",
-              gap: 36,
-              flexWrap: "wrap",
-              marginTop: 22,
-            }}
-          >
-            <a
-              href={`mailto:${email}`}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-                color: C.ink,
-                textDecoration: "none",
-                fontSize: 15,
-              }}
-            >
-              <MailIcon /> {email}
-            </a>
-            <a
-              href={`tel:+${phoneDigits}`}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-                color: C.ink,
-                textDecoration: "none",
-                fontSize: 15,
-              }}
-            >
-              <PhoneIcon /> {phone}
-            </a>
-            <a
-              href={`https://wa.me/${whatsappDigits}`}
-              target="_blank"
-              rel="noreferrer"
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-                color: C.ink,
-                textDecoration: "none",
-                fontSize: 15,
-              }}
-            >
-              <WhatsAppIcon color={C.ink} /> {whatsapp}
-            </a>
-          </div>
-        </div>
-      </div>
-
-      {/* ---- link columns + map ---- */}
-      <div
-        style={{ maxWidth: 1280, margin: "0 auto", padding: "48px 24px 60px" }}
-      >
-        <div className="identee-footer-grid">
-          {Object.entries(FOOTER_LINKS).map(([heading, links]) => (
-            <div key={heading}>
-              <p
-                style={{
-                  margin: "0 0 16px",
-                  fontSize: 12,
-                  letterSpacing: "0.14em",
-                  textTransform: "uppercase",
-                  fontWeight: 800,
-                  color: C.ink,
-                }}
-              >
-                {heading}
-              </p>
-              <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
-                {links.map((link) => (
-                  <li key={link} style={{ marginBottom: 10 }}>
-                    <a
-                      href="#"
-                      style={{
-                        fontSize: 13.5,
-                        color: C.muted,
-                        textDecoration: "none",
-                      }}
-                    >
-                      {link}
-                    </a>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
-          <div>
-            <p
-              style={{
-                margin: "0 0 16px",
-                fontSize: 12,
-                letterSpacing: "0.14em",
-                textTransform: "uppercase",
-                fontWeight: 800,
-                color: C.ink,
-              }}
-            >
-              Location
-            </p>
-            <div
-              style={{
-                borderRadius: 14,
-                overflow: "hidden",
-                border: `1px solid ${C.border}`,
-                height: 200,
-              }}
-            >
-              <iframe
-                title="Store location"
-                src={`https://www.google.com/maps?q=${mapQuery}&output=embed`}
-                width="100%"
-                height="100%"
-                style={{ border: 0, display: "block" }}
-                loading="lazy"
-              />
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div
-        style={{
-          borderTop: `1px solid ${C.border}`,
-          padding: "18px 24px",
-          textAlign: "center",
-          fontSize: 12,
-          color: C.muted,
-        }}
-      >
-        © {new Date().getFullYear()} {storeName}. All rights reserved.
-      </div>
-    </footer>
   );
 }
 
@@ -465,7 +231,6 @@ export default function Home() {
       <HomeOutlook main={video("styleOutlookMain", subVideo1)} side1={video("styleOutlookSide1", hoodieVideo)} side2={video("styleOutlookSide2", polosVideo)} />
       <HomeFinal garment={garment} photos={colours.map((c) => c.front)} />
 
-      <Footer settings={publicSettings} />
     </div>
   );
 }
