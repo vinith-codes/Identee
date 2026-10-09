@@ -37,6 +37,15 @@ real order VF-2026-0023 by the user.
 - Home page redesigned (classy editorial, real tee photos, slow hero animation); fonts Bricolage Grotesque + Inter now loaded.
 - Data to fix in the admin: 12 of 13 ready-made products have broken old-project photo paths; style "Blacers" is in no category.
 
+**Data audit + `fix-art-security` — MERGED 9 Oct 2026:** read-only check of the DB + Cloudinary: everything saved since
+the move to Cloudinary is complete (0 links to missing Cloudinary files; designs, mockups and Oversized photos complete).
+Files from before the move were lost (old products, old orders' thumbnails, old category banners, profile pictures).
+Cleaned (backup in `identee-private-assets/backup-2026-10-09-audit-cleanup/`, script in `identee-private-assets/scripts/`):
+8 photo records of deleted garments and a broken video banner deleted; broken art hidden, then deleted by the user in admin.
+Security fix: adding/deleting art designs and art categories (and the admin art list) now needs an admin/seller login.
+Admin art page labels hidden art and shows "Picture missing" instead of broken images.
+Left for the user: re-add photos to 12 ready-made products; delete Cloudinary "samples" demo folder.
+
 **Next:** footer links (still list removed garments), Payments / Sellers admin pages; go-live items (Brevo email, deployment,
 Razorpay live keys). Gotcha: the C: drive is nearly full — keep throwaway test databases on E:.
 
