@@ -120,6 +120,25 @@ Share link (read-only copy others can open) · design templates (birthday, team,
 for teams (one design, different names per shirt) · background removal (paid API) · AI design ideas (paid,
 Phase 2 of the spec) · realistic 3D preview (needs a better model) · save colours/fonts used recently.
 
+## 5b. Ideas taken from reference projects (9 Oct 2026)
+
+Reviewed (both MIT licensed; ideas only, no code copied): **Shirty AI** (github.com/srikanta30/shirty-ai —
+Next.js + Google Gemini image generation, 4-step flow) and **TShirtify** (github.com/BhaskarAcharjee/TShirtify —
+React + Three.js 3D shirt, logo/full-pattern decals). Both are far simpler than IDENTEE (no true-to-size
+printing, no print positions, no sizes/ordering).
+
+| Idea | From | How it fits IDENTEE | Phase |
+|---|---|---|---|
+| **✨ AI design tool** — describe an idea, pick a style chip (cartoon, vintage, anime, minimal …), tap example prompts, get 2–4 options, place one like an image | Shirty AI | 4th tool next to Text / Upload / Art. **Server-side key only** (Shirty keeps keys in the browser — unsafe), daily limit per logged-in customer, ask for a transparent background, store results in Cloudinary. AI images are ~1024 px ≈ **93 DPI at 28 cm** → the print-quality meter warns, or a paid upscale step. Paid per image → **needs client budget** ❓ | E (or C if approved) |
+| **Step progress bar** ① Design → ② Review → ③ Sizes & qty → ④ Cart | Shirty AI | Top of the studio on phone + desktop | B/C |
+| **Colour-aware defaults** — new text gets a colour that contrasts with the tee; warn on low contrast; tee colour added to AI prompts | both | Small helper (brightness of the tee hex) | B |
+| **Inspiration chips** — "Birthday squad", "Couple names", "Team number", "Quote" … fill text or an AI prompt | Shirty AI | Beats the blank canvas; later becomes Templates | B/E |
+| **Smooth details** — tee colour cross-fade, sliding panels, small celebration after ordering | TShirtify / Shirty AI | Polish | B/C |
+| **Download / share mockup** (WhatsApp, Instagram) | both | From the Review step, uses the preview image (C6) — free marketing | C |
+
+Not taken: 3D-only preview (can't show true print size), all-over pattern prints (IDENTEE prints fixed areas),
+saving files to the server disk, stock-photo fallbacks, browser-side API keys.
+
 ## 6. Technical approach
 
 - **Editor engine (decided)** — **Konva (`react-konva`)**, a canvas library with built-in touch, drag,
