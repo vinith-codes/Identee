@@ -475,6 +475,8 @@ Files: `components/ShopChoices.jsx`, `components/ShopPageHeader.jsx`, `component
 
 **Data clean-up (same day, user's request):** deleted the 5 old test garments (jump-suits, tshirt, round-neck, blacers, sweatshirt), their 9 photo docs, 8 Cloudinary test photos and 17 test designs on them (none in orders/carts). Backup: `identee-private-assets/backup-2026-10-09-removed-garments/`.
 
+**Top menu** (branch `feature-nav-shop-links`): Home · **Customize** (→ /customizable) · **Ready-made** (→ /ready-made, hover menu = categories + All products; replaces "Products") · About Us · Contact Us. Also deleted the 11 remaining old test designs whose garments no longer existed (backup `customizations-orphans.json`) — the designs collection is now empty.
+
 ## 7. Phase 1 — remaining steps (audit findings)
 
 ### Step 3: Customization

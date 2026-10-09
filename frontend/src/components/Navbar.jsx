@@ -13,7 +13,7 @@ import { imageUrl } from "../utils/imageUrl";
 
 const slugify = (s) => s.toLowerCase().replace(/\s+/g, "-");
 
-// ─── Static navigation links (Products is injected dynamically below) ─────
+// ─── Static navigation links (Customize / Ready-made are added below) ─────
 const STATIC_NAV_LINKS = [
   { to: "/", label: "Home" },
   { to: "/about-us", label: "About Us" },
@@ -100,14 +100,25 @@ export default function Navbar({ phone = "+91 636 652 6449" }) {
     [storeCategories],
   );
 
+  // Home · Customize · Ready-made (category dropdown) · About · Contact —
+  // the same two ways to shop as the home page.
   const NAV_LINKS = useMemo(() => {
     const links = [STATIC_NAV_LINKS[0]]; // Home
+    links.push({ to: "/customizable", label: "Customize" });
     links.push({
-      to: "/products",
-      label: "Products",
+      to: "/ready-made",
+      label: "Ready-made",
       subLinks:
         productCategoryItems.length > 0
-          ? [{ category: "Shop by Category", items: productCategoryItems }]
+          ? [
+              {
+                category: "Shop by Category",
+                items: [
+                  ...productCategoryItems,
+                  { label: "All products", to: "/products", subcategories: [] },
+                ],
+              },
+            ]
           : [],
     });
     links.push(STATIC_NAV_LINKS[1], STATIC_NAV_LINKS[2]); // About / Contact
