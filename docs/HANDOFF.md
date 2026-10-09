@@ -5,7 +5,7 @@ _Last updated: 9 Oct 2026 (end of chat 3). Read this first, then `docs/PHASE1_PR
 
 ## ⏭ Where we stopped (start here)
 
-**Branch `feature-design-room` — pushed, NOT merged yet** (waiting for the user to say "merge"). It holds:
+**Branch `feature-design-room` — MERGED to `main` on 9 Oct 2026** (fast-forward, pushed). It holds:
 1. **3D Design Room** (`/customize/:garment`) — studio Part 1. PHASE1_PROGRESS §6i.
 2. **My designs + the designed tee in orders** — PHASE1_PROGRESS §6j.
 3. Customizable page shows the **white** tee, no colour dots, no "How it works" (colour is picked in the room's first step).
