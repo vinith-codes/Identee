@@ -670,19 +670,22 @@ export default function ProductUploadPage() {
     data.append("isFeatured", form.isFeatured ? "true" : "false");
     data.append("washCare", JSON.stringify(form.washCare));
 
+    // Shipping details are optional — send only what was filled in.
+    const numOrUndef = (v) => (String(v).trim() === "" ? undefined : Number(v));
+    const textOrUndef = (v) => (String(v || "").trim() || undefined);
     const shipping = {
-      weight: Number(form.weight),
+      weight: numOrUndef(form.weight),
       dimensions: {
-        length: Number(form.length),
-        width: Number(form.width),
-        height: Number(form.height),
+        length: numOrUndef(form.length),
+        width: numOrUndef(form.width),
+        height: numOrUndef(form.height),
       },
       originAddress: {
-        street1: form.street1,
-        city: form.city,
-        state: form.state,
-        zip: Number(form.zip),
-        country: form.country,
+        street1: textOrUndef(form.street1),
+        city: textOrUndef(form.city),
+        state: textOrUndef(form.state),
+        zip: numOrUndef(form.zip),
+        country: textOrUndef(form.country),
       },
     };
     data.append("shippingDetails", JSON.stringify(shipping));
@@ -992,7 +995,10 @@ export default function ProductUploadPage() {
           </div>
         </div>
 
-        <p style={sectionHeading}>Shipping Details</p>
+        <p style={sectionHeading}>Shipping Details (optional)</p>
+        <p style={{ margin: "-6px 0 14px", fontSize: 12.5, color: THEME.textMuted }}>
+          Only needed for courier pickup labels later. Customers' delivery charges come from Orders → Shipping rates.
+        </p>
 
         <div
           style={{

@@ -2,14 +2,14 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
 import invoiceService from "../../services/invoiceService";
-import { getLabelStyle } from "../../theme/theme";
+import { getLabelStyle, THEME } from "../../theme/theme";
 
 export default function AdminInvoicesPage() {
   const { user } = useSelector((s) => s.auth);
   const navigate = useNavigate();
   const [invoices, setInvoices] = useState([]);
   const [loading, setLoading] = useState(true);
-  const { theme } = useTheme();
+  const theme = THEME; // fixed palette (there is no theme switcher)
   const labelStyle = getLabelStyle(theme);
 
   useEffect(() => {

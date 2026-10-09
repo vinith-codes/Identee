@@ -1,28 +1,12 @@
 import { useState } from "react";
-import { THEME } from "../../../theme/theme"; // add this import
+import { THEME } from "../../../theme/theme";
 import GeneralSettingsPage from "./GeneralSettingsPage";
 import ProfileSettingsPage from "./ProfileSettingsPage";
-import SecuritySettingsPage from "./SecuritySettingsPage";
-import AppearanceSettingsPage from "./AppearanceSettingsPage";
 
 const ICONS = {
   profile: (
     <svg viewBox="0 0 20 20" fill="currentColor" width={17} height={17}>
       <path d="M10 9a4 4 0 100-8 4 4 0 000 8zM10 11c-4.4 0-8 2.24-8 5v1a1 1 0 001 1h14a1 1 0 001-1v-1c0-2.76-3.6-5-8-5z" />
-    </svg>
-  ),
-  security: (
-    <svg viewBox="0 0 20 20" fill="currentColor" width={17} height={17}>
-      <path
-        fillRule="evenodd"
-        d="M10 1l7 3v5c0 4.5-3 8.5-7 10-4-1.5-7-5.5-7-10V4l7-3zm-1 9V6a1 1 0 112 0v4h2l-3 4-3-4h2z"
-        clipRule="evenodd"
-      />
-    </svg>
-  ),
-  appearance: (
-    <svg viewBox="0 0 20 20" fill="currentColor" width={17} height={17}>
-      <path d="M10 2a8 8 0 100 16 1.5 1.5 0 001.06-2.56 1.5 1.5 0 011.06-2.56H14a4 4 0 004-4c0-3.87-3.58-7-8-7zM5.5 10a1.5 1.5 0 110-3 1.5 1.5 0 010 3zm2-4a1.5 1.5 0 110-3 1.5 1.5 0 010 3zm5 0a1.5 1.5 0 110-3 1.5 1.5 0 010 3zm2 4a1.5 1.5 0 110-3 1.5 1.5 0 010 3z" />
     </svg>
   ),
   general: (
@@ -32,22 +16,20 @@ const ICONS = {
   ),
 };
 
+// "Security" (change password) and "Appearance" (light/dark) were removed:
+// login is by email code only, and the light theme was never wired up.
 const SECTIONS = [
+  { key: "general", label: "Store Branding", desc: "Name, logo, contact, socials" },
   { key: "profile", label: "Profile", desc: "Name, email, photo" },
-  { key: "security", label: "Security", desc: "Password" },
-  { key: "appearance", label: "Appearance", desc: "Light / dark" },
-  { key: "general", label: "Store Branding", desc: "Logo, contact, socials" },
 ];
 
 const PAGES = {
-  profile: ProfileSettingsPage,
-  security: SecuritySettingsPage,
-  appearance: AppearanceSettingsPage,
   general: GeneralSettingsPage,
+  profile: ProfileSettingsPage,
 };
 
 export default function SettingsLayout() {
-  const [active, setActive] = useState("profile");
+  const [active, setActive] = useState("general");
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const theme = THEME; // was: const { theme } = useTheme();
   const ActivePage = PAGES[active];

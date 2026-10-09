@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { useSelector } from "react-redux";
 import reviewService from "../../services/reviewServices";
 import ReviewDetailModal from "./ReviewDetailModal";
+import { THEME } from "../../theme/theme";
 
 function StatCard({ label, value, theme }) {
   return (
@@ -71,7 +72,7 @@ function StatusPill({ status }) {
 
 export default function AdminReviewsPage() {
   const { user } = useSelector((state) => state.auth);
-  const { theme } = useTheme();
+  const theme = THEME; // fixed palette (there is no theme switcher)
   const [stats, setStats] = useState({
     total: 0,
     pending: 0,

@@ -15,6 +15,10 @@ const shipmentrates = asyncHandler(async (req, res) => {
     res.status(404);
     throw new Error("Product not found");
   }
+  if (!product.shippingDetails?.originAddress?.zip || !product.shippingDetails?.weight) {
+    res.status(400);
+    throw new Error("This product has no shipping details (weight / pickup address)");
+  }
   const senderAddress = {
     postalCode: product.shippingDetails.originAddress.zip,
     countryCode: product.shippingDetails.originAddress.country,
@@ -94,6 +98,10 @@ const createShipment = asyncHandler(async (req, res) => {
   if (!product) {
     res.status(404);
     throw new Error("Product not found");
+  }
+  if (!product.shippingDetails?.originAddress?.zip || !product.shippingDetails?.weight) {
+    res.status(400);
+    throw new Error("This product has no shipping details (weight / pickup address)");
   }
   console.log("✅ Retrieved Product with User Details:", product);
 

@@ -221,22 +221,22 @@ const productSchema = mongoose.Schema(
     },
     banners: [bannerSchema],
     VideoBanner: [videoBannerSchema],
+    // Optional: only needed for courier rate/label APIs (FedEx code in
+    // deliveryController). Customer shipping charges come from Admin →
+    // Shipping rates, not from these.
     shippingDetails: {
-      weight: {
-        type: Number,
-        required: true,
-      },
+      weight: { type: Number }, // kg
       dimensions: {
-        length: { type: Number, required: true }, // Length in inches/cm
-        width: { type: Number, required: true }, // Width in inches/cm
-        height: { type: Number, required: true }, // Height in inches/cm
+        length: { type: Number }, // cm
+        width: { type: Number },
+        height: { type: Number },
       },
       originAddress: {
-        street1: { type: String, required: true },
-        city: { type: String, required: true },
-        state: { type: String, required: true },
-        zip: { type: Number, required: true },
-        country: { type: String, required: true },
+        street1: { type: String },
+        city: { type: String },
+        state: { type: String },
+        zip: { type: Number },
+        country: { type: String },
       },
     },
     isFeatured: { type: Boolean, default: false },

@@ -10,7 +10,7 @@ import {
   resetShippingError,
 } from "../../redux/slices/shippingSlice";
 import { fetchAllOrders } from "../../redux/slices/orderSlice";
-import { getLabelStyle, getInputStyle } from "../../theme/theme";
+import { getLabelStyle, getInputStyle, THEME } from "../../theme/theme";
 
 const STATUS_COLORS = {
   CREATED: { bg: "#2B2B3020", text: "#8A877F" },
@@ -197,7 +197,7 @@ export default function AdminShippingPage() {
   const { freeShippingAbove, shippingRules, isLoading, isError, message } =
     useSelector((state) => state.shipping);
   const { allOrders, allOrdersLoading } = useSelector((state) => state.orders);
-  const { theme } = useTheme();
+  const theme = THEME; // fixed palette (there is no theme switcher)
   const labelStyle = getLabelStyle(theme);
   const inputStyle = getInputStyle(theme);
 

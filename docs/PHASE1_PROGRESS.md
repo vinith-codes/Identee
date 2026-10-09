@@ -443,6 +443,21 @@ Element positions were % of the whole editor canvas; one hard-coded dashed box (
 
 **Tested** on a local copy: ruler saved; box widths per size match the formula in both the wizard and the customizer; design saved with size 3XL; quote line size = 3XL when "Custom", L when L chosen; 5XL / 9XL rejected.
 
+## 6g. Admin fixes after a full page check (DONE on branch `fix-admin-pages`)
+
+Every admin page was opened and checked. Fixed:
+
+| Problem | Fix |
+|---|---|
+| **Invoices, Shipping rates, Reviews crashed** (blank page) — they called a `useTheme()` helper that doesn't exist | Use the shared `THEME` palette directly |
+| Settings → **Security** (change password) — useless, login is email-code only | Removed |
+| Settings → **Appearance** (light/dark) — never wired up | Removed |
+| Settings opened on Profile | Opens on **Store Branding** (where Home's "Store details" step points) |
+| Menu showed **Payments** and **Sellers**, which are empty placeholders | Hidden from the menu (URLs still exist) until built |
+| Add a product **forced shipping weight/size/pickup address** | Optional (model + form); only the unused FedEx code needs them and now says so clearly |
+
+Still open (bigger, later): Payments + Sellers pages, ready-made product pages redesign (and sellers can edit other sellers' products), print-file download in Orders (customizer Part D).
+
 ## 7. Phase 1 — remaining steps (audit findings)
 
 ### Step 3: Customization

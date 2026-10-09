@@ -2,6 +2,8 @@
 //
 // The admin menu in one place: 8 sections, each pointing at the pages
 // that already exist. Sidebar and top bar both read from here.
+// Hidden until built (routes still exist): /admin/transactions (Payments),
+// /admin/sellers — both are empty placeholders.
 
 export const ADMIN_MENU = [
   {
@@ -19,7 +21,6 @@ export const ADMIN_MENU = [
     children: [
       { to: "/admin/orders", label: "All orders" },
       { to: "/admin/invoices", label: "Invoices" },
-      { to: "/admin/transactions", label: "Payments" },
       { to: "/admin/shipping", label: "Shipping rates" },
     ],
   },
@@ -73,7 +74,6 @@ export const ADMIN_MENU = [
     to: "/admin/users",
     children: [
       { to: "/admin/users", label: "All customers" },
-      { to: "/admin/sellers", label: "Sellers" },
       { to: "/admin/subscribers", label: "Subscribers" },
       { to: "/admin/subscriptions", label: "Subscription plans" },
     ],
