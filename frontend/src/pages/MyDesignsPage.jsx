@@ -5,7 +5,10 @@
 // Ordered designs are locked (opening one edits a copy).
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { useDispatch, useSelector } from "react-redux";
 import customizationService from "../services/customizationService";
+import { fetchCart } from "../redux/slices/cartWishlistSlice";
+import { fetchGarmentTypes } from "../redux/slices/garmentTypeSlice";
 import DesignPreview from "../components/DesignPreview";
 import { THEME } from "../theme/theme";
 
@@ -18,6 +21,29 @@ export default function MyDesignsPage() {
   const [preview, setPreview] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [working, setWorking] = useState("");
+  const [cartFor, setCartFor] = useState(null); // design id whose size picker is open
+  const [added, setAdded] = useState(""); // "Added 3 pieces of …"
+  const dispatch = useDispatch();
+  const { items: garments } = useSelector((s) => s.garmentType);
+  useEffect(() => {
+    dispatch(fetchGarmentTypes());
+  }, [dispatch]);
+  const sizesOf = (d) => garments.find((g) => g.key === d.garmentType)?.sizes?.length ? garments.find((g) => g.key === d.garmentType).sizes : ["XS", "S", "M", "L", "XL", "2XL", "3XL"];
+  const addToCart = async (d, items) => {
+    setWorking(d._id);
+    try {
+      await customizationService.addDesignToCart(d._id, items);
+      const token = JSON.parse(localStorage.getItem("userInfo") || "{}").token;
+      dispatch(fetchCart(token));
+      const n = items.reduce((a, i) => a + i.qty, 0);
+      setAdded(`Added ${n} piece${n === 1 ? "" : "s"} of “${d.name || "your design"}” to your cart.`);
+      setCartFor(null);
+    } catch (err) {
+      setError(err.response?.data?.message || "Couldn't add that design to your cart.");
+    } finally {
+      setWorking("");
+    }
+  };
   const [reload, setReload] = useState(0);
 
   useEffect(() => {
@@ -72,6 +98,12 @@ export default function MyDesignsPage() {
         </div>
 
         {error && <p style={{ color: THEME.danger, fontWeight: 600 }}>{error}</p>}
+        {added && (
+          <p role="status" style={{ background: "#F4E7C4", border: `1px solid ${THEME.gold}`, borderRadius: 12, padding: "10px 14px", fontWeight: 600, display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+            {added}
+            <Link to="/cart" style={{ color: THEME.text, fontWeight: 800 }}>Go to cart →</Link>
+          </p>
+        )}
         {!designs && !error && <p style={{ color: THEME.textMuted }}>Loading your designs…</p>}
         {designs && designs.length === 0 && (
           <div style={{ border: `1px dashed ${THEME.borderLight}`, borderRadius: 16, padding: 32, textAlign: "center", color: THEME.textMuted }}>
@@ -102,7 +134,10 @@ export default function MyDesignsPage() {
                   </span>
                   <span style={{ fontSize: 12, color: THEME.textFaint }}>Saved {when(d.updatedAt)}</span>
                   <div style={{ display: "flex", gap: 6, marginTop: 10, flexWrap: "wrap" }}>
-                    <button type="button" onClick={() => open(d)} style={btn(true)}>{d.orderedAt ? "Edit a copy" : "Open"}</button>
+                    <button type="button" onClick={() => setCartFor(cartFor === d._id ? null : d._id)} style={btn(true)} aria-expanded={cartFor === d._id}>
+                      Add to cart
+                    </button>
+                    <button type="button" onClick={() => open(d)} style={btn()}>{d.orderedAt ? "Edit a copy" : "Open"}</button>
                     <button type="button" onClick={() => duplicate(d)} disabled={working === d._id} style={btn()}>Duplicate</button>
                     {confirmDelete === d._id ? (
                       <>
@@ -113,6 +148,9 @@ export default function MyDesignsPage() {
                       <button type="button" onClick={() => setConfirmDelete(d._id)} style={{ ...btn(), color: THEME.danger }}>Delete</button>
                     )}
                   </div>
+                  {cartFor === d._id && (
+                    <SizePicker sizes={sizesOf(d)} start={d.size} busy={working === d._id} onCancel={() => setCartFor(null)} onAdd={(items) => addToCart(d, items)} />
+                  )}
                 </div>
               </article>
             ))}
@@ -134,3 +172,39 @@ const btn = (dark) => ({
   fontWeight: 700,
   cursor: "pointer",
 });
+
+// Sizes × quantity for adding a saved design to the cart.
+function SizePicker({ sizes, start, busy, onCancel, onAdd }) {
+  const [q, setQ] = useState(() => (start && sizes.includes(start) ? { [start]: 1 } : {}));
+  const items = Object.entries(q).filter(([, n]) => n > 0).map(([size, qty]) => ({ size, qty }));
+  const pcs = items.reduce((n, i) => n + i.qty, 0);
+  const set = (sz, n) => setQ((x) => ({ ...x, [sz]: Math.max(0, Math.min(99, n)) }));
+  return (
+    <div style={{ marginTop: 10, borderTop: `1px solid ${THEME.border}`, paddingTop: 10, display: "grid", gap: 6 }}>
+      <span style={{ fontSize: 11, letterSpacing: ".14em", textTransform: "uppercase", fontWeight: 800, color: THEME.goldDeep }}>Sizes &amp; quantity</span>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(92px, 1fr))", gap: 6 }}>
+        {sizes.map((sz) => {
+          const n = q[sz] || 0;
+          return (
+            <div key={sz} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 4, border: `1px solid ${n ? THEME.gold : THEME.border}`, background: n ? "#F4E7C4" : "#fff", borderRadius: 10, padding: "4px 6px" }}>
+              <b style={{ fontSize: 12.5 }}>{sz}</b>
+              <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                <button type="button" onClick={() => set(sz, n - 1)} disabled={!n} aria-label={`One less ${sz}`} style={stepBtn}>−</button>
+                <span style={{ minWidth: 14, textAlign: "center", fontWeight: 800, fontSize: 12.5 }}>{n}</span>
+                <button type="button" onClick={() => set(sz, n + 1)} aria-label={`One more ${sz}`} style={stepBtn}>+</button>
+              </span>
+            </div>
+          );
+        })}
+      </div>
+      <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+        <button type="button" onClick={onCancel} style={btn()}>Cancel</button>
+        <button type="button" onClick={() => onAdd(items)} disabled={!pcs || busy} style={{ ...btn(true), opacity: !pcs || busy ? 0.5 : 1 }}>
+          {busy ? "Adding…" : `Add ${pcs} to cart`}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+const stepBtn = { width: 24, height: 24, borderRadius: "50%", border: `1px solid ${THEME.border}`, background: "#fff", fontWeight: 800, cursor: "pointer", padding: 0, lineHeight: 1 };

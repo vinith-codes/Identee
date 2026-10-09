@@ -98,6 +98,7 @@ export default function DesignRoomPage() {
   const { items: garments, isLoading: garmentsLoading } = useSelector((s) => s.garmentType);
   const { items: artCategories } = useSelector((s) => s.artCategory);
   const { items: artDesigns } = useSelector((s) => s.artDesign);
+  const cartCount = useSelector((s) => s.cartWishlist?.cartItems?.length || 0);
   const garment = garments.find((g) => g.key === type);
   const model = modelForGarment(garment);
 
@@ -105,7 +106,8 @@ export default function DesignRoomPage() {
   // Any unfinished design stays in `earlier` and is offered in the first step.
   const fresh = params.get("new") === "1";
   const stored = useMemo(() => readJSON(DRAFT_KEY(type)), [type]);
-  const [earlier, setEarlier] = useState(() => (fresh && stored?.elements?.length ? stored : null));
+  // (a design already saved to My designs isn't "unfinished" — it's kept there)
+  const [earlier, setEarlier] = useState(() => (fresh && stored?.elements?.length && !stored.designId ? stored : null));
   const draft = fresh ? null : stored;
   const [step, setStep] = useState(draft?.elements?.length ? "design" : "fit");
   const [colourSlug, setColourSlug] = useState(params.get("color") || draft?.colour || null);
@@ -129,7 +131,7 @@ export default function DesignRoomPage() {
   const [designName, setDesignName] = useState(draft?.name || "");
   const [locked, setLocked] = useState(false);
   const [saveOpen, setSaveOpen] = useState(false);
-  const [cartNote, setCartNote] = useState(false); // show "View cart" after adding
+  const [cartNote, setCartNote] = useState(null); // { pieces, name } after "Add to cart"
   const [savedAt, setSavedAt] = useState(null);
   const roomApi = useRef(null);
   const fileRef = useRef(null);
@@ -639,8 +641,7 @@ export default function DesignRoomPage() {
     try {
       await customizationService.addDesignToCart(saved._id, chosen);
       dispatch(fetchCart(readJSON("userInfo")?.token));
-      say(`Added ${pieces} piece${pieces === 1 ? "" : "s"} to your cart.`);
-      setCartNote(true);
+      setCartNote({ pieces, name: saved.name });
     } catch (err) {
       say(err.response?.data?.message || "Couldn't add to your cart. Please try again.");
     } finally {
@@ -927,6 +928,28 @@ export default function DesignRoomPage() {
           />
         )}
 
+        {cartNote && (
+          <div className="dr-overlay" role="dialog" aria-modal="true" aria-label="Added to cart">
+            <div className="dr-fit dr-added">
+              <div>
+                <div className="eyebrow">Added to your cart</div>
+                <h1>
+                  {cartNote.pieces} piece{cartNote.pieces === 1 ? "" : "s"} of “{cartNote.name}”
+                </h1>
+                <p>Want a different design too? Make another one — everything goes into the same cart and you pay once.</p>
+              </div>
+              <div className="dr-added-actions">
+                {/* full reload: a fresh, empty design (this one is saved in My designs) */}
+                <button type="button" className="dr-enter" onClick={() => window.location.assign(`/customize/${type}?new=1&color=white`)}>
+                  + Design another tee
+                </button>
+                <Link to="/cart" className="dr-cta">Go to cart ({cartCount} item{cartCount === 1 ? "" : "s"}) →</Link>
+                <button type="button" className="dr-cta ghost" onClick={() => setCartNote(null)}>Keep editing this one</button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {toast && <div className="dr-toast" role="status">{toast}{/log in/i.test(toast) && <button type="button" onClick={goToLogin}>Log in</button>}</div>}
         {busy && <div className="dr-busy" role="status">{busy}</div>}
       </main>
@@ -944,7 +967,6 @@ export default function DesignRoomPage() {
         ) : step === "review" ? (
           <>
             <button type="button" className="dr-cta ghost" onClick={backToDesign}>← Edit design</button>
-            {cartNote && <Link to="/cart" className="dr-cta ghost dr-viewcart">View cart</Link>}
             <button type="button" className="dr-cta" onClick={addToCart} disabled={!!busy || !pieces}>Add to cart</button>
             <button type="button" className="dr-cta gold" onClick={order} disabled={!!busy || !pieces}>
               Buy now · {pieces} pc{pieces === 1 ? "" : "s"} · ₹{(unitPrice * pieces).toLocaleString("en-IN")} →

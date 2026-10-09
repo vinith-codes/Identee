@@ -534,6 +534,13 @@ accept `name` and `mockups` (data URLs, ≤ 800 KB each). Designs saved before t
 
 **Before:** one size per custom order (Buy now only); custom designs couldn't go in the cart.
 
+**Many designs in one order** (same day): everything goes into one cart and is paid once.
+- Design room: after **Add to cart** a card offers **+ Design another tee** (fresh design, the saved one stays in My designs),
+  **Go to cart (N items)** or **Keep editing this one**.
+- **Cart** groups lines **by design** (tee picture, name, colour, each size with −/+/Remove, "N pcs · ₹" per design,
+  **Edit design / add sizes**) and shows "N designs · N pieces" with **+ Add another design**.
+- **My designs**: **Add to cart** on every saved design with a sizes × quantity picker (also re-orders ordered designs).
+
 **Now:** the Design Room's **Review** has a **Sizes & quantity** table (every size the garment comes in, with chest/length, − / +;
 starts with 1 in the chosen size) and a total (pieces × price per piece). **Add to cart** saves the design (with mockups) and
 adds every chosen size as its own cart line (same design + size → quantities add up), then shows **View cart**. **Buy now** saves

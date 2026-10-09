@@ -104,6 +104,16 @@ export default function CartPage() {
 
   const total = cartItems.reduce((sum, item) => sum + item.price, 0);
 
+  // group design lines by design (one card each); keep cart order
+  const designGroups = [];
+  for (const item of cartItems) {
+    if (!item.customization) continue;
+    const id = item.customization._id || item.customization;
+    let g = designGroups.find((x) => x.design._id === id);
+    if (!g) designGroups.push((g = { design: typeof item.customization === "object" ? item.customization : { _id: id }, items: [] }));
+    g.items.push(item);
+  }
+
   return (
     <div style={{ minHeight: "100vh", background: C.bg, padding: "40px 24px" }}>
       <div style={{ maxWidth: 700, margin: "0 auto" }}>
@@ -118,7 +128,61 @@ export default function CartPage() {
           My Cart
         </h1>
 
-        {cartItems.map((item, i) => {
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, margin: "-12px 0 8px", flexWrap: "wrap" }}>
+          <span style={{ fontSize: 13, color: C.muted }}>
+            {designGroups.length ? `${designGroups.length} design${designGroups.length === 1 ? "" : "s"} · ` : ""}
+            {cartItems.reduce((n, it) => n + it.qty, 0)} pieces
+          </span>
+          <Link to="/customizable" style={{ fontSize: 13, fontWeight: 700, color: C.ink, border: `1px solid ${C.border}`, borderRadius: 999, padding: "7px 14px", textDecoration: "none" }}>
+            + Add another design
+          </Link>
+        </div>
+
+        {/* custom designs: one card per design, its sizes listed under it */}
+        {designGroups.map((g) => (
+          <div
+            key={g.design._id}
+            style={{ display: "flex", gap: 16, padding: "16px 0", borderBottom: `1px solid ${C.border}`, alignItems: "flex-start" }}
+          >
+            {g.design.mockups?.front ? (
+              <img src={g.design.mockups.front} alt={g.design.name || "Your design"} style={{ width: 88, height: 110, borderRadius: 10, objectFit: "cover", background: "#F3F1EC" }} />
+            ) : (
+              <div style={{ width: 88, height: 110, borderRadius: 10, background: "#F3F1EC" }} />
+            )}
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <p style={{ margin: 0, fontWeight: 700, color: C.ink }}>{g.design.name || "Custom design"}</p>
+              <p style={{ margin: "2px 0 8px", fontSize: 12.5, color: C.muted, textTransform: "capitalize" }}>
+                Your design · {g.design.garmentType?.replace(/-/g, " ")} · {g.design.color?.replace(/-/g, " ")}
+              </p>
+              {g.items.map((item) => (
+                <div key={item._id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "4px 0", flexWrap: "wrap" }}>
+                  <span style={{ fontSize: 13, color: C.ink, fontWeight: 700, minWidth: 34 }}>{item.size}</span>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <button type="button" disabled={item.qty <= 1} onClick={() => handleQtyChange(item, -1)} aria-label={`One less ${item.size}`}
+                      style={{ ...qtyBtnStyle, opacity: item.qty <= 1 ? 0.5 : 1, cursor: item.qty <= 1 ? "not-allowed" : "pointer" }}>−</button>
+                    <span style={{ minWidth: 18, textAlign: "center", fontWeight: 700, fontSize: 13 }}>{item.qty}</span>
+                    <button type="button" onClick={() => handleQtyChange(item, 1)} aria-label={`One more ${item.size}`} style={qtyBtnStyle}>+</button>
+                  </div>
+                  <button type="button" onClick={() => handleRemove(item)}
+                    style={{ background: "none", border: "none", color: C.danger, fontSize: 12, cursor: "pointer", textDecoration: "underline", padding: 0 }}>
+                    Remove
+                  </button>
+                  <span style={{ marginLeft: "auto", fontWeight: 700, color: C.ink }}>₹ {item.price}</span>
+                </div>
+              ))}
+              <div style={{ display: "flex", gap: 14, marginTop: 8, fontSize: 12.5 }}>
+                <Link to={`/customize/${g.design.garmentType}?design=${g.design._id}`} style={{ color: C.gold, fontWeight: 700 }}>
+                  {g.design.orderedAt ? "Edit as a new design" : "Edit design / add sizes"}
+                </Link>
+                <span style={{ color: C.muted }}>
+                  {g.items.reduce((n, it) => n + it.qty, 0)} pcs · ₹ {g.items.reduce((n, it) => n + it.price, 0)}
+                </span>
+              </div>
+            </div>
+          </div>
+        ))}
+
+        {cartItems.filter((item) => !item.customization).map((item, i) => {
           const maxStock = getMaxStock(item);
           return (
             <div
