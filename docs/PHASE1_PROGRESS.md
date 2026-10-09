@@ -74,7 +74,7 @@ AI design generation (text/image → design), AI background removal (package ins
 **Phase 1 (current):** make these four flows production-ready:
 1. Login (email OTP) ✅ **done**
 2. Product & category browsing — ✅ **categories done** (see section 6); search & product-page fixes still open
-3. Customization
+3. Customization — 🟡 Part A (print positions) done, Parts B–D next
 4. Ordering (cart → checkout → payment → order) ✅ **done** (security fixes + address validation; test payment passed)
 
 Later phases: production/operator panel, AI features, try-on, phone/WhatsApp, analytics, etc.
