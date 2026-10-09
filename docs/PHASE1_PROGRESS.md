@@ -477,6 +477,32 @@ Files: `components/ShopChoices.jsx`, `components/ShopPageHeader.jsx`, `component
 
 **Top menu** (branch `feature-nav-shop-links`): Home · **Customize** (→ /customizable) · **Ready-made** (→ /ready-made, hover menu = categories + All products; replaces "Products") · About Us · Contact Us. Also deleted the 11 remaining old test designs whose garments no longer existed (backup `customizations-orphans.json`) — the designs collection is now empty.
 
+## 6i. The 3D Design Room — studio Part 1 (DONE on branch `feature-design-room`)
+
+`/customize/:garment` is now a full-screen **3D Design Room** (plan: `docs/CUSTOMIZER_PLAN.md` §5c):
+
+1. **Fitting** — the garment's colours and sizes (with chest/length from its size chart); colour pre-picked from the link.
+2. **The room** — warm studio, gold-rimmed plinth, the tee (real 3D oversized-tee model, CC BY 4.0) floating in the centre.
+   Colour swatches change the tee smoothly; Front / Back / Left / Right glide the camera; drag to turn, pinch/scroll to zoom.
+   Changing size resizes every print to its true size (print cm ÷ size length / model length).
+3. **Designing** — tap a print-area chip (the garment's offered areas from Admin → Customizable) or a print on the tee:
+   the camera zooms in, a gold dashed outline marks the area, and a **flat Konva editor** opens (side panel on desktop,
+   bottom sheet on phones): Text (10 fonts, size, ink colours + picker, bold/italic/underline, straight/arc), Upload
+   (login, JPG/PNG/WebP ≤ 10 MB, **print-quality meter** in DPI), Art library (priced add-ons), Ideas chips; drag,
+   corner handles (keep proportions), rotate handle, two-finger pinch/rotate, centre snap, arrows nudge, Delete,
+   Ctrl+Z / Y undo-redo (50 steps), Ctrl+D duplicate, bring forward / send back. Long text shrinks to fit. Every change
+   shows **live on the 3D tee** (decals rendered from the same Konva drawing). Warning when text is hard to see on the tee colour.
+4. **Review** — the tee turns slowly; mockup pictures of all 4 sides; summary (areas + cm) and price.
+5. **Order** — saves the design (layout v2 + size) and goes to Buy Now, as before.
+
+Designs autosave in the browser (`identee:design:v3:<garment>`). Devices without WebGL, and garments without a 3D model,
+get the classic flat studio. The studio code loads only on this page (lazy route, ~1.25 MB).
+
+Files: `frontend/src/studio/` (`DesignRoomPage.jsx`, `Room3D.jsx`, `AreaEditor.jsx`, `konvaRender.js`, `teeModel.js`,
+`StudioRoute.jsx`, `webgl.js`, `designRoom.css`), `frontend/public/models/oversized-tee.glb` + `ATTRIBUTION.txt`; new dependency `konva`.
+
+Next (studio Part 2): sizes × quantity + cart for custom designs, server drafts + "My designs", print files (Phase D).
+
 ## 7. Phase 1 — remaining steps (audit findings)
 
 ### Step 3: Customization

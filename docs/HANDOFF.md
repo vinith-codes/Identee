@@ -9,6 +9,8 @@ _Last updated: 9 Oct 2026 (end of chat 2). Read this first, then `docs/PHASE1_PR
 
 **Garment set-up wizard** on branch `feature-garment-wizard` (from `feature-admin-redesign`): Admin → Customizable list + 6-step wizard, 15 print areas per garment, garment-photo writes now admin-only — see PHASE1_PROGRESS §6e.
 
+**3D Design Room (studio Part 1)** on branch `feature-design-room` — see PHASE1_PROGRESS §6i.
+
 **MERGED to `main` (9 Oct 2026):** `feature-customizer-part-a`, `feature-admin-redesign`, `feature-garment-wizard` (fast-forward, pushed). Old branches can be deleted later.
 
 **Size-accurate print boxes** — MERGED to `main` (9 Oct 2026), branch `feature-size-accurate-prints` — see PHASE1_PROGRESS §6f. To activate on the real garment: wizard step 5 → Save photo ruler.

@@ -1,0 +1,5 @@
+oversized-tee.glb
+  Based on "oversized_t-shirt" (https://sketchfab.com/3d-models/oversized-t-shirt-e6f9b60f58404ccaa40e8e3bdb4edc95)
+  by ap-school (https://sketchfab.com/ap-school), licensed under CC-BY-4.0
+  (http://creativecommons.org/licenses/by/4.0/).
+  Changes: meshes joined, simplified to ~60k triangles, textures resized (normal map 2048 WebP), quantized.

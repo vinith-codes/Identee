@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 // App.jsx
 import {
   BrowserRouter as Router,
@@ -25,7 +26,8 @@ import CategoriesPage from "./pages/admin/CategoriesPage";
 import Home from "./pages/Home";
 import CategoryProductsPage from "./pages/CategoryProductsPage";
 import SingleProductPage from "./pages/SingleProductPage";
-import CustomizePage from "./pages/CustomizePage";
+// The design studio (3D + editor libraries) loads only when it is opened.
+const StudioRoute = lazy(() => import("./studio/StudioRoute"));
 import AdminUsersPage from "./pages/admin/AdminUserPage";
 import AdminEditUserPage from "./pages/admin/AdminEditUserPage";
 import AdminUserDetailsPage from "./pages/admin/AdminUserDetailsPage";
@@ -234,6 +236,15 @@ export default function App() {
         />
 
         {/* Everything with the Navbar — Home is PUBLIC (no login required) */}
+        {/* The 3D Design Room is full-screen (its own top bar); falls back to the flat studio */}
+        <Route
+          path="/customize/:type"
+          element={
+            <Suspense fallback={<div style={{ minHeight: "60vh", display: "grid", placeItems: "center", color: "#7A7062" }}>Opening the design room…</div>}>
+              <StudioRoute />
+            </Suspense>
+          }
+        />
         <Route element={<CustomerLayout />}>
           <Route path="/" element={<Home />} />
           <Route path="/about-us" element={<AboutUs />} />
@@ -250,7 +261,6 @@ export default function App() {
             path="/customize/choose-color/:type"
             element={<ChooseColorPage />}
           />
-          <Route path="/customize/:type" element={<CustomizePage />} />
           <Route path="/product/:id" element={<SingleProductPage />} />
           <Route path="/buy-now/:id" element={<BuyNowPage />} />
           <Route path="/favorites" element={<FavoritesPage />} />

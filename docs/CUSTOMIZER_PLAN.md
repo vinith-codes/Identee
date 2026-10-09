@@ -85,7 +85,7 @@ layers right; price and **Review →** fixed in the top bar.
 
 Priorities: **P1** = needed to launch, **P2** = soon after, **P3** = later / paid services.
 
-### Phase B — Editor rebuild (the heart) · P1
+### Phase B — Editor rebuild (the heart) · P1 — **mostly done 9 Oct (3D Design Room, see PHASE1_PROGRESS §6i)**; left: templates, letter spacing/outline
 | # | Feature |
 |---|---|
 | B1 | Split the studio into small files (canvas, tools, panels, state store) |
