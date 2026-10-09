@@ -264,7 +264,7 @@ export default function App() {
           <Route path="/product/:id" element={<SingleProductPage />} />
           <Route path="/buy-now/:id" element={<BuyNowPage />} />
           <Route path="/favorites" element={<FavoritesPage />} />
-          {/* old "All products" address → the ready-made shop (filters kept) */}
+          {/* old "All products" address → the ready-made categories */}
           <Route path="/products" element={<ToReadyMade />} />
           <Route path="/account" element={<Account />} />
           <Route path="/cart" element={<CartPage />} />
@@ -376,8 +376,7 @@ export default function App() {
   );
 }
 
-// /products?… → /ready-made?…#all
+// old "All products" address → the ready-made categories
 function ToReadyMade() {
-  const { search } = useLocation();
-  return <Navigate to={`/ready-made${search}#all`} replace />;
+  return <Navigate to="/ready-made" replace />;
 }
