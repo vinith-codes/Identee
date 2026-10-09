@@ -3,7 +3,11 @@
 _Last updated: 9 Oct 2026 (end of chat 2). Read this first, then `docs/PHASE1_PROGRESS.md` (full before/after history) and `docs/PRODUCT_SPEC.md` (products, sizes, print positions)._
 
 ## ⏭ Where we stopped (start here)
-**Waiting on the user for:** (1) photo licence confirmation for the white oversized-tee mockup (or client's own photos), (2) "yes, set it up" to go live with the Oversized Tee garment, (3) "merge" for `feature-customizer-part-a`.
+**DONE end of chat 2:** 48 Oversized Tee images uploaded to Cloudinary `identee/garments/oversized-tee`; GarmentType `oversized-tee` (12 colours, category "Oversized" → T-Shirts, **basePrice 0 — set a price in Admin → Garment Types**) and 12 `garmentcolorimages` docs with print areas created in the real DB. Test: http://localhost:5173/customize/oversized-tee?color=black. Photo licence still unconfirmed (user chose to proceed).
+
+**NEXT (new chat): build the admin redesign** as prototyped (menu + Home first), then size-accurate print boxes.
+
+**Still waiting on the user for:** (1) photo licence confirmation for the white oversized-tee mockup (or client's own photos), (2) "yes, set it up" to go live with the Oversized Tee garment, (3) "merge" for `feature-customizer-part-a`.
 
 **"Set it up" means:** upload the 48 images in `E:\AI CUSTOMIZATION\identee-private-assets\oversized-images\` to Cloudinary `identee/garments`; create GarmentType `oversized-tee` (label "Oversized Tee", category string "Oversized" so it joins the T-Shirts category styles, 12 colours with slugs/hex from `server/scripts/garment-images/build_oversized.py`), and a `garmentcolorimages` doc per colour with front/back/left/right imageUrl; set print areas to match the images (see calibration below). Ask before writing to the shared DB. Optionally hide Polos/Hoodies/Sweatshirts/Kids' Wear categories (asked, not yet approved).
 
