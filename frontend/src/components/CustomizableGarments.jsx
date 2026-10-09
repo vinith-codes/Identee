@@ -24,7 +24,8 @@ function GarmentCard({ garment, photos }) {
   // white tee (or the first colour with a photo) and opens the room in it.
   const colour = defaultColour(garment, photos);
   const photo = colour && photos.find((p) => p.colorSlug === colour.slug)?.front?.imageUrl;
-  const start = () => navigate(`/customize/${garment.key}${colour ? `?color=${colour.slug}` : ""}`);
+  // new=1: always start an empty design (an unfinished one is offered inside)
+  const start = () => navigate(`/customize/${garment.key}?new=1${colour ? `&color=${colour.slug}` : ""}`);
 
   const colourCount = garment.colors?.length || 0;
   const facts = [

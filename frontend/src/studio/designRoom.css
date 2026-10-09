@@ -180,3 +180,8 @@
   .dr-mydesigns { display: none; }
   .dr-savepop { position: fixed; left: 12px; right: 12px; top: 64px; width: auto; }
 }
+
+/* "continue your unfinished design" in the fitting step */
+.dr-resume { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+  background: var(--gold-soft); border: 1px solid var(--gold); border-radius: 14px; padding: 10px 12px; font-size: 13px; font-weight: 600; }
+.dr-resume button { border: 0; border-radius: 999px; padding: 8px 14px; background: var(--ink); color: #fff; font-weight: 700; }

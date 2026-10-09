@@ -99,7 +99,12 @@ export default function DesignRoomPage() {
   const garment = garments.find((g) => g.key === type);
   const model = modelForGarment(garment);
 
-  const draft = useMemo(() => readJSON(DRAFT_KEY(type)), [type]);
+  // "Start designing" opens /customize/<garment>?new=1 → a fresh, empty design.
+  // Any unfinished design stays in `earlier` and is offered in the first step.
+  const fresh = params.get("new") === "1";
+  const stored = useMemo(() => readJSON(DRAFT_KEY(type)), [type]);
+  const [earlier, setEarlier] = useState(() => (fresh && stored?.elements?.length ? stored : null));
+  const draft = fresh ? null : stored;
   const [step, setStep] = useState(draft?.elements?.length ? "design" : "fit");
   const [colourSlug, setColourSlug] = useState(params.get("color") || draft?.colour || null);
   const [size, setSize] = useState(draft?.size || readJSON(SIZE_KEY) || "M");
@@ -163,10 +168,35 @@ export default function DesignRoomPage() {
   );
 
   /* ---------- autosave ---------- */
+  // Never replace a stored design with an empty one, unless this visit had
+  // elements and the customer removed them all.
+  const hadElements = useRef(elements.length > 0);
   useEffect(() => {
     if (!type) return;
+    if (elements.length) hadElements.current = true;
+    else if (!hadElements.current) return;
     writeJSON(DRAFT_KEY(type), { elements, colour: colour?.slug, size: sizeNow, designId, name: designName });
   }, [type, elements, colour?.slug, sizeNow, designId, designName]);
+
+  // drop ?new=1 from the address so a reload keeps the design in progress
+  useEffect(() => {
+    if (!fresh) return;
+    const next = new URLSearchParams(params);
+    next.delete("new");
+    navigate(`${location.pathname}${next.toString() ? `?${next}` : ""}`, { replace: true });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const continueEarlier = () => {
+    if (!earlier) return;
+    setElements(earlier.elements);
+    if (earlier.colour) setColourSlug(earlier.colour);
+    if (earlier.size) setSize(earlier.size);
+    setDesignId(earlier.designId || null);
+    setDesignName(earlier.name || "");
+    setEarlier(null);
+    setStep("design");
+    setCamRequest({ view: "front", ms: 1600, n: nextReq() });
+  };
 
   /* ---------- open a saved design: /customize/<garment>?design=<id> ---------- */
   const openId = params.get("design");
@@ -772,8 +802,13 @@ export default function DesignRoomPage() {
             sizes={sizes}
             size={sizeNow}
             onSize={setSize}
-            onEnter={enterRoom}
+            onEnter={() => {
+              setEarlier(null);
+              enterRoom();
+            }}
             credit={model?.credit}
+            earlier={earlier}
+            onContinue={continueEarlier}
           />
         )}
 
@@ -816,10 +851,19 @@ function Tool({ label, icon, onClick, soon }) {
   );
 }
 
-function Fitting({ garment, colours, colour, onColour, sizes, size, onSize, onEnter, credit }) {
+function Fitting({ garment, colours, colour, onColour, sizes, size, onSize, onEnter, credit, earlier, onContinue }) {
   return (
     <div className="dr-overlay">
       <div className="dr-fit">
+        {earlier && (
+          <div className="dr-resume">
+            <span>
+              You have an unfinished design ({earlier.elements.length} item{earlier.elements.length === 1 ? "" : "s"}
+              {earlier.name ? ` · ${earlier.name}` : ""}).
+            </span>
+            <button type="button" onClick={onContinue}>Continue it</button>
+          </div>
+        )}
         <div>
           <div className="eyebrow">Step into the studio</div>
           <h1>Your {garment.label}</h1>
