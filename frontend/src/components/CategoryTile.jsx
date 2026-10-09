@@ -35,15 +35,15 @@ const btn = (primary) => ({
   backdropFilter: "blur(4px)",
 });
 
-// Home-page category tile (portrait 4:5). Image fills the tile with a dark
-// gradient for readable text; categories without a photo show a branded
-// garment outline instead of a broken image.
+// Home-page "Ready-made" category tile (portrait 4:5). Image fills the tile
+// with a dark gradient for readable text; categories without a photo show a
+// branded garment outline instead of a broken image. Customizing lives in
+// its own home-page section (CustomizableGarments), not on these tiles.
 export default function CategoryTile({ category }) {
   const navigate = useNavigate();
   const disabled = category.comingSoon;
   const shopUrl = `/category/${category.slug}`;
-  const designUrl = `/customize/choose-product?category=${category.slug}`;
-  const styleCount = category.styles?.length || 0;
+  const count = category.productCount;
 
   return (
     <div
@@ -114,34 +114,22 @@ export default function CategoryTile({ category }) {
         <p style={{ margin: 0, fontSize: 19, fontWeight: 800, lineHeight: 1.15 }}>
           {category.name}
         </p>
-        {!disabled && styleCount > 0 && (
+        {!disabled && count !== undefined && (
           <p style={{ margin: "3px 0 0", fontSize: 12, opacity: 0.85 }}>
-            {styleCount} style{styleCount === 1 ? "" : "s"}
+            {count > 0 ? `${count} product${count === 1 ? "" : "s"}` : "New styles coming"}
           </p>
         )}
         {!disabled && (
           <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
-            {category.isCustomizable && (
-              <button
-                type="button"
-                style={btn(true)}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  navigate(designUrl);
-                }}
-              >
-                Design your own
-              </button>
-            )}
             <button
               type="button"
-              style={btn(!category.isCustomizable)}
+              style={btn(true)}
               onClick={(e) => {
                 e.stopPropagation();
                 navigate(shopUrl);
               }}
             >
-              Shop
+              Shop now
             </button>
           </div>
         )}

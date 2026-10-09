@@ -458,6 +458,14 @@ Every admin page was opened and checked. Fixed:
 
 Still open (bigger, later): Payments + Sellers pages, ready-made product pages redesign (and sellers can edit other sellers' products), print-file download in Orders (customizer Part D).
 
+## 6h. Home page: "Design your own" and "Ready-made" as two sections (DONE on branch `feature-home-two-sections`)
+
+**Before:** one "Shop by Category" grid; each tile had both "Design your own" and "Shop" buttons, mixing the two ways to buy.
+
+**Now:**
+1. **Design your own** (`#design-your-own`) — a card per live customizable garment from Admin → Customizable: photo, colour dots (tap to preview), "From ₹899 · XS–3XL · fabrics", **Start designing →** (opens the customizer in the picked colour), plus a "How it works" panel. Only garments that are sellable show (price > 0 and at least one colour with a front photo), so old test garments stay off the page. — `frontend/src/components/CustomizableGarments.jsx`
+2. **Ready-made** (`#ready-made`) — the categories the admin added (Admin → Storefront → Categories), each with its product count and **Shop now**. — `frontend/src/components/CategoryTile.jsx`
+
 ## 7. Phase 1 — remaining steps (audit findings)
 
 ### Step 3: Customization

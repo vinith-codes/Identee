@@ -4,6 +4,9 @@ import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import { fetchCategories } from "../redux/slices/categorySlice";
 import { CategoryGrid } from "../components/CategoryTile";
+import CustomizableGarments from "../components/CustomizableGarments";
+import { fetchGarmentTypes } from "../redux/slices/garmentTypeSlice";
+import { fetchAllGarmentImages } from "../redux/slices/garmentImageSlice";
 import { getVideoBanner } from "../redux/slices/bannerSlice";
 import homeBannerVideo from "../assets/videos/homebanner-video.mp4";
 import customizeVideo from "../assets/videos/sub-video2.mp4";
@@ -199,6 +202,39 @@ function HeroColorWidget({ activeIdx, setActiveIdx, navigate }) {
 const FONT_DISPLAY =
   "'Bricolage Grotesque', 'Helvetica Neue', Arial, sans-serif";
 const FONT_BODY = "'Inter', 'Helvetica Neue', Arial, sans-serif";
+
+// Heading for the two home-page shopping sections.
+function HomeSectionHeading({ eyebrow, title, text }) {
+  return (
+    <div style={{ marginBottom: 22 }}>
+      <p
+        style={{
+          margin: 0,
+          fontSize: 12,
+          letterSpacing: "0.2em",
+          color: C.gold,
+          textTransform: "uppercase",
+          fontWeight: 800,
+        }}
+      >
+        {eyebrow}
+      </p>
+      <h2
+        style={{
+          margin: "6px 0 6px",
+          fontFamily: FONT_DISPLAY,
+          fontWeight: 800,
+          fontSize: "clamp(24px, 3vw, 34px)",
+          color: C.ink,
+          letterSpacing: "-0.01em",
+        }}
+      >
+        {title}
+      </h2>
+      <p style={{ margin: 0, color: C.muted, fontSize: 15, maxWidth: 620 }}>{text}</p>
+    </div>
+  );
+}
 
 /* ------------------------------------------------------------------ */
 /*  CONTENT                                                            */
@@ -673,6 +709,8 @@ export default function Home() {
   const { items: categories, status: categoriesStatus } = useSelector(
     (s) => s.categories,
   );
+  const { items: garmentTypes, isLoading: garmentsLoading } = useSelector((s) => s.garmentType);
+  const { items: garmentImages } = useSelector((s) => s.garmentImage);
   const { videoBanners } = useSelector((s) => s.banner);
   const { values: publicSettings, isLoaded: settingsLoaded } = useSelector(
     (s) => s.publicSettings,
@@ -698,6 +736,8 @@ export default function Home() {
 
   useEffect(() => {
     dispatch(fetchCategories());
+    dispatch(fetchGarmentTypes()); // live customizable garments only
+    dispatch(fetchAllGarmentImages());
     dispatch(getVideoBanner());
     if (!settingsLoaded) dispatch(fetchPublicSettings());
   }, [dispatch, settingsLoaded]);
@@ -990,22 +1030,25 @@ export default function Home() {
         </div>
       </div>
 
-      {/* ================= PRODUCT CATEGORY BANNERS ================= */}
-      <section
-        style={{ padding: "56px 24px", maxWidth: 1280, margin: "0 auto" }}
-      >
-        <p
-          style={{
-            margin: "0 0 18px",
-            fontSize: 12,
-            letterSpacing: "0.2em",
-            color: C.muted,
-            textTransform: "uppercase",
-            fontWeight: 700,
-          }}
-        >
-          Shop by Category
-        </p>
+      {/* ================= TWO WAYS TO SHOP =================
+          1. Design your own — live customizable garments (Admin → Customizable)
+          2. Ready-made — the categories the admin added (Admin → Storefront → Categories) */}
+      <section id="design-your-own" style={{ padding: "56px 24px 8px", maxWidth: 1280, margin: "0 auto" }}>
+        <HomeSectionHeading
+          eyebrow="Design your own"
+          title="Customize your tee"
+          text="Pick a garment and colour, add your text, photos or artwork, and see it true to size before you order."
+        />
+        <CustomizableGarments garments={garmentTypes} images={garmentImages} loading={garmentsLoading} />
+
+      </section>
+
+      <section id="ready-made" style={{ padding: "48px 24px 56px", maxWidth: 1280, margin: "0 auto" }}>
+        <HomeSectionHeading
+          eyebrow="Ready-made"
+          title="Shop by category"
+          text="Finished designs, ready to wear."
+        />
         <CategoryGrid
           categories={categories}
           loading={categoriesStatus === "loading" || categoriesStatus === "idle"}
