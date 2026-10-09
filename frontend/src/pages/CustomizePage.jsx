@@ -160,8 +160,22 @@ export default function CustomizePage() {
   const { isUploading, isSaving, isSuccess, isError, message } = useSelector(
     (s) => s.customization,
   );
-  const { items: garmentTypes } = useSelector((s) => s.garmentType);
-  const { items: garmentImages } = useSelector((s) => s.garmentImage);
+  const {
+    items: garmentTypes,
+    isLoading: typesLoading,
+    isError: typesError,
+  } = useSelector((s) => s.garmentType);
+  const {
+    items: garmentImages,
+    isLoading: imagesLoading,
+    isError: imagesError,
+  } = useSelector((s) => s.garmentImage);
+  // Lists start empty and are fetched on mount — don't show "not found" until both have arrived.
+  const catalogLoading =
+    typesLoading ||
+    imagesLoading ||
+    (!garmentTypes.length && !typesError) ||
+    (!garmentImages.length && !imagesError);
   const { items: artCategories } = useSelector((s) => s.artCategory);
   const { items: artDesigns } = useSelector((s) => s.artDesign);
 
@@ -487,6 +501,13 @@ export default function CustomizePage() {
   }, [viewMode]);
 
   if (!garment || !color) {
+    if (catalogLoading) {
+      return (
+        <StudioShell>
+          <CenterMessage color={C.muted}>Loading the studio…</CenterMessage>
+        </StudioShell>
+      );
+    }
     return (
       <StudioShell>
         <CenterMessage color={C.danger}>
