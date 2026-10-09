@@ -55,6 +55,7 @@ export default function CartPage() {
   }, [dispatch]);
 
   const getMaxStock = (item) => {
+    if (item.customization) return 99; // custom designs are printed to order
     const stockBySize = item.product?.productdetails?.stockBySize || [];
     const entry = stockBySize.find((s) => s.size === item.size);
     return entry ? entry.stock : 99;
@@ -66,7 +67,7 @@ export default function CartPage() {
     if (newQty === item.qty) return;
     dispatch(
       updateCartItemQty({
-        productId: item.product._id,
+        productId: item.product?._id || null,
         cartItemId: item._id,
         size: item.size,
         qty: newQty,
@@ -130,10 +131,10 @@ export default function CartPage() {
                 alignItems: "center",
               }}
             >
-              {item.product?.images?.[0] && (
+              {(item.product?.images?.[0] || item.customization?.mockups?.front) && (
                 <img
-                  src={imageUrl(item.product.images[0])}
-                  alt={item.product.brandname}
+                  src={item.customization ? item.customization.mockups.front : imageUrl(item.product.images[0])}
+                  alt={item.customization ? item.customization.name || "Your design" : item.product.brandname}
                   style={{
                     width: 72,
                     height: 72,
@@ -143,9 +144,23 @@ export default function CartPage() {
                 />
               )}
               <div style={{ flex: 1 }}>
-                <p style={{ margin: 0, fontWeight: 600, color: C.ink }}>
-                  {item.product?.brandname}
-                </p>
+                {item.customization ? (
+                  <>
+                    <p style={{ margin: 0, fontWeight: 600, color: C.ink }}>
+                      {item.customization.name || "Custom design"}
+                    </p>
+                    <p style={{ margin: "2px 0 0", fontSize: 12.5, color: C.muted, textTransform: "capitalize" }}>
+                      Your design · {item.customization.garmentType?.replace(/-/g, " ")} · {item.customization.color?.replace(/-/g, " ")} ·{" "}
+                      <Link to={`/customize/${item.customization.garmentType}?design=${item.customization._id}`} style={{ color: C.gold, fontWeight: 600 }}>
+                        Edit design
+                      </Link>
+                    </p>
+                  </>
+                ) : (
+                  <p style={{ margin: 0, fontWeight: 600, color: C.ink }}>
+                    {item.product?.brandname}
+                  </p>
+                )}
                 <div
                   style={{
                     display: "flex",

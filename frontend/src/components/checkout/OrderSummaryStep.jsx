@@ -67,8 +67,9 @@ export default function OrderSummaryStep({
   const [applying, setApplying] = useState(false);
 
   const subtotal = items.reduce((sum, item) => sum + item.price, 0);
+  // item.price is the line total; only products with an MRP (oldPrice) add a discount
   const mrpTotal = items.reduce(
-    (sum, item) => sum + (item.product?.oldPrice || item.price) * item.qty,
+    (sum, item) => sum + (item.product?.oldPrice ? item.product.oldPrice * item.qty : item.price),
     0,
   );
   const mrpDiscount = Math.max(mrpTotal - subtotal, 0);
@@ -295,8 +296,8 @@ export default function OrderSummaryStep({
                   >
                     <img
                       className="order-item-img"
-                      src={getImageUrl(item.product?.images?.[0])}
-                      alt={item.product?.brandname}
+                      src={item.customization?.mockups?.front || getImageUrl(item.product?.images?.[0])}
+                      alt={item.product?.brandname || item.customization?.name || "Your design"}
                       style={{
                         width: 64,
                         height: 64,
@@ -321,7 +322,7 @@ export default function OrderSummaryStep({
                           fontFamily: THEME.fontBody,
                         }}
                       >
-                        {item.product?.brandname}
+                        {item.product?.brandname || item.customization?.name || "Custom design"}
                       </p>
 
                       {isEditable ? (

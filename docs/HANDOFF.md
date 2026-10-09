@@ -19,8 +19,9 @@ _Last updated: 9 Oct 2026 (end of chat 3). Read this first, then `docs/PHASE1_PR
 
 Merge = `git switch main && git pull --ff-only origin main && git merge --ff-only feature-design-room && git push origin main`.
 
-**Next after merge (agreed order):** studio Part 2 = **sizes × quantity** (one design, many sizes, no minimum) + **custom designs in
-the cart** → **print files** (300 DPI per print area and size, admin "Download print files") → admin order view of the design
+**Sizes × quantity + cart** — branch `feature-sizes-cart` (PHASE1_PROGRESS §6k), pushed; merge when the user says "merge".
+
+**Next (agreed order):** **print files** (300 DPI per print area and size, admin "Download print files") → admin order view of the design
 (mockups + print areas) → Payments / Sellers admin pages, ready-made pages redesign.
 
 **Waiting on the client / user:** the print team's measurement answers (`docs/print-requests/IDENTEE_Oversized_Measurement_Request.pdf`:

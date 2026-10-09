@@ -14,6 +14,7 @@ import { fetchArtCategories } from "../redux/slices/artCategorySlice";
 import { fetchArtDesigns } from "../redux/slices/artDesignSlice";
 import { uploadDesignImage } from "../redux/slices/customizationSlice";
 import customizationService from "../services/customizationService";
+import { fetchCart } from "../redux/slices/cartWishlistSlice";
 import { imageUrl } from "../utils/imageUrl";
 import Room3D from "./Room3D";
 import AreaEditor from "./AreaEditor";
@@ -119,7 +120,8 @@ export default function DesignRoomPage() {
   // returning to a saved design starts at the front view; new visits fly in after the fitting step
   const [camRequest, setCamRequest] = useState(() => (draft?.elements?.length ? { view: "front", ms: 1600, n: nextReq() } : null));
   const [shots, setShots] = useState(null);
-  const [spin, setSpin] = useState(true); // Review: the tee turns 360° until a side is picked
+  const [spin, setSpin] = useState(true);
+  const [qtys, setQtys] = useState({}); // Review: { M: 2, L: 1 } — one design, any mix of sizes // Review: the tee turns 360° until a side is picked
   const [toast, setToast] = useState("");
   const [busy, setBusy] = useState("");
   // the saved design this is (My designs); locked = already ordered → saving makes a copy
@@ -127,6 +129,7 @@ export default function DesignRoomPage() {
   const [designName, setDesignName] = useState(draft?.name || "");
   const [locked, setLocked] = useState(false);
   const [saveOpen, setSaveOpen] = useState(false);
+  const [cartNote, setCartNote] = useState(false); // show "View cart" after adding
   const [savedAt, setSavedAt] = useState(null);
   const roomApi = useRef(null);
   const fileRef = useRef(null);
@@ -524,6 +527,7 @@ export default function DesignRoomPage() {
     closeArea();
     setStep("review");
     setSpin(true);
+    setQtys((q) => (Object.values(q).some((n) => n > 0) ? q : { [sizeNow]: 1 }));
     setCamRequest({ position: [0, 0.4, 5], n: nextReq() });
     // let the outline disappear from the textures, then take pictures
     // (retry for a few seconds in case the 3D view is still starting)
@@ -582,7 +586,7 @@ export default function DesignRoomPage() {
       setSavedAt(new Date());
       navigate(`/customize/${type}?design=${saved._id}`, { replace: true });
       if (!quiet) say(copied ? "Saved as a new design in My designs." : "Saved to My designs.");
-      return saved._id;
+      return saved;
     } catch (err) {
       say(err.response?.data?.message || "Couldn't save your design. Please try again.");
       return null;
@@ -605,14 +609,43 @@ export default function DesignRoomPage() {
     setShots(null);
     setCamRequest({ view: "front", n: nextReq() });
   };
+  const chosen = Object.entries(qtys)
+    .filter(([, n]) => n > 0)
+    .map(([sz, n]) => ({ size: sz, qty: n }));
+  const pieces = chosen.reduce((n, c) => n + c.qty, 0);
+  const setQty = (sz, n) => setQtys((q) => ({ ...q, [sz]: Math.max(0, Math.min(99, n)) }));
+
+  // Buy now: the design is saved to My designs (with its mockups); ordering locks it
   const order = async () => {
     if (!isLoggedIn()) return goToLogin();
-    // the ordered design is saved to My designs (with its mockups) and then locked
-    const id = await saveDesign({ quiet: true });
-    if (!id) return;
-    navigate(`/buy-now/${id}`, {
-      state: { product: { _id: id, brandname: `${garment.label} — Custom Design`, images: [], price: unitPrice }, size: sizeNow, qty: 1 },
+    if (!pieces) return say("Choose at least one size and quantity.");
+    const saved = await saveDesign({ quiet: true });
+    if (!saved) return;
+    navigate(`/buy-now/${saved._id}`, {
+      state: {
+        product: { _id: saved._id, brandname: saved.name || `${garment.label} — Custom Design`, images: saved.mockups?.front ? [saved.mockups.front] : [], price: unitPrice },
+        items: chosen,
+        isCustomization: true,
+      },
     });
+  };
+
+  const addToCart = async () => {
+    if (!isLoggedIn()) return goToLogin();
+    if (!pieces) return say("Choose at least one size and quantity.");
+    const saved = await saveDesign({ quiet: true });
+    if (!saved) return;
+    setBusy("Adding to your cart…");
+    try {
+      await customizationService.addDesignToCart(saved._id, chosen);
+      dispatch(fetchCart(readJSON("userInfo")?.token));
+      say(`Added ${pieces} piece${pieces === 1 ? "" : "s"} to your cart.`);
+      setCartNote(true);
+    } catch (err) {
+      say(err.response?.data?.message || "Couldn't add to your cart. Please try again.");
+    } finally {
+      setBusy("");
+    }
   };
 
   /* ---------- render ---------- */
@@ -835,6 +868,25 @@ export default function DesignRoomPage() {
                   </button>
                 ))}
               </div>
+              <div className="dr-qty" aria-label="Sizes and quantity">
+                <div className="eyebrow">Sizes &amp; quantity</div>
+                {sizes.map((sz) => {
+                  const r = garment.sizeChart?.find((x) => x.size === sz);
+                  const n = qtys[sz] || 0;
+                  return (
+                    <div key={sz} className={`dr-qrow${n ? " on" : ""}`}>
+                      <b>{sz}</b>
+                      <small>{r ? `chest ${r.chest}″ · length ${r.length}″` : ""}</small>
+                      <div className="dr-stepper">
+                        <button type="button" onClick={() => setQty(sz, n - 1)} disabled={!n} aria-label={`One less ${sz}`}>−</button>
+                        <output aria-live="polite">{n}</output>
+                        <button type="button" onClick={() => setQty(sz, n + 1)} aria-label={`One more ${sz}`}>+</button>
+                      </div>
+                    </div>
+                  );
+                })}
+                <p className="dr-qnote">Every size is printed at its own true size from the print guide.</p>
+              </div>
               <div className="dr-summary">
                 <div>
                   <p>
@@ -847,7 +899,10 @@ export default function DesignRoomPage() {
                       .join(" · ")}
                   </p>
                 </div>
-                <div className="dr-total">₹{unitPrice.toLocaleString("en-IN")}</div>
+                <div className="dr-total">
+                  ₹{(unitPrice * pieces).toLocaleString("en-IN")}
+                  <small>{pieces} × ₹{unitPrice.toLocaleString("en-IN")}</small>
+                </div>
               </div>
             </section>
           </>
@@ -889,7 +944,11 @@ export default function DesignRoomPage() {
         ) : step === "review" ? (
           <>
             <button type="button" className="dr-cta ghost" onClick={backToDesign}>← Edit design</button>
-            <button type="button" className="dr-cta gold" onClick={order} disabled={!!busy}>Order size {sizeNow} · ₹{unitPrice.toLocaleString("en-IN")} →</button>
+            {cartNote && <Link to="/cart" className="dr-cta ghost dr-viewcart">View cart</Link>}
+            <button type="button" className="dr-cta" onClick={addToCart} disabled={!!busy || !pieces}>Add to cart</button>
+            <button type="button" className="dr-cta gold" onClick={order} disabled={!!busy || !pieces}>
+              Buy now · {pieces} pc{pieces === 1 ? "" : "s"} · ₹{(unitPrice * pieces).toLocaleString("en-IN")} →
+            </button>
           </>
         ) : null}
         <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp" hidden onChange={onFile} />

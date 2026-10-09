@@ -530,6 +530,23 @@ the ordered size and quantity.
 API: `GET /api/customizations/mine`, `PUT /:id` (409 when ordered), `POST /:id/duplicate`, `DELETE /:id`; `POST /` and `PUT /:id`
 accept `name` and `mockups` (data URLs, ≤ 800 KB each). Designs saved before this have no pictures ("No picture").
 
+## 6k. Sizes × quantity + custom designs in the cart (DONE on branch `feature-sizes-cart`)
+
+**Before:** one size per custom order (Buy now only); custom designs couldn't go in the cart.
+
+**Now:** the Design Room's **Review** has a **Sizes & quantity** table (every size the garment comes in, with chest/length, − / +;
+starts with 1 in the chosen size) and a total (pieces × price per piece). **Add to cart** saves the design (with mockups) and
+adds every chosen size as its own cart line (same design + size → quantities add up), then shows **View cart**. **Buy now** saves
+the design and checks out all chosen sizes at once. The **cart page** shows designs with their tee picture, name, colour, an
+**Edit design** link and −/+ quantity (priced on the server). Checkout (cart or Buy now) prices each design line on the server
+(garment base + paid art) and the order locks the designs, as before. Also fixed: the checkout summary's "MRP" no longer
+double-counts quantity for lines without an MRP.
+
+Server: `users.cartItems[]` can hold `customization` instead of `product`; `POST /api/customizations/:id/cart` `{ items: [{size, qty}] }`;
+`PUT /api/customizations/cart/:cartItemId` `{ qty }` (0 removes); Buy now `{ customizationId, items: [...] }`; cart checkout reads
+design lines. Tested on a local copy: add S×2 M×3 L×1, merge M+1, bad size refused, set/remove qty, quotes, COD order with 5 lines
+from 2 designs → cart emptied, designs locked.
+
 ## 7. Phase 1 — remaining steps (audit findings)
 
 ### Step 3: Customization

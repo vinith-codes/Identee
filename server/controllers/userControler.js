@@ -584,10 +584,9 @@ const getFavorites = asyncHandler(async (req, res) => {
 // @route GET /api/users/cart
 // @access Private
 const getCart = asyncHandler(async (req, res) => {
-  const user = await User.findById(req.user._id).populate(
-    "cartItems.product",
-    "brandname images price",
-  );
+  const user = await User.findById(req.user._id)
+    .populate("cartItems.product", "brandname images price")
+    .populate("cartItems.customization", "name garmentType color size mockups orderedAt");
   if (!user) {
     res.status(404);
     throw new Error("User not found");

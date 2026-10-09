@@ -93,10 +93,14 @@ const userSchema = mongoose.Schema(
 
     cartItems: [
       {
+        // exactly one of product (ready-made) / customization (a saved design)
         product: {
           type: mongoose.Schema.Types.ObjectId,
-          required: true,
           ref: "Product",
+        },
+        customization: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "Customization",
         },
         size: {
           type: String,

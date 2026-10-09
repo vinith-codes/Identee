@@ -44,6 +44,8 @@ const updateDesign = async (id, design) => (await axios.put(`${API_URL}/${id}`, 
 const listMyDesigns = async () => (await axios.get(`${API_URL}/mine`, auth())).data;
 const duplicateDesign = async (id) => (await axios.post(`${API_URL}/${id}/duplicate`, {}, auth())).data;
 const deleteDesign = async (id) => (await axios.delete(`${API_URL}/${id}`, auth())).data;
+// cart: items = [{ size, qty }] — one design in any mix of sizes
+const addDesignToCart = async (id, items) => (await axios.post(`${API_URL}/${id}/cart`, { items }, auth())).data;
 
 const customizationService = {
   getPrintPositions,
@@ -55,6 +57,7 @@ const customizationService = {
   listMyDesigns,
   duplicateDesign,
   deleteDesign,
+  addDesignToCart,
 };
 
 export default customizationService;

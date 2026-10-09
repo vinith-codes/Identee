@@ -427,7 +427,7 @@ const addToCart = asyncHandler(async (req, res) => {
     if (!existingCartItem) {
       existingCartItem = user.cartItems.find(
         (item) =>
-          item.product.toString() === product._id.toString() &&
+          item.product?.toString() === product._id.toString() &&
           item.size === size,
       );
     }
@@ -545,7 +545,9 @@ const deleteCartItem = asyncHandler(async (req, res) => {
 
   await user.save();
 
-  const updatedUser = await User.findById(userId).populate("cartItems.product");
+  const updatedUser = await User.findById(userId)
+    .populate("cartItems.product")
+    .populate("cartItems.customization", "name garmentType color size mockups orderedAt");
 
   res.status(200).json({
     cartItems: updatedUser.cartItems,

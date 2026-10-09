@@ -51,8 +51,10 @@ export default function BuyNowPage() {
   const totalQty = sizeItems.reduce((sum, si) => sum + si.qty, 0);
 
   // Detect if this is a customized product
+  // custom designs say so explicitly (they now carry a mockup picture);
+  // older links had no images at all
   const isCustomization =
-    Array.isArray(product.images) && product.images.length === 0;
+    state.isCustomization ?? (Array.isArray(product.images) && product.images.length === 0);
 
   return (
     <CheckoutFlow

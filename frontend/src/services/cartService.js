@@ -5,6 +5,11 @@ import api from "../../api.js";
 // the backend already supports — no new route needed.
 const updateCartItemQty = async (productId, cartItemId, size, qty, token) => {
   const config = { headers: { Authorization: `Bearer ${token}` } };
+  // a saved design (no product): its own endpoint, priced on the server
+  if (!productId) {
+    const { data } = await api.put(`/customizations/cart/${cartItemId}`, { qty }, config);
+    return data; // { cartItems: [...] }
+  }
   const { data } = await api.post(
     `/products/${productId}/addtocart`,
     { cartItemId, size, qty, action: "set" },

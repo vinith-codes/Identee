@@ -25,16 +25,13 @@ export default function CheckoutFlow({ items: itemsProp, buyNow: buyNowProp }) {
   // What the server should price (it never trusts client prices). Rebuilt
   // from the editable items so the quote always matches what's on screen.
   //   product:       { productId, items: [{ size, qty }] }
-  //   custom design: { customizationId, qty, size }
+  //   custom design: { customizationId, items: [{ size, qty }] } (one design, many sizes)
   const buyNow = !buyNowProp
     ? null
     : buyNowProp.isCustomization
       ? {
           customizationId: buyNowProp.productId,
-          qty: items
-            ? items.reduce((sum, it) => sum + it.qty, 0)
-            : buyNowProp.qty,
-          size: items?.[0]?.size || "Custom",
+          items: (items || []).map((it) => ({ size: it.size, qty: it.qty })),
         }
       : {
           productId: buyNowProp.productId,

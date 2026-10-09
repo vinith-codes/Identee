@@ -55,7 +55,7 @@ const productLine = (product, size, qty, user) => ({
   price: round2(unitPriceFor(product, user) * qty),
 });
 
-const customizationLine = async (customizationId, qty, size, user) => {
+export const customizationLine = async (customizationId, qty, size, user) => {
   if (!isId(customizationId)) throw new HttpError(400, "Invalid design");
   const customization = await Customization.findById(customizationId);
   if (!customization) throw new HttpError(404, "Design not found");
@@ -95,19 +95,21 @@ const customizationLine = async (customizationId, qty, size, user) => {
 };
 
 // body.buyNow = { productId, items: [{ size, qty }] }
-//             | { customizationId, qty, size }
+//             | { customizationId, items: [{ size, qty }] }   (one design, many sizes)
+//             | { customizationId, qty, size }                (older single-size form)
 // no buyNow  -> the user's server-side cart
 const resolveLines = async (user, body) => {
   const buyNow = body.buyNow;
 
   if (buyNow?.customizationId) {
-    const line = await customizationLine(
-      buyNow.customizationId,
-      parseQty(buyNow.qty ?? 1),
-      buyNow.size,
-      user,
-    );
-    return { source: "customization", lines: [line] };
+    const wanted = Array.isArray(buyNow.items) && buyNow.items.length
+      ? buyNow.items
+      : [{ size: buyNow.size, qty: buyNow.qty ?? 1 }];
+    const lines = [];
+    for (const { size, qty } of wanted) {
+      lines.push(await customizationLine(buyNow.customizationId, parseQty(qty), size, user));
+    }
+    return { source: "customization", lines };
   }
 
   if (buyNow?.productId) {
@@ -128,19 +130,28 @@ const resolveLines = async (user, body) => {
   if (!user.cartItems?.length) throw new HttpError(400, "Your cart is empty");
 
   const products = await Product.find({
-    _id: { $in: user.cartItems.map((i) => i.product) },
+    _id: { $in: user.cartItems.filter((i) => i.product).map((i) => i.product) },
   });
   const byId = new Map(products.map((p) => [p._id.toString(), p]));
 
-  const lines = user.cartItems.map((item) => {
+  const lines = [];
+  for (const item of user.cartItems) {
+    if (item.customization) {
+      lines.push(await customizationLine(item.customization.toString(), parseQty(item.qty), item.size, user));
+      continue;
+    }
+    lines.push(productCartLine(item));
+  }
+  return { source: "cart", lines };
+
+  function productCartLine(item) {
     const product = byId.get(item.product.toString());
     if (!product) throw new HttpError(400, "An item in your cart is no longer available. Please remove it.");
     if (!hasSize(product, item.size)) {
       throw new HttpError(400, `${product.brandname} is no longer available in size ${item.size}`);
     }
     return productLine(product, item.size, parseQty(item.qty), user);
-  });
-  return { source: "cart", lines };
+  }
 };
 
 /* ------------------------------------------------------------------ */

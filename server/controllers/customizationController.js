@@ -4,6 +4,8 @@ import mongoose from "mongoose";
 import Customization from "../models/customizationModel.js";
 import GarmentType from "../models/garmentTypeModel.js";
 import Order from "../models/orderModel.js";
+import User from "../models/userModel.js";
+import { customizationLine } from "../services/checkoutService.js";
 import { uploadFile, deleteStoredFile } from "../utils/imageStorage.js";
 import { positionsForGarment, SIZES, SIZE_GROUPS } from "../data/printPositions.js";
 
@@ -272,5 +274,67 @@ export const getCustomizationById = async (req, res) => {
     res.json(customization);
   } catch (err) {
     res.status(500).json({ message: err.message || "Could not fetch customization" });
+  }
+};
+
+/* ---------- cart: designs in the customer's cart ---------- */
+
+// Cart in the same shape GET /api/users/cart returns.
+async function cartOf(userId) {
+  const user = await User.findById(userId)
+    .populate("cartItems.product", "brandname images price")
+    .populate("cartItems.customization", "name garmentType color size mockups orderedAt");
+  return user.cartItems;
+}
+
+// POST /api/customizations/:id/cart  (owner)
+// Body: { items: [{ size, qty }] } — one design in any mix of sizes.
+// A size already in the cart for this design gets the quantity added.
+export const addDesignToCart = async (req, res) => {
+  try {
+    const doc = await ownDesign(req);
+    const items = (Array.isArray(req.body.items) ? req.body.items : [])
+      .map((i) => ({ size: String(i?.size || ""), qty: Math.floor(Number(i?.qty)) }))
+      .filter((i) => i.size && i.qty > 0);
+    if (!items.length) return res.status(400).json({ message: "Choose at least one size and quantity" });
+
+    const user = await User.findById(req.user._id);
+    for (const { size, qty } of items) {
+      // validates the garment, size and owner, and prices the design (base + art)
+      const line = await customizationLine(doc._id.toString(), qty, size, req.user);
+      const existing = user.cartItems.find((c) => String(c.customization) === String(doc._id) && c.size === line.size);
+      if (existing) {
+        existing.qty = Math.min(99, existing.qty + qty);
+        existing.price = line.unitPrice * existing.qty;
+      } else {
+        user.cartItems.push({ customization: doc._id, size: line.size, qty: Math.min(99, qty), price: line.unitPrice * Math.min(99, qty) });
+      }
+    }
+    await user.save();
+    res.status(201).json({ cartItems: await cartOf(req.user._id) });
+  } catch (err) {
+    sendError(res, err, "Could not add the design to your cart");
+  }
+};
+
+// PUT /api/customizations/cart/:cartItemId  { qty }  — 0 removes the line
+export const setDesignCartQty = async (req, res) => {
+  try {
+    const qty = Math.floor(Number(req.body.qty));
+    if (!Number.isFinite(qty) || qty < 0 || qty > 99) return res.status(400).json({ message: "Quantity must be 0 to 99" });
+    const user = await User.findById(req.user._id);
+    const item = user.cartItems.id(req.params.cartItemId);
+    if (!item || !item.customization) return res.status(404).json({ message: "Cart item not found" });
+    if (qty === 0) {
+      user.cartItems.pull(item._id);
+    } else {
+      const line = await customizationLine(item.customization.toString(), qty, item.size, req.user);
+      item.qty = qty;
+      item.price = line.unitPrice * qty;
+    }
+    await user.save();
+    res.json({ cartItems: await cartOf(req.user._id) });
+  } catch (err) {
+    sendError(res, err, "Could not update your cart");
   }
 };
