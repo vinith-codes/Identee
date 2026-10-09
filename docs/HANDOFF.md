@@ -19,7 +19,10 @@ _Last updated: 9 Oct 2026 (end of chat 3). Read this first, then `docs/PHASE1_PR
 
 Merge = `git switch main && git pull --ff-only origin main && git merge --ff-only feature-design-room && git push origin main`.
 
-**Sizes × quantity + cart** — branch `feature-sizes-cart` (PHASE1_PROGRESS §6k), pushed; merge when the user says "merge".
+**Branch `feature-sizes-cart` — MERGED to `main` on 9 Oct 2026** (PHASE1_PROGRESS §6k): Review has a sizes × quantity table
+(Add to cart / Buy now for any mix of sizes); cart holds custom designs (grouped one card per design, "+ Add another design");
+Design Room "Added to your cart" card (Design another tee / Go to cart / Keep editing); My designs "Add to cart" with a size picker
+(also re-orders); one checkout for many designs, each design locked when ordered.
 
 **Next (agreed order):** **print files** (300 DPI per print area and size, admin "Download print files") → admin order view of the design
 (mockups + print areas) → Payments / Sellers admin pages, ready-made pages redesign.
