@@ -6,4 +6,7 @@ import tailwindcss from "@tailwindcss/vite";
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   assetsInclude: ["**/*.glb"],
+  // jszip is only loaded when an admin downloads print files; listing it here
+  // stops the dev server from reloading the page the first time that happens
+  optimizeDeps: { include: ["jszip"] },
 });
