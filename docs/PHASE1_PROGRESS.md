@@ -630,6 +630,27 @@ colours, price range). Shared helpers `utils/colours.js` (swatch colours), `util
 (size order, low stock, quantity cap, add to cart, colour switch, buy now → checkout, hidden product), phone width (no sideways
 scroll on shop, category, product and admin pages).
 
+## 6o. Home page redesign (DONE on branch `feature-home-redesign`, built on `feature-readymade-redesign`)
+
+Approved from the prototype (claude.ai artifact "IDENTEE Home Prototype", v2) with "classy, not funky": gold instead of bright
+yellow, a thin underline instead of a marker, slow motion mostly in the hero.
+
+| Section | What it is |
+|---|---|
+| Hero | Stone background = the garment photos' backdrop, so the tee looks cut out. "Wear it / your way." slides up, a gold line draws under it. The customizable tee (Oversized) crossfades through its colours every 3.8 s while a print is typed on its chest (print size from the garment's centre-front area); colour dots let visitors choose. Buttons: Design your own (opens the Design Room in the shown colour) · Shop ready-made. Facts: no minimum, true to size, COD, pan-India. |
+| Marquee | One slim dark band, slow, pauses on hover. |
+| Two ways to shop | Photo panels: a design draws itself on the white tee; three garment photos fan out on the dark card. Counts from the store. |
+| From idea to doorstep | The 3 real Design Room steps; a line runs across each in turn. |
+| Featured tees | Products marked "Feature it" (topped up with the newest), only those with online photos; shown when there are 3 or more. `GET /api/shop/products?featured=1`. |
+| Why IDENTEE | 4 plain promises. |
+| Style outlook | The 3 videos from Admin → Video banners, with a gentle scroll depth. |
+| Closing band | "Walk into the design room." with two slow columns of garment photos. |
+
+Fonts: `index.html` now loads Bricolage Grotesque + Inter (they were referenced everywhere but never loaded, so the
+site fell back to Arial); tab title "IDENTEE". Motion stops for visitors who ask for reduced motion; nothing is hidden
+waiting for a scroll. Files: `pages/Home.jsx`, `components/home/HomeSections.jsx`, `home.css`, `useReveal.js`.
+No longer shown: the old hero video ("hero" slot) and the "Design your own" video slot; the footer is unchanged.
+
 ## 7. Phase 1 — remaining steps (audit findings)
 
 ### Step 3: Customization

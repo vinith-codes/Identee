@@ -1,27 +1,36 @@
-// pages/Home.jsx
-import { useState, useEffect } from "react";
+// pages/Home.jsx — the storefront home page.
+//
+// Calm editorial layout (components/home): a hero where the customizable
+// tee changes colour while a print is typed on it, two ways to shop, the
+// Design Room steps, featured ready-made tees (Admin → Ready-made →
+// "Feature it"), plain promises, the three Style outlook videos (Admin →
+// Video banners) and a closing band. The footer is unchanged.
+import { useEffect, useRef, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
-import { useNavigate } from "react-router-dom";
 import { fetchCategories } from "../redux/slices/categorySlice";
-import ShopChoices from "../components/ShopChoices";
-import { coverPhoto, isSellable } from "../utils/garments";
 import { fetchGarmentTypes } from "../redux/slices/garmentTypeSlice";
 import { fetchAllGarmentImages } from "../redux/slices/garmentImageSlice";
 import { getVideoBanner } from "../redux/slices/bannerSlice";
-import homeBannerVideo from "../assets/videos/homebanner-video.mp4";
-import customizeVideo from "../assets/videos/sub-video2.mp4";
+import { fetchPublicSettings } from "../redux/slices/publicSettingsSlice";
+import { coverPhoto, isSellable } from "../utils/garments";
+import { imageUrl } from "../utils/imageUrl";
+import shopService from "../services/shopService";
 import subVideo1 from "../assets/videos/sub-video1.mp4";
-import subVideo7 from "../assets/videos/sub-video7.mp4";
-import subVideo8 from "../assets/videos/sub-video8.mp4";
-import subVideo9 from "../assets/videos/suv-video9.mp4";
 import hoodieVideo from "../assets/videos/hoodie.mp4";
 import polosVideo from "../assets/videos/polos.mp4";
-import { fetchPublicSettings } from "../redux/slices/publicSettingsSlice";
-import { imageUrl } from "../utils/imageUrl";
+import {
+  HomeHero,
+  HomeMarquee,
+  HomeWays,
+  HomeSteps,
+  HomeFeatured,
+  HomePromises,
+  HomeOutlook,
+  HomeFinal,
+} from "../components/home/HomeSections";
+import useReveal from "../components/home/useReveal";
+import "../components/home/home.css";
 
-/* ------------------------------------------------------------------ */
-/*  PALETTE — white base, yellow accent, black ink (NO dark bg)       */
-/* ------------------------------------------------------------------ */
 const C = { 
   bg: "#FFFFFF", // primary page background
   bgAlt: "#FBF7EE", // soft warm cream for alternating sections
@@ -37,386 +46,12 @@ const C = {
   shadow: "0 18px 36px -18px rgba(21,19,15,0.18)",
   navy: "#1B2340",
 };
-const PASTELS = [
-  "#ECECEC",
-  "#E7DEF3",
-  "#D8ECE6",
-  "#F6DCE3",
-  "#FDEFD9",
-  "#DDEAF6",
-];
-// color-morph themes for the hero "pick a color" widget
-const HERO_COLOR_THEMES = [
-  { name: "Amber Glow", dot: "#E3963B", from: "#F8CE86", to: "#D9843A" },
-  { name: "Mystic Mauve", dot: "#8C6FE8", from: "#C3B2F8", to: "#6A54C8" },
-  { name: "Fresh Moss", dot: "#6FA35A", from: "#BEDBA0", to: "#598F62" },
-];
-const HERO_PRODUCTS = ["Tees", "Hoodie", "Pants"];
-// tiny flat garment glyphs, tinted with the active color
-function GarmentIcon({ type, color }) {
-  const common = { width: 26, height: 26, viewBox: "0 0 24 24", fill: color };
-  if (type === "Hoodie") {
-    return (
-      <svg {...common}>
-        <path d="M12 2c-1.4 0-2.6.8-3.2 2L6 5.4C4.8 6 4 7.2 4 8.6V11l2-.6V20a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-9.6l2 .6V8.6c0-1.4-.8-2.6-2-3.2l-2.8-1.4A3.6 3.6 0 0 0 12 2Zm0 2.2c.7 0 1.3.3 1.7.9l.4.6H9.9l.4-.6c.4-.6 1-.9 1.7-.9Z" />
-      </svg>
-    );
-  }
-  if (type === "Pants") {
-    return (
-      <svg {...common}>
-        <path d="M6 2h12l.9 18.9a1 1 0 0 1-1 1.1h-2.4a1 1 0 0 1-1-.9L13.6 12h-1.2l-.9 9.1a1 1 0 0 1-1 .9H8.1a1 1 0 0 1-1-1.1L6 2Z" />
-      </svg>
-    );
-  }
-  // Tee
-  return (
-    <svg {...common}>
-      <path d="M8 2 4 5v4l2.5-.9V21a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1V8.1L20 9V5l-4-3-1 1.6a2.8 2.8 0 0 1-6 0L8 2Z" />
-    </svg>
-  );
-}
 
-function HeroColorWidget({ activeIdx, setActiveIdx, navigate }) {
-  const active = HERO_COLOR_THEMES[activeIdx];
-  return (
-    <>
-      {/* morphing silk gradient — crossfades between themes */}
-      {HERO_COLOR_THEMES.map((theme, i) => (
-        <div
-          key={theme.name}
-          style={{
-            position: "absolute",
-            inset: 0,
-            opacity: activeIdx === i ? 1 : 0,
-            transition: "opacity 0.7s ease",
-            background: `linear-gradient(135deg, ${theme.from} 0%, ${theme.to} 100%)`,
-          }}
-        />
-      ))}
+const FONT_DISPLAY = "'Bricolage Grotesque', 'Helvetica Neue', Arial, sans-serif";
 
-      {/* Buy Now pill */}
-      <button
-        className="identee-cta-btn"
-        onClick={() => navigate("/shop")}
-        style={{
-          position: "absolute",
-          top: 18,
-          right: 18,
-          display: "inline-flex",
-          alignItems: "center",
-          gap: 6,
-          padding: "10px 18px",
-          borderRadius: 999,
-          border: "none",
-          background: C.ink,
-          color: C.bg,
-          fontSize: 13,
-          fontWeight: 700,
-          cursor: "pointer",
-          zIndex: 2,
-        }}
-      >
-        Buy Now <span style={{ fontSize: 14 }}>↗</span>
-      </button>
+// Hero colours, in this order when the garment has them.
+const HERO_ORDER = ["black", "white", "maroon", "navy", "bottle-green", "lavender", "beige", "royal-blue"];
 
-      {/* Tees / Hoodie / Pants cards with color dots */}
-      <div
-        style={{
-          position: "absolute",
-          bottom: 18,
-          right: 18,
-          display: "flex",
-          gap: 10,
-          zIndex: 2,
-        }}
-      >
-        {HERO_PRODUCTS.map((label) => (
-          <div
-            key={label}
-            style={{
-              background: "rgba(255,255,255,0.94)",
-              borderRadius: 14,
-              padding: "10px 10px 12px",
-              width: 76,
-              textAlign: "center",
-              boxShadow: C.shadow,
-            }}
-          >
-            <div
-              style={{
-                height: 30,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <GarmentIcon type={label} color={active.dot} />
-            </div>
-            <p
-              style={{
-                margin: "6px 0 0",
-                fontSize: 11,
-                fontWeight: 700,
-                color: C.ink,
-              }}
-            >
-              {label}
-            </p>
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "center",
-                gap: 5,
-                marginTop: 7,
-              }}
-            >
-              {HERO_COLOR_THEMES.map((theme, i) => (
-                <button
-                  key={theme.name}
-                  onClick={() => setActiveIdx(i)}
-                  aria-label={theme.name}
-                  style={{
-                    width: 10,
-                    height: 10,
-                    borderRadius: "50%",
-                    padding: 0,
-                    cursor: "pointer",
-                    background: theme.dot,
-                    border:
-                      activeIdx === i
-                        ? `2px solid ${C.ink}`
-                        : "2px solid transparent",
-                    boxSizing: "content-box",
-                  }}
-                />
-              ))}
-            </div>
-          </div>
-        ))}
-      </div>
-    </>
-  );
-}
-
-const FONT_DISPLAY =
-  "'Bricolage Grotesque', 'Helvetica Neue', Arial, sans-serif";
-const FONT_BODY = "'Inter', 'Helvetica Neue', Arial, sans-serif";
-
-// Heading for the two home-page shopping sections.
-function HomeSectionHeading({ eyebrow, title, text }) {
-  return (
-    <div style={{ marginBottom: 22 }}>
-      <p
-        style={{
-          margin: 0,
-          fontSize: 12,
-          letterSpacing: "0.2em",
-          color: C.gold,
-          textTransform: "uppercase",
-          fontWeight: 800,
-        }}
-      >
-        {eyebrow}
-      </p>
-      <h2
-        style={{
-          margin: "6px 0 6px",
-          fontFamily: FONT_DISPLAY,
-          fontWeight: 800,
-          fontSize: "clamp(24px, 3vw, 34px)",
-          color: C.ink,
-          letterSpacing: "-0.01em",
-        }}
-      >
-        {title}
-      </h2>
-      <p style={{ margin: 0, color: C.muted, fontSize: 15, maxWidth: 620 }}>{text}</p>
-    </div>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-/*  CONTENT                                                            */
-/* ------------------------------------------------------------------ */
-const MARQUEE_WORDS = [
-  "NEW ARRIVALS",
-  "FREE SHIPPING",
-  "SINGLE PIECE ORDERS",
-  "360° CUSTOMISATION",
-  "PAN INDIA DELIVERY",
-  "ZERO PLASTIC PACKAGING",
-];
-
-const FAVOURITES = [
-  { name: "Trending", tag: "Explore Now", video: subVideo9 },
-  { name: "Trending", tag: "Explore Now", video: subVideo8 },
-  { name: "Trending", tag: "Explore Now", video: subVideo1 },
-];
-
-/* ------------------------------------------------------------------ */
-/*  SMALL HELPERS                                                      */
-/* ------------------------------------------------------------------ */
-function PastelCard({ item, bg, big }) {
-  return (
-    <div
-      className="identee-pastel-card"
-      style={{
-        background: bg,
-        borderRadius: 18,
-        overflow: "hidden",
-        cursor: "pointer",
-        display: "flex",
-        flexDirection: "column",
-      }}
-    >
-      <div style={{ aspectRatio: big ? "3/4" : "4/5", overflow: "hidden" }}>
-        {item.video ? (
-          <video
-            autoPlay
-            muted
-            loop
-            playsInline
-            style={{ width: "100%", height: "100%", objectFit: "cover" }}
-          >
-            <source src={item.video} type="video/mp4" />
-          </video>
-        ) : (
-          <img
-            src={item.img}
-            alt={item.name}
-            style={{ width: "100%", height: "100%", objectFit: "cover" }}
-          />
-        )}
-      </div>
-      <div
-        style={{
-          padding: "14px 16px 18px",
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-        }}
-      >
-        <span style={{ fontSize: 14, fontWeight: 600, color: C.ink }}>
-          {item.name}
-        </span>
-        <span
-          style={{
-            fontSize: 12,
-            color: C.muted,
-            display: "flex",
-            alignItems: "center",
-            gap: 4,
-          }}
-        >
-          {item.tag} →
-        </span>
-      </div>
-    </div>
-  );
-}
-
-
-/* ------------------------------------------------------------------ */
-/*  STYLE OUTLOOK — big video + two side videos, editorial layout      */
-/* ------------------------------------------------------------------ */
-function StyleOutlookSection({ mainVideoSrc, side1VideoSrc, side2VideoSrc }) {
-  return (
-    <section style={{ background: C.ink, padding: "48px 24px" }}>
-      <div style={{ maxWidth: 1280, margin: "0 auto" }}>
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "flex-start",
-            flexWrap: "wrap",
-            gap: 16,
-            marginBottom: 28,
-          }}
-        >
-          <h2
-            style={{
-              margin: 0,
-              fontFamily: FONT_DISPLAY,
-              fontWeight: 800,
-              fontSize: "clamp(28px, 4vw, 44px)",
-              color: "#FFF8EC",
-            }}
-          >
-            Style Outlook
-          </h2>
-          <p
-            style={{
-              margin: 0,
-              maxWidth: 320,
-              fontSize: 14,
-              lineHeight: 1.6,
-              color: "#C9C2B2",
-              textAlign: "right",
-            }}
-          >
-            Make simplicity your boldest statement, experience crafted
-            essentials with an excellent purpose.
-          </p>
-        </div>
-        <div className="identee-style-outlook-grid">
-          <div className="identee-style-outlook-main">
-            <video key={mainVideoSrc} autoPlay muted loop playsInline>
-              <source src={mainVideoSrc} type="video/mp4" />
-            </video>
-          </div>
-          <div className="identee-style-outlook-side">
-            <div className="identee-style-outlook-side-item">
-              <video key={side1VideoSrc} autoPlay muted loop playsInline>
-                <source src={side1VideoSrc} type="video/mp4" />
-              </video>
-            </div>
-            <div className="identee-style-outlook-side-item">
-              <video key={side2VideoSrc} autoPlay muted loop playsInline>
-                <source src={side2VideoSrc} type="video/mp4" />
-              </video>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-const TESTIMONIALS = [
-  {
-    name: "Reo Raymond",
-    role: "Radio Indigo 91.9FM",
-    video: subVideo7,
-    quote:
-      "Total value for money — right from material and customising to the pricing. Very honest with the business.",
-  },
-  {
-    name: "Vineeth Vincent",
-    role: "Beat-boxer / MC",
-    video: subVideo8,
-    quote:
-      "I've been ordering from this brand for years and haven't been dissatisfied a single time.",
-  },
-  {
-    name: "Arushi Parashar",
-    role: "Amazon India",
-    video: subVideo9,
-    quote:
-      "They are the kind of people I love working with — solution finders, not problem highlighters.",
-  },
-  {
-    name: "Jayanth Joseph",
-    role: "Ernst & Young",
-    video: subVideo7,
-    quote:
-      "Great quality merchandise and amazing design suggestions. Recommended for corporate gifting.",
-  },
-];
-
-/* ------------------------------------------------------------------ */
-/*  FOOTER — contact band, link columns, map, matching reference       */
-/* ------------------------------------------------------------------ */
 const FOOTER_LINKS = {
   "Customise Products": [
     "Women's Polo",
@@ -703,50 +338,14 @@ function FloatingSocial({ settings = {} }) {
 /*  MAIN COMPONENT                                                     */
 /* ------------------------------------------------------------------ */
 export default function Home() {
-  const [heroColorIdx, setHeroColorIdx] = useState(0);
   const dispatch = useDispatch();
-  const navigate = useNavigate();
-  const { items: categories } = useSelector(
-    (s) => s.categories,
-  );
+  const { items: categories } = useSelector((s) => s.categories);
   const { items: garmentTypes } = useSelector((s) => s.garmentType);
   const { items: garmentImages } = useSelector((s) => s.garmentImage);
   const { videoBanners } = useSelector((s) => s.banner);
-  const { values: publicSettings, isLoaded: settingsLoaded } = useSelector(
-    (s) => s.publicSettings,
-  );
-
-  // Helper: find the admin-uploaded video for a given section, e.g. "hero"
-  const getSectionVideoUrl = (section) => {
-    const match = (videoBanners || []).find((v) => v.section === section);
-    return match?.videoUrl ? imageUrl(match.videoUrl) : null;
-  };
-
-  // Each section falls back to its bundled local clip if no admin
-  // video has been uploaded yet for that section.
-  const heroVideoSrc = getSectionVideoUrl("hero") || homeBannerVideo;
-  const styleOutlookMainSrc =
-    getSectionVideoUrl("styleOutlookMain") || subVideo1;
-  const styleOutlookSide1Src =
-    getSectionVideoUrl("styleOutlookSide1") || hoodieVideo;
-  const styleOutlookSide2Src =
-    getSectionVideoUrl("styleOutlookSide2") || polosVideo;
-  // Summaries for the two "how would you like to shop?" cards.
-  const sellable = garmentTypes.filter((g) => isSellable(g, garmentImages));
-  const customizableSummary = {
-    count: sellable.length,
-    fromPrice: sellable.length ? Math.min(...sellable.map((g) => g.basePrice)) : null,
-    image: sellable.length ? coverPhoto(sellable[0], garmentImages) : null,
-  };
-  const liveCategories = categories.filter((c) => !c.comingSoon);
-  const readyMadeSummary = {
-    categoryCount: liveCategories.length,
-    productCount: liveCategories.reduce((n, c) => n + (c.productCount || 0), 0),
-    image: liveCategories.find((c) => c.image)?.image || null,
-  };
-
-  const designYourOwnVideoSrc =
-    getSectionVideoUrl("designYourOwn") || customizeVideo;
+  const { values: publicSettings, isLoaded: settingsLoaded } = useSelector((s) => s.publicSettings);
+  const [products, setProducts] = useState([]); // featured (topped up with newest)
+  const root = useRef(null);
 
   useEffect(() => {
     dispatch(fetchCategories());
@@ -756,49 +355,64 @@ export default function Home() {
     if (!settingsLoaded) dispatch(fetchPublicSettings());
   }, [dispatch, settingsLoaded]);
 
+  // featured ready-made tees; fewer than 4 → add the newest ones
+  useEffect(() => {
+    let alive = true;
+    Promise.all([
+      shopService.listProducts({ featured: 1, limit: 8 }).catch(() => ({ items: [] })),
+      shopService.listProducts({ limit: 8 }).catch(() => ({ items: [] })),
+    ]).then(([f, n]) => {
+      if (!alive) return;
+      const list = [...f.items];
+      for (const p of n.items) if (list.length < 8 && !list.some((x) => x.groupId === p.groupId)) list.push(p);
+      // only products whose photos are stored online (old local paths are broken)
+      setProducts(list.filter((p) => /^https?:\/\//.test(p.images?.[0] || "")));
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  // Admin → Video banners, falling back to the bundled clips
+  const video = (section, fallback) => {
+    const match = (videoBanners || []).find((v) => v.section === section);
+    return match?.videoUrl ? imageUrl(match.videoUrl) : fallback;
+  };
+
+  // the customizable garment (the Oversized Tee) and its colour photos
+  const sellable = garmentTypes.filter((g) => isSellable(g, garmentImages));
+  const garment = sellable[0] || null;
+  const colours = (() => {
+    if (!garment) return [];
+    const list = (garment.colors || [])
+      .map((c) => {
+        const doc = garmentImages.find((p) => p.garmentType === garment.key && p.colorSlug === c.slug);
+        return doc?.front?.imageUrl ? { slug: c.slug, name: c.name, hex: c.hex, front: doc.front.imageUrl } : null;
+      })
+      .filter(Boolean);
+    const rank = (c) => (HERO_ORDER.indexOf(c.slug) === -1 ? 99 : HERO_ORDER.indexOf(c.slug));
+    return list.sort((a, b) => rank(a) - rank(b));
+  })();
+  const centre = garment?.printAreas?.find((a) => a.key === "centre-front");
+  const printCm = centre?.width && centre?.height ? [centre.width, centre.height] : [28, 32];
+
+  const custom = {
+    count: sellable.length,
+    fromPrice: sellable.length ? Math.min(...sellable.map((g) => g.basePrice)) : null,
+  };
+  const liveCategories = categories.filter((c) => !c.comingSoon);
+  const ready = {
+    categoryCount: liveCategories.length,
+    productCount: liveCategories.reduce((n, c) => n + (c.productCount || 0), 0),
+  };
+  // the ready-made card shows three garment photos (always clean, same backdrop)
+  const stackPhotos = colours.slice(2, 5).map((c) => c.front);
+
+  useReveal(root, [products.length, colours.length]);
+
   return (
-    <div
-      style={{
-        background: C.bg,
-        color: C.text,
-        fontFamily: FONT_BODY,
-        overflowX: "hidden",
-      }}
-    >
+    <div className="hm" ref={root}>
       <style>{`
-        @keyframes identee-marquee {
-          from { transform: translateX(0); }
-          to { transform: translateX(-50%); }
-        }
-        .identee-pastel-card { transition: transform 0.4s cubic-bezier(.2,.8,.2,1), box-shadow 0.4s ease; }
-        .identee-pastel-card:hover { transform: translateY(-6px); box-shadow: 0 20px 34px -18px rgba(21,19,15,0.22); }
-        .identee-pastel-card img { transition: transform 0.6s ease; }
-        .identee-pastel-card:hover img { transform: scale(1.06); }
-        .identee-cta-btn { transition: transform 0.25s ease, box-shadow 0.25s ease; }
-        .identee-cta-btn:hover { transform: translateY(-2px); }
-        .identee-testimonial-avatar { position: relative; width: 56px; height: 56px; border-radius: 50%; overflow: hidden; margin-bottom: 14px; border: 1px solid ${C.border}; background: ${C.bg}; }
-        .identee-testimonial-avatar video { position: absolute; top: 50%; left: 50%; width: 100%; height: 100%; min-width: 100%; min-height: 100%; transform: translate(-50%, -50%); object-fit: cover; object-position: center; }
-
-       /* ---- style outlook editorial grid ---- */
-        .identee-style-outlook-grid {
-          display: grid;
-          grid-template-columns: 1.6fr 1fr;
-          grid-template-rows: 560px;
-          gap: 18px;
-        }
-        .identee-style-outlook-main, .identee-style-outlook-side-item {
-          border-radius: 18px;
-          overflow: hidden;
-          height: 100%;
-        }
-        .identee-style-outlook-side { display: flex; flex-direction: column; gap: 14px; height: 100%; }
-        .identee-style-outlook-side-item { min-height: 0; }
-        .identee-style-outlook-side-item:nth-child(1) { flex: 1.6; }
-        .identee-style-outlook-side-item:nth-child(2) { flex: 1; }
-        .identee-style-outlook-main video, .identee-style-outlook-side-item video {
-          width: 100%; height: 100%; object-fit: cover; display: block;
-        }
-
         /* ---- footer link grid ---- */
         .identee-footer-grid {
           display: grid;
@@ -836,419 +450,21 @@ export default function Home() {
           .identee-footer-grid { grid-template-columns: repeat(2, 1fr); }
         }
         @media (max-width: 720px) {
-          .hero-color-widget { display: none !important; }
           .identee-floating-social { left: 10px; gap: 10px; }
           .identee-floating-btn { width: 38px; height: 38px; }
-
-          /* single column, uniform cards on mobile — bento pattern off */
-          .identee-cat-banner-grid {
-            grid-template-columns: 1fr;
-            grid-auto-rows: 220px;
-          }
-          .identee-cat-banner-grid > * {
-            grid-column: span 1 !important;
-            grid-row: span 1 !important;
-          }
-
-         .identee-style-outlook-grid {
-            grid-template-columns: 1fr;
-            grid-template-rows: 420px 220px;
-          }
-          .identee-style-outlook-side { flex-direction: row; }
-          .identee-style-outlook-side-item:nth-child(1),
-          .identee-style-outlook-side-item:nth-child(2) { flex: 1; }
         }
       `}</style>
-
       <FloatingSocial settings={publicSettings} />
 
-      {/* ================= HERO — full-bleed video background (unchanged) ================= */}
-      <section
-        style={{
-          position: "relative",
-          minHeight: "82vh",
-          display: "flex",
-          alignItems: "center",
-          overflow: "hidden",
-        }}
-      >
-        <video
-          key={heroVideoSrc}
-          autoPlay
-          muted
-          loop
-          playsInline
-          style={{
-            position: "absolute",
-            inset: 0,
-            width: "100%",
-            height: "100%",
-            objectFit: "cover",
-            zIndex: 0,
-          }}
-        >
-          <source src={heroVideoSrc} type="video/mp4" />
-        </video>
+      <HomeHero garment={garment} colours={colours.slice(0, 6)} printCm={printCm} />
+      <HomeMarquee />
+      <HomeWays garment={garment} customPhoto={garment ? coverPhoto(garment, garmentImages) : null} stackPhotos={stackPhotos} custom={custom} ready={ready} />
+      <HomeSteps />
+      <HomeFeatured products={products} />
+      <HomePromises tight={products.length < 3} />
+      <HomeOutlook main={video("styleOutlookMain", subVideo1)} side1={video("styleOutlookSide1", hoodieVideo)} side2={video("styleOutlookSide2", polosVideo)} />
+      <HomeFinal garment={garment} photos={colours.map((c) => c.front)} />
 
-        <div
-          style={{
-            position: "absolute",
-            inset: 0,
-            background:
-              "linear-gradient(100deg, rgba(21,19,15,0.82) 0%, rgba(21,19,15,0.55) 45%, rgba(21,19,15,0.28) 100%)",
-            zIndex: 1,
-          }}
-        />
-
-        <div
-          style={{
-            position: "relative",
-            zIndex: 2,
-            maxWidth: 1280,
-            width: "100%",
-            margin: "0 auto",
-            padding: "40px 24px",
-          }}
-        >
-          <div style={{ maxWidth: 560 }}>
-            <p
-              style={{
-                margin: 0,
-                fontSize: 12,
-                letterSpacing: "0.24em",
-                color: C.yellow,
-                textTransform: "uppercase",
-                fontWeight: 700,
-              }}
-            >
-              IDENTEE — SIGNATURE STREETWEAR
-            </p>
-            <h1
-              style={{
-                margin: "22px 0 0",
-                fontFamily: FONT_DISPLAY,
-                fontWeight: 800,
-                fontSize: "clamp(40px, 6vw, 64px)",
-                lineHeight: 1.05,
-                color: "#FFF8EC",
-              }}
-            >
-              LET&apos;S EXPLORE
-              <br />
-              <span
-                style={{
-                  background: C.yellow,
-                  color: C.ink,
-                  padding: "2px 10px",
-                  borderRadius: 8,
-                }}
-              >
-                UNIQUE
-              </span>
-              <br />
-              CLOTHES.
-            </h1>
-            <p
-              style={{
-                margin: "24px 0 0",
-                maxWidth: 380,
-                fontSize: 15,
-                lineHeight: 1.7,
-                color: "#E4D9C4",
-              }}
-            >
-              Custom-built apparel for brands, teams and individuals —
-              single-piece orders, 360° design preview, delivered pan India in
-              days, not weeks.
-            </p>
-            <button
-              className="identee-cta-btn"
-              onClick={() => navigate("/shop")}
-              style={{
-                marginTop: 32,
-                padding: "15px 34px",
-                borderRadius: 10,
-                border: "none",
-                background: C.yellow,
-                color: C.ink,
-                fontSize: 14,
-                fontWeight: 700,
-                letterSpacing: "0.04em",
-                textTransform: "uppercase",
-                cursor: "pointer",
-              }}
-            >
-              Shop Now
-            </button>
-          </div>
-        </div>
-
-        <div
-          style={{
-            position: "absolute",
-            zIndex: 3,
-            bottom: 32,
-            right: 32,
-            width: 320,
-            height: 210,
-            borderRadius: 20,
-            overflow: "hidden",
-            boxShadow: "0 24px 48px -20px rgba(0,0,0,0.45)",
-          }}
-          className="hero-color-widget"
-        >
-          <HeroColorWidget
-            activeIdx={heroColorIdx}
-            setActiveIdx={setHeroColorIdx}
-            navigate={navigate}
-          />
-        </div>
-      </section>
-
-      {/* ================= MARQUEE STRIP (unchanged) ================= */}
-      <div
-        style={{
-          background: C.yellow,
-          overflow: "hidden",
-          whiteSpace: "nowrap",
-          padding: "16px 0",
-          marginTop: 60,
-        }}
-      >
-        <div
-          style={{
-            display: "inline-flex",
-            animation: "identee-marquee 22s linear infinite",
-          }}
-        >
-          {[...MARQUEE_WORDS, ...MARQUEE_WORDS, ...MARQUEE_WORDS].map(
-            (w, i) => (
-              <span
-                key={i}
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  fontFamily: FONT_DISPLAY,
-                  fontWeight: 800,
-                  fontSize: 18,
-                  color: C.ink,
-                  margin: "0 26px",
-                  letterSpacing: "0.02em",
-                }}
-              >
-                {w}
-                <span style={{ margin: "0 26px", fontSize: 13 }}>✦</span>
-              </span>
-            ),
-          )}
-        </div>
-      </div>
-
-      {/* ================= TWO WAYS TO SHOP =================
-          Customizable → /customizable (Admin → Customizable garments)
-          Ready-made   → /ready-made   (Admin → Storefront → Categories) */}
-      <section id="shop" style={{ padding: "56px 24px", maxWidth: 1280, margin: "0 auto" }}>
-        <HomeSectionHeading
-          eyebrow="Shop"
-          title="How would you like to shop?"
-          text="Design your own tee, or pick from our ready-made collections."
-        />
-        <ShopChoices customizable={customizableSummary} readyMade={readyMadeSummary} />
-      </section>
-
-      {/* ================= STYLE OUTLOOK — VIDEO EDITORIAL ================= */}
-      <StyleOutlookSection
-        mainVideoSrc={styleOutlookMainSrc}
-        side1VideoSrc={styleOutlookSide1Src}
-        side2VideoSrc={styleOutlookSide2Src}
-      />
-
-      {/* ================= DESIGN YOUR OWN — replaces Bulk Order band ================= */}
-      <section
-        style={{
-          margin: "24px 24px 48px",
-          maxWidth: 1280,
-          marginLeft: "auto",
-          marginRight: "auto",
-          background: C.yellow,
-          borderRadius: 28,
-          padding: "56px 48px",
-          display: "grid",
-          gridTemplateColumns: "0.9fr 1.1fr",
-          gap: 40,
-          alignItems: "stretch",
-          overflow: "visible",
-          boxShadow: "0 30px 60px -30px rgba(21,19,15,0.28)",
-        }}
-      >
-        <div style={{ position: "relative", aspectRatio: "1/1" }}>
-          <div
-            style={{
-              position: "absolute",
-              top: 14,
-              right: -14,
-              width: "100%",
-              height: "100%",
-              background: C.ink,
-              borderRadius: 20,
-              zIndex: 0,
-            }}
-          />
-          <div
-            style={{
-              position: "relative",
-              zIndex: 1,
-              borderRadius: 20,
-              overflow: "hidden",
-              height: "100%",
-              boxShadow: "0 18px 36px -16px rgba(21,19,15,0.35)",
-            }}
-          >
-            <video
-              key={designYourOwnVideoSrc}
-              autoPlay
-              muted
-              loop
-              playsInline
-              style={{
-                width: "100%",
-                height: "100%",
-                objectFit: "cover",
-                display: "block",
-              }}
-            >
-              <source src={designYourOwnVideoSrc} type="video/mp4" />
-            </video>
-          </div>
-        </div>
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
-            height: "100%",
-            textAlign: "center",
-          }}
-        >
-          <h3
-            style={{
-              margin: 0,
-              fontFamily: FONT_DISPLAY,
-              fontWeight: 800,
-              fontSize: "clamp(20px, 2.6vw, 28px)",
-              color: C.ink,
-              lineHeight: 1.2,
-              letterSpacing: "-0.01em",
-              textTransform: "uppercase",
-            }}
-          >
-            Your Style,
-            <br />
-            Your Story,
-            <br />
-            <span
-              style={{
-                background: C.ink,
-                color: C.yellow,
-                padding: "2px 10px",
-                display: "inline-block",
-              }}
-            >
-              Your Identee
-            </span>
-          </h3>
-          <h2
-            style={{
-              margin: "22px 0 0",
-              fontFamily: FONT_DISPLAY,
-              fontWeight: 800,
-              fontSize: "clamp(30px, 4.4vw, 48px)",
-              color: C.ink,
-              lineHeight: 1.08,
-            }}
-          >
-            DESIGN YOUR
-            <br />
-            OWN
-          </h2>
-          <p
-            style={{
-              margin: "18px 0 0",
-              fontSize: 14.5,
-              color: C.ink,
-              maxWidth: 400,
-              lineHeight: 1.65,
-              opacity: 0.85,
-            }}
-          >
-            Drop your own artwork, pick placement and preview it live on the
-            garment — our 360° customiser lets you build a piece that's entirely
-            yours before you order.
-          </p>
-          <button
-            className="identee-cta-btn"
-            onClick={() => navigate("/customize")}
-            style={{
-              marginTop: 26,
-              padding: "15px 32px",
-              borderRadius: 10,
-              border: "none",
-              background: C.ink,
-              color: C.bg,
-              fontSize: 14,
-              fontWeight: 700,
-              letterSpacing: "0.04em",
-              textTransform: "uppercase",
-              cursor: "pointer",
-              boxShadow: "0 12px 24px -8px rgba(21,19,15,0.4)",
-            }}
-          >
-            Start Customising
-          </button>
-          <div
-            style={{
-              display: "flex",
-              gap: 36,
-              marginTop: 34,
-              justifyContent: "center",
-            }}
-          >
-            {[
-              ["Drag & Drop", "Your artwork"],
-              ["Live Preview", "360° view"],
-              ["Pan India", "Shipping"],
-            ].map(([val, label]) => (
-              <div key={label}>
-                <p
-                  style={{
-                    margin: 0,
-                    fontSize: 16,
-                    fontWeight: 700,
-                    color: C.ink,
-                  }}
-                >
-                  {val}
-                </p>
-                <p
-                  style={{
-                    margin: "2px 0 0",
-                    fontSize: 10.5,
-                    letterSpacing: "0.08em",
-                    textTransform: "uppercase",
-                    color: C.ink,
-                    opacity: 0.65,
-                  }}
-                >
-                  {label}
-                </p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ================= FOOTER ================= */}
       <Footer settings={publicSettings} />
     </div>
   );

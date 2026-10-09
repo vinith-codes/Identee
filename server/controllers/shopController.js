@@ -31,7 +31,7 @@ const SORTS = {
 };
 
 // @desc   Ready-made products, one card per product
-// @route  GET /api/shop/products?category=&style=&size=&color=&maxPrice=&q=&sort=&page=&limit=&exclude=
+// @route  GET /api/shop/products?category=&style=&size=&color=&maxPrice=&q=&sort=&page=&limit=&exclude=&featured=1
 // @access Public (optional login for member prices)
 export const listShopProducts = asyncHandler(async (req, res) => {
   const page = Math.max(1, parseInt(req.query.page, 10) || 1);
@@ -66,6 +66,7 @@ export const listShopProducts = asyncHandler(async (req, res) => {
   const maxPrice = Number(req.query.maxPrice) || 0;
   const q = norm(req.query.q);
   const exclude = String(req.query.exclude || "");
+  const featuredOnly = req.query.featured === "1";
   const matches = inScope.filter((d) => {
     const pd = d.productdetails || {};
     if (style && norm(pd.garmentStyle) !== style) return false;
@@ -73,6 +74,7 @@ export const listShopProducts = asyncHandler(async (req, res) => {
     if (size && !(pd.stockBySize || []).some((s) => s.size === size && s.stock > 0)) return false;
     if (maxPrice && d.price > maxPrice) return false;
     if (exclude && d.productGroupId === exclude) return false;
+    if (featuredOnly && !d.isFeatured) return false;
     if (q) {
       const hay = [d.brandname, pd.garmentStyle, pd.color, pd.fabric, categoryOfStyle.get(norm(pd.garmentStyle))?.name].map(norm).join(" ");
       if (!q.split(/\s+/).every((w) => hay.includes(w))) return false;
