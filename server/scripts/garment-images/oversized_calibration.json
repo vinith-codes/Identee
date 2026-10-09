@@ -1,0 +1,45 @@
+{
+  "ppiAtSizeM": 21.333,
+  "sizeM": {
+    "chestIn": 23,
+    "lengthIn": 30
+  },
+  "canvas": [
+    800,
+    1000
+  ],
+  "views": {
+    "front": {
+      "top": 236,
+      "hem": 876,
+      "centerX": 400.0,
+      "chestPx": 490.7
+    },
+    "back": {
+      "top": 236,
+      "hem": 876,
+      "centerX": 400.0,
+      "chestPx": 490.7
+    },
+    "right": {
+      "top": 236,
+      "hem": 876,
+      "centerX": 400.0,
+      "estimates": {
+        "sleeveLengthIn": 9,
+        "sleeveOpeningIn": 8.5,
+        "bodyDepthIn": 10
+      }
+    },
+    "left": {
+      "top": 236,
+      "hem": 876,
+      "centerX": 400.0,
+      "estimates": {
+        "sleeveLengthIn": 9,
+        "sleeveOpeningIn": 8.5,
+        "bodyDepthIn": 10
+      }
+    }
+  }
+}
