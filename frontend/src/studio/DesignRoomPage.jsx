@@ -311,18 +311,34 @@ export default function DesignRoomPage() {
 
   useEffect(() => () => renderers.current.forEach((e) => e.r.destroy()), []);
 
+  // Where each print sits on the tee — only changes with the size, so the 3D
+  // print shapes are built once, not on every drag frame.
+  const spots = useMemo(
+    () => (model ? Object.fromEntries(positions.map((pos) => [pos.key, placeArea(model, pos, sizeNow, lengthCm)])) : {}),
+    [model, positions, sizeNow, lengthCm],
+  );
   const areas3D = useMemo(
     () =>
-      model
-        ? positions.map((pos) => {
-            const spot = placeArea(model, pos, sizeNow, lengthCm);
-            return { key: pos.key, spot, spotKey: `${sizeNow}`, canvas: textures[pos.key]?.canvas || null, version: textures[pos.key]?.version || 0 };
-          })
-        : [],
-    [model, positions, sizeNow, lengthCm, textures],
+      positions
+        .filter((pos) => spots[pos.key])
+        .map((pos) => ({ key: pos.key, spot: spots[pos.key], spotKey: `${sizeNow}`, canvas: textures[pos.key]?.canvas || null, version: textures[pos.key]?.version || 0 })),
+    [positions, spots, sizeNow, textures],
   );
 
   /* ---------- actions ---------- */
+  // While dragging, update the 3D tee at most once per screen frame.
+  const liveQueue = useRef(null);
+  const queueLive = (key, els) => {
+    const first = !liveQueue.current;
+    liveQueue.current = { key, elements: els };
+    if (first) {
+      requestAnimationFrame(() => {
+        const next = liveQueue.current;
+        liveQueue.current = null;
+        if (next) setLive(next);
+      });
+    }
+  };
   const toastTimer = useRef(null);
   const say = (msg) => {
     setToast(msg);
@@ -597,7 +613,9 @@ export default function DesignRoomPage() {
   }
 
   const sel = elements.find((e) => e.id === selectedId) || null;
-  const activeEls = live?.key === active ? live.elements : elements.filter((e) => e.position === active);
+  // The editor always gets the committed design: feeding it the live drag
+  // state would rebuild its items mid-drag (that made dragging slow / jumpy).
+  const activeEls = elements.filter((e) => e.position === active);
   const usedSides = new Set(elements.map((e) => e.side));
   // Fit the print area in the panel without squeezing the controls below it:
   // at most the panel width, and at most about a third of the screen height.
@@ -743,8 +761,9 @@ export default function DesignRoomPage() {
                     selectedId={selectedId}
                     onSelect={setSelectedId}
                     displayWidth={editorW}
-                    onLive={(els) => setLive({ key: active, elements: els })}
+                    onLive={(els) => queueLive(active, els)}
                     onCommit={(els) => {
+                      liveQueue.current = null;
                       setLive(null);
                       commit((prev) => [...prev.filter((e) => e.position !== active), ...els]);
                     }}

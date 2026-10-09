@@ -123,12 +123,16 @@ export class AreaRenderer {
     this.stage = new Konva.Stage({ container: this.container, width: this.W, height: this.H });
     this.layer = new Konva.Layer({ listening: false });
     this.stage.add(this.layer);
+    // one canvas per area, redrawn in place (exactly W × H pixels), so the
+    // 3D texture is only refreshed — never rebuilt — while you drag
+    this.layer.getCanvas().setPixelRatio(1);
+    this.stage.size({ width: this.W, height: this.H });
   }
   render(elements) {
     this.layer.destroyChildren();
     buildNodes(this.layer, elements, this.W, this.H);
     this.layer.draw();
-    return this.stage.toCanvas({ pixelRatio: 1 });
+    return this.layer.getNativeCanvasElement();
   }
   destroy() {
     this.stage.destroy();
