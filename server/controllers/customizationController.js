@@ -7,7 +7,7 @@ import Order from "../models/orderModel.js";
 import User from "../models/userModel.js";
 import { customizationLine } from "../services/checkoutService.js";
 import { uploadFile, deleteStoredFile } from "../utils/imageStorage.js";
-import { positionsForGarment, SIZES, SIZE_GROUPS } from "../data/printPositions.js";
+import { positionsForGarment, catalogForGarment, sizeGroupOf, SIZES, SIZE_GROUPS } from "../data/printPositions.js";
 
 const MAX_ELEMENTS = 40;
 const clampNum = (v, min, max, fallback) => {
@@ -336,5 +336,77 @@ export const setDesignCartQty = async (req, res) => {
     res.json({ cartItems: await cartOf(req.user._id) });
   } catch (err) {
     sendError(res, err, "Could not update your cart");
+  }
+};
+
+// GET /api/customizations/admin/order/:orderId  (admin)
+// Everything the print team needs for the custom designs in one order:
+// each design's elements, the garment colour, the sizes × quantities
+// ordered and the real print size (cm) of every used print area for each
+// ordered size group. The admin's browser turns this into 300-DPI PNGs
+// with the same drawing code as the Design Room (studio/printFiles.js).
+export const getOrderPrintPack = async (req, res) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.orderId)) return res.status(404).json({ message: "Order not found" });
+    const order = await Order.findById(req.params.orderId).populate("user", "name email").lean();
+    if (!order) return res.status(404).json({ message: "Order not found" });
+
+    const ids = [...new Set(order.orderItems.filter((i) => i.customization).map((i) => String(i.customization)))];
+    const docs = await Customization.find({ _id: { $in: ids } }).lean();
+    const garments = await GarmentType.find({ key: { $in: [...new Set(docs.map((d) => d.garmentType))] } }).lean();
+
+    const designs = ids.map((id) => {
+      const doc = docs.find((d) => String(d._id) === id);
+      if (!doc) return { _id: id, missing: true };
+      const garment = garments.find((g) => g.key === doc.garmentType) || null;
+      const colour = garment?.colors?.find((c) => c.slug === doc.color);
+      const lines = order.orderItems
+        .filter((i) => String(i.customization) === id)
+        .map((i) => ({ size: i.size, qty: i.qty }));
+      // every catalog area with a size (also one switched off after the order)
+      const catalog = catalogForGarment(garment).filter((a) => a.cm);
+      const used = [...new Set(doc.elements.map((e) => e.position).filter(Boolean))];
+      const groups = [...new Set(lines.map((l) => sizeGroupOf(l.size)))];
+      const areas = used.map((key) => {
+        const a = catalog.find((c) => c.key === key);
+        return {
+          key,
+          label: a?.label || key,
+          side: a?.side || null,
+          // one print file per size group ordered (same cm → same file)
+          files: a
+            ? groups.map((g) => ({
+                group: g,
+                sizes: lines.filter((l) => sizeGroupOf(l.size) === g).map((l) => l.size),
+                cm: a.cm[g],
+              }))
+            : [],
+        };
+      });
+      return {
+        _id: id,
+        name: doc.name || "",
+        layoutVersion: doc.layoutVersion,
+        garment: { key: doc.garmentType, label: garment?.label || doc.garmentType },
+        colour: { slug: doc.color, name: colour?.name || doc.color, hex: colour?.hex || null },
+        mockups: doc.mockups || {},
+        elements: doc.elements,
+        lines,
+        areas,
+      };
+    });
+
+    res.json({
+      order: {
+        _id: order._id,
+        number: order.invoiceNumber || String(order._id).slice(-8).toUpperCase(),
+        createdAt: order.createdAt,
+        status: order.orderStatus,
+        customer: order.user?.name || "",
+      },
+      designs,
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message || "Could not load the print files" });
   }
 };

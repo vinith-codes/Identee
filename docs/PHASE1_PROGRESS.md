@@ -554,6 +554,35 @@ Server: `users.cartItems[]` can hold `customization` instead of `product`; `POST
 design lines. Tested on a local copy: add S×2 M×3 L×1, merge M+1, bad size refused, set/remove qty, quotes, COD order with 5 lines
 from 2 designs → cart emptied, designs locked.
 
+## 6l. Print files for the print team (DONE on branch `feature-print-files`)
+
+**Where:** Admin → Orders → an order with custom designs shows **Designs & print files** under its item count.
+
+**The window shows:** each design's 4 preview pictures, garment, colour (with hex), sizes × quantity, and a table of
+every used print area × ordered size group with its real print size (cm) and pixel size at 300 DPI.
+
+**Download print files (ZIP)** makes, in the admin's browser:
+- one **transparent PNG per print area per ordered size group, 300 DPI**, with the DPI written inside the file (pHYs),
+  so print software opens it at the true cm size. Sizes in one group share a print size (XS–S, M–XL, 2XL–3XL; ±4 cm
+  rule), so they share one file — e.g. `Centre-Front_M-XL_28x32cm_300dpi.png` = 3307 × 3780 px;
+- the design's preview pictures (`preview-front.jpg` …) to check the print against;
+- `ORDER-SHEET.txt`: order number, customer, and per design the colour, sizes × qty, every file with its cm, the text
+  used (font, colour) and warnings.
+
+**How it is drawn:** the same Konva code as the Design Room (`studio/konvaRender.js`), but with the **original uploaded
+pictures** (not the 1600 px screen copies). It refuses to make files if a picture or font fails to load (a wrong print is
+worse than none). Pictures below 150 DPI at their print size are flagged ("may look blurry").
+
+**Files:** `server/controllers/customizationController.js` (`getOrderPrintPack`, route `GET /api/customizations/admin/order/:orderId`,
+admin only), `frontend/src/studio/printFiles.js`, `studio/fonts.js` (font list shared with the Design Room),
+`pages/admin/OrderDesignsModal.jsx`, `AdminOrdersPage.jsx`. New package: `jszip` (loaded only when downloading).
+
+**Tested** on a local copy (2 real designs, an order of S×2, M×3, XL×1, 2XL×1 + M×1): 16 PNGs with exact pixel sizes and
+300 DPI, transparent, Anton font correct, 33 MB ZIP in ~21 s; low-resolution test photos correctly flagged.
+
+**Note:** print sizes come from the garment's current print-area settings; until the print team answers the measurement
+sheet, the cm sizes are the PDF guide's.
+
 ## 7. Phase 1 — remaining steps (audit findings)
 
 ### Step 3: Customization

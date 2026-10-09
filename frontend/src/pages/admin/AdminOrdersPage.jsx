@@ -7,6 +7,7 @@ import {
   updateOrderStatus,
 } from "../../redux/slices/orderSlice";
 import { THEME, labelStyle } from "../../theme/theme";
+import OrderDesignsModal from "./OrderDesignsModal";
 
 const STATUS_COLORS = {
   CREATED: { bg: "#2B2B3020", text: "#8A877F" },
@@ -151,6 +152,7 @@ export default function AdminOrdersPage() {
   const { allOrders, allOrdersLoading, allOrdersError, updatingStatusId } =
     useSelector((s) => s.orders);
   const [statusFilter, setStatusFilter] = useState("");
+  const [designsFor, setDesignsFor] = useState(null); // order id → custom designs + print files
 
   useEffect(() => {
     dispatch(fetchAllOrders());
@@ -297,6 +299,27 @@ export default function AdminOrdersPage() {
                   <td style={{ padding: "12px 16px" }}>
                     {(order.orderItems || []).length} item
                     {(order.orderItems || []).length === 1 ? "" : "s"}
+                    {(order.orderItems || []).some((i) => i.customization) && (
+                      <button
+                        type="button"
+                        onClick={() => setDesignsFor(order._id)}
+                        style={{
+                          display: "block",
+                          marginTop: 4,
+                          background: THEME.gold,
+                          color: "#141110",
+                          border: "none",
+                          borderRadius: 6,
+                          padding: "4px 10px",
+                          cursor: "pointer",
+                          fontSize: 11.5,
+                          fontWeight: 700,
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        Designs &amp; print files
+                      </button>
+                    )}
                   </td>
                   <td
                     style={{
@@ -356,6 +379,7 @@ export default function AdminOrdersPage() {
           </table>
         </div>
       )}
+      {designsFor && <OrderDesignsModal orderId={designsFor} onClose={() => setDesignsFor(null)} />}
     </div>
   );
 }

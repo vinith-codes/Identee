@@ -12,9 +12,10 @@ import {
   deleteCustomization,
   addDesignToCart,
   setDesignCartQty,
+  getOrderPrintPack,
 } from "../controllers/customizationController.js";
 import { uploadDesignFile } from "../multer/multer.js";
-import { protect } from "../middleware/authMiddleware.js";
+import { protect, admin } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
@@ -26,6 +27,8 @@ router.post("/upload-design", protect, uploadDesignFile, uploadDesignImage);
 router.post("/", protect, createCustomization);
 // "My designs" (before "/:id" so "mine" isn't read as an id)
 router.get("/mine", protect, listMyCustomizations);
+// admin: print files for the custom designs in an order
+router.get("/admin/order/:orderId", protect, admin, getOrderPrintPack);
 // designs in the cart
 router.put("/cart/:cartItemId", protect, setDesignCartQty);
 router.get("/:id", protect, getCustomizationById);

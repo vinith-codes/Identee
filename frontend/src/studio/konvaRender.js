@@ -11,10 +11,14 @@ import Konva from "konva";
 import { imageUrl } from "../utils/imageUrl";
 
 /* ---------- images (CORS-safe so the 3D texture isn't "tainted") ---------- */
-const imgCache = new Map(); // src -> { img, ready: Promise }
-export function loadImage(src) {
+const imgCache = new Map(); // src (+ "#full") -> { img, ready: Promise }
+// full: the original upload (print files) instead of a 1600 px screen copy
+const cacheKey = (src, full) => (full ? `${src}#full` : src);
+const originalUrl = (src) => (/^https?:\/\//.test(src) ? src : imageUrl(src));
+export function loadImage(src, { full = false } = {}) {
   if (!src) return Promise.reject(new Error("no image"));
-  const hit = imgCache.get(src);
+  const key = cacheKey(src, full);
+  const hit = imgCache.get(key);
   if (hit) return hit.ready;
   const img = new Image();
   img.crossOrigin = "anonymous";
@@ -22,12 +26,12 @@ export function loadImage(src) {
     img.onload = () => resolve(img);
     img.onerror = () => reject(new Error("image failed"));
   });
-  img.src = src.startsWith("blob:") || src.startsWith("data:") ? src : imageUrl(src, 1600);
-  imgCache.set(src, { img, ready });
+  img.src = src.startsWith("blob:") || src.startsWith("data:") ? src : full ? originalUrl(src) : imageUrl(src, 1600);
+  imgCache.set(key, { img, ready });
   return ready;
 }
-export const cachedImage = (src) => {
-  const hit = imgCache.get(src);
+export const cachedImage = (src, full = false) => {
+  const hit = imgCache.get(cacheKey(src, full));
   return hit && hit.img.complete && hit.img.naturalWidth ? hit.img : null;
 };
 
@@ -78,8 +82,8 @@ function textNode(el, W, H) {
   return { node: t, w: t.width(), h: t.height() };
 }
 
-function imageNode(el, W, H) {
-  const img = cachedImage(el.src);
+function imageNode(el, W, H, full) {
+  const img = cachedImage(el.src, full);
   const w = ((el.width || 50) / 100) * W;
   const h = ((el.height || 50) / 100) * H;
   if (!img) {
@@ -94,11 +98,11 @@ function imageNode(el, W, H) {
  * its box centre (so rotation and scaling happen around the centre).
  * @returns {Map<string, Konva.Group>} id -> group
  */
-export function buildNodes(layer, elements, W, H) {
+export function buildNodes(layer, elements, W, H, { full = false } = {}) {
   const byId = new Map();
   const sorted = [...elements].sort((a, b) => (a.zIndex || 0) - (b.zIndex || 0));
   for (const el of sorted) {
-    const { node, w, h } = el.type === "text" ? textNode(el, W, H) : imageNode(el, W, H);
+    const { node, w, h } = el.type === "text" ? textNode(el, W, H) : imageNode(el, W, H, full);
     const bw = el.type === "text" ? w : ((el.width || 50) / 100) * W;
     const bh = el.type === "text" ? h : ((el.height || 50) / 100) * H;
     // stored box (top-left %) → centre in px
@@ -128,9 +132,9 @@ export class AreaRenderer {
     this.layer.getCanvas().setPixelRatio(1);
     this.stage.size({ width: this.W, height: this.H });
   }
-  render(elements) {
+  render(elements, opts) {
     this.layer.destroyChildren();
-    buildNodes(this.layer, elements, this.W, this.H);
+    buildNodes(this.layer, elements, this.W, this.H, opts);
     this.layer.draw();
     return this.layer.getNativeCanvasElement();
   }

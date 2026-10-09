@@ -20,11 +20,11 @@ import Room3D from "./Room3D";
 import AreaEditor from "./AreaEditor";
 import { AreaRenderer, imageSrcs, loadImage, measureText } from "./konvaRender";
 import { areaCm, modelForGarment, placeArea } from "./teeModel";
+import { FONTS, addStudioFonts } from "./fonts";
 import "./designRoom.css";
 
 const PX_PER_CM = 24; // texture / editor resolution (print files are made separately at 300 DPI)
 const MIN_AREA_PX = 480; // small areas (sleeves, chest) are drawn finer so they stay sharp on the 3D tee
-const FONTS = ["Anton", "Bebas Neue", "Oswald", "Montserrat", "Poppins", "Playfair Display", "Permanent Marker", "Pacifico", "Lobster", "Bangers"];
 const INKS = ["#FFFFFF", "#141110", "#C9A24B", "#C2352C", "#2441B5", "#1C5A2B", "#F0C24C", "#B7A2E0", "#F08A24", "#8DC1EC"];
 const IDEAS = ["BIRTHDAY SQUAD", "Just Married", "TEAM 07", "Chennai Born", "Stay Curious", "Class of 2026", "Bride Squad", "Founder Mode"];
 const SIDES = [["front", "Front"], ["back", "Back"], ["left", "Left"], ["right", "Right"]];
@@ -77,13 +77,7 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 // Load the studio fonts once (Konva needs them in the document).
 function useStudioFonts() {
   useEffect(() => {
-    const id = "dr-fonts";
-    if (document.getElementById(id)) return;
-    const link = document.createElement("link");
-    link.id = id;
-    link.rel = "stylesheet";
-    link.href = `https://fonts.googleapis.com/css2?${FONTS.map((f) => `family=${f.replace(/ /g, "+")}:wght@400;700`).join("&")}&display=swap`;
-    document.head.appendChild(link);
+    addStudioFonts();
   }, []);
 }
 

@@ -46,6 +46,8 @@ const duplicateDesign = async (id) => (await axios.post(`${API_URL}/${id}/duplic
 const deleteDesign = async (id) => (await axios.delete(`${API_URL}/${id}`, auth())).data;
 // cart: items = [{ size, qty }] — one design in any mix of sizes
 const addDesignToCart = async (id, items) => (await axios.post(`${API_URL}/${id}/cart`, { items }, auth())).data;
+// admin: the custom designs in an order, ready to make print files
+const getOrderPrintPack = async (orderId) => (await axios.get(`${API_URL}/admin/order/${orderId}`, auth())).data;
 
 const customizationService = {
   getPrintPositions,
@@ -58,6 +60,7 @@ const customizationService = {
   duplicateDesign,
   deleteDesign,
   addDesignToCart,
+  getOrderPrintPack,
 };
 
 export default customizationService;
