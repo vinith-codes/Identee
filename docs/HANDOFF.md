@@ -9,9 +9,11 @@ _Last updated: 9 Oct 2026 (end of chat 2). Read this first, then `docs/PHASE1_PR
 
 **Garment set-up wizard** on branch `feature-garment-wizard` (from `feature-admin-redesign`): Admin → Customizable list + 6-step wizard, 15 print areas per garment, garment-photo writes now admin-only — see PHASE1_PROGRESS §6e.
 
-**NEXT:** user tests → "merge" (merge in order: `feature-customizer-part-a` → `feature-admin-redesign` → `feature-garment-wizard`, all fast-forward) → size-accurate print boxes (customer picks a size; box = cm × px-per-cm from that size's chart).
+**MERGED to `main` (9 Oct 2026):** `feature-customizer-part-a`, `feature-admin-redesign`, `feature-garment-wizard` (fast-forward, pushed). Old branches can be deleted later.
 
-**Still waiting on the user for:** (1) photo licence confirmation for the white oversized-tee mockup (or client's own photos), (2) "yes, set it up" to go live with the Oversized Tee garment, (3) "merge" for `feature-customizer-part-a`.
+**NEXT:** size-accurate print boxes (customer picks a size; box = cm × px-per-cm from that size's chart) on a new branch from `main`.
+
+**Still waiting on the user for:** photo licence confirmation for the white oversized-tee mockup (or client's own photos); the client's measurement-sheet answers.
 
 **"Set it up" means:** upload the 48 images in `E:\AI CUSTOMIZATION\identee-private-assets\oversized-images\` to Cloudinary `identee/garments`; create GarmentType `oversized-tee` (label "Oversized Tee", category string "Oversized" so it joins the T-Shirts category styles, 12 colours with slugs/hex from `server/scripts/garment-images/build_oversized.py`), and a `garmentcolorimages` doc per colour with front/back/left/right imageUrl; set print areas to match the images (see calibration below). Ask before writing to the shared DB. Optionally hide Polos/Hoodies/Sweatshirts/Kids' Wear categories (asked, not yet approved).
 
