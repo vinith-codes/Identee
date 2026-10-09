@@ -203,8 +203,11 @@ export default function DesignRoomPage() {
 
   /* ---------- open a saved design: /customize/<garment>?design=<id> ---------- */
   const openId = params.get("design");
+  const onScreenId = useRef(null); // id of the saved design currently shown (set on load and on save)
   useEffect(() => {
-    if (!openId || !isLoggedIn()) return;
+    // after Save the address gets ?design=<id> of the design already on screen —
+    // nothing to load (re-loading would jump back from Review to Design)
+    if (!openId || !isLoggedIn() || openId === onScreenId.current) return;
     let alive = true;
     customizationService
       .getCustomizationById(openId)
@@ -214,6 +217,7 @@ export default function DesignRoomPage() {
         setElements(d.elements.map((e) => ({ ...e, id: e._id || e.id || makeId() })));
         setColourSlug(d.color);
         if (d.size) setSize(d.size);
+        onScreenId.current = d._id;
         setDesignId(d._id);
         setDesignName(d.name || "");
         setLocked(!!d.orderedAt);
@@ -571,6 +575,7 @@ export default function DesignRoomPage() {
         saved = await customizationService.createDesign(body);
         copied = !!(designId && locked);
       }
+      onScreenId.current = saved._id;
       setDesignId(saved._id);
       setDesignName(saved.name);
       setLocked(false);
