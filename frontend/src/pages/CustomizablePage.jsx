@@ -85,7 +85,7 @@ export default function CustomizablePage() {
           </p>
         )}
 
-        {shown.map((group, i) => (
+        {shown.map((group) => (
           <section key={group.key} style={{ marginBottom: 40 }}>
             {(groups.length > 1 || only) && (
               <h2
@@ -99,11 +99,7 @@ export default function CustomizablePage() {
                 {group.name}
               </h2>
             )}
-            <CustomizableGarments
-              garments={group.garments}
-              images={images}
-              howItWorks={i === shown.length - 1}
-            />
+            <CustomizableGarments garments={group.garments} images={images} />
           </section>
         ))}
       </main>
