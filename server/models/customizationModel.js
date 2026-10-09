@@ -57,6 +57,7 @@ const customizationSchema = new mongoose.Schema(
   {
     garmentType: { type: String, required: true }, // e.g. "round-neck-tshirt"
     color: { type: String, required: true }, // colour slug, e.g. "black"
+    size: { type: String, default: null }, // garment size the customer designed for, e.g. "M"
     user: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
     layoutVersion: { type: Number, default: 1 },
     elements: {

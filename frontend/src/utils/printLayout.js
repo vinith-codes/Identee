@@ -5,10 +5,17 @@
 // (x / y / width / height in % of that frame) can be used directly.
 //
 // For each side, the MAIN position (centre-front, full-back, sleeves) uses
-// the admin's print area when one has been set, otherwise a sensible
-// default. Its real size in cm gives the side's cm-per-% scale, and the
-// other positions on that side (left/right chest) are placed and sized
-// from that scale, so their proportions always match the real print sizes.
+// the admin's print zone when one has been set, otherwise a sensible
+// default. The zone fixes WHERE the main print sits (its centre line and
+// top edge); the other positions on that side are placed from it.
+//
+// HOW BIG things are comes from the scale (stage-width % per cm):
+//   - Size-accurate (garment has a photo ruler + size chart): the ruler
+//     marks the shoulder top and hem on the photo, so for the chosen size
+//     perCm = ruler height / that size's length. A 3XL (34") is longer
+//     than an M (30"), so the same print looks smaller on it — as in real
+//     life. Print sizes also change per size range (XS–S / M–XL / 2XL–3XL).
+//   - Otherwise: the main print's M–XL size fitted into the zone.
 
 const STAGE_ASPECT = 4 / 5; // width / height
 // % of stage height per 1% of stage width (to work in square units)
@@ -48,19 +55,36 @@ const fitAspect = (area, wCm, hCm) => {
 
 const clamp = (n, min, max) => Math.min(Math.max(n, min), max);
 
+const CM_PER_INCH = 2.54;
+
+/**
+ * Stage-width % per cm for a garment size, from the photo ruler.
+ * @param {{topPct:number, hemPct:number}} ruler  shoulder top / hem, % of stage height
+ * @param {number} lengthIn  the size's length from the size chart (inches)
+ */
+export const rulerPerCm = (ruler, lengthIn) => {
+  if (!ruler || !(ruler.hemPct > ruler.topPct) || !(lengthIn > 0)) return null;
+  // stage height = stage width / STAGE_ASPECT
+  return ((ruler.hemPct - ruler.topPct) / STAGE_ASPECT) / (lengthIn * CM_PER_INCH);
+};
+
 /**
  * @param {Array} positions  from GET /api/customizations/print-positions
  * @param {object} colorDoc  garment colour photo doc (front/back/left/right.printArea)
  * @param {object} [scales]  per side, the main print's M–XL cm (same endpoint)
+ * @param {object} [opts]
+ * @param {string} [opts.group]     size range: small | standard | large (default standard)
+ * @param {number} [opts.perCm]     size-accurate scale from rulerPerCm(); omit to use the zone
  * @returns {Object<string, {left, top, width, height}>} stage-% box per position key
  */
-export const resolvePrintBoxes = (positions, colorDoc, scales = {}) => {
+export const resolvePrintBoxes = (positions, colorDoc, scales = {}, opts = {}) => {
+  const group = opts.group || "standard";
   const boxes = {};
   const bySide = {};
   for (const p of positions || []) (bySide[p.side] ||= []).push(p);
 
   for (const [side, list] of Object.entries(bySide)) {
-    // The main print (centre front / full back / sleeve) sets the scale,
+    // The main print (centre front / full back / sleeve) anchors the side,
     // even when it isn't offered on this garment.
     const main = list.find((p) => p.main);
     const [mw, mh] = scales[side] || main?.cm.standard || list[0].cm.standard;
@@ -68,19 +92,24 @@ export const resolvePrintBoxes = (positions, colorDoc, scales = {}) => {
     const area = isUnsetArea(adminArea)
       ? DEFAULT_MAIN_BOX[side] || DEFAULT_MAIN_BOX.front
       : { left: adminArea.x, top: adminArea.y, width: adminArea.width, height: adminArea.height };
-    const mainBox = fitAspect(area, mw, mh);
+    const anchor = fitAspect(area, mw, mh); // where the M–XL main print sits
+    const perCm = opts.perCm || anchor.width / mw;
+    const centreX = anchor.left + anchor.width / 2;
+    const anchorTop = anchor.top;
 
-    // stage-width % per cm on this side
-    const perCm = mainBox.width / mw;
-    const centreX = mainBox.left + mainBox.width / 2;
     for (const p of list) {
-      if (p.main) {
-        boxes[p.key] = mainBox;
-        continue;
-      }
-      const [w, h] = p.cm.standard;
+      const [w, h] = p.cm[group] || p.cm.standard;
       const width = w * perCm;
       const height = h * perCm * H_PER_W;
+      if (p.main) {
+        boxes[p.key] = {
+          left: clamp(centreX - width / 2, 0, Math.max(0, 100 - width)),
+          top: clamp(anchorTop, 0, Math.max(0, 100 - height)),
+          width,
+          height,
+        };
+        continue;
+      }
       const place = p.place || { align: p.key.startsWith("left") ? "wearer-left" : "wearer-right", gapCm: 4, topCm: 0 };
       const gap = (place.gapCm || 0) * perCm;
       // Wearer's LEFT appears on the viewer's RIGHT.
@@ -90,10 +119,10 @@ export const resolvePrintBoxes = (positions, colorDoc, scales = {}) => {
           : place.align === "wearer-right"
             ? centreX - gap - width
             : centreX - width / 2;
-      const top = mainBox.top + (place.topCm || 0) * perCm * H_PER_W;
+      const top = anchorTop + (place.topCm || 0) * perCm * H_PER_W;
       boxes[p.key] = {
-        left: clamp(left, 0, 100 - width),
-        top: clamp(top, 0, 100 - height),
+        left: clamp(left, 0, Math.max(0, 100 - width)),
+        top: clamp(top, 0, Math.max(0, 100 - height)),
         width,
         height,
       };

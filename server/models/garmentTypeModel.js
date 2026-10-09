@@ -56,6 +56,13 @@ const garmentTypeSchema = new mongoose.Schema(
     sizes: { type: [String], default: [] },
     sizeChart: { type: [sizeChartRowSchema], default: [] },
     printAreas: { type: [printAreaSettingSchema], default: [] }, // empty = the 6 standard areas
+    // Where the garment's shoulder top and hem are on its (front) photo, in %
+    // of the 4:5 photo frame's height. With the size chart's length this
+    // gives the real cm scale for each size (size-accurate print boxes).
+    photoRuler: {
+      topPct: { type: Number, default: null },
+      hemPct: { type: Number, default: null },
+    },
   },
   { timestamps: true },
 );

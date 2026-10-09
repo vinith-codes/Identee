@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import {
   useParams,
   useSearchParams,
@@ -22,7 +22,7 @@ import Garment3DViewer from "../components/Garment3DViewer";
 import tshirtModel from "../assets/models/tshirt.glb";
 import { imageUrl } from "../utils/imageUrl";
 import customizationService from "../services/customizationService";
-import { resolvePrintBoxes, elementToStage, sizeLabel } from "../utils/printLayout";
+import { resolvePrintBoxes, elementToStage, sizeLabel, rulerPerCm } from "../utils/printLayout";
 const C = {
   bg: "#FFFCF7",
   panel: "#F7F2E7",
@@ -116,6 +116,16 @@ const googleFontHref = (font) =>
 
 // Unsaved designs are kept per garment + colour on this device.
 const draftKeyFor = (type, color) => `identee:design:${type}:${color}`;
+
+// The garment size the customer last designed for (a per-browser convenience).
+const SIZE_KEY = "identee:size";
+const readSavedSize = () => {
+  try {
+    return localStorage.getItem(SIZE_KEY) || "M";
+  } catch {
+    return "M";
+  }
+};
 const loadDraft = (type, color) => {
   try {
     const saved = JSON.parse(localStorage.getItem(draftKeyFor(type, color)) || "null");
@@ -196,12 +206,12 @@ export default function CustomizePage() {
   const [canvasSize, setCanvasSize] = useState(DEFAULT_CANVAS_SIZE);
 
   // Print positions (Centre Front, Left Chest…) with real cm sizes, the
-  // size range whose cm sizes are shown, and the position new elements
-  // are added to on each side.
+  // garment size the customer is designing for, and the position new
+  // elements are added to on each side.
   const [positions, setPositions] = useState([]);
   const [scales, setScales] = useState({});
   const [sizeGroups, setSizeGroups] = useState([]);
-  const [sizeGroup, setSizeGroup] = useState("standard");
+  const [pickedSize, setPickedSize] = useState(readSavedSize);
   const [activePositionBySide, setActivePositionBySide] = useState({});
 
   const [viewMode, setViewMode] = useState("flat"); // "flat" | "3d"
@@ -284,10 +294,31 @@ export default function CustomizePage() {
   const visibleElements = elements.filter((el) => el.side === currentSide);
   const selectedEl = visibleElements.find((el) => el.id === selectedId);
 
-  const boxes = useMemo(
-    () => resolvePrintBoxes(positions, colorDoc, scales),
-    [positions, colorDoc, scales],
-  );
+  // Size-accurate preview: the chosen size picks the print sizes (XS–S /
+  // M–XL / 2XL–3XL) and — when the garment has a photo ruler and size
+  // chart — the real cm scale of the photo for that size.
+  const garmentSizes = garment?.sizes?.length
+    ? garment.sizes
+    : sizeGroups.flatMap((g) => g.sizes);
+  const size = garmentSizes.includes(pickedSize)
+    ? pickedSize
+    : garmentSizes.includes("M")
+      ? "M"
+      : garmentSizes[0] || "M";
+  const sizeGroup = sizeGroups.find((g) => g.sizes.includes(size))?.key || "standard";
+  const chartRow = garment?.sizeChart?.find((r) => r.size === size);
+  const perCm = rulerPerCm(garment?.photoRuler, chartRow?.length);
+  const chooseSize = (s) => {
+    setPickedSize(s);
+    try {
+      localStorage.setItem(SIZE_KEY, s);
+    } catch {
+      // storage blocked — the size just isn't remembered
+    }
+  };
+
+  // cheap to work out, so no memo
+  const boxes = resolvePrintBoxes(positions, colorDoc, scales, { group: sizeGroup, perCm });
   const sidePositions = positions.filter((p) => p.side === currentSide);
   const activePosition =
     sidePositions.find((p) => p.key === activePositionBySide[currentSide]) ||
@@ -906,7 +937,7 @@ export default function CustomizePage() {
       return;
     }
     const result = await dispatch(
-      saveCustomization({ garmentType: type, color: color.slug, elements }),
+      saveCustomization({ garmentType: type, color: color.slug, elements, size }),
     );
     if (saveCustomization.fulfilled.match(result)) {
       const customizationId = result.payload._id;
@@ -920,7 +951,7 @@ export default function CustomizePage() {
               images: [],
               price: totalPrice,
             },
-            size: "Custom",
+            size,
             qty: 1,
           },
         });
@@ -1268,20 +1299,31 @@ export default function CustomizePage() {
                   </button>
                 );
               })}
-              {sizeGroups.length > 0 && (
-                <select
-                  aria-label="Garment size range"
-                  value={sizeGroup}
-                  onChange={(e) => setSizeGroup(e.target.value)}
-                  title="Print sizes depend on the garment size"
-                  style={{ fontSize: 12, padding: "5px 8px", borderRadius: 8, border: `1px solid ${C.border}`, background: "#fff" }}
+              {garmentSizes.length > 0 && (
+                <label
+                  style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, color: C.muted, fontWeight: 600 }}
+                  title={perCm ? "The preview is drawn to scale for this size" : "Print sizes depend on the garment size"}
                 >
-                  {sizeGroups.map((g) => (
-                    <option key={g.key} value={g.key}>
-                      Sizes {g.label}
-                    </option>
-                  ))}
-                </select>
+                  Your size
+                  <select
+                    aria-label="Garment size"
+                    value={size}
+                    onChange={(e) => chooseSize(e.target.value)}
+                    style={{ fontSize: 12, padding: "5px 8px", borderRadius: 8, border: `1px solid ${C.border}`, background: "#fff", color: C.ink, fontWeight: 700 }}
+                  >
+                    {garmentSizes.map((s) => (
+                      <option key={s} value={s}>
+                        {s}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
+              {chartRow?.chest && (
+                <span style={{ flexBasis: "100%", textAlign: "center", fontSize: 11, color: C.muted }}>
+                  {size}: chest {chartRow.chest}″ · length {chartRow.length}″
+                  {perCm ? " · preview to scale" : ""}
+                </span>
               )}
             </div>
           )}

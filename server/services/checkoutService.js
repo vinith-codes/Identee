@@ -10,6 +10,7 @@ import ShippingCost from "../models/shippingcostModel.js";
 import Offer from "../models/OfferModel.js";
 import { applySubscriptionPrice } from "../utils/applySubscriptionPrice.js";
 import { addressProblem } from "../utils/address.js";
+import { SIZES } from "../data/printPositions.js";
 
 export const GST_PERCENT = { cgst: 2.5, sgst: 2.5 };
 const MAX_QTY_PER_LINE = 100;
@@ -75,13 +76,18 @@ const customizationLine = async (customizationId, qty, size, user) => {
     addOn = artIds.reduce((sum, id) => sum + (priceById[id.toString()] || 0), 0);
   }
 
+  // Size: the one chosen at checkout, else the one the design was made for.
+  const sizes = garment.sizes?.length ? garment.sizes : SIZES;
+  const chosen = size && size !== "Custom" ? String(size) : customization.size || null;
+  if (chosen && !sizes.includes(chosen)) throw new HttpError(400, "This size isn't available for this garment");
+
   const unitPrice = round2((garment.basePrice || 0) + addOn);
   return {
     product: null,
     customization: customization._id.toString(),
     name: `${garment.label} — Custom Design`,
     image: "",
-    size: String(size || "Custom"),
+    size: chosen || "Custom",
     qty,
     unitPrice,
     price: round2(unitPrice * qty),

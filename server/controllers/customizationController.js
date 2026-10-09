@@ -97,7 +97,7 @@ export const uploadDesignImage = (req, res) => {
 // POST /api/customizations  (login required)
 export const createCustomization = async (req, res) => {
   try {
-    const { garmentType, color, elements } = req.body;
+    const { garmentType, color, elements, size } = req.body;
 
     if (!garmentType || !color) {
       return res.status(400).json({ message: "garmentType and color are required" });
@@ -110,6 +110,11 @@ export const createCustomization = async (req, res) => {
     }
     const garment = await GarmentType.findOne({ key: String(garmentType), isActive: true });
     if (!garment) return res.status(400).json({ message: "This garment is not available" });
+    // The size the customer designed for must be one this garment comes in.
+    const sizes = garment.sizes?.length ? garment.sizes : SIZES;
+    if (size !== undefined && size !== null && !sizes.includes(String(size))) {
+      return res.status(400).json({ message: "This size isn't available for this garment" });
+    }
     const positionByKey = Object.fromEntries(
       positionsForGarment(garment).positions.map((p) => [p.key, p]),
     );
@@ -117,6 +122,7 @@ export const createCustomization = async (req, res) => {
     const customization = await Customization.create({
       garmentType: garment.key,
       color: String(color).slice(0, 60),
+      size: size ? String(size) : null,
       user: req.user._id,
       layoutVersion: 2,
       elements: elements.map(cleanElement(positionByKey)),

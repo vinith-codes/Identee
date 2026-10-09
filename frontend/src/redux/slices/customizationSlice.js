@@ -30,12 +30,13 @@ export const uploadDesignImage = createAsyncThunk(
 // backend changes.
 export const saveCustomization = createAsyncThunk(
   "customization/saveCustomization",
-  async ({ garmentType, color, elements }, thunkAPI) => {
+  async ({ garmentType, color, elements, size }, thunkAPI) => {
     try {
       return await customizationService.saveCustomization(
         garmentType,
         color,
         elements,
+        size,
       );
     } catch (error) {
       return thunkAPI.rejectWithValue(

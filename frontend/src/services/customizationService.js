@@ -25,8 +25,9 @@ const uploadDesignImage = async (file) => {
 };
 
 // elements use layout v2: { position, x, y, width, height, ... } in % of the print box
-const saveCustomization = async (garmentType, color, elements) => {
-  const res = await axios.post(API_URL, { garmentType, color, elements }, auth());
+// size = the garment size the customer designed for (e.g. "M")
+const saveCustomization = async (garmentType, color, elements, size) => {
+  const res = await axios.post(API_URL, { garmentType, color, elements, size }, auth());
   return res.data;
 };
 

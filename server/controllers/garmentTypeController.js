@@ -150,6 +150,14 @@ export const updateGarmentType = asyncHandler(async (req, res) => {
         return { key: p.key, offered: !!p.offered, width: sized ? width : null, height: sized ? height : null };
       });
   }
+  if (b.photoRuler !== undefined) {
+    const top = num(b.photoRuler?.topPct);
+    const hem = num(b.photoRuler?.hemPct);
+    if (top === null || hem === null || top < 0 || hem > 100 || hem - top < 20) {
+      badRequest(res, "Photo ruler: the hem line must be well below the shoulder line");
+    }
+    item.photoRuler = { topPct: Math.round(top * 100) / 100, hemPct: Math.round(hem * 100) / 100 };
+  }
   if (b.isActive !== undefined) item.isActive = !!b.isActive;
 
   await item.save();

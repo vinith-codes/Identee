@@ -425,6 +425,24 @@ Element positions were % of the whole editor canvas; one hard-coded dashed box (
 
 **Tested** on a local copy of the data (ports 5099/5174): every step saved, Full Front offered → appears in the customizer, zone drag saved for 12 colours, unauthenticated writes → 401, drafts hidden from the public list.
 
+## 6f. Size-accurate print boxes (DONE on branch `feature-size-accurate-prints`)
+
+**Before:** the customizer showed one print box size for everyone (a "Sizes M–XL" range picker only changed the cm label), so a design looked the same on an XS and a 3XL.
+
+**Now:** the customer picks **their size** (XS–3XL, only the sizes the garment comes in; remembered in the browser). The preview is drawn to scale for that size:
+
+- **Print size** comes from the print guide for the size range (e.g. Centre Front XS–S 24×28, M–XL 28×32, 2XL–3XL 32×36 cm).
+- **Photo scale** comes from the garment's **photo ruler** (Admin → Customizable → wizard step 5: two red lines on the front photo — shoulder top and hem) and the size chart length: `cm-per-% = (hem − top) ÷ 0.8 ÷ (length″ × 2.54)`. Example Oversized Tee: M (30″) Centre Front = 29.40 % of the photo width, XS (28″, 24 cm print) = 27.00 %, 3XL (34″, 32 cm print) = 29.64 %. Within one range a longer size shows the same print a little smaller — as in real life.
+- Garments without a ruler fall back to the old scale (the print zone).
+- The customizer shows "M: chest 46″ · length 30″ · preview to scale".
+- The chosen size is saved on the design (`customizations.size`, validated against the garment's sizes) and passed to Buy Now; checkout uses the size picked there, else the design's size, and rejects sizes the garment doesn't come in.
+
+**To switch it on for the real Oversized Tee:** Admin → Customizable → Oversized Tee → step 5 → **Save photo ruler** (the default lines already match the generated photos: 23.6 % / 87.6 %).
+
+**Files:** `frontend/src/utils/printLayout.js` (`rulerPerCm`, `resolvePrintBoxes(..., { group, perCm })`), `pages/CustomizePage.jsx`, `pages/admin/garmentSetup/PrintAreasStep.jsx`; server `models/garmentTypeModel.js` (`photoRuler`), `models/customizationModel.js` (`size`), `controllers/garmentTypeController.js`, `controllers/customizationController.js`, `services/checkoutService.js`.
+
+**Tested** on a local copy: ruler saved; box widths per size match the formula in both the wizard and the customizer; design saved with size 3XL; quote line size = 3XL when "Custom", L when L chosen; 5XL / 9XL rejected.
+
 ## 7. Phase 1 — remaining steps (audit findings)
 
 ### Step 3: Customization

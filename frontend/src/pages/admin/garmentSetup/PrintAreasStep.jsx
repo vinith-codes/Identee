@@ -3,10 +3,13 @@
 // can use. Areas without a size in the guide need a size (cm) first.
 // The blue dashed box is the print zone for that side — drag it (or its
 // corner) to line it up with the photo; it's saved for every colour.
+// The two red lines (front view) are the photo ruler: shoulder top and hem.
+// With the size chart they give the real cm scale for every size, so the
+// preview — here and in the customizer — is true to size.
 import { useMemo, useRef, useState } from "react";
 import garmentImageService from "../../../services/garmentImageService";
 import { imageUrl } from "../../../utils/imageUrl";
-import { resolvePrintBoxes } from "../../../utils/printLayout";
+import { resolvePrintBoxes, rulerPerCm } from "../../../utils/printLayout";
 import { AW } from "./wizardStyles";
 import SaveRow from "./SaveRow";
 
@@ -17,10 +20,19 @@ const VIEW_GROUPS = [
   ["right", "Right sleeve"],
 ];
 const SIZE_GROUPS = [
-  ["small", "XS – S", -4],
-  ["standard", "M – XL", 0],
-  ["large", "2XL – 3XL", 4],
+  ["small", ["XS", "S"], -4],
+  ["standard", ["M", "L", "XL"], 0],
+  ["large", ["2XL", "3XL"], 4],
 ];
+const ALL_SIZES = ["XS", "S", "M", "L", "XL", "2XL", "3XL"];
+const groupOf = (size) => SIZE_GROUPS.find((g) => g[1].includes(size))?.[0] || "standard";
+const stepOf = (g) => SIZE_GROUPS.find((x) => x[0] === g)[2];
+// [w, h] at M–XL -> cm per size range (print-guide rule: ±4 cm)
+const groupCm = (w, h) =>
+  Object.fromEntries(SIZE_GROUPS.map(([g, , step]) => [g, [Math.max(2, w + step), Math.max(2, h + step)]]));
+// Starting ruler for the generated IDENTEE photos (800×1000 canvas: shoulder
+// top y=236, hem y=876 — server/scripts/garment-images/oversized_calibration.json).
+const DEFAULT_RULER = { topPct: 23.6, hemPct: 87.6 };
 const DEFAULT_ZONE = {
   front: { x: 36, y: 27, width: 28, height: 25.6 },
   back: { x: 31, y: 24, width: 38, height: 33.6 },
@@ -42,7 +54,14 @@ export default function PrintAreasStep({ garment, catalog, images, save, saving,
     })),
   );
   const [selected, setSelected] = useState("centre-front");
-  const [group, setGroup] = useState("standard");
+  const sizes = garment.sizes?.length ? garment.sizes : ALL_SIZES;
+  const [previewSize, setPreviewSize] = useState(sizes.includes("M") ? "M" : sizes[0]);
+  const group = groupOf(previewSize);
+  const savedRuler = garment.photoRuler?.topPct != null ? garment.photoRuler : null;
+  const [rulerDraft, setRulerDraft] = useState(null); // unsaved ruler being dragged
+  const ruler = rulerDraft || savedRuler || DEFAULT_RULER;
+  const chartRow = garment.sizeChart?.find((r) => r.size === previewSize);
+  const perCm = rulerPerCm(ruler, chartRow?.length);
   const [zones, setZones] = useState({}); // side -> zone being edited (unsaved)
   const [zoneMsg, setZoneMsg] = useState("");
   const [zoneSaving, setZoneSaving] = useState(false);
@@ -74,7 +93,7 @@ export default function PrintAreasStep({ garment, catalog, images, save, saving,
     .filter((d) => (d.offered || d.key === selected) && sized(d))
     .map((d) => {
       const a = info(d.key);
-      return { key: a.key, label: a.label, side: a.side, main: a.main, place: a.place, cm: { standard: [Number(d.width), Number(d.height)] } };
+      return { key: a.key, label: a.label, side: a.side, main: a.main, place: a.place, cm: groupCm(Number(d.width), Number(d.height)) };
     });
   const scales = Object.fromEntries(
     catalog.filter((a) => a.main).map((a) => {
@@ -83,17 +102,19 @@ export default function PrintAreasStep({ garment, catalog, images, save, saving,
     }),
   );
   const previewDoc = { [view]: { printArea: zone } };
-  const boxes = resolvePrintBoxes(positions.filter((p) => p.side === view), previewDoc, scales);
+  const boxes = resolvePrintBoxes(positions.filter((p) => p.side === view), previewDoc, scales, { group, perCm });
 
   /* ---- drag the zone ---- */
   const drag = useRef(null);
-  // data-drag="move" on the zone, "resize" on its corner handle
+  // data-drag="move" on the zone, "resize" on its corner handle,
+  // "ruler-top" / "ruler-hem" on the ruler lines
   const onPointerDown = (e) => {
     const mode = e.target.dataset.drag;
     if (!mode) return;
     e.preventDefault();
     e.currentTarget.setPointerCapture(e.pointerId);
-    drag.current = { mode, sx: e.clientX, sy: e.clientY, start: zone, rect: e.currentTarget.getBoundingClientRect() };
+    const start = mode.startsWith("ruler") ? ruler : zone;
+    drag.current = { mode, sx: e.clientX, sy: e.clientY, start, rect: e.currentTarget.getBoundingClientRect() };
   };
   const onPointerMove = (e) => {
     const d = drag.current;
@@ -101,6 +122,14 @@ export default function PrintAreasStep({ garment, catalog, images, save, saving,
     const dx = ((e.clientX - d.sx) / d.rect.width) * 100;
     const dy = ((e.clientY - d.sy) / d.rect.height) * 100;
     const s = d.start;
+    if (d.mode === "ruler-top") {
+      setRulerDraft({ ...s, topPct: clamp(s.topPct + dy, 0, s.hemPct - 20) });
+      return;
+    }
+    if (d.mode === "ruler-hem") {
+      setRulerDraft({ ...s, hemPct: clamp(s.hemPct + dy, s.topPct + 20, 100) });
+      return;
+    }
     const next =
       d.mode === "move"
         ? { ...s, x: clamp(s.x + dx, 0, 100 - s.width), y: clamp(s.y + dy, 0, 100 - s.height) }
@@ -130,10 +159,15 @@ export default function PrintAreasStep({ garment, catalog, images, save, saving,
     }
   };
 
+  const saveRuler = async () => {
+    const ok = await save({ photoRuler: ruler }, "Photo ruler saved — previews are now true to size");
+    if (ok) setRulerDraft(null);
+  };
+
   const offeredCount = draft.filter((d) => d.offered).length;
   const cmText = (d, g) => {
     if (!sized(d)) return "size not set";
-    const step = SIZE_GROUPS.find((x) => x[0] === g)[2];
+    const step = stepOf(g);
     return `${Math.max(2, Number(d.width) + step)} × ${Math.max(2, Number(d.height) + step)} cm`;
   };
 
@@ -161,13 +195,18 @@ export default function PrintAreasStep({ garment, catalog, images, save, saving,
       </p>
 
       <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", margin: "14px 0 4px" }}>
-        <span style={{ fontSize: 13, fontWeight: 700, color: "#5C5547" }}>Show sizes for</span>
-        {SIZE_GROUPS.map(([k, label]) => (
-          <button key={k} type="button" className={`aw-chip${group === k ? " on" : ""}`} onClick={() => setGroup(k)}>
-            {label}
+        <span style={{ fontSize: 13, fontWeight: 700, color: "#5C5547" }}>Preview size</span>
+        {sizes.map((sz) => (
+          <button key={sz} type="button" className={`aw-chip${previewSize === sz ? " on" : ""}`} onClick={() => setPreviewSize(sz)}>
+            {sz}
           </button>
         ))}
       </div>
+      <p className="aw-help" style={{ marginTop: 2 }}>
+        {chartRow?.length
+          ? `${previewSize}: length ${chartRow.length}″ — boxes are drawn to scale for this size${savedRuler ? "" : " (once the photo ruler is saved)"}.`
+          : "Fill in the size chart (step 2) to see true-to-size boxes."}
+      </p>
 
       <div className="aw-areas" style={{ marginTop: 12 }}>
         {/* area list */}
@@ -258,7 +297,43 @@ export default function PrintAreasStep({ garment, catalog, images, save, saving,
                 />
               );
             })}
+
+            {/* photo ruler: shoulder top + hem, measured on the front photo */}
+            {view === "front" &&
+              [
+                ["ruler-top", ruler.topPct, "Shoulder top"],
+                ["ruler-hem", ruler.hemPct, "Hem"],
+              ].map(([mode, pct, label]) => (
+                <div
+                  key={mode}
+                  data-drag={mode}
+                  title={`Drag to the ${label.toLowerCase()} line`}
+                  style={{ position: "absolute", left: 0, right: 0, top: `calc(${pct}% - 8px)`, height: 16, cursor: "ns-resize" }}
+                >
+                  <div style={{ position: "absolute", left: 0, right: 0, top: 7, borderTop: "2px dashed #D9412B", pointerEvents: "none" }} />
+                  <span
+                    style={{ position: "absolute", left: 6, top: mode === "ruler-top" ? -14 : 12, fontSize: 10.5, fontWeight: 800, color: "#fff", background: "#D9412B", padding: "1px 6px", borderRadius: 4, pointerEvents: "none" }}
+                  >
+                    {label}
+                  </span>
+                </div>
+              ))}
           </div>
+
+          {view === "front" && (
+            <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginTop: 8 }}>
+              {(rulerDraft || !savedRuler) && (
+                <button type="button" className="aw-btn light" onClick={saveRuler} disabled={saving}>
+                  Save photo ruler
+                </button>
+              )}
+              <span className="aw-help" style={{ margin: 0 }}>
+                {savedRuler && !rulerDraft
+                  ? "Red lines = photo ruler (saved). Previews are true to size."
+                  : "Red lines = photo ruler: drag them to the top of the shoulder and the bottom hem, then save. This makes every size's preview true to scale."}
+              </span>
+            </div>
+          )}
 
           <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginTop: 8 }}>
             {zones[view] && (
