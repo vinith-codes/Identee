@@ -402,6 +402,29 @@ Element positions were % of the whole editor canvas; one hard-coded dashed box (
 
 **Next:** Oversized Tee setup wizard (fabrics, sizes, colours, photos, 15-area print gallery) to replace "Garment Types" + "Garment Photos" under Customizable.
 
+## 6e. Admin redesign — Part 2: garment set-up wizard (DONE on branch `feature-garment-wizard`)
+
+**Before:** setting up a customizable garment meant two separate pages (Garment Types for name/price/colours, Garment Photos for photos + one draggable box per colour per view), and the customizer always offered the same 6 print positions for every garment. The garment-photo upload/edit/delete endpoints had **no login check**.
+
+**Now (as in the admin prototype):** Admin → **Customizable** lists every garment (Live / Draft, colours, photos, price) with **+ Add garment** (new ones start as drafts). Each garment opens a 6-step wizard at `/admin/customizable/<key>?step=N`:
+
+| Step | What the admin does | Saved to |
+|---|---|---|
+| 1 Basics | Name, fit (oversized/regular), fabrics (240 GSM Cotton, French Terry — from the product sheet), starting price, which store category it appears in, description | `garmenttypes` (new fields: `fit`, `fabrics`, `description`) |
+| 2 Sizes | Turn XS–3XL on/off; size chart (inches) pre-filled from the product sheet, editable | `sizes`, `sizeChart` |
+| 3 Colours | The 12 product-sheet colours in one click, or add your own | `colors` |
+| 4 Photos | Grid colour × front/back/left/right; click a box to upload/replace (saves straight to Cloudinary) | `garmentcolorimages` |
+| 5 Print areas | All **15** areas from the print guide, grouped by side. Click one to see it on the photo; give it a size (cm, M–XL; XS–S −4, 2XL–3XL +4) and turn it on. Drag the blue print zone (or its corner) to line it up — saved for every colour at once | `printAreas` (+ `printArea` on each colour doc) |
+| 6 Publish | Checklist with Edit links; Publish is blocked until fabrics, price, size chart, colours, all photos and ≥1 area are done; Unpublish hides it again | `isActive` |
+
+**Customer side:** `GET /api/customizations/print-positions?garment=<key>` now returns that garment's offered areas, and the customizer shows only those (e.g. a Full Front chip appears once offered). Saving a design rejects areas the garment doesn't offer. Positions of the 9 new areas are estimates (`place` in `server/data/printPositions.js`) until the print team sends start distances.
+
+**Security fix:** `/api/garment-images` upload, print-area and delete now require an admin login.
+
+**Files:** `server/data/printPositions.js` (15-area catalog), `models/garmentTypeModel.js`, `controllers/garmentTypeController.js` (`updateGarmentType`, `adminGetGarmentTypes`, `adminGetGarmentType`), `controllers/garmentColorImageController.js` (`updatePrintAreaAllColours`), `controllers/customizationController.js`; frontend `pages/admin/CustomizableListPage.jsx`, `pages/admin/GarmentSetupWizard.jsx`, `pages/admin/garmentSetup/*`, `utils/productSheet.js`, `utils/printLayout.js`.
+
+**Tested** on a local copy of the data (ports 5099/5174): every step saved, Full Front offered → appears in the customizer, zone drag saved for 12 colours, unauthenticated writes → 401, drafts hidden from the public list.
+
 ## 7. Phase 1 — remaining steps (audit findings)
 
 ### Step 3: Customization

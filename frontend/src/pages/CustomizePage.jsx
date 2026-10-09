@@ -199,6 +199,7 @@ export default function CustomizePage() {
   // size range whose cm sizes are shown, and the position new elements
   // are added to on each side.
   const [positions, setPositions] = useState([]);
+  const [scales, setScales] = useState({});
   const [sizeGroups, setSizeGroups] = useState([]);
   const [sizeGroup, setSizeGroup] = useState("standard");
   const [activePositionBySide, setActivePositionBySide] = useState({});
@@ -240,15 +241,17 @@ export default function CustomizePage() {
     dispatch(fetchArtCategories());
   }, [dispatch]);
 
+  // Each garment offers its own print areas (Admin → Customizable → set-up).
   useEffect(() => {
     customizationService
-      .getPrintPositions()
+      .getPrintPositions(type)
       .then((d) => {
         setPositions(d.positions || []);
+        setScales(d.scales || {});
         setSizeGroups(d.sizeGroups || []);
       })
       .catch(() => {});
-  }, []);
+  }, [type]);
 
   // Load the text tool's Google Fonts once.
   useEffect(() => {
@@ -282,8 +285,8 @@ export default function CustomizePage() {
   const selectedEl = visibleElements.find((el) => el.id === selectedId);
 
   const boxes = useMemo(
-    () => resolvePrintBoxes(positions, colorDoc),
-    [positions, colorDoc],
+    () => resolvePrintBoxes(positions, colorDoc, scales),
+    [positions, colorDoc, scales],
   );
   const sidePositions = positions.filter((p) => p.side === currentSide);
   const activePosition =

@@ -3,12 +3,7 @@
 import mongoose from "mongoose";
 import Customization from "../models/customizationModel.js";
 import GarmentType from "../models/garmentTypeModel.js";
-import {
-  PRINT_POSITIONS,
-  POSITION_BY_KEY,
-  SIZES,
-  SIZE_GROUPS,
-} from "../data/printPositions.js";
+import { positionsForGarment, SIZES, SIZE_GROUPS } from "../data/printPositions.js";
 
 const MAX_ELEMENTS = 40;
 const clampNum = (v, min, max, fallback) => {
@@ -31,9 +26,10 @@ const isOurImage = (src) => {
 const badRequest = (message) => Object.assign(new Error(message), { status: 400 });
 
 // Validates + normalises one layout-v2 element from the client.
-const cleanElement = (el, i) => {
-  const pos = POSITION_BY_KEY[el?.position];
-  if (!pos) throw badRequest(`Element ${i + 1}: unknown print position`);
+// `positionByKey` = the print positions this garment offers.
+const cleanElement = (positionByKey) => (el, i) => {
+  const pos = positionByKey[el?.position];
+  if (!pos) throw badRequest(`Element ${i + 1}: this print position isn't available on this garment`);
 
   const base = {
     type: el.type,
@@ -78,9 +74,18 @@ const cleanElement = (el, i) => {
 };
 
 // GET /api/customizations/print-positions  (public)
-export const getPrintPositions = (req, res) => {
-  res.set("Cache-Control", "public, max-age=300");
-  res.json({ positions: PRINT_POSITIONS, sizes: SIZES, sizeGroups: SIZE_GROUPS });
+// ?garment=<key> returns that garment's offered areas (set in the admin
+// wizard); without it, the 6 standard ones.
+export const getPrintPositions = async (req, res) => {
+  try {
+    const key = req.query.garment ? String(req.query.garment) : null;
+    const garment = key ? await GarmentType.findOne({ key }).lean() : null;
+    const { positions, scales } = positionsForGarment(garment);
+    res.set("Cache-Control", "public, max-age=60");
+    res.json({ positions, scales, sizes: SIZES, sizeGroups: SIZE_GROUPS });
+  } catch (err) {
+    res.status(500).json({ message: err.message || "Could not load print positions" });
+  }
 };
 
 // POST /api/customizations/upload-design  (login required; multipart "design")
@@ -105,13 +110,16 @@ export const createCustomization = async (req, res) => {
     }
     const garment = await GarmentType.findOne({ key: String(garmentType), isActive: true });
     if (!garment) return res.status(400).json({ message: "This garment is not available" });
+    const positionByKey = Object.fromEntries(
+      positionsForGarment(garment).positions.map((p) => [p.key, p]),
+    );
 
     const customization = await Customization.create({
       garmentType: garment.key,
       color: String(color).slice(0, 60),
       user: req.user._id,
       layoutVersion: 2,
-      elements: elements.map(cleanElement),
+      elements: elements.map(cleanElement(positionByKey)),
     });
 
     res.status(201).json(customization);

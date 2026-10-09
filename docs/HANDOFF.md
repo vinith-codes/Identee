@@ -7,7 +7,9 @@ _Last updated: 9 Oct 2026 (end of chat 2). Read this first, then `docs/PHASE1_PR
 
 **DONE chat 3:** fixed the customizer "couldn't find" error (the 12 oversized photo docs lacked `isActive: true`; set it + added a loading guard). **Admin redesign Part 1** on branch `feature-admin-redesign` (from `feature-customizer-part-a`): 8-section menu, top bar, new Home with setup checklist / needs attention / today — see PHASE1_PROGRESS §6d.
 
-**NEXT:** user tests → "merge" (merge Part A first, then admin) → Oversized Tee setup wizard → size-accurate print boxes.
+**Garment set-up wizard** on branch `feature-garment-wizard` (from `feature-admin-redesign`): Admin → Customizable list + 6-step wizard, 15 print areas per garment, garment-photo writes now admin-only — see PHASE1_PROGRESS §6e.
+
+**NEXT:** user tests → "merge" (merge in order: `feature-customizer-part-a` → `feature-admin-redesign` → `feature-garment-wizard`, all fast-forward) → size-accurate print boxes (customer picks a size; box = cm × px-per-cm from that size's chart).
 
 **Still waiting on the user for:** (1) photo licence confirmation for the white oversized-tee mockup (or client's own photos), (2) "yes, set it up" to go live with the Oversized Tee garment, (3) "merge" for `feature-customizer-part-a`.
 

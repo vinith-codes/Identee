@@ -27,11 +27,9 @@ export const ADMIN_MENU = [
     key: "customizable",
     label: "Customizable",
     icon: "customizable",
-    to: "/admin/garment-types",
-    children: [
-      { to: "/admin/garment-types", label: "Garments, colours & price" },
-      { to: "/admin/garment-photos", label: "Photos & print areas" },
-    ],
+    to: "/admin/customizable",
+    // the old editors stay reachable (linked from the Customizable page)
+    match: ["/admin/customizable", "/admin/garment-types", "/admin/garment-photos"],
   },
   {
     key: "readymade",

@@ -145,3 +145,34 @@ export const uploadGarmentViewPhoto = async (req, res) => {
       .json({ message: err.message || "Could not upload garment photo" });
   }
 };
+
+// PUT /api/garment-images/print-area-all
+// Body: { garmentType, view, printArea: { x, y, width, height } }
+// Set-up wizard: one print box for a view, applied to every colour of the
+// garment (all colours share the same photo framing).
+export const updatePrintAreaAllColours = async (req, res) => {
+  try {
+    const { garmentType, view, printArea } = req.body;
+    if (!garmentType || !VALID_VIEWS.includes(view) || !printArea) {
+      return res.status(400).json({ message: "garmentType, view and printArea are required" });
+    }
+    const area = {};
+    for (const k of ["x", "y", "width", "height"]) {
+      const n = Number(printArea[k]);
+      if (!Number.isFinite(n) || n < 0 || n > 100) {
+        return res.status(400).json({ message: `printArea.${k} must be between 0 and 100` });
+      }
+      area[k] = Math.round(n * 100) / 100;
+    }
+    if (area.width < 2 || area.height < 2) {
+      return res.status(400).json({ message: "The print box is too small" });
+    }
+    const r = await GarmentColorImage.updateMany(
+      { garmentType: String(garmentType) },
+      { $set: { [`${view}.printArea`]: area } },
+    );
+    res.json({ updated: r.modifiedCount, printArea: area });
+  } catch (err) {
+    res.status(500).json({ message: err.message || "Could not update print areas" });
+  }
+};

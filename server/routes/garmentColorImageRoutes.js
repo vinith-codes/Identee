@@ -4,10 +4,11 @@ import {
   getGarmentImage,
   uploadGarmentViewPhoto,
   updatePrintArea,
+  updatePrintAreaAllColours,
   deleteGarmentImage,
 } from "../controllers/garmentColorImageController.js";
 import { uploadGarmentPhoto } from "../multer/multer.js";
-// import { protect, admin } from "../middleware/authMiddleware.js"; // uncomment if you want to guard admin-only routes
+import { protect, admin } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
@@ -16,13 +17,15 @@ router.get("/", getAllGarmentImages);
 router.get("/:garmentType/:colorSlug", getGarmentImage);
 router.post(
   "/upload-photo",
-  /* protect, admin, */ uploadGarmentPhoto,
+  protect, admin, uploadGarmentPhoto,
   uploadGarmentViewPhoto,
 );
-router.put("/print-area", /* protect, admin, */ updatePrintArea);
+router.put("/print-area", protect, admin, updatePrintArea);
+// one box for every colour of a garment (set-up wizard)
+router.put("/print-area-all", protect, admin, updatePrintAreaAllColours);
 router.delete(
   "/:garmentType/:colorSlug",
-  /* protect, admin, */ deleteGarmentImage,
+  protect, admin, deleteGarmentImage,
 );
 
 export default router;

@@ -46,39 +46,57 @@ const fitAspect = (area, wCm, hCm) => {
   };
 };
 
+const clamp = (n, min, max) => Math.min(Math.max(n, min), max);
+
 /**
  * @param {Array} positions  from GET /api/customizations/print-positions
  * @param {object} colorDoc  garment colour photo doc (front/back/left/right.printArea)
+ * @param {object} [scales]  per side, the main print's M–XL cm (same endpoint)
  * @returns {Object<string, {left, top, width, height}>} stage-% box per position key
  */
-export const resolvePrintBoxes = (positions, colorDoc) => {
+export const resolvePrintBoxes = (positions, colorDoc, scales = {}) => {
   const boxes = {};
   const bySide = {};
   for (const p of positions || []) (bySide[p.side] ||= []).push(p);
 
   for (const [side, list] of Object.entries(bySide)) {
-    const main = list.find((p) => p.main) || list[0];
-    const [mw, mh] = main.cm.standard;
+    // The main print (centre front / full back / sleeve) sets the scale,
+    // even when it isn't offered on this garment.
+    const main = list.find((p) => p.main);
+    const [mw, mh] = scales[side] || main?.cm.standard || list[0].cm.standard;
     const adminArea = colorDoc?.[side]?.printArea;
     const area = isUnsetArea(adminArea)
       ? DEFAULT_MAIN_BOX[side] || DEFAULT_MAIN_BOX.front
       : { left: adminArea.x, top: adminArea.y, width: adminArea.width, height: adminArea.height };
     const mainBox = fitAspect(area, mw, mh);
-    boxes[main.key] = mainBox;
 
     // stage-width % per cm on this side
     const perCm = mainBox.width / mw;
     const centreX = mainBox.left + mainBox.width / 2;
     for (const p of list) {
-      if (p === main) continue;
+      if (p.main) {
+        boxes[p.key] = mainBox;
+        continue;
+      }
       const [w, h] = p.cm.standard;
       const width = w * perCm;
       const height = h * perCm * H_PER_W;
-      // Chest prints: 4 cm either side of the centre line, level with the top
-      // of the main print. Wearer's LEFT chest appears on the viewer's RIGHT.
-      const gap = 4 * perCm;
-      const left = p.key.startsWith("left") ? centreX + gap : centreX - gap - width;
-      boxes[p.key] = { left, top: mainBox.top, width, height };
+      const place = p.place || { align: p.key.startsWith("left") ? "wearer-left" : "wearer-right", gapCm: 4, topCm: 0 };
+      const gap = (place.gapCm || 0) * perCm;
+      // Wearer's LEFT appears on the viewer's RIGHT.
+      const left =
+        place.align === "wearer-left"
+          ? centreX + gap
+          : place.align === "wearer-right"
+            ? centreX - gap - width
+            : centreX - width / 2;
+      const top = mainBox.top + (place.topCm || 0) * perCm * H_PER_W;
+      boxes[p.key] = {
+        left: clamp(left, 0, 100 - width),
+        top: clamp(top, 0, 100 - height),
+        width,
+        height,
+      };
     }
   }
   return boxes;

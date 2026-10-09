@@ -22,6 +22,16 @@ const addColor = async (id, name, hex) =>
   (await axios.post(`${API_URL}/${id}/colors`, { name, hex }, auth())).data;
 const removeColor = async (id, slug) =>
   (await axios.delete(`${API_URL}/${id}/colors/${slug}`, auth())).data;
+// Admin set-up wizard
+const adminListGarments = async () => (await axios.get(`${API_URL}/admin/all`, auth())).data;
+// { garment, printAreaCatalog }
+const adminGetGarment = async (key) =>
+  (await axios.get(`${API_URL}/admin/${encodeURIComponent(key)}`, auth())).data;
+const createDraftGarment = async (label, category, fit) =>
+  (await axios.post(API_URL, { label, category, fit, draft: true }, auth())).data;
+// patch: any of label, category, basePrice, description, fit, fabrics,
+// sizes, sizeChart, colors, printAreas, isActive
+const updateGarment = async (id, patch) => (await axios.put(`${API_URL}/${id}`, patch, auth())).data;
 const deleteGarmentType = async (id) =>
   (await axios.delete(`${API_URL}/${id}`, auth())).data;
 
@@ -32,4 +42,8 @@ export default {
   addColor,
   removeColor,
   deleteGarmentType,
+  adminListGarments,
+  adminGetGarment,
+  createDraftGarment,
+  updateGarment,
 };

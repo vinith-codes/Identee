@@ -63,7 +63,7 @@ async function buildSetupSteps() {
       title: "Set up Oversized Tee",
       hint: "Add the garment, its colours and photos",
       done: false,
-      href: "/admin/garment-types",
+      href: "/admin/customizable",
     });
   } else {
     const photoDocs = await GarmentColorImage.find({
@@ -85,7 +85,7 @@ async function buildSetupSteps() {
         ? `${colours} colours, ${withPhotos} with photos — still to do: ${missing.join(", ")}`
         : `${colours} colours with photos, price ₹${garment.basePrice}`,
       done: missing.length === 0,
-      href: "/admin/garment-types",
+      href: `/admin/customizable/${LAUNCH_GARMENT}`,
     });
   }
 

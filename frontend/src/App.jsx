@@ -13,6 +13,8 @@ import Navbar from "./components/Navbar";
 import AdminLayout from "./layouts/AdminLayout";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import AdminHome from "./pages/admin/AdminHome";
+import CustomizableListPage from "./pages/admin/CustomizableListPage";
+import GarmentSetupWizard from "./pages/admin/GarmentSetupWizard";
 import ProductUploadPage from "./pages/admin/ProductUploadPage";
 import ProductListPage from "./pages/admin/ProductListPage";
 import OfferBannerPage from "./pages/admin/OfferBannerPage";
@@ -297,6 +299,8 @@ export default function App() {
           <Route path="category-banner" element={<CategoryBannerPage />} />
           <Route path="art-categories" element={<ArtCategoriesPage />} />
           <Route path="art-designs" element={<ArtDesignsPage />} />
+          <Route path="customizable" element={<CustomizableListPage />} />
+          <Route path="customizable/:key" element={<GarmentSetupWizard />} />
           <Route path="garment-types" element={<GarmentTypesPage />} />
           <Route path="garment-photos" element={<GarmentPhotosPage />} />
           <Route path="orders" element={<AdminOrdersPage />} />

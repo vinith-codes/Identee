@@ -33,7 +33,7 @@ const TONES = {
 };
 
 const QUICK = [
-  { to: "/admin/garment-types", label: "+ Customizable garment" },
+  { to: "/admin/customizable", label: "+ Customizable garment" },
   { to: "/admin/upload-product", label: "+ Ready-made product" },
   { to: "/admin/offers", label: "+ Coupon" },
 ];

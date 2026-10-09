@@ -13,8 +13,9 @@ const auth = () => {
   }
 };
 
-// { positions, sizes, sizeGroups } — see server/data/printPositions.js
-const getPrintPositions = async () => (await axios.get(`${API_URL}/print-positions`)).data;
+// { positions, scales, sizes, sizeGroups } for one garment — see server/data/printPositions.js
+const getPrintPositions = async (garment) =>
+  (await axios.get(`${API_URL}/print-positions`, { params: garment ? { garment } : {} })).data;
 
 const uploadDesignImage = async (file) => {
   const formData = new FormData();
