@@ -29,8 +29,16 @@ Design Room "Added to your cart" card (Design another tee / Go to cart / Keep ed
 ordered size group + previews + ORDER-SHEET.txt, made in the admin's browser with the Design Room's Konva code. Tested on the
 real order VF-2026-0023 by the user.
 
-**Next:** Payments / Sellers admin pages, ready-made pages redesign; go-live items (Brevo email, deployment, Razorpay live keys).
-Gotcha: the C: drive is nearly full — keep throwaway test databases on E:.
+**Branches `feature-readymade-redesign` + `feature-home-redesign` — MERGED to `main` on 9 Oct 2026** (PHASE1_PROGRESS §6m–6o):
+- Admin → Ready-made: 5-step product wizard (add + edit), All products list (search, filters, restock, hide/show, delete only
+  if never ordered); sellers can only change their own products; hidden products leave the shop, cart and checkout.
+- Customer: /ready-made = category tiles; category pages have a filterable grid (`GET /api/shop/products`); product page
+  rebuilt (real sizes from stock, gallery, add to cart / buy now, details, related).
+- Home page redesigned (classy editorial, real tee photos, slow hero animation); fonts Bricolage Grotesque + Inter now loaded.
+- Data to fix in the admin: 12 of 13 ready-made products have broken old-project photo paths; style "Blacers" is in no category.
+
+**Next:** footer links (still list removed garments), Payments / Sellers admin pages; go-live items (Brevo email, deployment,
+Razorpay live keys). Gotcha: the C: drive is nearly full — keep throwaway test databases on E:.
 
 **Waiting on the client / user:** the print team's measurement answers (`docs/print-requests/IDENTEE_Oversized_Measurement_Request.pdf`:
 where each print starts, sleeve length/opening, sizes of the other 9 areas, Pantone codes); licence of the white oversized-tee
