@@ -611,6 +611,25 @@ wizard + list clicked through in the browser, including phone width.
 **Found:** 12 of the 13 existing products point to photo files from the old project (`uploads/products/images/…`) that
 no longer exist — their photos are broken on the site. One product's style "Blacers" isn't in any category.
 
+## 6n. Ready-made redesign — part B: customer pages (DONE on branch `feature-readymade-redesign`)
+
+| Page | What changed | Files |
+|---|---|---|
+| **/ready-made** | Category tiles, then **All ready-made tees**: one card per product (colours together), category chips with counts, search, filters size · colour (dropdown + swatches) · price ("Under ₹999") · sort (newest, popular, price, biggest discount), removable filter pills, "Show more". Filters live in the address. In-stock products first. | `pages/ReadyMadePage.jsx`, `components/shop/ShopGrid.jsx`, `ProductCard.jsx`, `shopStyles.js` |
+| **/category/:slug** | Same banner header; the same grid with the category fixed (style filter added). | `pages/CategoryProductsPage.jsx` |
+| **/products** (old "All products") | Redirects to `/ready-made#all` (filters kept). Old `AllProductsPage.jsx` removed. | `App.jsx` |
+| **Product card** | Photo (2nd photo on hover), % off / Out of stock badge, name, style, colour dots (tap to see that colour), price + MRP, member price. | `components/shop/ProductCard.jsx` |
+| **/product/:id** | Rebuilt: breadcrumb; gallery with thumbnails + arrows (phone: full-width swipe with dots), tap for full screen with zoom; price, MRP, % off, "Inclusive of all taxes"; colours as photo tiles; **sizes from the product's own stock** (was hard-coded S–XXL, so XS/2XL/3XL/Free Size never showed) in size order, out-of-stock crossed out, "Only N left"; size chart; quantity (up to stock, max 10); Add to cart (cart count updates, "View cart →") and Buy now with total; favourite; delivery/payment/WhatsApp notes; Description · Fabric & care · Product details · Delivery & help; reviews; "You may also like". Phone: price + Add to cart bar fixed at the bottom. Hidden products: "no longer available". The old "Customize" button (sent shoppers to a design page that doesn't exist for ready-made tees) removed. | `pages/SingleProductPage.jsx` |
+
+**Server:** `GET /api/shop/products` (`controllers/shopController.js`, `routes/shopRoutes.js`) — live products whose style is in an
+active category (coming-soon categories only on their own page), grouped per product, filters `category, style, size (in
+stock), color, maxPrice, q, exclude`, sorts, paging, plus the filter options (categories with counts, styles, in-stock sizes,
+colours, price range). Shared helpers `utils/colours.js` (swatch colours), `utils/money.js`.
+
+**Tested** on a local copy with 3 test products (4, 2 and 1 colours): filters, search, chips, sort, colour swatches, product page
+(size order, low stock, quantity cap, add to cart, colour switch, buy now → checkout, hidden product), phone width (no sideways
+scroll on shop, category, product and admin pages).
+
 ## 7. Phase 1 — remaining steps (audit findings)
 
 ### Step 3: Customization

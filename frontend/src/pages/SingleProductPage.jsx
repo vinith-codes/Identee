@@ -1,836 +1,643 @@
-import { useState, useMemo, useEffect } from "react";
-import { useParams, useNavigate, Link } from "react-router-dom";
+// pages/SingleProductPage.jsx  —  /product/:id  (a ready-made product, one colour)
+//
+// Photo gallery (swipe on phones, tap for full screen), price, colours,
+// sizes from the product's own stock ("Only 2 left", out-of-stock crossed
+// out), size chart, quantity, Add to cart / Buy now, favourite, details
+// (description, fabric & care, delivery & help, product details), reviews
+// and "You may also like". Hidden products show "no longer available".
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
+import axios from "axios";
 import ProductReviews from "../components/ProductReviews";
+import ProductCard from "../components/shop/ProductCard";
+import { SHOP_CSS } from "../components/shop/shopStyles";
+import { money } from "../utils/money";
+import shopService from "../services/shopService";
+import { fetchCart } from "../redux/slices/cartWishlistSlice";
 import { imageUrl } from "../utils/imageUrl";
+import { colourHex, isLight } from "../utils/colours";
 
 const BACKEND_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
-
-function useSWRProduct(id) {
-  const [state, setState] = useState({
-    data: null,
-    isLoading: true,
-    error: null,
-  });
-
-  useEffect(() => {
-    if (!id) return;
-    let cancelled = false;
-    setState({ data: null, isLoading: true, error: null });
-
-    fetch(`${BACKEND_URL}/api/products/${id}/full`)
-      .then((res) => {
-        if (!res.ok) throw new Error("Product not found");
-        return res.json();
-      })
-      .then((json) => {
-        if (!cancelled) setState({ data: json, isLoading: false, error: null });
-      })
-      .catch((err) => {
-        if (!cancelled) setState({ data: null, isLoading: false, error: err });
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [id]);
-
-  return state;
-}
-
-const C = {
-  bg: "#FFFFFF",
-  ink: "#15130F",
-  muted: "#71695B",
-  border: "#ECE4D2",
-  gold: "#C9A24B",
-  goldSoft: "#C9A24B14",
-  danger: "#B3432B",
+const LOW_LEFT = 5; // "Only N left" at or below this
+const SIZE_ORDER = ["XXS", "XS", "S", "M", "L", "XL", "XXL", "2XL", "3XL", "4XL", "5XL", "FREE SIZE"];
+const sizeRank = (s) => {
+  const kids = /^(\d+)(?:\s*-\s*\d+)?\s*(?:y|yrs?|years)?$/i.exec(String(s));
+  if (kids) return -100 + Number(kids[1]);
+  const i = SIZE_ORDER.indexOf(String(s).toUpperCase());
+  return i === -1 ? 100 : i;
 };
-
-const SIZE_ORDER = ["S", "M", "L", "XL", "XXL"];
-
-const qtyBtnStyle = {
-  width: 26,
-  height: 26,
-  borderRadius: 6,
-  border: `1px solid ${C.border}`,
-  background: "#fff",
-  cursor: "pointer",
-  fontSize: 14,
-  fontWeight: 700,
-  color: C.ink,
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-};
-
-// Mirrors customizerCatalogController.js's slugify exactly, so the
-// key/color built here always matches a real /api/customizer/styles
-// entry — every product qualifies, no curated map, no restriction.
-function slugify(str = "") {
-  return str.toLowerCase().trim().replace(/\s+/g, "-");
-}
+const titleCase = (s) => String(s || "").replace(/\b\w/g, (c) => c.toUpperCase());
 
 export default function SingleProductPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const dispatch = useDispatch();
   const { user } = useSelector((s) => s.auth);
+  const token = user?.token;
 
-  const { data, isLoading, error } = useSWRProduct(id);
-
-  const [activeVariantId, setActiveVariantId] = useState(id);
-  const [selectedSize, setSelectedSize] = useState(null);
+  const [data, setData] = useState({ id: null, product: null, variants: [], error: null });
+  const [size, setSize] = useState(null);
   const [qty, setQty] = useState(1);
-  const [mainImageIdx, setMainImageIdx] = useState(0);
-  const [cartMsg, setCartMsg] = useState(null);
-  const [addingToCart, setAddingToCart] = useState(false);
-  const [isZooming, setIsZooming] = useState(false);
-  const [zoomPos, setZoomPos] = useState({ x: 50, y: 50 });
-  const [lensPos, setLensPos] = useState({ x: 0, y: 0 });
-  const [isFavorite, setIsFavorite] = useState(false);
-  const [favLoading, setFavLoading] = useState(false);
+  const [photo, setPhoto] = useState(0);
+  const [viewer, setViewer] = useState(false);
+  const [msg, setMsg] = useState(null); // { ok, text, cart }
+  const [busy, setBusy] = useState(false);
+  const [fav, setFav] = useState(false);
+  const [settings, setSettings] = useState({});
+  const [related, setRelated] = useState([]);
 
+  // the product (+ its colours); switching colour keeps the group loaded
   useEffect(() => {
-    setActiveVariantId(id);
-    setSelectedSize(null);
-    setQty(1);
-    setMainImageIdx(0);
-  }, [id]);
+    let alive = true;
+    const known = data.variants.some((v) => v._id === id);
+    if (known) return;
+    shopService
+      .getProduct(id)
+      .then((d) => alive && setData({ id, product: d.product, variants: d.variants || [], error: null }))
+      .catch((err) => alive && setData({ id, product: null, variants: [], error: err.response?.status === 404 ? "notfound" : "error" }));
+    return () => {
+      alive = false;
+    };
+  }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const variants = data?.variants || [];
-  const activeVariant = useMemo(
-    () => variants.find((v) => v._id === activeVariantId) || data?.product,
-    [variants, activeVariantId, data],
+  const loaded = data.product && (data.id === id || data.variants.some((v) => v._id === id));
+  const product = data.product;
+  const variants = useMemo(
+    () => [...(data.variants.length ? data.variants : product ? [product] : [])].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt)),
+    [data.variants, product],
   );
+  const v = variants.find((x) => x._id === id) || product;
+  const hidden = !!product?.isHidden && !variants.some((x) => x._id === id && !x.isHidden);
+
+  // reset choices when the colour changes
+  const [shownId, setShownId] = useState(id);
+  if (shownId !== id) {
+    setShownId(id);
+    setSize(null);
+    setQty(1);
+    setPhoto(0);
+    setMsg(null);
+  }
 
   useEffect(() => {
-    if (!user || !activeVariant?._id) return;
-    const authToken = user?.token;
-    fetch(`${BACKEND_URL}/api/users/getfavorites`, {
-      headers: { Authorization: `Bearer ${authToken}` },
-    })
-      .then((res) => res.json())
-      .then((favs) => {
-        const found = Array.isArray(favs)
-          ? favs.some((f) => f._id === activeVariant._id)
-          : false;
-        setIsFavorite(found);
+    axios.get(`${BACKEND_URL}/api/settings/public`).then((r) => setSettings(r.data || {})).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (!token || !v?._id) return;
+    axios
+      .get(`${BACKEND_URL}/api/users/getfavorites`, { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => setFav(Array.isArray(r.data) && r.data.some((f) => f._id === v._id)))
+      .catch(() => {});
+  }, [token, v?._id]);
+
+  // "You may also like": same category first
+  const groupId = v?.productGroupId;
+  const style = v?.productdetails?.garmentStyle;
+  useEffect(() => {
+    if (!groupId) return;
+    let alive = true;
+    shopService
+      .listProducts({ limit: 8, exclude: groupId, sort: "popular" })
+      .then((d) => {
+        if (!alive) return;
+        const same = d.items.filter((p) => p.garmentStyle === style);
+        const rest = d.items.filter((p) => p.garmentStyle !== style);
+        setRelated([...same, ...rest].slice(0, 4));
       })
       .catch(() => {});
-  }, [user, activeVariant?._id]);
+    return () => {
+      alive = false;
+    };
+  }, [groupId, style]);
 
-  if (isLoading) {
+  const sizes = useMemo(() => {
+    const stock = v?.productdetails?.stockBySize || [];
+    const list = v?.productdetails?.sizes?.length ? v.productdetails.sizes : stock.map((s) => s.size);
+    return [...new Set(list)]
+      .map((s) => ({ size: s, stock: stock.find((x) => x.size === s)?.stock ?? 0 }))
+      .sort((a, b) => sizeRank(a.size) - sizeRank(b.size));
+  }, [v]);
+  const chosen = sizes.find((s) => s.size === size);
+  const anyStock = sizes.some((s) => s.stock > 0);
+
+  const goLogin = useCallback(() => navigate("/login", { state: { from: location.pathname } }), [navigate, location.pathname]);
+
+  const addToCart = async () => {
+    if (!size) return setMsg({ text: "Choose a size first." });
+    if (!token) return goLogin();
+    setBusy(true);
+    setMsg(null);
+    try {
+      await axios.post(`${BACKEND_URL}/api/products/${v._id}/addtocart`, { qty, size, action: "add" }, { headers: { Authorization: `Bearer ${token}` } });
+      dispatch(fetchCart(token));
+      setMsg({ ok: true, cart: true, text: `Added ${qty} × size ${size} to your cart.` });
+    } catch (err) {
+      setMsg({ text: err.response?.data?.message || "Couldn't add it to your cart. Please try again." });
+    } finally {
+      setBusy(false);
+    }
+  };
+  const buyNow = () => {
+    if (!size) return setMsg({ text: "Choose a size first." });
+    if (!token) return goLogin();
+    navigate(`/buy-now/${v._id}`, { state: { product: v, items: [{ size, qty }] } });
+  };
+  const toggleFav = async () => {
+    if (!token) return goLogin();
+    try {
+      await axios.post(`${BACKEND_URL}/api/users/favorites/${v._id}`, {}, { headers: { Authorization: `Bearer ${token}` } });
+      setFav((f) => !f);
+    } catch {
+      setMsg({ text: "Couldn't update your favourites." });
+    }
+  };
+
+  if (data.error && data.id === id) {
     return (
-      <PageShell>
-        <p style={{ color: C.muted }}>Loading product…</p>
-      </PageShell>
+      <Shell>
+        <Unavailable title={data.error === "notfound" ? "We couldn't find this product" : "Something went wrong"} text={data.error === "notfound" ? "It may have been removed." : "Please reload the page."} />
+      </Shell>
     );
   }
-  if (error || !data?.product) {
+  if (!loaded || !v) {
     return (
-      <PageShell>
-        <p style={{ color: C.danger }}>
-          Couldn't load this product. It may have been removed.
-        </p>
-      </PageShell>
+      <Shell>
+        <div className="pp-grid" aria-busy="true">
+          <div className="pp-skel" style={{ aspectRatio: "4 / 5" }} />
+          <div style={{ display: "grid", gap: 14, alignContent: "start" }}>
+            <div className="pp-skel" style={{ height: 34, width: "70%" }} />
+            <div className="pp-skel" style={{ height: 26, width: "40%" }} />
+            <div className="pp-skel" style={{ height: 120 }} />
+          </div>
+        </div>
+      </Shell>
+    );
+  }
+  if (hidden) {
+    return (
+      <Shell>
+        <Unavailable title={`${v.brandname} is no longer available`} text="It's been taken out of the shop. Have a look at what's there now." />
+      </Shell>
     );
   }
 
-  const images = activeVariant?.images || [];
-  const stockBySize = activeVariant?.productdetails?.stockBySize || [];
-  const stockMap = Object.fromEntries(
-    stockBySize.map((s) => [s.size, s.stock]),
-  );
-  const availableSizes = SIZE_ORDER.filter((s) => s in stockMap);
-  const selectedStock = selectedSize ? stockMap[selectedSize] || 0 : 0;
-  const totalSelectedQty = selectedSize ? qty : 0;
-
-  // Customizer is now gated ONLY on stock — not on any garment-photo /
-  // curated-mapping availability check. Every product with stock in any
-  // size can be customized.
-  const hasAnyStock = availableSizes.some((s) => (stockMap[s] || 0) > 0);
-  const customizerStyle = slugify(
-    activeVariant.productdetails?.garmentStyle || "",
-  );
-  const customizerColor = slugify(activeVariant.productdetails?.color || "");
-
-  const handleSelectSize = (size) => {
-    const stock = stockMap[size] || 0;
-    if (stock <= 0) return;
-    setSelectedSize(size);
-    setQty(1);
-    setCartMsg(null);
-  };
-
-  const incrementQty = () => {
-    if (!selectedSize) return;
-    setQty((prev) => (prev >= selectedStock ? prev : prev + 1));
-    setCartMsg(null);
-  };
-
-  const decrementQty = () => {
-    setQty((prev) => (prev <= 1 ? prev : prev - 1));
-    setCartMsg(null);
-  };
-
-  const handleSwitchVariant = (variantId) => {
-    setActiveVariantId(variantId);
-    setMainImageIdx(0);
-    setSelectedSize(null);
-    setQty(1);
-    setCartMsg(null);
-    navigate(`/product/${variantId}`, { replace: true });
-  };
-
-  // Only stock blocks customization now. The style/color slug is built
-  // client-side (same slugify as customizerCatalogController.js) so it
-  // always resolves to a real /api/customizer/styles/:style/colors/:slug
-  // entry — no dependency on the separate, more restrictive
-  // garmentStyleToKey/colorNameToSlug mapping used elsewhere in the app.
-  const handleCustomize = () => {
-    if (!hasAnyStock) {
-      setCartMsg({
-        type: "error",
-        text: "This product is currently out of stock.",
-      });
-      return;
-    }
-    navigate(`/customize/${customizerStyle}?color=${customizerColor}`);
-  };
-
-  const LENS_SIZE = 160;
-
-  const handleMouseMove = (e) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-
-    const lensX = Math.min(
-      Math.max(x - LENS_SIZE / 2, 0),
-      rect.width - LENS_SIZE,
-    );
-    const lensY = Math.min(
-      Math.max(y - LENS_SIZE / 2, 0),
-      rect.height - LENS_SIZE,
-    );
-    setLensPos({ x: lensX, y: lensY });
-
-    const percentX = (x / rect.width) * 100;
-    const percentY = (y / rect.height) * 100;
-    setZoomPos({ x: percentX, y: percentY });
-  };
-
-  const handleToggleFavorite = async () => {
-    if (!user) {
-      setCartMsg({ type: "error", text: "Please log in to use favorites." });
-      return;
-    }
-    setFavLoading(true);
-    try {
-      const authToken = user?.token;
-      const res = await fetch(
-        `${BACKEND_URL}/api/users/favorites/${activeVariant._id}`,
-        {
-          method: "POST",
-          headers: { Authorization: `Bearer ${authToken}` },
-        },
-      );
-      const json = await res.json();
-      if (!res.ok)
-        throw new Error(json.message || "Failed to update favorites");
-      setIsFavorite((prev) => !prev);
-    } catch (err) {
-      setCartMsg({
-        type: "error",
-        text: err.message || "Something went wrong.",
-      });
-    } finally {
-      setFavLoading(false);
-    }
-  };
-
-  const handleBuyNow = () => {
-    if (!selectedSize || qty <= 0) {
-      setCartMsg({ type: "error", text: "Please select a size." });
-      return;
-    }
-    if (!user) {
-      setCartMsg({ type: "error", text: "Please log in to buy this item." });
-      return;
-    }
-    navigate(`/buy-now/${activeVariant._id}`, {
-      state: {
-        product: activeVariant,
-        items: [{ size: selectedSize, qty }],
-      },
-    });
-  };
-
-  const handleAddToCart = async () => {
-    if (!selectedSize || qty <= 0) {
-      setCartMsg({ type: "error", text: "Please select a size." });
-      return;
-    }
-    if (!user) {
-      setCartMsg({
-        type: "error",
-        text: "Please log in to add items to your cart.",
-      });
-      return;
-    }
-
-    setAddingToCart(true);
-    setCartMsg(null);
-    try {
-      const authToken = user?.token;
-      const res = await fetch(
-        `${BACKEND_URL}/api/products/${activeVariant._id}/addtocart`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
-          },
-          body: JSON.stringify({ qty, size: selectedSize, action: "set" }),
-        },
-      );
-      const json = await res.json();
-      if (!res.ok)
-        throw new Error(
-          json.message || `Could not add size ${selectedSize} to cart`,
-        );
-      setCartMsg({ type: "ok", text: "Added to cart." });
-      setQty(1);
-    } catch (err) {
-      setCartMsg({
-        type: "error",
-        text: err.message || "Something went wrong.",
-      });
-    } finally {
-      setAddingToCart(false);
-    }
-  };
+  const images = v.images?.length ? v.images : [];
+  const price = v.subscriptionPrice && v.subscriptionPrice < v.price ? v.subscriptionPrice : v.price;
+  const off = v.oldPrice > price ? Math.round(((v.oldPrice - price) / v.oldPrice) * 100) : 0;
+  const pd = v.productdetails || {};
+  const whatsapp = settings["general.whatsappNumber"];
+  const email = settings["general.storeEmail"];
+  const maxQty = Math.min(chosen?.stock || 1, 10);
 
   return (
-    <PageShell>
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "minmax(0, 1.1fr) minmax(0, 1fr)",
-          gap: 48,
-        }}
-        className="spp-grid"
-      >
-        {/* ── Images ───────────────────────────────────────────── */}
-        <div style={{ position: "relative" }}>
-          <div
-            onMouseEnter={() => setIsZooming(true)}
-            onMouseLeave={() => setIsZooming(false)}
-            onMouseMove={handleMouseMove}
-            style={{
-              position: "relative",
-              aspectRatio: "1/1",
-              background: "#F3F1EC",
-              borderRadius: 16,
-              overflow: "hidden",
-              border: `1px solid ${C.border}`,
-              cursor: "crosshair",
-            }}
-          >
-            {images[mainImageIdx] && (
-              <img
-                src={imageUrl(images[mainImageIdx])}
-                alt={activeVariant.brandname}
-                style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                draggable={false}
-              />
-            )}
+    <Shell>
+      <nav className="pp-crumbs" aria-label="Breadcrumb">
+        <Link to="/">Home</Link> / <Link to="/ready-made">Ready-made</Link>
+        {style && (
+          <>
+            {" "}
+            / <Link to={`/category/${encodeURIComponent(style)}`}>{style}</Link>
+          </>
+        )}
+      </nav>
 
-            {isZooming && images[mainImageIdx] && (
-              <div
-                style={{
-                  position: "absolute",
-                  top: lensPos.y,
-                  left: lensPos.x,
-                  width: LENS_SIZE,
-                  height: LENS_SIZE,
-                  background: "rgba(255, 255, 255, 0.1)",
-                  border: `2px dashed ${C.gold}`,
-                  borderRadius: 10,
-                  pointerEvents: "none",
-                  boxShadow: "0 0 0 9999px rgba(21,19,15,0.25) inset",
-                }}
-              >
-                <div
-                  style={{
-                    position: "absolute",
-                    top: 8,
-                    left: 8,
-                    width: 8,
-                    height: 8,
-                    borderRadius: "50%",
-                    border: `1.5px solid ${C.gold}`,
-                    background: C.bg,
-                  }}
-                />
+      <div className="pp-grid">
+        {/* ---------- photos ---------- */}
+        <Gallery images={images} index={photo} setIndex={setPhoto} name={v.brandname} onOpen={() => images.length && setViewer(true)} />
+
+        {/* ---------- details ---------- */}
+        <div className="pp-info">
+          <h1 className="pp-title">{v.brandname}</h1>
+          <p className="pp-sub">{[style, pd.fabric, pd.gender && pd.gender !== "Unisex" ? `For ${pd.gender.toLowerCase()}` : null].filter(Boolean).join(" · ")}</p>
+          {v.numReviews > 0 && (
+            <a href="#reviews" className="pp-rating">
+              <span aria-hidden="true">{"★".repeat(Math.round(v.rating))}{"☆".repeat(5 - Math.round(v.rating))}</span> {Number(v.rating).toFixed(1)} · {v.numReviews} review{v.numReviews === 1 ? "" : "s"}
+            </a>
+          )}
+
+          <p className="pp-price">
+            <b>{money(price)}</b>
+            {v.oldPrice > price && <s>MRP {money(v.oldPrice)}</s>}
+            {off > 0 && <span className="pp-off">{off}% off</span>}
+          </p>
+          {price < v.price && <p className="pp-member">Your member price (regular {money(v.price)})</p>}
+          <p className="pp-tax">Inclusive of all taxes</p>
+
+          {variants.length > 1 && (
+            <div className="pp-block">
+              <p className="pp-label">
+                Colour: <b>{titleCase(pd.color)}</b>
+              </p>
+              <div className="pp-colours">
+                {variants.map((c) => {
+                  const on = c._id === v._id;
+                  const hex = colourHex(c.productdetails?.color);
+                  return (
+                    <Link
+                      key={c._id}
+                      to={`/product/${c._id}`}
+                      replace
+                      className={`pp-colour${on ? " on" : ""}`}
+                      aria-current={on ? "true" : undefined}
+                      title={titleCase(c.productdetails?.color)}
+                    >
+                      {c.images?.[0] ? <img src={imageUrl(c.images[0], 160)} alt="" /> : <span className={`pp-swatch${isLight(hex) ? " light" : ""}`} style={{ background: hex }} />}
+                      <span>{titleCase(c.productdetails?.color)}</span>
+                    </Link>
+                  );
+                })}
               </div>
-            )}
-          </div>
-
-          {isZooming && images[mainImageIdx] && (
-            <div
-              className="spp-zoom-panel"
-              style={{
-                position: "absolute",
-                top: 0,
-                left: "calc(100% + 20px)",
-                width: "60%",
-                aspectRatio: "1/1",
-                borderRadius: 14,
-                border: `1px solid ${C.ink}`,
-                boxShadow: "0 12px 32px rgba(21,19,15,0.18)",
-                backgroundImage: `url(${imageUrl(images[mainImageIdx])})`,
-                backgroundSize: "220%",
-                backgroundPosition: `${zoomPos.x}% ${zoomPos.y}%`,
-                backgroundRepeat: "no-repeat",
-                zIndex: 20,
-                overflow: "hidden",
-              }}
-            >
-              <div
-                style={{
-                  position: "absolute",
-                  inset: 6,
-                  border: "1.5px dashed rgba(255,255,255,0.55)",
-                  borderRadius: 8,
-                  pointerEvents: "none",
-                }}
-              />
             </div>
           )}
 
-          {images.length > 1 && (
-            <div style={{ display: "flex", gap: 10, marginTop: 12 }}>
-              {images.map((img, i) => (
-                <button
-                  key={img + i}
-                  onClick={() => setMainImageIdx(i)}
-                  style={{
-                    width: 64,
-                    height: 64,
-                    borderRadius: 10,
-                    overflow: "hidden",
-                    padding: 0,
-                    cursor: "pointer",
-                    background: "#F3F1EC",
-                    border:
-                      i === mainImageIdx
-                        ? `2px solid ${C.gold}`
-                        : `1px solid ${C.border}`,
-                  }}
-                >
-                  <img
-                    src={imageUrl(img)}
-                    alt=""
-                    style={{
-                      width: "100%",
-                      height: "100%",
-                      objectFit: "cover",
+          <div className="pp-block">
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10 }}>
+              <p className="pp-label">{size ? <>Size: <b>{size}</b></> : "Choose your size"}</p>
+              {v.sizeChart && (
+                <a className="pp-link" href={imageUrl(v.sizeChart)} target="_blank" rel="noreferrer">
+                  Size chart
+                </a>
+              )}
+            </div>
+            {sizes.length ? (
+              <div className="pp-sizes" role="radiogroup" aria-label="Size">
+                {sizes.map((s) => (
+                  <button
+                    key={s.size}
+                    type="button"
+                    role="radio"
+                    aria-checked={size === s.size}
+                    disabled={s.stock <= 0}
+                    className={`pp-size${size === s.size ? " on" : ""}`}
+                    onClick={() => {
+                      setSize(s.size);
+                      setQty(1);
+                      setMsg(null);
                     }}
-                  />
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* ── Details ──────────────────────────────────────────── */}
-        <div>
-          <h1
-            style={{ margin: 0, fontSize: 30, fontWeight: 700, color: C.ink }}
-          >
-            {activeVariant.brandname}
-          </h1>
-
-          <div
-            style={{
-              display: "flex",
-              alignItems: "baseline",
-              gap: 10,
-              marginTop: 10,
-            }}
-          >
-            <span style={{ fontSize: 24, fontWeight: 700, color: C.ink }}>
-              ₹ {activeVariant.price}
-            </span>
-            {activeVariant.oldPrice > activeVariant.price && (
-              <>
-                <span
-                  style={{
-                    fontSize: 16,
-                    color: C.muted,
-                    textDecoration: "line-through",
-                  }}
-                >
-                  ₹{activeVariant.oldPrice}
-                </span>
-                {activeVariant.discount > 0 && (
-                  <span
-                    style={{ fontSize: 13, fontWeight: 700, color: C.gold }}
+                    title={s.stock <= 0 ? "Out of stock" : undefined}
                   >
-                    {activeVariant.discount}% off
-                  </span>
-                )}
-              </>
+                    {s.size}
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <p className="pp-note">Sizes coming soon.</p>
             )}
+            {chosen && chosen.stock <= LOW_LEFT && <p className="pp-hurry">Only {chosen.stock} left in size {chosen.size}</p>}
+            {!anyStock && <p className="pp-hurry">Out of stock in this colour{variants.length > 1 ? " — try another colour" : ""}.</p>}
           </div>
 
-          <hr
-            style={{
-              border: "none",
-              borderTop: `1px solid ${C.border}`,
-              margin: "20px 0",
-            }}
-          />
-
-          {/* Colour */}
-          <p style={sectionLabelStyle}>SELECT COLOR</p>
-          <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-            {variants.map((v) => (
-              <button
-                key={v._id}
-                onClick={() => handleSwitchVariant(v._id)}
-                title={v.productdetails?.color}
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  gap: 6,
-                  background: "none",
-                  border: "none",
-                  cursor: "pointer",
-                  padding: 4,
-                }}
-              >
-                <div
-                  style={{
-                    width: 60,
-                    height: 60,
-                    borderRadius: 10,
-                    overflow: "hidden",
-                    background: "#F3F1EC",
-                    border:
-                      v._id === activeVariant._id
-                        ? `2px solid ${C.gold}`
-                        : `1px solid ${C.border}`,
-                  }}
-                >
-                  {v.images?.[0] && (
-                    <img
-                      src={imageUrl(v.images[0])}
-                      alt={v.productdetails?.color}
-                      style={{
-                        width: "100%",
-                        height: "100%",
-                        objectFit: "cover",
-                      }}
-                    />
-                  )}
-                </div>
-                <span
-                  style={{
-                    fontSize: 10,
-                    letterSpacing: "0.05em",
-                    textTransform: "uppercase",
-                    color: v._id === activeVariant._id ? C.ink : C.muted,
-                    fontWeight: v._id === activeVariant._id ? 700 : 400,
-                    maxWidth: 70,
-                    textAlign: "center",
-                  }}
-                >
-                  {v.productdetails?.color}
-                </span>
+          <div className="pp-buy">
+            <div className="pp-qty" aria-label="Quantity">
+              <button type="button" onClick={() => setQty((q) => Math.max(1, q - 1))} disabled={qty <= 1} aria-label="One less">
+                −
               </button>
-            ))}
-          </div>
-          <p style={{ fontSize: 12, color: C.muted, marginTop: 8 }}>
-            SELECTED COLOR:{" "}
-            <strong style={{ color: C.ink }}>
-              {activeVariant.productdetails?.color}
-            </strong>
-          </p>
-
-          <hr
-            style={{
-              border: "none",
-              borderTop: `1px solid ${C.border}`,
-              margin: "20px 0",
-            }}
-          />
-
-          {/* Size */}
-          <p style={sectionLabelStyle}>SELECT SIZE</p>
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-            {SIZE_ORDER.map((size) => {
-              const stock = stockMap[size] || 0;
-              const inStock = stock > 0;
-              const isSelected = selectedSize === size;
-              return (
-                <button
-                  key={size}
-                  type="button"
-                  disabled={!inStock}
-                  onClick={() => handleSelectSize(size)}
-                  title={!inStock ? "Out of stock" : `${stock} left`}
-                  style={{
-                    minWidth: 48,
-                    height: 44,
-                    padding: "0 14px",
-                    borderRadius: 8,
-                    border: `1px solid ${isSelected ? C.gold : C.border}`,
-                    background: isSelected ? C.goldSoft : "#fff",
-                    color: !inStock ? C.muted : C.ink,
-                    fontWeight: 700,
-                    fontSize: 14,
-                    cursor: inStock ? "pointer" : "not-allowed",
-                    opacity: inStock ? 1 : 0.45,
-                    textDecoration: !inStock ? "line-through" : "none",
-                  }}
-                >
-                  {size}
-                </button>
-              );
-            })}
-          </div>
-          {selectedSize && (
-            <p style={{ fontSize: 12, color: C.muted, marginTop: 8 }}>
-              {selectedStock} left in size{" "}
-              <strong style={{ color: C.ink }}>{selectedSize}</strong>
-            </p>
-          )}
-
-          <p style={{ ...sectionLabelStyle, marginTop: 20 }}>QUANTITY</p>
-          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-            <button
-              type="button"
-              disabled={!selectedSize || qty <= 1}
-              onClick={decrementQty}
-              style={{
-                ...qtyBtnStyle,
-                width: 34,
-                height: 34,
-                cursor: !selectedSize || qty <= 1 ? "not-allowed" : "pointer",
-                opacity: !selectedSize || qty <= 1 ? 0.5 : 1,
-              }}
-            >
-              −
+              <output aria-live="polite">{qty}</output>
+              <button type="button" onClick={() => setQty((q) => Math.min(maxQty, q + 1))} disabled={!size || qty >= maxQty} aria-label="One more">
+                +
+              </button>
+            </div>
+            <button type="button" className="pp-btn dark" onClick={addToCart} disabled={busy || !anyStock}>
+              {busy ? "Adding…" : "Add to cart"}
             </button>
-            <span
-              style={{ minWidth: 24, textAlign: "center", fontWeight: 700 }}
-            >
-              {selectedSize ? qty : 0}
-            </span>
-            <button
-              type="button"
-              disabled={!selectedSize || qty >= selectedStock}
-              onClick={incrementQty}
-              style={{
-                ...qtyBtnStyle,
-                width: 34,
-                height: 34,
-                cursor:
-                  !selectedSize || qty >= selectedStock
-                    ? "not-allowed"
-                    : "pointer",
-                opacity: !selectedSize || qty >= selectedStock ? 0.5 : 1,
-              }}
-            >
-              +
+            <button type="button" className={`pp-fav${fav ? " on" : ""}`} onClick={toggleFav} aria-pressed={fav} aria-label={fav ? "Remove from favourites" : "Add to favourites"} title={fav ? "In your favourites" : "Add to favourites"}>
+              {fav ? "♥" : "♡"}
             </button>
           </div>
-
-          <hr
-            style={{
-              border: "none",
-              borderTop: `1px solid ${C.border}`,
-              margin: "20px 0",
-            }}
-          />
-
-          {activeVariant.sizeChart && (
-            <button
-              type="button"
-              onClick={() =>
-                window.open(
-                  imageUrl(activeVariant.sizeChart),
-                  "_blank",
-                  "noopener,noreferrer",
-                )
-              }
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 8,
-                padding: "10px 16px",
-                borderRadius: 999,
-                border: `1px solid ${C.border}`,
-                background: "#fff",
-                textDecoration: "none",
-                color: C.ink,
-                fontSize: 13,
-                fontWeight: 600,
-                marginBottom: 20,
-                cursor: "pointer",
-              }}
-            >
-              📏 Size Chart
-            </button>
-          )}
-
-          {cartMsg && (
-            <p
-              style={{
-                fontSize: 13,
-                fontWeight: 600,
-                color: cartMsg.type === "ok" ? "#3E7C4A" : C.danger,
-                marginBottom: 12,
-              }}
-            >
-              {cartMsg.text}
-            </p>
-          )}
-
-          <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
-            <button
-              onClick={handleToggleFavorite}
-              disabled={favLoading}
-              title={isFavorite ? "Remove from favorites" : "Add to favorites"}
-              style={{
-                width: 50,
-                height: 50,
-                borderRadius: "50%",
-                border: `2px solid ${isFavorite ? C.danger : C.border}`,
-                background: isFavorite ? `${C.danger}14` : "#fff",
-                color: isFavorite ? C.danger : C.muted,
-                fontSize: 20,
-                cursor: favLoading ? "wait" : "pointer",
-                flexShrink: 0,
-              }}
-            >
-              {isFavorite ? "♥" : "♡"}
-            </button>
-
-            {/* Gated on stock only — every in-stock product can be
-                customized. customizerStyle/customizerColor are built
-                client-side to match customizerCatalogController.js's
-                slugify exactly. */}
-            <button
-              onClick={handleCustomize}
-              disabled={!hasAnyStock}
-              title={!hasAnyStock ? "Out of stock" : undefined}
-              style={{
-                flex: 1,
-                padding: "14px 0",
-                borderRadius: 999,
-                background: hasAnyStock ? "#1A2A4A" : "#B7BDC9",
-                color: "#fff",
-                border: "none",
-                fontSize: 14,
-                fontWeight: 700,
-                letterSpacing: "0.04em",
-                cursor: hasAnyStock ? "pointer" : "not-allowed",
-              }}
-            >
-              {hasAnyStock ? "CUSTOMIZE" : "COMING SOON"}
-            </button>
-            <button
-              onClick={handleAddToCart}
-              disabled={addingToCart || totalSelectedQty === 0}
-              style={{
-                flex: 1,
-                padding: "14px 0",
-                borderRadius: 999,
-                background: "#fff",
-                color: "#1A2A4A",
-                border: "2px solid #1A2A4A",
-                fontSize: 14,
-                fontWeight: 700,
-                letterSpacing: "0.04em",
-                cursor:
-                  addingToCart || totalSelectedQty === 0
-                    ? "not-allowed"
-                    : "pointer",
-                opacity: addingToCart || totalSelectedQty === 0 ? 0.6 : 1,
-              }}
-            >
-              {addingToCart ? "ADDING…" : "ADD TO CART"}
-            </button>
-          </div>
-
-          <button
-            onClick={handleBuyNow}
-            disabled={totalSelectedQty === 0}
-            style={{
-              width: "100%",
-              marginTop: 14,
-              padding: "14px 0",
-              borderRadius: 999,
-              background: C.gold,
-              color: C.ink,
-              border: "none",
-              fontSize: 14,
-              fontWeight: 700,
-              letterSpacing: "0.04em",
-              cursor: totalSelectedQty === 0 ? "not-allowed" : "pointer",
-              opacity: totalSelectedQty === 0 ? 0.6 : 1,
-            }}
-          >
-            BUY NOW
+          <button type="button" className="pp-btn gold wide" onClick={buyNow} disabled={!anyStock}>
+            Buy now{size ? ` · ${money(price * qty)}` : ""}
           </button>
+          {msg && (
+            <p className={`pp-msg${msg.ok ? " ok" : ""}`} role="status">
+              {msg.text}
+              {msg.cart && (
+                <>
+                  {" "}
+                  <Link to="/cart">View cart →</Link>
+                </>
+              )}
+            </p>
+          )}
 
-          <p style={{ marginTop: 24 }}>
-            <Link
-              to="/"
-              style={{
-                fontSize: 12,
-                color: C.muted,
-                textDecoration: "underline",
-              }}
-            >
-              ← Back to shopping
-            </Link>
-          </p>
+          <ul className="pp-promises">
+            <li>🚚 Delivery charges are shown at checkout</li>
+            <li>💳 Pay online or cash on delivery</li>
+            {whatsapp && <li>💬 Questions? WhatsApp {whatsapp}</li>}
+          </ul>
+
+          <div className="pp-acc">
+            <details open>
+              <summary>Description</summary>
+              <p style={{ whiteSpace: "pre-line" }}>{v.description}</p>
+            </details>
+            {(pd.fabric || v.washCare?.length > 0) && (
+              <details>
+                <summary>Fabric &amp; care</summary>
+                {pd.fabric && (
+                  <p>
+                    <b>Fabric:</b> {pd.fabric}
+                  </p>
+                )}
+                {v.washCare?.length > 0 && (
+                  <ul>
+                    {v.washCare.map((w) => (
+                      <li key={w}>{w}</li>
+                    ))}
+                  </ul>
+                )}
+              </details>
+            )}
+            <details>
+              <summary>Product details</summary>
+              <dl className="pp-dl">
+                {style && (
+                  <>
+                    <dt>Style</dt>
+                    <dd>{style}</dd>
+                  </>
+                )}
+                {pd.gender && (
+                  <>
+                    <dt>For</dt>
+                    <dd>{pd.gender}</dd>
+                  </>
+                )}
+                {pd.type && (
+                  <>
+                    <dt>Occasion</dt>
+                    <dd>{pd.type}</dd>
+                  </>
+                )}
+                {v.productType === "combo" && v.comboName && (
+                  <>
+                    <dt>Pack</dt>
+                    <dd>{v.comboName}</dd>
+                  </>
+                )}
+                <dt>Product code</dt>
+                <dd>{v.SKU}</dd>
+              </dl>
+            </details>
+            <details>
+              <summary>Delivery &amp; help</summary>
+              <p>Delivery charges for your address are shown at checkout before you pay. You'll get updates on your order in My orders.</p>
+              {(whatsapp || email) && (
+                <p>
+                  Need help? {whatsapp && <>WhatsApp <b>{whatsapp}</b></>}
+                  {whatsapp && email && " or "}
+                  {email && <>email <b>{email}</b></>}.
+                </p>
+              )}
+            </details>
+          </div>
         </div>
       </div>
 
-      {/* ── Reviews ──────────────────────────────────────────── */}
-      <ProductReviews product={activeVariant} />
+      <div id="reviews">
+        <ProductReviews product={v} />
+      </div>
 
-      <style>{`
-        @media (max-width: 860px) {
-          .spp-grid { grid-template-columns: 1fr !important; }
-          .spp-zoom-panel { display: none !important; }
-        }
-      `}</style>
-    </PageShell>
+      {related.length > 0 && (
+        <section className="sh-wrap" style={{ marginTop: 48 }} aria-label="You may also like">
+          <h2 className="pp-h2">You may also like</h2>
+          <div className="sh-grid">
+            {related.map((p) => (
+              <ProductCard key={p.groupId} p={p} />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* phone: price + add to cart stays at the bottom */}
+      <div className="pp-sticky">
+        <div>
+          <b>{money(price)}</b>
+          <span>{size ? `Size ${size}` : "Choose a size"}</span>
+        </div>
+        <button type="button" className="pp-btn dark" onClick={size ? addToCart : () => document.querySelector(".pp-sizes")?.scrollIntoView({ behavior: "smooth", block: "center" })} disabled={busy || !anyStock}>
+          {size ? (busy ? "Adding…" : "Add to cart") : "Choose size"}
+        </button>
+      </div>
+
+      {viewer && <Viewer images={images} index={photo} setIndex={setPhoto} onClose={() => setViewer(false)} name={v.brandname} />}
+    </Shell>
   );
 }
 
-function PageShell({ children }) {
+/* ---------- photos ---------- */
+function Gallery({ images, index, setIndex, name, onOpen }) {
+  const track = useRef(null);
+  // phones: swiping the strip updates the dots
+  const onScroll = () => {
+    const el = track.current;
+    if (!el) return;
+    const i = Math.round(el.scrollLeft / el.clientWidth);
+    if (i !== index) setIndex(i);
+  };
+  const go = (i) => {
+    setIndex(i);
+    const el = track.current;
+    if (el) el.scrollTo({ left: i * el.clientWidth, behavior: "smooth" });
+  };
+  if (!images.length) return <div className="pp-main pp-nophoto">IDENTEE</div>;
   return (
-    <div style={{ minHeight: "100vh", background: C.bg, padding: "40px 24px" }}>
-      <div style={{ maxWidth: 1200, margin: "0 auto" }}>{children}</div>
+    <div className="pp-gallery">
+      {images.length > 1 && (
+        <div className="pp-thumbs" role="tablist" aria-label="Photos">
+          {images.map((img, i) => (
+            <button key={img + i} type="button" role="tab" aria-selected={i === index} className={i === index ? "on" : ""} onClick={() => go(i)} aria-label={`Photo ${i + 1}`}>
+              <img src={imageUrl(img, 160)} alt="" />
+            </button>
+          ))}
+        </div>
+      )}
+      <div className="pp-mainwrap">
+        <div className="pp-track" ref={track} onScroll={onScroll}>
+          {images.map((img, i) => (
+            <button key={img + i} type="button" className="pp-main" onClick={onOpen} aria-label="Open photo full screen" tabIndex={i === index ? 0 : -1}>
+              <img src={imageUrl(img, 1200)} alt={i === 0 ? name : ""} loading={i === 0 ? "eager" : "lazy"} onError={(e) => (e.currentTarget.style.visibility = "hidden")} />
+            </button>
+          ))}
+        </div>
+        {images.length > 1 && (
+          <>
+            <button type="button" className="pp-arrow left" onClick={() => go((index - 1 + images.length) % images.length)} aria-label="Previous photo">
+              ‹
+            </button>
+            <button type="button" className="pp-arrow right" onClick={() => go((index + 1) % images.length)} aria-label="Next photo">
+              ›
+            </button>
+            <div className="pp-dots" aria-hidden="true">
+              {images.map((img, i) => (
+                <span key={img + i} className={i === index ? "on" : ""} />
+              ))}
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
 }
 
-const sectionLabelStyle = {
-  fontSize: 12,
-  letterSpacing: "0.12em",
-  color: "#15130F",
-  textTransform: "uppercase",
-  fontWeight: 700,
-  marginBottom: 12,
-};
+function Viewer({ images, index, setIndex, onClose, name }) {
+  const [zoom, setZoom] = useState(false);
+  useEffect(() => {
+    const key = (e) => {
+      if (e.key === "Escape") onClose();
+      if (e.key === "ArrowRight") setIndex((index + 1) % images.length);
+      if (e.key === "ArrowLeft") setIndex((index - 1 + images.length) % images.length);
+    };
+    window.addEventListener("keydown", key);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", key);
+      document.body.style.overflow = prev;
+    };
+  }, [index, images.length, onClose, setIndex]);
+  return (
+    <div className="pp-viewer" role="dialog" aria-modal="true" aria-label={`${name} photos`} onClick={onClose}>
+      <img
+        src={imageUrl(images[index], 2000)}
+        alt={name}
+        className={zoom ? "zoom" : ""}
+        onClick={(e) => {
+          e.stopPropagation();
+          setZoom((z) => !z);
+        }}
+      />
+      <button type="button" className="pp-vclose" onClick={onClose} aria-label="Close">
+        ×
+      </button>
+      {images.length > 1 && (
+        <p className="pp-vcount">
+          {index + 1} / {images.length}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function Unavailable({ title, text }) {
+  return (
+    <div style={{ textAlign: "center", padding: "60px 16px", background: "#FBF7EE", borderRadius: 18 }}>
+      <h1 className="pp-title" style={{ fontSize: 24 }}>{title}</h1>
+      <p style={{ color: "#71695B", margin: "8px 0 18px" }}>{text}</p>
+      <Link to="/ready-made" className="pp-btn dark" style={{ display: "inline-flex", textDecoration: "none" }}>
+        Shop ready-made
+      </Link>
+    </div>
+  );
+}
+
+function Shell({ children }) {
+  return (
+    <div style={{ background: "#fff", minHeight: "80vh" }}>
+      <style>{SHOP_CSS + PP_CSS}</style>
+      <main style={{ maxWidth: 1240, margin: "0 auto", padding: "20px 20px 96px" }}>{children}</main>
+    </div>
+  );
+}
+
+const PP_CSS = `
+  .pp-crumbs { font-size: 12.5px; color: #71695B; margin-bottom: 14px; }
+  .pp-crumbs a { color: #71695B; text-decoration: none; } .pp-crumbs a:hover { color: #15130F; text-decoration: underline; }
+  .pp-grid { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 44px; align-items: start; }
+  .pp-skel { border-radius: 14px; background: linear-gradient(90deg, #F3EFE5, #FAF7F0, #F3EFE5); background-size: 200% 100%; animation: sh-shine 1.2s infinite linear; }
+  .pp-gallery { display: grid; grid-template-columns: 76px minmax(0, 1fr); gap: 12px; position: sticky; top: 16px; }
+  .pp-thumbs { display: flex; flex-direction: column; gap: 10px; }
+  .pp-thumbs button { width: 76px; aspect-ratio: 4 / 5; border-radius: 10px; overflow: hidden; padding: 0; border: 1px solid #ECE4D2; background: #F3F1EC; cursor: pointer; }
+  .pp-thumbs button.on { border: 2px solid #15130F; }
+  .pp-thumbs img { width: 100%; height: 100%; object-fit: cover; }
+  .pp-mainwrap { position: relative; grid-column: 2; min-width: 0; }
+  .pp-gallery:not(:has(.pp-thumbs)) .pp-mainwrap { grid-column: 1 / -1; }
+  .pp-track { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; border-radius: 18px; scrollbar-width: none; }
+  .pp-track::-webkit-scrollbar { display: none; }
+  .pp-main { flex: 0 0 100%; aspect-ratio: 4 / 5; scroll-snap-align: start; border: none; padding: 0; background: #F3F1EC; cursor: zoom-in; display: block; }
+  .pp-main img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .pp-nophoto { display: grid; place-items: center; border-radius: 18px; color: #CDBF9F; font-weight: 800; letter-spacing: .2em; cursor: default; }
+  .pp-arrow { position: absolute; top: 50%; transform: translateY(-50%); width: 42px; height: 42px; border-radius: 50%; border: none;
+    background: rgba(255,255,255,.92); box-shadow: 0 4px 14px rgba(0,0,0,.12); font-size: 26px; line-height: 1; cursor: pointer; color: #15130F; }
+  .pp-arrow.left { left: 12px; } .pp-arrow.right { right: 12px; }
+  .pp-dots { position: absolute; bottom: 12px; left: 0; right: 0; display: none; justify-content: center; gap: 6px; }
+  .pp-dots span { width: 7px; height: 7px; border-radius: 50%; background: rgba(255,255,255,.6); }
+  .pp-dots span.on { background: #fff; }
+  .pp-title { margin: 0; font-family: 'Bricolage Grotesque', 'Helvetica Neue', Arial, sans-serif; font-weight: 800; font-size: clamp(26px, 3vw, 34px);
+    color: #15130F; letter-spacing: -0.01em; text-wrap: balance; }
+  .pp-sub { margin: 6px 0 0; color: #71695B; font-size: 14px; }
+  .pp-rating { display: inline-block; margin-top: 8px; font-size: 13px; color: #15130F; text-decoration: none; }
+  .pp-rating span { color: #C9A24B; letter-spacing: 1px; }
+  .pp-price { margin: 16px 0 0; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; font-size: 15px; color: #71695B; }
+  .pp-price b { font-size: 28px; color: #15130F; }
+  .pp-off { color: #2E7D4F; font-weight: 800; }
+  .pp-member { margin: 4px 0 0; color: #2E7D4F; font-size: 13px; font-weight: 700; }
+  .pp-tax { margin: 2px 0 0; font-size: 12px; color: #8A8172; }
+  .pp-block { border-top: 1px solid #ECE4D2; margin-top: 20px; padding-top: 18px; }
+  .pp-label { margin: 0 0 10px; font-size: 13.5px; color: #3F392F; }
+  .pp-link { font-size: 13px; font-weight: 700; color: #7A5B12; }
+  .pp-colours { display: flex; gap: 10px; flex-wrap: wrap; }
+  .pp-colour { display: grid; justify-items: center; gap: 4px; width: 70px; text-decoration: none; color: #71695B; font-size: 11.5px; text-align: center; }
+  .pp-colour img, .pp-colour .pp-swatch { width: 62px; aspect-ratio: 4 / 5; border-radius: 10px; object-fit: cover; border: 1px solid #ECE4D2; display: block; }
+  .pp-swatch.light { border-color: #D8CFBB; }
+  .pp-colour.on { color: #15130F; font-weight: 700; }
+  .pp-colour.on img, .pp-colour.on .pp-swatch { border: 2px solid #15130F; }
+  .pp-sizes { display: flex; gap: 8px; flex-wrap: wrap; }
+  .pp-size { min-width: 52px; height: 46px; padding: 0 14px; border-radius: 12px; border: 1px solid #D8CFBB; background: #fff; color: #15130F;
+    font-weight: 700; font-size: 14px; cursor: pointer; }
+  .pp-size:hover:not(:disabled) { border-color: #15130F; }
+  .pp-size.on { background: #15130F; color: #fff; border-color: #15130F; }
+  .pp-size:disabled { color: #B3AA98; background: #F7F4EC; text-decoration: line-through; cursor: not-allowed; }
+  .pp-hurry { margin: 10px 0 0; color: #B3432B; font-size: 13px; font-weight: 700; }
+  .pp-note { color: #71695B; font-size: 13.5px; }
+  .pp-buy { display: flex; gap: 10px; margin-top: 22px; align-items: stretch; }
+  .pp-qty { display: flex; align-items: center; border: 1px solid #D8CFBB; border-radius: 999px; }
+  .pp-qty button { width: 42px; height: 50px; border: none; background: none; font-size: 18px; font-weight: 700; cursor: pointer; color: #15130F; }
+  .pp-qty button:disabled { color: #C9C0AE; cursor: default; }
+  .pp-qty output { min-width: 22px; text-align: center; font-weight: 800; }
+  .pp-btn { flex: 1; min-height: 50px; padding: 0 22px; border-radius: 999px; border: none; font-weight: 800; font-size: 15px; cursor: pointer;
+    align-items: center; justify-content: center; letter-spacing: .01em; }
+  .pp-btn.dark { background: #15130F; color: #fff; } .pp-btn.dark:hover:not(:disabled) { background: #2C261F; }
+  .pp-btn.gold { background: #C9A24B; color: #15130F; } .pp-btn.gold:hover:not(:disabled) { background: #B88F36; }
+  .pp-btn:disabled { opacity: .45; cursor: not-allowed; }
+  .pp-btn.wide { width: 100%; margin-top: 10px; display: flex; }
+  .pp-fav { width: 50px; border-radius: 50%; border: 1px solid #D8CFBB; background: #fff; font-size: 22px; color: #71695B; cursor: pointer; flex-shrink: 0; }
+  .pp-fav.on { color: #B3432B; border-color: #B3432B; background: #B3432B10; }
+  .pp-msg { margin: 12px 0 0; font-size: 13.5px; font-weight: 600; color: #B3432B; }
+  .pp-msg.ok { color: #2E7D4F; } .pp-msg a { color: #15130F; font-weight: 800; }
+  .pp-promises { list-style: none; padding: 14px 16px; margin: 18px 0 0; background: #FBF7EE; border-radius: 14px; display: grid; gap: 6px; font-size: 13.5px; color: #3F392F; }
+  .pp-acc { margin-top: 18px; border-top: 1px solid #ECE4D2; }
+  .pp-acc details { border-bottom: 1px solid #ECE4D2; padding: 4px 0; }
+  .pp-acc summary { cursor: pointer; list-style: none; padding: 12px 0; font-weight: 800; font-size: 14.5px; color: #15130F; display: flex; justify-content: space-between; }
+  .pp-acc summary::-webkit-details-marker { display: none; }
+  .pp-acc summary::after { content: "+"; font-weight: 600; color: #71695B; }
+  .pp-acc details[open] summary::after { content: "−"; }
+  .pp-acc p, .pp-acc ul { margin: 0 0 12px; font-size: 14px; line-height: 1.6; color: #3F392F; max-width: 62ch; }
+  .pp-acc ul { padding-left: 18px; }
+  .pp-dl { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 6px 18px; margin: 0 0 12px; font-size: 14px; }
+  .pp-dl dt { color: #71695B; } .pp-dl dd { margin: 0; color: #15130F; overflow-wrap: anywhere; }
+  .pp-h2 { font-family: 'Bricolage Grotesque', 'Helvetica Neue', Arial, sans-serif; font-weight: 800; font-size: 24px; margin: 0 0 16px; color: #15130F; }
+  .pp-sticky { display: none; }
+  .pp-viewer { position: fixed; inset: 0; z-index: 1000; background: rgba(15,13,10,.94); display: grid; place-items: center; overflow: auto; }
+  .pp-viewer img { max-width: 94vw; max-height: 90vh; object-fit: contain; cursor: zoom-in; }
+  .pp-viewer img.zoom { max-width: none; max-height: none; width: 180vw; cursor: zoom-out; }
+  .pp-vclose { position: fixed; top: 14px; right: 16px; width: 46px; height: 46px; border-radius: 50%; border: none; background: #fff; font-size: 28px; cursor: pointer; }
+  .pp-vcount { position: fixed; bottom: 14px; left: 0; right: 0; text-align: center; color: #fff; font-size: 13px; margin: 0; }
+  @media (max-width: 900px) {
+    .pp-grid { grid-template-columns: minmax(0, 1fr); gap: 22px; }
+    .pp-gallery { grid-template-columns: minmax(0, 1fr); position: static; margin: 0 -20px; }
+    .pp-thumbs { display: none; }
+    .pp-mainwrap { grid-column: 1; }
+    .pp-track { border-radius: 0; }
+    .pp-arrow { display: none; }
+    .pp-dots { display: flex; }
+    .pp-sticky { display: flex; position: fixed; left: 0; right: 0; bottom: 0; z-index: 50; gap: 12px; align-items: center;
+      padding: 10px 16px calc(10px + env(safe-area-inset-bottom, 0px)); background: #fff; border-top: 1px solid #ECE4D2;
+      box-shadow: 0 -6px 18px rgba(0,0,0,.06); }
+    .pp-sticky div { display: grid; font-size: 12px; color: #71695B; }
+    .pp-sticky b { font-size: 17px; color: #15130F; }
+    .pp-sticky .pp-btn { flex: 0 0 auto; min-width: 160px; display: flex; }
+  }
+`;

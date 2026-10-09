@@ -34,7 +34,6 @@ import AdminUserDetailsPage from "./pages/admin/AdminUserDetailsPage";
 import BuyNowPage from "./pages/BuyNowPage";
 import FavoritesPage from "./pages/FavoritesPage";
 import CartPage from "./pages/CartPage";
-import AllProductsPage from "./pages/AllProductsPage";
 import Account from "./pages/Account";
 import CustomizablePage from "./pages/CustomizablePage";
 import ReadyMadePage from "./pages/ReadyMadePage";
@@ -265,7 +264,8 @@ export default function App() {
           <Route path="/product/:id" element={<SingleProductPage />} />
           <Route path="/buy-now/:id" element={<BuyNowPage />} />
           <Route path="/favorites" element={<FavoritesPage />} />
-          <Route path="/products" element={<AllProductsPage />} />
+          {/* old "All products" address → the ready-made shop (filters kept) */}
+          <Route path="/products" element={<ToReadyMade />} />
           <Route path="/account" element={<Account />} />
           <Route path="/cart" element={<CartPage />} />
 
@@ -374,4 +374,10 @@ export default function App() {
       </Routes>
     </Router>
   );
+}
+
+// /products?… → /ready-made?…#all
+function ToReadyMade() {
+  const { search } = useLocation();
+  return <Navigate to={`/ready-made${search}#all`} replace />;
 }

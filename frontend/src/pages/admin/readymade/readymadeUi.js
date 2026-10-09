@@ -1,17 +1,6 @@
 // Shared look for Admin → Ready-made (product list + wizard), on top of
 // the garment wizard's AW styles.
-import { SHEET_COLOURS } from "../../../utils/productSheet";
-
-const EXTRA = {
-  grey: "#8E8E8E", gray: "#8E8E8E", charcoal: "#36454F", olive: "#6B6B2A", yellow: "#E8C547", mustard: "#C9A227",
-  orange: "#E07A2E", pink: "#E59BB5", purple: "#6A3E9C", green: "#2E7D4F", blue: "#2F5DA8", "sky blue": "#87BCE6",
-  brown: "#6B4423", khaki: "#B9A57A", peach: "#F2B79C", teal: "#1F7A7A", mint: "#A8DCC4", wine: "#5C1A2B",
-};
-// Swatch colour for a colour name ("Bottle Green" → #1C5A2B); grey if unknown.
-export const colourHex = (name) => {
-  const n = String(name || "").trim().toLowerCase();
-  return SHEET_COLOURS.find((c) => c.name.toLowerCase() === n)?.hex || EXTRA[n] || "#CFC7B6";
-};
+export { colourHex } from "../../../utils/colours";
 
 export const RM_CSS = `
   .rm-problems { background: #FFF4EF; border: 1px solid #F0C9B8; color: #8A2E12; border-radius: 12px; padding: 10px 14px;
