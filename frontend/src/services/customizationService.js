@@ -3,25 +3,39 @@ import axios from "axios";
 const BACKEND_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 const API_URL = `${BACKEND_URL}/api/customizations`;
 
+// Uploading artwork and saving designs require a login.
+const auth = () => {
+  try {
+    const token = JSON.parse(localStorage.getItem("userInfo") || "{}").token;
+    return token ? { headers: { Authorization: `Bearer ${token}` } } : {};
+  } catch {
+    return {};
+  }
+};
+
+// { positions, sizes, sizeGroups } — see server/data/printPositions.js
+const getPrintPositions = async () => (await axios.get(`${API_URL}/print-positions`)).data;
+
 const uploadDesignImage = async (file) => {
   const formData = new FormData();
   formData.append("design", file);
-  const res = await axios.post(`${API_URL}/upload-design`, formData);
+  const res = await axios.post(`${API_URL}/upload-design`, formData, auth());
   return res.data; // { path }
 };
 
-// CHANGED: saves against { garmentType, color } instead of { productId }.
+// elements use layout v2: { position, x, y, width, height, ... } in % of the print box
 const saveCustomization = async (garmentType, color, elements) => {
-  const res = await axios.post(API_URL, { garmentType, color, elements });
+  const res = await axios.post(API_URL, { garmentType, color, elements }, auth());
   return res.data;
 };
 
 const getCustomizationById = async (id) => {
-  const res = await axios.get(`${API_URL}/${id}`);
+  const res = await axios.get(`${API_URL}/${id}`, auth());
   return res.data;
 };
 
 const customizationService = {
+  getPrintPositions,
   uploadDesignImage,
   saveCustomization,
   getCustomizationById,

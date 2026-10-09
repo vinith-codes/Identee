@@ -2,9 +2,16 @@
 
 import mongoose from "mongoose";
 
+// Layout v2 (current): every element belongs to a print position
+// (data/printPositions.js) and x / y / width / height are % of THAT
+// position's print box; fontSizePct is % of the box height. The design is
+// therefore size-independent — the physical size comes from the position
+// and the garment size chosen at order time.
+// Layout v1 (older saves): % of the whole editor canvas, no position.
 const elementSchema = new mongoose.Schema(
   {
     type: { type: String, enum: ["image", "text"], required: true },
+    position: { type: String }, // e.g. "centre-front" (v2)
     side: {
       type: String,
       enum: ["front", "back", "right", "left"],
@@ -12,12 +19,13 @@ const elementSchema = new mongoose.Schema(
     },
 
     // image elements
-    src: { type: String }, // e.g. "uploads/designs/design-169...-123.png"
+    src: { type: String }, // Cloudinary URL (or legacy uploads/ path)
+    artDesignId: { type: mongoose.Schema.Types.ObjectId, ref: "ArtDesign" },
 
     // text elements
-    text: { type: String },
+    text: { type: String, maxlength: 200 },
     fontFamily: { type: String, default: "Arial" },
-    fontSizePct: { type: Number, default: 6 }, // % of canvas height
+    fontSizePct: { type: Number, default: 6 },
     color: { type: String, default: "#000000" },
     bold: { type: Boolean, default: false },
     italic: { type: Boolean, default: false },
@@ -27,28 +35,20 @@ const elementSchema = new mongoose.Schema(
       enum: ["left", "center", "right", "justify"],
       default: "left",
     },
-    textEffect: {
+    effect: {
       type: String,
-      enum: [
-        "straight",
-        "arc",
-        "circle",
-        "bulge",
-        "smallToLarge",
-        "largeToSmall",
-      ],
+      enum: ["straight", "arc-up", "arc-down"],
       default: "straight",
     },
+    note: { type: String, maxlength: 300 },
 
-    // shared placement — all percentages relative to the garment canvas
-    x: { type: Number, required: true }, // % from left
-    y: { type: Number, required: true }, // % from top
-    width: { type: Number, required: true }, // % of canvas width
-    height: { type: Number }, // % of canvas height (mainly used by image elements)
-    rotation: { type: Number, default: 0 }, // degrees
+    // placement
+    x: { type: Number, required: true },
+    y: { type: Number, required: true },
+    width: { type: Number, required: true },
+    height: { type: Number },
+    rotation: { type: Number, default: 0 },
     zIndex: { type: Number, default: 0 },
-
-    artDesignId: { type: mongoose.Schema.Types.ObjectId, ref: "ArtDesign" },
   },
   { _id: false },
 );
@@ -56,8 +56,9 @@ const elementSchema = new mongoose.Schema(
 const customizationSchema = new mongoose.Schema(
   {
     garmentType: { type: String, required: true }, // e.g. "round-neck-tshirt"
-    color: { type: String, required: true }, // e.g. "black" (slug)
-    user: { type: mongoose.Schema.Types.ObjectId, ref: "User" }, // optional — guest customizations allowed
+    color: { type: String, required: true }, // colour slug, e.g. "black"
+    user: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+    layoutVersion: { type: Number, default: 1 },
     elements: {
       type: [elementSchema],
       validate: (v) => Array.isArray(v) && v.length > 0,

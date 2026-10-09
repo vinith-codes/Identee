@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import {
   useParams,
   useSearchParams,
@@ -21,6 +21,8 @@ import ColorPickerPanel from "../components/ColorPickerPanel";
 import Garment3DViewer from "../components/Garment3DViewer";
 import tshirtModel from "../assets/models/tshirt.glb";
 import { imageUrl } from "../utils/imageUrl";
+import customizationService from "../services/customizationService";
+import { resolvePrintBoxes, elementToStage, sizeLabel } from "../utils/printLayout";
 const C = {
   bg: "#FFFCF7",
   panel: "#F7F2E7",
@@ -73,23 +75,22 @@ const TEXT_EFFECT_OPTIONS = [
   { key: "arc-down", label: "Arc Down" },
 ];
 
-// fontSizePct is "% of canvas height" internally (so text scales with
-// the print area at any screen size) — these are the values shown in
-// the FONT SIZE dropdown, from small to poster-sized.
+// fontSizePct is "% of the print box height" (layout v2), so text keeps
+// its proportion to the print area at any screen size and any print size.
 const FONT_SIZE_OPTIONS = [
-  2, 3, 4, 5, 6, 7, 8, 10, 12, 14, 16, 18, 20, 24, 28, 30,
+  4, 6, 8, 10, 12, 14, 16, 18, 20, 24, 28, 32, 40, 48, 56, 64,
 ];
 
 function makeTextDraft() {
   return {
     fontFamily: "",
     text: "",
-    fontSizePct: 8,
+    fontSizePct: 18,
     color: "#15130F",
     bold: false,
     underline: false,
     italic: false,
-    align: "left",
+    align: "center",
     effect: "straight",
     note: "",
   };
@@ -102,37 +103,34 @@ const VIEW_LABELS = ["FRONT", "BACK", "RIGHT", "LEFT"];
 // as opposed to VIEW_KEYS' front/back/right/left tab order.
 const SPIN_ORDER = ["front", "right", "back", "left"];
 
-// Named print zones. Each maps to a specific side (front/back/right/left)
-// plus a smaller/larger box on that side. "right"/"left" sleeve reuse the
-// right/left silhouette views; chest positions are small boxes on the
-// front view's upper-left/upper-right.
-const PRINT_POSITIONS = {
-  "front-full": {
-    side: "front",
-    area: { left: 22, top: 27, width: 56, height: 58 },
-  },
-  "back-full": {
-    side: "back",
-    area: { left: 22, top: 27, width: 56, height: 58 },
-  },
-  "left-chest": {
-    side: "front",
-    area: { left: 24, top: 22, width: 18, height: 18 },
-  },
-  "right-chest": {
-    side: "front",
-    area: { left: 58, top: 22, width: 18, height: 18 },
-  },
-  "left-sleeve": {
-    side: "left",
-    area: { left: 30, top: 30, width: 30, height: 20 },
-  },
-  "right-sleeve": {
-    side: "right",
-    area: { left: 30, top: 30, width: 30, height: 20 },
-  },
+// Print positions + real print sizes come from the server
+// (server/data/printPositions.js); where each box sits on the photo is
+// worked out by utils/printLayout.js.
+
+// Google Fonts used by the text tool (system fonts excluded).
+const SYSTEM_FONTS = new Set(["Arial", "Georgia", "Courier New"]);
+const googleFontHref = (font) =>
+  `https://fonts.googleapis.com/css2?family=${encodeURIComponent(font).replace(/%20/g, "+")}${
+    font === "UnifrakturCook" ? ":wght@700" : ""
+  }&display=swap`;
+
+// Unsaved designs are kept per garment + colour on this device.
+const draftKeyFor = (type, color) => `identee:design:${type}:${color}`;
+const loadDraft = (type, color) => {
+  try {
+    const saved = JSON.parse(localStorage.getItem(draftKeyFor(type, color)) || "null");
+    return saved?.v === 2 && Array.isArray(saved.elements) ? saved.elements : [];
+  } catch {
+    return [];
+  }
 };
-const PRINT_AREA = PRINT_POSITIONS["front-full"].area; // fallback for existing canvas dashed-box render
+const isLoggedIn = () => {
+  try {
+    return Boolean(JSON.parse(localStorage.getItem("userInfo") || "{}").token);
+  } catch {
+    return false;
+  }
+};
 
 // Default canvas box the print-canvas measures before ResizeObserver has
 // reported a real size. Without this, fontSizePct * canvasSize.height
@@ -175,13 +173,21 @@ export default function CustomizePage() {
     ? { slug: colorSlug, name: colorDoc.colorName, hex: colorDoc.colorHex }
     : null;
 
-  const [elements, setElements] = useState([]);
+  const [elements, setElements] = useState(() => loadDraft(type, colorSlug));
   const [history, setHistory] = useState([]);
   const [future, setFuture] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
   const [dragState, setDragState] = useState(null);
   const [resizeState, setResizeState] = useState(null);
   const [canvasSize, setCanvasSize] = useState(DEFAULT_CANVAS_SIZE);
+
+  // Print positions (Centre Front, Left Chest…) with real cm sizes, the
+  // size range whose cm sizes are shown, and the position new elements
+  // are added to on each side.
+  const [positions, setPositions] = useState([]);
+  const [sizeGroups, setSizeGroups] = useState([]);
+  const [sizeGroup, setSizeGroup] = useState("standard");
+  const [activePositionBySide, setActivePositionBySide] = useState({});
 
   const [viewMode, setViewMode] = useState("flat"); // "flat" | "3d"
   const [activeView, setActiveView] = useState(0);
@@ -220,9 +226,71 @@ export default function CustomizePage() {
     dispatch(fetchArtCategories());
   }, [dispatch]);
 
+  useEffect(() => {
+    customizationService
+      .getPrintPositions()
+      .then((d) => {
+        setPositions(d.positions || []);
+        setSizeGroups(d.sizeGroups || []);
+      })
+      .catch(() => {});
+  }, []);
+
+  // Load the text tool's Google Fonts once.
+  useEffect(() => {
+    FONT_OPTIONS.filter((font) => !SYSTEM_FONTS.has(font)).forEach((font) => {
+      const id = `gf-${font.replace(/\s+/g, "-")}`;
+      if (document.getElementById(id)) return;
+      const link = document.createElement("link");
+      link.id = id;
+      link.rel = "stylesheet";
+      link.href = googleFontHref(font);
+      document.head.appendChild(link);
+    });
+  }, []);
+
+  // Autosave the design on this device so a refresh never loses it.
+  const draftKey = draftKeyFor(type, colorSlug);
+  useEffect(() => {
+    try {
+      if (elements.length) {
+        localStorage.setItem(draftKey, JSON.stringify({ v: 2, elements }));
+      } else {
+        localStorage.removeItem(draftKey);
+      }
+    } catch {
+      // storage full / blocked — the design still works, it just isn't kept
+    }
+  }, [elements, draftKey]);
+
   const currentSide = VIEW_KEYS[Math.min(activeView, VIEW_KEYS.length - 1)];
   const visibleElements = elements.filter((el) => el.side === currentSide);
   const selectedEl = visibleElements.find((el) => el.id === selectedId);
+
+  const boxes = useMemo(
+    () => resolvePrintBoxes(positions, colorDoc),
+    [positions, colorDoc],
+  );
+  const sidePositions = positions.filter((p) => p.side === currentSide);
+  const activePosition =
+    sidePositions.find((p) => p.key === activePositionBySide[currentSide]) ||
+    sidePositions.find((p) => p.main) ||
+    sidePositions[0];
+  const selectPosition = (key) =>
+    setActivePositionBySide((prev) => ({ ...prev, [currentSide]: key }));
+  // 3D preview works in whole-canvas coordinates.
+  const stageElements = (side) =>
+    elements
+      .filter((el) => el.side === side && boxes[el.position])
+      .map((el) => elementToStage(el, boxes[el.position]));
+
+  // Uploading artwork and ordering need an account; the design is
+  // autosaved, so it's still here after logging in.
+  const goToLogin = () =>
+    navigate("/login", {
+      state: { from: window.location.pathname + window.location.search },
+    });
+  const requireLogin = (action) => (isLoggedIn() ? action() : goToLogin());
 
   // Sum of every Art design price currently placed anywhere on the
   // garment (front/back/left/right combined) — this is what the
@@ -298,14 +366,11 @@ export default function CustomizePage() {
     if (!dragState && !resizeState) return;
 
     const handleMove = (e) => {
-      const canvas = canvasRef.current;
-      if (!canvas) return;
-      const rect = canvas.getBoundingClientRect();
       let moved = false;
 
       if (dragState) {
-        const dxPct = ((e.clientX - dragState.startX) / rect.width) * 100;
-        const dyPct = ((e.clientY - dragState.startY) / rect.height) * 100;
+        const dxPct = ((e.clientX - dragState.startX) / dragState.boxW) * 100;
+        const dyPct = ((e.clientY - dragState.startY) / dragState.boxH) * 100;
         if (Math.abs(dxPct) > 0.15 || Math.abs(dyPct) > 0.15) moved = true;
         setElements((prev) =>
           prev.map((el) =>
@@ -325,8 +390,8 @@ export default function CustomizePage() {
       }
 
       if (resizeState) {
-        const dxPct = ((e.clientX - resizeState.startX) / rect.width) * 100;
-        const dyPct = ((e.clientY - resizeState.startY) / rect.height) * 100;
+        const dxPct = ((e.clientX - resizeState.startX) / resizeState.boxW) * 100;
+        const dyPct = ((e.clientY - resizeState.startY) / resizeState.boxH) * 100;
         if (Math.abs(dxPct) > 0.15 || Math.abs(dyPct) > 0.15) moved = true;
         setElements((prev) =>
           prev.map((el) => {
@@ -334,13 +399,13 @@ export default function CustomizePage() {
             if (el.type === "text") {
               return {
                 ...el,
-                fontSizePct: clamp(resizeState.startFontSizePct + dyPct, 2, 30),
+                fontSizePct: clamp(resizeState.startFontSizePct + dyPct, 3, 100),
               };
             }
             return {
               ...el,
-              width: clamp(resizeState.startW + dxPct, 8, 90),
-              height: clamp(resizeState.startH + dyPct, 8, 90),
+              width: clamp(resizeState.startW + dxPct, 5, 100 - el.x),
+              height: clamp(resizeState.startH + dyPct, 5, 100 - el.y),
             };
           }),
         );
@@ -460,12 +525,13 @@ export default function CustomizePage() {
   };
 
   const confirmAddText = () => {
-    if (!textDraft) return;
+    if (!textDraft || !activePosition) return;
     pushHistoryNow();
     const newEl = {
       id: makeId(),
       type: "text",
       side: currentSide,
+      position: activePosition.key,
       text: textDraft.text.trim() || "Your Text",
       fontFamily: textDraft.fontFamily || FONT_OPTIONS[0],
       fontSizePct: textDraft.fontSizePct,
@@ -476,10 +542,10 @@ export default function CustomizePage() {
       align: textDraft.align,
       effect: textDraft.effect,
       note: textDraft.note,
-      x: 30,
-      y: 40,
-      width: 40,
-      height: 10,
+      x: 5,
+      y: 35,
+      width: 90,
+      height: 25,
       rotation: 0,
       zIndex: elements.length,
     };
@@ -489,19 +555,23 @@ export default function CustomizePage() {
   };
 
   const addNameElement = () => {
+    if (!activePosition) return;
     pushHistoryNow();
     const newEl = {
       id: makeId(),
       type: "text",
       side: currentSide,
+      position: activePosition.key,
       text: "NAME",
       fontFamily: "Bebas Neue",
-      fontSizePct: 8,
+      fontSizePct: 20,
       color: C.ink,
-      x: 32,
-      y: 55,
-      width: 36,
-      height: 12,
+      align: "center",
+      effect: "straight",
+      x: 10,
+      y: 60,
+      width: 80,
+      height: 25,
       rotation: 0,
       zIndex: elements.length,
     };
@@ -513,6 +583,7 @@ export default function CustomizePage() {
     const file = e.target.files?.[0];
     if (!file) return;
     e.target.value = "";
+    if (!activePosition) return;
 
     const result = await dispatch(uploadDesignImage(file));
     if (uploadDesignImage.fulfilled.match(result)) {
@@ -521,11 +592,12 @@ export default function CustomizePage() {
         id: makeId(),
         type: "image",
         side: currentSide,
+        position: activePosition.key,
         src: result.payload.path,
-        x: 30,
-        y: 30,
-        width: 35,
-        height: 35,
+        x: 10,
+        y: 10,
+        width: 80,
+        height: 80,
         rotation: 0,
         zIndex: elements.length,
       };
@@ -536,6 +608,7 @@ export default function CustomizePage() {
   };
 
   const handleSelectArtDesign = (design) => {
+    if (!activePosition) return;
     pushHistoryNow();
     const newEl = {
       id: makeId(),
@@ -544,10 +617,11 @@ export default function CustomizePage() {
       src: design.imageUrl, // already a full backend-hosted path
       artDesignId: design._id, // kept for price lookup at checkout time
       artPrice: design.price,
-      x: 30,
-      y: 30,
-      width: 35,
-      height: 35,
+      position: activePosition.key,
+      x: 10,
+      y: 10,
+      width: 80,
+      height: 80,
       rotation: 0,
       zIndex: elements.length,
     };
@@ -556,11 +630,24 @@ export default function CustomizePage() {
     setActivePanel(null);
   };
 
+  // Size of an element's print box on screen, in px.
+  const boxPx = (el) => {
+    const rect = canvasRef.current?.getBoundingClientRect();
+    const box = boxes[el.position];
+    if (!rect || !box) return { boxW: 1, boxH: 1 };
+    return {
+      boxW: (rect.width * box.width) / 100,
+      boxH: (rect.height * box.height) / 100,
+    };
+  };
+
   const handleElementMouseDown = (el, e) => {
     e.stopPropagation();
     setSelectedId(el.id);
+    selectPosition(el.position);
     historyCommittedRef.current = false; // history commits lazily on first move
     setDragState({
+      ...boxPx(el),
       id: el.id,
       startX: e.clientX,
       startY: e.clientY,
@@ -573,6 +660,7 @@ export default function CustomizePage() {
     e.stopPropagation();
     historyCommittedRef.current = false;
     setResizeState({
+      ...boxPx(el),
       id: el.id,
       startX: e.clientX,
       startY: e.clientY,
@@ -582,95 +670,140 @@ export default function CustomizePage() {
     });
   };
 
-  // Renders one side's design elements (text/image) at a given opacity.
-  // In flat/edit mode (interactive=true) they're draggable/selectable; in
-  // 3D spin mode (interactive=false) they're just visual, crossfading
-  // along with the garment photo underneath — so text/art placed on
-  // front and back both fade in/out smoothly as the garment "rotates".
+  // Renders one side's print boxes and the design elements inside them.
+  // Interactive (edit) mode shows dashed print-area outlines and lets
+  // elements be dragged; otherwise the boxes clip their content exactly as
+  // it will be printed.
   const renderSideElements = (sideElements, opacity, interactive) =>
-    sideElements
-      .slice()
-      .sort((a, b) => a.zIndex - b.zIndex)
-      .map((el) => (
-        <div
-          key={el.id}
-          onMouseDown={
-            interactive ? (e) => handleElementMouseDown(el, e) : undefined
-          }
-          style={{
-            position: "absolute",
-            left: `${el.x}%`,
-            top: `${el.y}%`,
-            width: `${el.width}%`,
-            height: el.type === "image" ? `${el.height}%` : "auto",
-            transform: `rotate(${el.rotation}deg)`,
-            transformOrigin: "center",
-            cursor: interactive ? "move" : "default",
-            outline:
-              interactive && selectedId === el.id
-                ? `2px dashed ${C.gold}`
-                : "none",
-            outlineOffset: 2,
-            userSelect: "none",
-            opacity,
-            pointerEvents: interactive ? "auto" : "none",
-          }}
-        >
-          {el.type === "image" ? (
-            <img
-              src={imgUrl(el.src)}
-              alt=""
-              draggable={false}
-              style={{
-                width: "100%",
-                height: "100%",
-                objectFit: "contain",
-                pointerEvents: "none",
-              }}
-            />
-          ) : (
-            <span
-              style={{
-                display: "block",
-                fontFamily: `"${el.fontFamily}", serif`,
-                fontSize: `${(el.fontSizePct / 100) * canvasSize.height}px`,
-                color: el.color,
-                fontWeight: el.bold ? 700 : 400,
-                fontStyle: el.italic ? "italic" : "normal",
-                textDecoration: el.underline ? "underline" : "none",
-                textAlign: el.align || "left",
-                whiteSpace: "pre-wrap",
-                pointerEvents: "none",
-                transform:
-                  el.effect === "arc-up"
-                    ? "skewY(-6deg) scaleY(1.05)"
-                    : el.effect === "arc-down"
-                      ? "skewY(6deg) scaleY(1.05)"
+    positions
+      .filter((p) => p.side === currentSide && boxes[p.key])
+      .map((p) => {
+        const box = boxes[p.key];
+        const boxPxW = (box.width / 100) * canvasSize.width;
+        const boxPxH = (box.height / 100) * canvasSize.height;
+        const isActive = interactive && activePosition?.key === p.key;
+        const els = sideElements
+          .filter((el) => el.position === p.key)
+          .sort((a, b) => a.zIndex - b.zIndex);
+        return (
+          <div
+            key={p.key}
+            onMouseDown={
+              interactive
+                ? (e) => {
+                    e.stopPropagation();
+                    setSelectedId(null);
+                    selectPosition(p.key);
+                  }
+                : undefined
+            }
+            style={{
+              position: "absolute",
+              left: `${box.left}%`,
+              top: `${box.top}%`,
+              width: `${box.width}%`,
+              height: `${box.height}%`,
+              opacity,
+              pointerEvents: interactive ? "auto" : "none",
+              overflow: interactive ? "visible" : "hidden",
+            }}
+          >
+            {interactive && (
+              <div
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  border: `1.5px dashed ${isActive ? C.gold : "rgba(201,162,75,0.4)"}`,
+                  borderRadius: 4,
+                  background: isActive ? "rgba(201,162,75,0.05)" : "transparent",
+                  pointerEvents: "none",
+                }}
+              />
+            )}
+            {isActive && (
+              <span
+                style={{
+                  position: "absolute",
+                  bottom: "100%",
+                  left: 0,
+                  marginBottom: 3,
+                  fontSize: 10,
+                  fontWeight: 700,
+                  color: C.goldDeep,
+                  background: "rgba(255,252,247,0.9)",
+                  padding: "1px 6px",
+                  borderRadius: 999,
+                  whiteSpace: "nowrap",
+                  pointerEvents: "none",
+                }}
+              >
+                {p.label} · {sizeLabel(p, sizeGroup)}
+              </span>
+            )}
+            {els.map((el) => (
+              <div
+                key={el.id}
+                onMouseDown={
+                  interactive ? (e) => handleElementMouseDown(el, e) : undefined
+                }
+                style={{
+                  position: "absolute",
+                  left: `${el.x}%`,
+                  top: `${el.y}%`,
+                  width: `${el.width}%`,
+                  height: el.type === "image" ? `${el.height}%` : "auto",
+                  transform: `rotate(${el.rotation}deg)`,
+                  transformOrigin: "center",
+                  cursor: interactive ? "move" : "default",
+                  outline:
+                    interactive && selectedId === el.id
+                      ? `2px dashed ${C.gold}`
                       : "none",
-              }}
-            >
-              {el.text}
-            </span>
-          )}
+                  outlineOffset: 2,
+                  userSelect: "none",
+                }}
+              >
+                {el.type === "image" ? (
+                  <img
+                    src={imgUrl(el.src)}
+                    alt=""
+                    draggable={false}
+                    style={{
+                      width: "100%",
+                      height: "100%",
+                      objectFit: "contain",
+                      pointerEvents: "none",
+                    }}
+                  />
+                ) : (
+                  <DesignText
+                    el={el}
+                    fontPx={(el.fontSizePct / 100) * boxPxH}
+                    widthPx={(el.width / 100) * boxPxW}
+                  />
+                )}
 
-          {interactive && selectedId === el.id && (
-            <div
-              onMouseDown={(e) => handleResizeMouseDown(el, e)}
-              style={{
-                position: "absolute",
-                right: -7,
-                bottom: -7,
-                width: 14,
-                height: 14,
-                borderRadius: "50%",
-                background: C.gold,
-                border: "2px solid #fff",
-                cursor: "nwse-resize",
-              }}
-            />
-          )}
-        </div>
-      ));
+                {interactive && selectedId === el.id && (
+                  <div
+                    onMouseDown={(e) => handleResizeMouseDown(el, e)}
+                    style={{
+                      position: "absolute",
+                      right: -7,
+                      bottom: -7,
+                      width: 14,
+                      height: 14,
+                      borderRadius: "50%",
+                      background: C.gold,
+                      border: "2px solid #fff",
+                      cursor: "nwse-resize",
+                    }}
+                  />
+                )}
+              </div>
+            ))}
+          </div>
+        );
+      });
   const updateSelected = (patch) => {
     setElements((prev) =>
       prev.map((el) => (el.id === selectedId ? { ...el, ...patch } : el)),
@@ -744,6 +877,10 @@ export default function CustomizePage() {
 
   const handleSave = async () => {
     if (elements.length === 0) return;
+    if (!isLoggedIn()) {
+      goToLogin();
+      return;
+    }
     const result = await dispatch(
       saveCustomization({ garmentType: type, color: color.slug, elements }),
     );
@@ -1029,7 +1166,7 @@ export default function CustomizePage() {
         {activePanel === "image" && (
           <ImagePanel
             isUploading={isUploading}
-            onBrowse={() => fileInputRef.current?.click()}
+            onBrowse={() => requireLogin(() => fileInputRef.current?.click())}
             onClose={() => setActivePanel(null)}
           />
         )}
@@ -1041,7 +1178,7 @@ export default function CustomizePage() {
               dispatch(fetchArtDesigns(categoryId))
             }
             onSelectDesign={handleSelectArtDesign}
-            onBrowseUpload={() => artInputRef.current?.click()}
+            onBrowseUpload={() => requireLogin(() => artInputRef.current?.click())}
             onClose={() => setActivePanel(null)}
           />
         )}
@@ -1066,6 +1203,65 @@ export default function CustomizePage() {
             </ModeButton>
           </div>
 
+          {viewMode === "flat" && sidePositions.length > 0 && (
+            <div
+              style={{
+                display: "flex",
+                flexWrap: "wrap",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 6,
+                marginBottom: 14,
+                maxWidth: 560,
+              }}
+            >
+              <span style={{ fontSize: 11, color: C.muted, fontWeight: 700, letterSpacing: "0.06em" }}>
+                PRINT POSITION
+              </span>
+              {sidePositions.map((p) => {
+                const active = activePosition?.key === p.key;
+                return (
+                  <button
+                    key={p.key}
+                    type="button"
+                    onClick={() => {
+                      setSelectedId(null);
+                      selectPosition(p.key);
+                    }}
+                    style={{
+                      padding: "6px 12px",
+                      borderRadius: 999,
+                      border: `1px solid ${active ? C.gold : C.border}`,
+                      background: active ? C.goldSoft : "#fff",
+                      color: C.ink,
+                      fontSize: 12,
+                      fontWeight: active ? 700 : 500,
+                      cursor: "pointer",
+                    }}
+                  >
+                    {p.label}
+                    <span style={{ color: C.muted, fontWeight: 400 }}> · {sizeLabel(p, sizeGroup)}</span>
+                  </button>
+                );
+              })}
+              {sizeGroups.length > 0 && (
+                <select
+                  aria-label="Garment size range"
+                  value={sizeGroup}
+                  onChange={(e) => setSizeGroup(e.target.value)}
+                  title="Print sizes depend on the garment size"
+                  style={{ fontSize: 12, padding: "5px 8px", borderRadius: 8, border: `1px solid ${C.border}`, background: "#fff" }}
+                >
+                  {sizeGroups.map((g) => (
+                    <option key={g.key} value={g.key}>
+                      Sizes {g.label}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+          )}
+
           <div
             ref={canvasRef}
             onMouseDown={(e) => {
@@ -1088,15 +1284,17 @@ export default function CustomizePage() {
             <div
               style={{
                 position: "absolute",
-                inset: "4% 8%",
+                inset: 0,
                 pointerEvents: "none",
               }}
             >
               {viewMode === "3d" ? (
                 <Garment3DViewer
                   color={color.hex}
-                  frontElements={elements.filter((el) => el.side === "front")}
-                  backElements={elements.filter((el) => el.side === "back")}
+                  frontElements={stageElements("front")}
+                  backElements={stageElements("back")}
+                  rightElements={stageElements("right")}
+                  leftElements={stageElements("left")}
                   modelPath={tshirtModel}
                 />
               ) : (
@@ -1108,20 +1306,6 @@ export default function CustomizePage() {
               )}
             </div>
 
-            {viewMode === "flat" && (
-              <div
-                style={{
-                  position: "absolute",
-                  left: `${PRINT_AREA.left}%`,
-                  top: `${PRINT_AREA.top}%`,
-                  width: `${PRINT_AREA.width}%`,
-                  height: `${PRINT_AREA.height}%`,
-                  border: `1.5px dashed ${C.gold}`,
-                  borderRadius: 6,
-                  pointerEvents: "none",
-                }}
-              />
-            )}
             {viewMode === "flat" &&
               renderSideElements(visibleElements, 1, true)}
           </div>
@@ -1264,6 +1448,25 @@ export default function CustomizePage() {
               }}
             >
               <p style={sectionLabelStyle}>EDIT</p>
+
+              {sidePositions.length > 1 && (
+                <select
+                  aria-label="Print position"
+                  value={selectedEl.position}
+                  onChange={(e) => {
+                    pushHistoryNow();
+                    updateSelected({ position: e.target.value });
+                    selectPosition(e.target.value);
+                  }}
+                  style={{ ...inputStyle, marginBottom: 8 }}
+                >
+                  {sidePositions.map((p) => (
+                    <option key={p.key} value={p.key}>
+                      {p.label}
+                    </option>
+                  ))}
+                </select>
+              )}
 
               {selectedEl.type === "text" && (
                 <>
@@ -1494,6 +1697,65 @@ function Spin360Blend({ garmentKey, colorSlug, spinFloat }) {
     </div>
   );
 }
+// Design text: straight text as HTML; "arc-up" / "arc-down" drawn along
+// a curve with SVG so the effect looks right (and can be printed as-is).
+function DesignText({ el, fontPx, widthPx }) {
+  const common = {
+    fontFamily: `"${el.fontFamily}", serif`,
+    fontWeight: el.bold ? 700 : 400,
+    fontStyle: el.italic ? "italic" : "normal",
+  };
+  if (el.effect !== "arc-up" && el.effect !== "arc-down") {
+    return (
+      <span
+        style={{
+          ...common,
+          display: "block",
+          fontSize: `${fontPx}px`,
+          lineHeight: 1.15,
+          color: el.color,
+          textDecoration: el.underline ? "underline" : "none",
+          textAlign: el.align || "center",
+          whiteSpace: "pre-wrap",
+          wordBreak: "break-word",
+          pointerEvents: "none",
+        }}
+      >
+        {el.text}
+      </span>
+    );
+  }
+  const w = Math.max(widthPx, 1);
+  const f = Math.max(fontPx, 1);
+  const sag = f * 0.9; // depth of the curve
+  const up = el.effect === "arc-up";
+  const h = f * 1.6 + sag;
+  const baseY = up ? h - f * 0.3 : f;
+  const ctrlY = up ? baseY - 2 * sag : baseY + 2 * sag;
+  const id = `arc-${el.id}`;
+  return (
+    <svg
+      width="100%"
+      viewBox={`0 0 ${w} ${h}`}
+      style={{ display: "block", overflow: "visible", pointerEvents: "none" }}
+    >
+      <defs>
+        <path id={id} d={`M 0 ${baseY} Q ${w / 2} ${ctrlY} ${w} ${baseY}`} />
+      </defs>
+      <text
+        fontSize={f}
+        fill={el.color}
+        textDecoration={el.underline ? "underline" : undefined}
+        style={common}
+      >
+        <textPath href={`#${id}`} startOffset="50%" textAnchor="middle">
+          {el.text}
+        </textPath>
+      </text>
+    </svg>
+  );
+}
+
 function Logo() {
   return (
     <Link

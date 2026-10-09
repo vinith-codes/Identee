@@ -362,6 +362,30 @@ Anything still missing must be re-uploaded in the admin panel.
 
 ---
 
+## 6c. Customizer — Part A: real print positions (DONE on branch `feature-customizer-part-a`)
+
+### Before
+Element positions were % of the whole editor canvas; one hard-coded dashed box (same on every side) that constrained nothing; the admin's print area (Garment Photos) was never used; no real-world size anywhere; Google fonts in the font list were never loaded; "arc" text was a fake skew and the effect was dropped on save; design save / image upload needed no login; a refresh lost the design.
+
+### Now
+- **Print positions from the product spec** (`server/data/printPositions.js`, see `docs/PRODUCT_SPEC.md`): Centre Front, Left Chest, Right Chest (front) · Full Back · Left/Right Sleeve — with real cm sizes per size range (XS–S / M–XL / 2XL–3XL). Served at `GET /api/customizations/print-positions`.
+- **Editor:** a "PRINT POSITION" chip row per side (e.g. *Centre Front · 28 × 32 cm*) + size-range selector; dashed box for each position, the active one labelled; new text/images go into the active position; elements are dragged/resized **inside their box**; EDIT panel can move an element to another position on the same side.
+- **Where the boxes sit:** the main box per side (Centre Front, Full Back, sleeves) uses the admin's print area from **Admin → Garment Photos** when set (else a default), kept to the real cm proportions; chest boxes are placed and sized from the same cm scale (`frontend/src/utils/printLayout.js`). The garment photo now fills the 4:5 stage exactly like the admin page, so both line up.
+- **Layout v2 saved designs:** each element stores its `position`, and x/y/width/height/fontSize as % of that print box — size-independent, so print files (Part D) can render any garment size from the same design. Older saves are `layoutVersion: 1`.
+- **Text:** fonts load from Google Fonts; **Arc Up / Arc Down** drawn with real curved SVG text; effect and note are saved.
+- **Security:** saving a design and uploading artwork require login (the editor sends you to login and brings you back); server validates positions, image sources (only IDENTEE Cloudinary / uploads), colours and sizes; only the owner or an admin can open a saved design.
+- **Autosave:** the design is kept on the device per garment + colour, so a refresh or the login detour never loses it.
+- Removed the unused, broken inch-based print-zone utils.
+
+### Testing
+15 server checks on a throwaway DB (positions + cm sizes, login required, layout v2 saved with effect, unknown position / external image / unknown garment rejected, side forced from position, owner/admin-only access, checkout pricing still works, someone else's design can't be bought). Browser: chips + size selector, fonts render, curved text added inside the Centre Front box, autosave.
+
+### Still to do (next parts)
+- **Admin calibration:** check each garment's print boxes on real blank photos (Admin → Garment Photos print area). The current test photos (tshirt/white) are not blank garments.
+- **Part B:** touch/mobile, rotate handle, server drafts + reopen by link. **Part C:** size × quantity picker, cart. **Part D:** 300-DPI print files + mockup, admin download.
+
+---
+
 ## 7. Phase 1 — remaining steps (audit findings)
 
 ### Step 3: Customization
