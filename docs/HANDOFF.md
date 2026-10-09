@@ -2,6 +2,11 @@
 
 _Last updated: 9 Oct 2026. Read this first, then `docs/PHASE1_PROGRESS.md` (full before/after history) and `docs/PRODUCT_SPEC.md` (products, sizes, print positions)._
 
+## 0. Current focus (client decision, 9 Oct 2026)
+**Only the Oversized Tee for now** — customizable (240 GSM Cotton and French Terry, XS–3XL, 12 colours) plus ready-made oversized tees. Polo and other garments/categories come later "when needed": keep the system multi-garment capable, but build, test and set up only the Oversized Tee; hide other categories from the storefront. Polo print sizes were requested from the print team (`docs/print-requests/IDENTEE_Polo_Print_Area_Request.pdf`) — not needed now.
+
+Admin redesign was agreed in principle and prototyped (Claude artifact "IDENTEE Admin Prototype": Home with setup checklist + "needs attention", Customizable list, 6-step garment setup wizard with a 15-area print-area gallery, customer "Where do you want to print?" picker). Next build steps: merge customizer Part A → real admin menu + Home → Oversized Tee setup wizard (incl. 15-area gallery, 6 offered) → customer area picker (Part B) → size × qty (Part C) → print files (Part D).
+
 ## 1. Project in one paragraph
 IDENTEE is a custom-apparel e-commerce web app (client project at Quindl): customers design their own T-shirts (customizer) or buy ready-made products; admins manage catalog, orders, banners, etc. Stack: **React 19 + Vite + Redux Toolkit** (`frontend/`), **Node + Express (ESM) + MongoDB/Mongoose 9** (`server/`), **Razorpay** (test keys) + COD, **Cloudinary** for all uploads (account `vy728xfe`), Gmail SMTP for emails. Original spec = "AI-Powered Custom Apparel E-commerce Platform" (AI design, 360° try-on, print-operator panel — mostly not built yet).
 
