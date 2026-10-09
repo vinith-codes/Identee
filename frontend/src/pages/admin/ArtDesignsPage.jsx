@@ -107,21 +107,44 @@ export default function ArtDesignsPage() {
       )}
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 16 }}>
-        {designs.map((d) => (
-          <div key={d._id} style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 12, padding: 12, textAlign: "center" }}>
-            <img src={imgUrl(d.imageUrl)} alt={d.name} style={{ width: "100%", aspectRatio: "1/1", objectFit: "contain", borderRadius: 8, marginBottom: 10, background: "#fff" }} />
-            <p style={{ margin: "0 0 2px", fontSize: 13, fontWeight: 600 }}>{d.name}</p>
-            <p style={{ margin: "0 0 4px", fontSize: 11, color: C.muted }}>{d.category?.name}</p>
-            <p style={{ margin: "0 0 10px", fontSize: 13, fontWeight: 700, color: C.gold }}>₹{d.price}</p>
-            <button
-              onClick={() => dispatch(deleteArtDesign(d._id))}
-              style={{ width: "100%", padding: "6px 0", borderRadius: 6, border: `1px solid ${C.danger}`, background: "none", color: C.danger, fontSize: 11, cursor: "pointer" }}
-            >
-              Delete
-            </button>
-          </div>
-        ))}
+        {[...designs]
+          .sort((x, y) => Number(y.isActive !== false) - Number(x.isActive !== false))
+          .map((d) => (
+            <ArtCard key={d._id} d={d} onDelete={() => dispatch(deleteArtDesign(d._id))} />
+          ))}
       </div>
+    </div>
+  );
+}
+
+// One art design. Hidden ones (not shown to customers) are marked, and a
+// picture that no longer exists shows a "Picture missing" tile instead of
+// a broken image (files saved before the move to Cloudinary were lost).
+function ArtCard({ d, onDelete }) {
+  const [missing, setMissing] = useState(false);
+  const hidden = d.isActive === false;
+  return (
+    <div style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 12, padding: 12, textAlign: "center", opacity: hidden ? 0.75 : 1 }}>
+      {missing || !d.imageUrl ? (
+        <div style={{ width: "100%", aspectRatio: "1/1", borderRadius: 8, marginBottom: 10, background: "#1F1F21", border: `1px dashed ${C.border}`, display: "grid", placeContent: "center", gap: 4, color: C.muted, fontSize: 11.5, padding: 8 }}>
+          <b style={{ color: C.ink, fontSize: 12.5 }}>Picture missing</b>
+          Delete it and add it again with its picture.
+        </div>
+      ) : (
+        <img src={imgUrl(d.imageUrl)} alt={d.name} onError={() => setMissing(true)} style={{ width: "100%", aspectRatio: "1/1", objectFit: "contain", borderRadius: 8, marginBottom: 10, background: "#fff" }} />
+      )}
+      <p style={{ margin: "0 0 2px", fontSize: 13, fontWeight: 600 }}>{d.name}</p>
+      <p style={{ margin: "0 0 4px", fontSize: 11, color: C.muted }}>{d.category?.name}</p>
+      <p style={{ margin: "0 0 6px", fontSize: 13, fontWeight: 700, color: C.gold }}>₹{d.price}</p>
+      <p style={{ margin: "0 0 10px", fontSize: 10.5, fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", color: hidden ? C.danger : "#7BC59A" }}>
+        {hidden ? "Hidden from customers" : "Shown in the Design Room"}
+      </p>
+      <button
+        onClick={onDelete}
+        style={{ width: "100%", padding: "6px 0", borderRadius: 6, border: `1px solid ${C.danger}`, background: "none", color: C.danger, fontSize: 11, cursor: "pointer" }}
+      >
+        Delete
+      </button>
     </div>
   );
 }
