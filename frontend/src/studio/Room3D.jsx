@@ -446,6 +446,9 @@ function foldable(shader) {
     .replace("#include <begin_vertex>", "#include <begin_vertex>\ntransformed = foldPos(transformed);");
 }
 const foldKey = () => "identee-fold";
+// where the folded tee rests before it lifts: just above the plinth, moved forward so the packet sits over its middle
+const FLAT_Y = -0.66;
+const FLAT_Z = 0.42;
 // The reveal moves like something with weight: each part starts gently,
 // swings, and settles (a spring), instead of stopping dead. z < 1 lets it go
 // a touch past its resting place and come back.
@@ -455,12 +458,14 @@ const spring = (t, w, z = 1) => {
   const wd = w * Math.sqrt(1 - z * z);
   return 1 - Math.exp(-z * w * t) * (Math.cos(wd * t) + ((z * w) / wd) * Math.sin(wd * t));
 };
-// when each part of the reveal starts (seconds); the parts overlap so the movement never pauses
-const UNFOLD = { bottom: 0.75, left: 1.5, right: 1.8, print: 3.05, end: 4.8 };
+// The reveal, in seconds: the folded tee lies on the plinth, lifts and
+// stands up, the bottom half drops open, both sides open together like arms,
+// then the prints appear. Each part begins as the one before it settles.
+const UNFOLD = { lift: 0.35, bottom: 1.25, sides: 1.8, print: 2.55, end: 4.3 };
 function setFold(t) {
-  FOLD.bottom.value = Math.PI * (1 - spring(t - UNFOLD.bottom, 4.6, 0.82));
-  FOLD.left.value = Math.PI * (1 - spring(t - UNFOLD.left, 4.8, 0.8));
-  FOLD.right.value = Math.PI * (1 - spring(t - UNFOLD.right, 4.8, 0.8));
+  FOLD.bottom.value = Math.PI * (1 - spring(t - UNFOLD.bottom, 5.2, 0.85));
+  FOLD.left.value = Math.PI * (1 - spring(t - UNFOLD.sides, 5.4, 0.82));
+  FOLD.right.value = FOLD.left.value;
   FOLD.printAt = t - UNFOLD.print;
 }
 function openFold() {
@@ -658,17 +663,20 @@ function Tee({ model, colour, areas, onPickArea, interactive, still, spotsRef, t
     }
     if (u.on && (!turntable || t - u.t0 > UNFOLD.end)) u.on = false;
     if (u.on) {
-      // folded: lying tilted back low over the plinth; it rises and stands up, then opens
+      // folded, lying flat on the plinth like a tee on a shop table; it lifts straight up and stands, then opens
       const s = t - u.t0;
+      const up = spring(s - UNFOLD.lift, 4.2);
       setFold(s);
-      g.position.y = THREE.MathUtils.lerp(TEE_Y - 0.5, TEE_Y + 0.22, spring(s, 2.6)) + Math.sin(t / 1.4) * 0.025 * spring(s - 2.5, 2);
-      g.rotation.x = -1.15 * (1 - spring(s - 0.1, 2.9));
-      g.rotation.y = 0.9 * (1 - spring(s, 2.2));
+      g.position.y = THREE.MathUtils.lerp(FLAT_Y, TEE_Y + 0.22, up) + Math.sin(t / 1.4) * 0.025 * spring(s - 2.6, 2);
+      g.position.z = FLAT_Z * (1 - up);
+      g.rotation.x = (-Math.PI / 2) * (1 - up);
+      g.rotation.y = 0;
       speed.current = 0;
       return;
     }
     openFold();
     g.rotation.x = THREE.MathUtils.lerp(g.rotation.x, 0, 0.06);
+    g.position.z = THREE.MathUtils.lerp(g.position.z, 0, 0.1);
     g.position.y = THREE.MathUtils.lerp(g.position.y, TEE_Y + (turntable ? 0.22 : 0) + Math.sin(t / 1.4) * 0.025 * k, 0.08);
     // the shortest way round to an angle
     const towards = (to, f) => {
@@ -847,7 +855,7 @@ function CameraRig({ request, getSpot, apiRef, wakeKey, room }) {
       const studio = scene.getObjectByName("set-studio");
       const boutique = scene.getObjectByName("set-boutique");
       const tee = scene.getObjectByName("tee");
-      const was = { studio: studio?.visible, boutique: boutique?.visible, turn: tee?.rotation.y, tilt: tee?.rotation.x, y: tee?.position.y, fold: [FOLD.left.value, FOLD.right.value, FOLD.bottom.value] };
+      const was = { studio: studio?.visible, boutique: boutique?.visible, turn: tee?.rotation.y, tilt: tee?.rotation.x, y: tee?.position.y, z: tee?.position.z, fold: [FOLD.left.value, FOLD.right.value, FOLD.bottom.value] };
       const prints = [];
       scene.traverse((o) => {
         if (o.userData?.areaKey && o.material) prints.push([o.material, o.material.opacity]);
@@ -862,6 +870,7 @@ function CameraRig({ request, getSpot, apiRef, wakeKey, room }) {
         tee.rotation.y = 0;
         tee.rotation.x = 0;
         tee.position.y = TEE_Y;
+        tee.position.z = 0;
       }
       paintBackdrop(scene, "studio");
       const env = swapEnvironment(scene, null);
@@ -875,6 +884,7 @@ function CameraRig({ request, getSpot, apiRef, wakeKey, room }) {
         tee.rotation.y = was.turn;
         tee.rotation.x = was.tilt;
         tee.position.y = was.y;
+        tee.position.z = was.z;
       }
       prints.forEach(([m, o]) => (m.opacity = o));
       [FOLD.left.value, FOLD.right.value, FOLD.bottom.value] = was.fold;
@@ -885,6 +895,10 @@ function CameraRig({ request, getSpot, apiRef, wakeKey, room }) {
         controls.target.copy(keepT);
         camera.lookAt(keepT);
       }
+      // Draw the real view again straight away. The picture above was drawn on
+      // the visible canvas; without this, the bright studio shot could show
+      // for a moment in the middle of the Review reveal.
+      gl.render(scene, camera);
       return url;
     },
   };
