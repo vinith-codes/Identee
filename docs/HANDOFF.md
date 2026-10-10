@@ -93,6 +93,11 @@ Admin → Settings (left out when empty; the social boxes currently hold "idente
   with a faked `performance.now`) and lay the frames out in a contact sheet.
 - Not tested: Review on a phone; the added-to-cart tick (needs a real cart write); speed on a slow laptop.
 
+**`fix-review-first-time` — MERGED 10 Oct 2026:** the first Review visit used to skip the start of the reveal (the room was
+being built while the clock ran). Now the unfold and the camera move count their own time (clamped per frame), the reveal
+and the "lights on" (`data-lit` on `.dr-app`, set by `onLit`) wait until the room has drawn a few frames, and the room's
+reflections stay loaded (studio sets `scene.environmentIntensity = 0`) so materials are not rebuilt on entering Review.
+
 **Next:** policy pages (Privacy, Returns & refunds, Shipping, Terms — required by Razorpay for live payments; need the
 client's rules), Payments / Sellers admin pages; go-live items (Brevo email, deployment,
 Razorpay live keys). Gotcha: the C: drive is nearly full — keep throwaway test databases on E:.
