@@ -134,6 +134,14 @@ Brevo + domain email (OTP mails land in spam), HTTPS + deploy to the Quindl serv
 run `scripts/migrateUserAuthIndexes.js`, old `server/uploads` → `scripts/migrateUploadsToCloudinary.js`, CC BY credit kept on the site,
 print-team start distances applied.
 
+**Background remover (Design Room) at go-live:**
+- Host the AI model ourselves instead of fetching it from huggingface.co: copy `onnx-community/ormbg-ONNX` (`config.json`,
+  `preprocessor_config.json`, `onnx/model_quantized.onnx`, ~44 MB) to our hosting and point Transformers.js at it
+  (`env.remoteHost` / `env.allowRemoteModels` in `frontend/src/studio/removeBackground.js`).
+- The host must serve `.wasm` files (the build adds a ~21 MB `ort-wasm…` file, only downloaded when the feature is used).
+- Test on the live HTTPS address: one logo on a plain background (instant) and one photo (model download + cut-out),
+  on a computer and on a mid-range phone; then order it and check the print file's background is transparent.
+
 ## 8. How the user likes to work
 - Vinith is learning → plain words, step by step, tables; exact commands in separate code blocks.
 - Wants things tested before merge and documented in `docs/`; asks "is it saved in DB?" → verify with read-only queries.
