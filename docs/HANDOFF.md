@@ -98,6 +98,10 @@ being built while the clock ran). Now the unfold and the camera move count their
 and the "lights on" (`data-lit` on `.dr-app`, set by `onLit`) wait until the room has drawn a few frames, and the room's
 reflections stay loaded (studio sets `scene.environmentIntensity = 0`) so materials are not rebuilt on entering Review.
 
+**`feature-review-dark` — MERGED 10 Oct 2026:** the Review dressing room is now dark with pools of light (user's choice):
+a spotlight on the designed tee and one on each rack (`Spot` in `Room3D.jsx`), edge lights from behind that get stronger
+for dark tee colours (`dark` in `Boutique`), the arch dimmed to a glow, lamps over the racks.
+
 **Next:** policy pages (Privacy, Returns & refunds, Shipping, Terms — required by Razorpay for live payments; need the
 client's rules), Payments / Sellers admin pages; go-live items (Brevo email, deployment,
 Razorpay live keys). Gotcha: the C: drive is nearly full — keep throwaway test databases on E:.
