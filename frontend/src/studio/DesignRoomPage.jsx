@@ -21,6 +21,7 @@ import AreaEditor from "./AreaEditor";
 import { AreaRenderer, cachedImage, imageSrcs, loadImage, measureText } from "./konvaRender";
 import { areaCm, blockersOf, clashesIn, modelForGarment, placeArea } from "./teeModel";
 import AreaThumb from "./AreaThumb";
+import Rolling from "./Rolling";
 import Assistant from "./Assistant";
 import { checkMessages, firstMessages, firstState } from "./assistantScript";
 import { checkDesign, inksFor } from "./designCheck";
@@ -71,6 +72,7 @@ const lum = (hex) => {
 };
 let reqSeq = 0; // camera-move request counter
 const nextReq = () => ++reqSeq;
+const rupees = (n) => `₹${n.toLocaleString("en-IN")}`;
 const makeId = () => `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
 
 // A 4:5 picture of the tee from a full 3D-view snapshot (for mockups).
@@ -141,6 +143,9 @@ export default function DesignRoomPage() {
   const [camRequest, setCamRequest] = useState(() => (draft?.elements?.length ? { view: "front", ms: 1600, n: nextReq() } : null));
   const [shots, setShots] = useState(null);
   const [spin, setSpin] = useState(true);
+  const [reveal, setReveal] = useState(false); // Review opens with one quicker full turn
+  const [sideShown, setSideShown] = useState(null); // the side picture last tapped in Review
+  const revealTimer = useRef(null);
   const [qtys, setQtys] = useState({}); // Review: { M: 2, L: 1 } — one design, any mix of sizes // Review: the tee turns 360° until a side is picked
   const [toast, setToast] = useState("");
   const [busy, setBusy] = useState("");
@@ -682,8 +687,15 @@ export default function DesignRoomPage() {
     closeArea();
     setStep("review");
     setSpin(true);
+    setSideShown(null);
     setQtys((q) => (Object.values(q).some((n) => n > 0) ? q : { [sizeNow]: 1 }));
-    setCamRequest({ position: [0, 0.4, 5], n: nextReq() });
+    // the reveal: the camera pulls back while the tee makes one quicker full turn, then it turns slowly
+    setCamRequest({ position: [0, 0.4, 5], ms: 1700, n: nextReq() });
+    if (!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
+      setReveal(true);
+      clearTimeout(revealTimer.current);
+      revealTimer.current = setTimeout(() => setReveal(false), 3400);
+    }
     // let the outline disappear from the textures, then take pictures
     // (retry for a few seconds in case the 3D view is still starting)
     captureMockups().then((m) => m && setShots(SIDES.map(([v, label]) => ({ label, url: m[v] }))));
@@ -753,10 +765,13 @@ export default function DesignRoomPage() {
   // Review: show one side (stops the 360° turn) / turn again
   const showSide = (view) => {
     setSpin(false);
+    setReveal(false);
+    setSideShown(view);
     setCamRequest({ view, n: nextReq() });
   };
   const turn360 = () => {
     setSpin(true);
+    setSideShown(null);
     setCamRequest({ position: [0, 0.4, 5], n: nextReq() });
   };
   const backToDesign = () => {
@@ -1002,6 +1017,7 @@ export default function DesignRoomPage() {
                 interactive={step === "design"}
                 still={!!active}
                 autoRotate={step === "review" && spin}
+                spinSpeed={reveal ? 14 : 1.6}
               />
             </div>
           )}
@@ -1159,7 +1175,7 @@ export default function DesignRoomPage() {
               </div>
               <div className="dr-shots">
                 {(shots || SIDES.map(([, label]) => ({ label, url: null }))).map((sh, i) => (
-                  <button key={sh.label} type="button" className="dr-shot" onClick={() => showSide(SIDES[i][0])} aria-label={`Show the ${sh.label.toLowerCase()} on the 3D tee`}>
+                  <button key={sh.label} type="button" className={`dr-shot${sideShown === SIDES[i][0] ? " on" : ""}`} aria-pressed={sideShown === SIDES[i][0]} onClick={() => showSide(SIDES[i][0])} aria-label={`Show the ${sh.label.toLowerCase()} on the 3D tee`}>
                     {sh.url ? <img src={sh.url} alt="" /> : <div className="ph" />}
                     <span>{sh.label}</span>
                   </button>
@@ -1176,7 +1192,7 @@ export default function DesignRoomPage() {
                       <small>{r ? `chest ${r.chest}″ · length ${r.length}″` : ""}</small>
                       <div className="dr-stepper">
                         <button type="button" onClick={() => setQty(sz, n - 1)} disabled={!n} aria-label={`One less ${sz}`}>−</button>
-                        <output aria-live="polite">{n}</output>
+                        <output key={n} aria-live="polite">{n}</output>
                         <button type="button" onClick={() => setQty(sz, n + 1)} aria-label={`One more ${sz}`}>+</button>
                       </div>
                     </div>
@@ -1197,7 +1213,7 @@ export default function DesignRoomPage() {
                   </p>
                 </div>
                 <div className="dr-total">
-                  ₹{(unitPrice * pieces).toLocaleString("en-IN")}
+                  <Rolling value={unitPrice * pieces} format={rupees} />
                   <small>{pieces} × ₹{unitPrice.toLocaleString("en-IN")}</small>
                 </div>
               </div>
@@ -1227,6 +1243,10 @@ export default function DesignRoomPage() {
         {cartNote && (
           <div className="dr-overlay" role="dialog" aria-modal="true" aria-label="Added to cart">
             <div className="dr-fit dr-added">
+              <svg className="dr-tick" viewBox="0 0 52 52" aria-hidden="true">
+                <circle cx="26" cy="26" r="24" />
+                <path d="M15 27l8 8 15-17" />
+              </svg>
               <div>
                 <div className="eyebrow">Added to your cart</div>
                 <h1>
@@ -1255,7 +1275,7 @@ export default function DesignRoomPage() {
           <button type="button" className="dr-cta ghost" onClick={backToDesign}>← Edit design</button>
           <button type="button" className="dr-cta" onClick={addToCart} disabled={!!busy || !pieces}>Add to cart</button>
           <button type="button" className="dr-cta gold" onClick={order} disabled={!!busy || !pieces}>
-            Buy now · {pieces} pc{pieces === 1 ? "" : "s"} · ₹{(unitPrice * pieces).toLocaleString("en-IN")} →
+            Buy now · {pieces} pc{pieces === 1 ? "" : "s"} · <Rolling value={unitPrice * pieces} format={rupees} /> →
           </button>
         </nav>
       )}

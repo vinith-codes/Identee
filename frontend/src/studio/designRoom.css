@@ -514,3 +514,43 @@
 .dr-chatinks { display: flex; gap: 10px; flex-wrap: wrap; padding: 2px; }
 .dr-chatinks .dr-ink { width: 34px; height: 34px; }
 .dr-chatinks .dr-ink:hover { box-shadow: 0 0 0 2px #fff, 0 0 0 3.5px var(--ink); }
+
+/* ================= Review: quiet motion =================
+   The tee is presented (one quicker turn while the camera pulls back), the
+   panel glides in and its parts follow, numbers roll. All of it is skipped
+   for people who ask their device for less motion. */
+.dr-shot.on { border-color: var(--gold); box-shadow: 0 0 0 2px var(--gold-soft); }
+.dr-shot { transition: border-color .2s, box-shadow .2s, transform .2s; }
+.dr-shot:hover { transform: translateY(-2px); }
+.dr-qrow { transition: background .3s; }
+.dr-tick { width: 52px; height: 52px; justify-self: start; }
+.dr-tick circle { fill: none; stroke: var(--gold); stroke-width: 2; }
+.dr-tick path { fill: none; stroke: var(--ink); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+.dr-app[data-step="review"] .dr-view::after { content: ""; position: absolute; inset: 0; pointer-events: none; background: radial-gradient(ellipse at 38% 45%, transparent 38%, rgba(21, 18, 15, .2) 100%); }
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes dr-fade { from { opacity: 0; } }
+  @keyframes dr-rise { from { opacity: 0; transform: translateY(14px); } }
+  @keyframes dr-glide { from { opacity: 0; transform: translateX(36px); } }
+  @keyframes dr-tickpop { from { opacity: 0; transform: translateY(6px) scale(.8); } }
+  @keyframes dr-draw { to { stroke-dashoffset: 0; } }
+  .dr-app[data-step="review"] .dr-view::after { animation: dr-fade 1.2s ease-out both; }
+  .dr-review { animation: dr-glide .65s cubic-bezier(.2, .7, .2, 1) both; }
+  .dr-review > * { animation: dr-rise .5s cubic-bezier(.2, .7, .2, 1) both; }
+  .dr-review > :nth-child(1) { animation-delay: .2s; }
+  .dr-review > :nth-child(2) { animation-delay: .35s; }
+  .dr-review > :nth-child(3) { animation-delay: .5s; }
+  .dr-review > :nth-child(4) { animation-delay: .65s; }
+  .dr-shot img { animation: dr-fade .6s ease-out both; }
+  .dr-shot:nth-child(2) img { animation-delay: .12s; }
+  .dr-shot:nth-child(3) img { animation-delay: .24s; }
+  .dr-shot:nth-child(4) img { animation-delay: .36s; }
+  .dr-spinbar { animation: dr-fade .6s 1.2s both; }
+  .dr-dock { animation: dr-rise .5s .55s cubic-bezier(.2, .7, .2, 1) both; }
+  .dr-stepper output { display: inline-block; animation: dr-tickpop .22s ease-out; }
+  .dr-added { animation: dr-rise .45s cubic-bezier(.2, .7, .2, 1) both; }
+  .dr-tick circle { stroke-dasharray: 151; stroke-dashoffset: 151; animation: dr-draw .55s .15s ease-out forwards; }
+  .dr-tick path { stroke-dasharray: 36; stroke-dashoffset: 36; animation: dr-draw .3s .6s ease-out forwards; }
+}
+@media (max-width: 760px) and (prefers-reduced-motion: no-preference) {
+  .dr-review { animation-name: dr-rise; }
+}

@@ -244,7 +244,7 @@ function Tee({ model, colour, areas, onPickArea, interactive, still, spotsRef })
 }
 
 /* ---------- camera ---------- */
-function CameraRig({ request, getSpot, apiRef, wakeKey }) {
+function CameraRig({ request, getSpot, apiRef, wakeKey, spinSpeed }) {
   const { camera, controls, gl, scene, size, invalidate } = useThree();
   const anim = useRef(null);
 
@@ -314,7 +314,10 @@ function CameraRig({ request, getSpot, apiRef, wakeKey }) {
     invalidate();
   }, [wakeKey, request, size.width, size.height, invalidate]);
 
-  useFrame(() => {
+  useFrame((frame) => {
+    // the turntable speeds up and slows down gently (the Review step's opening turn)
+    const orbit = frame.controls;
+    if (orbit) orbit.autoRotateSpeed += (spinSpeed - orbit.autoRotateSpeed) * 0.05;
     if (awake.current > 0) awake.current -= 1;
     if (awake.current > 0 || anim.current || pending.current) invalidate();
     const p = pending.current;
@@ -359,7 +362,7 @@ function CameraRig({ request, getSpot, apiRef, wakeKey }) {
   return null;
 }
 
-const Room3D = forwardRef(function Room3D({ model, colour, areas, onPickArea, camRequest, interactive = true, still = false, autoRotate = false }, ref) {
+const Room3D = forwardRef(function Room3D({ model, colour, areas, onPickArea, camRequest, interactive = true, still = false, autoRotate = false, spinSpeed = 1.6 }, ref) {
   const spotsRef = useRef(() => null);
   return (
     <Canvas
@@ -385,9 +388,8 @@ const Room3D = forwardRef(function Room3D({ model, colour, areas, onPickArea, ca
         maxPolarAngle={Math.PI * 0.62}
         target={ORBIT_TARGET}
         autoRotate={autoRotate}
-        autoRotateSpeed={1.6}
       />
-      <CameraRig request={camRequest} getSpot={(k) => spotsRef.current(k)} apiRef={ref} wakeKey={`${colour}|${still}|${interactive}|${areas.map((a) => `${a.key}:${a.version}`).join(",")}`} />
+      <CameraRig request={camRequest} getSpot={(k) => spotsRef.current(k)} apiRef={ref} spinSpeed={spinSpeed} wakeKey={`${colour}|${still}|${interactive}|${areas.map((a) => `${a.key}:${a.version}`).join(",")}`} />
     </Canvas>
   );
 });
