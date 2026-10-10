@@ -114,7 +114,12 @@ function Decal({ probe, spot, canvas, version, areaKey, onPick, interactive }) {
     const ray = new THREE.Raycaster(r.origin(p), r.dir);
     const hit = ray.intersectObject(probe, false)[0];
     if (!hit) return null;
-    const n = hit.face.normal.clone().normalize();
+    // Front and back prints are pressed on flat, so project them straight
+    // on. (The fabric's own direction at the area's middle can face sideways
+    // on a fold, which twisted tall or off-centre areas.) Sleeves slope, so
+    // they keep the fabric's direction.
+    const flat = geometry.side === "front" || geometry.side === "back";
+    const n = flat ? r.dir.clone().negate() : hit.face.normal.clone().normalize();
     const up = new THREE.Vector3(0, 1, 0);
     const xAxis = up.clone().cross(n).normalize();
     const yAxis = n.clone().cross(xAxis);

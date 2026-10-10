@@ -358,6 +358,11 @@ export default function DesignRoomPage() {
     setSelectedId((cur) => (elements.some((e) => e.id === cur && e.position === key) ? cur : elements.filter((e) => e.position === key).at(-1)?.id ?? null));
     setCamRequest({ area: key, side: pos.side, sleeve: pos.side === "left" || pos.side === "right", narrow, n: nextReq() });
   };
+  // keep the card of the area being edited in view in the card strip
+  useEffect(() => {
+    if (!active) return;
+    document.querySelector(".dr-area.on")?.scrollIntoView({ inline: "nearest", block: "nearest", behavior: "smooth" });
+  }, [active]);
   const closeArea = () => {
     setActive(null);
     setSelectedId(null);
