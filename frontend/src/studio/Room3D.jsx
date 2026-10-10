@@ -3,9 +3,9 @@
 // The 3D "Design Room": a warm studio with the chosen tee floating in the
 // centre. Each print area is a decal (DecalGeometry) pressed onto the tee at
 // its true physical size; its picture comes from the area's Konva render.
-import { Suspense, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, forwardRef } from "react";
+import { Suspense, useEffect, useLayoutEffect, useMemo, useRef, forwardRef } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { OrbitControls, useGLTF } from "@react-three/drei";
+import { Environment, Lightformer, MeshReflectorMaterial, OrbitControls, Sparkles, useGLTF } from "@react-three/drei";
 import * as THREE from "three";
 import { DecalGeometry } from "three/examples/jsm/geometries/DecalGeometry.js";
 import { areaCentreRaw } from "./teeModel";
@@ -46,6 +46,12 @@ function Backdrop({ room }) {
   }, [scene, room]);
   return null;
 }
+// Sets the scene's reflections; returns what was there before.
+function swapEnvironment(scene, env) {
+  const before = scene.environment;
+  scene.environment = env;
+  return before;
+}
 function paintBackdrop(scene, room) {
   const set = SETS[room];
   scene.background = new THREE.Color(set.background);
@@ -81,42 +87,58 @@ function Studio({ visible }) {
   );
 }
 
-const RACK_TEES = ["#15130F", "#EFE7D6", "#5A1F2B", "#4A5A3A", "#1F2A44", "#C9B48E"];
-const BRASS = { color: "#B8923F", metalness: 0.85, roughness: 0.3 };
+const RACK_TEES = ["#15130F", "#EFE7D6", "#5A1F2B", "#4A5A3A", "#1F2A44", "#C9B48E", "#B9A8D6", "#8C3B2A"];
+const BRASS = { color: "#C39A45", metalness: 1, roughness: 0.22 };
+const FLOOR_Y = -0.8;
+const WALL_Z = -4.4;
 
 // A clothes rail with tees hanging on it (the same tee shape, plain colours).
+// The tees sway a little, as if someone just walked past.
 function Rack({ geo, position, turn, colours }) {
-  const FLOOR = -0.8;
   const RAIL = 1.42;
-  const posts = [-0.95, 0.95];
+  const hung = useRef([]);
+  useFrame((st) => {
+    const t = st.clock.elapsedTime;
+    hung.current.forEach((g, i) => {
+      if (g) g.rotation.z = Math.sin(t * 0.7 + i * 1.3) * 0.018;
+    });
+  });
   return (
     <group position={position} rotation-y={turn}>
       <mesh position-y={RAIL} rotation-z={Math.PI / 2}>
-        <cylinderGeometry args={[0.022, 0.022, 2.1, 16]} />
+        <cylinderGeometry args={[0.022, 0.022, 2.3, 16]} />
         <meshStandardMaterial {...BRASS} />
       </mesh>
-      {posts.map((x) => (
+      {[-1.05, 1.05].map((x) => (
         <group key={x} position-x={x}>
-          <mesh position-y={(RAIL + FLOOR) / 2}>
-            <cylinderGeometry args={[0.02, 0.02, RAIL - FLOOR, 12]} />
+          <mesh position-y={(RAIL + FLOOR_Y) / 2}>
+            <cylinderGeometry args={[0.02, 0.02, RAIL - FLOOR_Y, 12]} />
             <meshStandardMaterial {...BRASS} />
           </mesh>
-          <mesh position-y={FLOOR + 0.02} rotation-x={Math.PI / 2}>
+          <mesh position-y={FLOOR_Y + 0.02} rotation-x={Math.PI / 2}>
             <cylinderGeometry args={[0.02, 0.02, 0.7, 12]} />
+            <meshStandardMaterial {...BRASS} />
+          </mesh>
+          <mesh position-y={RAIL + 0.03}>
+            <sphereGeometry args={[0.04, 16, 12]} />
             <meshStandardMaterial {...BRASS} />
           </mesh>
         </group>
       ))}
       {colours.map((c, i) => {
-        const x = -0.72 + (i * 1.44) / Math.max(1, colours.length - 1);
+        const x = -0.82 + (i * 1.64) / Math.max(1, colours.length - 1);
         return (
-          <group key={c} position={[x, 0, 0]} rotation-y={Math.PI / 2 + (i % 2 ? 0.12 : -0.1)}>
-            {/* hanger hook */}
-            <mesh position-y={RAIL - 0.09}>
-              <cylinderGeometry args={[0.008, 0.008, 0.18, 8]} />
+          <group key={c} position={[x, RAIL, 0]} rotation-y={Math.PI / 2 + (i % 2 ? 0.14 : -0.1)} ref={(g) => (hung.current[i] = g)}>
+            {/* hanger: hook and shoulders */}
+            <mesh position-y={-0.08}>
+              <cylinderGeometry args={[0.008, 0.008, 0.16, 8]} />
               <meshStandardMaterial {...BRASS} />
             </mesh>
-            <mesh geometry={geo} scale={1.95} position-y={RAIL - 0.98}>
+            <mesh position-y={-0.17} rotation-z={Math.PI / 2}>
+              <cylinderGeometry args={[0.012, 0.012, 0.62, 8]} />
+              <meshStandardMaterial color="#2A211A" roughness={0.6} />
+            </mesh>
+            <mesh geometry={geo} scale={1.95} position-y={-0.98}>
               <meshStandardMaterial color={c} roughness={0.95} side={THREE.DoubleSide} />
             </mesh>
           </group>
@@ -126,75 +148,211 @@ function Rack({ geo, position, turn, colours }) {
   );
 }
 
+// A wall shelf with stacks of folded tees and a light strip under it.
+function Shelf({ position, colours }) {
+  return (
+    <group position={position}>
+      <mesh>
+        <boxGeometry args={[1.9, 0.05, 0.42]} />
+        <meshStandardMaterial color="#4A382B" roughness={0.6} />
+      </mesh>
+      <mesh position={[0, -0.04, 0.16]}>
+        <boxGeometry args={[1.8, 0.015, 0.03]} />
+        <meshBasicMaterial color="#FFE2B0" toneMapped={false} />
+      </mesh>
+      {colours.map((stack, i) => (
+        <group key={i} position={[-0.62 + i * 0.62, 0.03, 0]}>
+          {stack.map((c, k) => (
+            <mesh key={k} position-y={0.035 + k * 0.062}>
+              <boxGeometry args={[0.44 - k * 0.006, 0.055, 0.32]} />
+              <meshStandardMaterial color={c} roughness={1} />
+            </mesh>
+          ))}
+        </group>
+      ))}
+    </group>
+  );
+}
+
+// A hanging globe lamp.
+function Pendant({ position }) {
+  return (
+    <group position={position}>
+      <mesh position-y={1.5}>
+        <cylinderGeometry args={[0.006, 0.006, 3, 6]} />
+        <meshBasicMaterial color="#0E0C0A" />
+      </mesh>
+      <mesh>
+        <sphereGeometry args={[0.13, 24, 16]} />
+        <meshBasicMaterial color="#FFE7BE" toneMapped={false} />
+      </mesh>
+      <mesh>
+        <sphereGeometry args={[0.24, 24, 16]} />
+        <meshBasicMaterial color="#FFCF8A" transparent opacity={0.13} depthWrite={false} />
+      </mesh>
+      <pointLight intensity={5} distance={5} decay={1.7} color="#FFD9A8" />
+    </group>
+  );
+}
+
+// The shop's name over the arch, drawn once onto a small picture.
+function useSign(text) {
+  return useMemo(() => {
+    const c = document.createElement("canvas");
+    c.width = 1024;
+    c.height = 160;
+    const x = c.getContext("2d");
+    x.fillStyle = "#F3D9A4";
+    x.font = '800 92px "Bricolage Grotesque", "Helvetica Neue", Arial, sans-serif';
+    x.textBaseline = "middle";
+    const gap = 34;
+    const widths = [...text].map((ch) => x.measureText(ch).width);
+    let at = (c.width - (widths.reduce((a, b) => a + b, 0) + gap * (text.length - 1))) / 2;
+    [...text].forEach((ch, i) => {
+      x.fillText(ch, at, 84);
+      at += widths[i] + gap;
+    });
+    const tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.anisotropy = 8;
+    return tex;
+  }, [text]);
+}
+
 function Boutique({ visible, model }) {
   const { geo } = useTeeGeometry(model.url);
+  const sign = useSign("IDENTEE");
+  // wooden slats across the back wall (left clear around the arch)
+  const slats = useMemo(() => {
+    const out = [];
+    for (let x = -7; x <= 7; x += 0.21) if (Math.abs(x) > 1.42) out.push(x);
+    return out;
+  }, []);
+  const slatRef = useRef();
+  useLayoutEffect(() => {
+    const m = new THREE.Matrix4();
+    slats.forEach((x, i) => slatRef.current?.setMatrixAt(i, m.makeTranslation(x, 2, WALL_Z + 0.05)));
+    if (slatRef.current) slatRef.current.instanceMatrix.needsUpdate = true;
+  }, [slats]);
+
   return (
     <group name="set-boutique" visible={visible}>
-      <hemisphereLight args={["#FFE9C8", "#2A211A", 0.5]} />
+      {/* soft reflections for the brass and the glossy floor (made in the scene, nothing is downloaded) */}
+      {visible && (
+        <Environment resolution={128} frames={1}>
+          <color attach="background" args={["#0C0A08"]} />
+          <Lightformer form="rect" intensity={5} color="#FFE6BF" position={[0, 5, 2]} rotation-x={Math.PI / 2} scale={[8, 3, 1]} />
+          <Lightformer form="rect" intensity={2.2} color="#FFD49A" position={[-6, 2, 1]} rotation-y={Math.PI / 2} scale={[5, 3, 1]} />
+          <Lightformer form="rect" intensity={2.2} color="#FFD49A" position={[6, 2, 1]} rotation-y={-Math.PI / 2} scale={[5, 3, 1]} />
+          <Lightformer form="rect" intensity={3} color="#FFF1D8" position={[0, 1.5, -6]} scale={[3, 4, 1]} />
+        </Environment>
+      )}
+      <hemisphereLight args={["#FFE9C8", "#1E1712", 0.28]} />
       {/* the key light on the designed tee */}
-      <spotLight position={[1.4, 4.6, 4.2]} angle={Math.PI / 8} penumbra={0.7} decay={1.5} distance={16} intensity={150} color="#FFF0D8" castShadow shadow-mapSize={[1024, 1024]} shadow-bias={-0.0004} />
-      <directionalLight position={[-3.5, 2.2, 3]} intensity={0.9} color="#FFE7C7" />
-      {/* rim light from behind, so the tee stands off the dark wall */}
-      <directionalLight position={[0, 2.6, -4]} intensity={2.2} color="#FFD9A0" />
-      <pointLight position={[-2.9, 2.3, -0.9]} intensity={9} distance={6} decay={1.6} color="#FFD9A8" />
-      <pointLight position={[2.9, 2.3, -0.9]} intensity={9} distance={6} decay={1.6} color="#FFD9A8" />
+      <spotLight position={[1.2, 4.8, 4.2]} angle={Math.PI / 8.5} penumbra={0.75} decay={1.5} distance={16} intensity={120} color="#FFF0D8" castShadow shadow-mapSize={[1024, 1024]} shadow-bias={-0.0004} />
+      <directionalLight position={[-3.5, 2.2, 3]} intensity={0.7} color="#FFE7C7" />
+      {/* rim light from behind, so the tee stands off the wall */}
+      <directionalLight position={[0, 2.6, -4]} intensity={2.4} color="#FFD9A0" />
 
-      {/* floor and a pale round rug under the tee */}
-      <mesh rotation-x={-Math.PI / 2} position-y={-0.8} receiveShadow>
+      {/* polished floor that mirrors the room */}
+      <mesh rotation-x={-Math.PI / 2} position-y={FLOOR_Y} receiveShadow>
         <planeGeometry args={[30, 30]} />
-        <meshStandardMaterial color="#3A2C22" roughness={0.55} metalness={0.05} />
+        <MeshReflectorMaterial color="#1E1712" roughness={0.6} metalness={0.25} mirror={0.55} mixStrength={2.4} mixBlur={1.4} blur={[280, 90]} resolution={512} depthScale={0.6} minDepthThreshold={0.4} maxDepthThreshold={1.3} />
       </mesh>
-      <mesh rotation-x={-Math.PI / 2} position-y={-0.792} receiveShadow>
-        <circleGeometry args={[1.25, 64]} />
-        <meshStandardMaterial color="#CDBFA6" roughness={1} />
+      {/* the tee's spot: a low round plinth with a ring of light */}
+      <mesh position-y={FLOOR_Y + 0.035} receiveShadow castShadow>
+        <cylinderGeometry args={[1.1, 1.16, 0.07, 72]} />
+        <meshStandardMaterial color="#A3957C" roughness={0.9} />
       </mesh>
-      <mesh rotation-x={Math.PI / 2} position-y={-0.785}>
-        <torusGeometry args={[1.25, 0.012, 10, 96]} />
-        <meshStandardMaterial {...BRASS} />
+      <mesh rotation-x={Math.PI / 2} position-y={FLOOR_Y + 0.012}>
+        <torusGeometry args={[1.2, 0.018, 10, 120]} />
+        <meshBasicMaterial color="#FFDFA6" toneMapped={false} />
+      </mesh>
+      <pointLight position={[0, FLOOR_Y + 0.25, 0]} intensity={3} distance={3} decay={2} color="#FFDFA6" />
+
+      {/* walls: dark plaster with wooden slats */}
+      <mesh position={[0, 2.4, WALL_Z]}>
+        <planeGeometry args={[30, 8]} />
+        <meshStandardMaterial color="#17120F" roughness={1} />
+      </mesh>
+      <instancedMesh ref={slatRef} args={[null, null, slats.length]}>
+        <boxGeometry args={[0.1, 6, 0.06]} />
+        <meshStandardMaterial color="#3D2D22" roughness={0.75} />
+      </instancedMesh>
+      <mesh position={[-6.6, 2.4, 0]} rotation-y={Math.PI / 2}>
+        <planeGeometry args={[14, 8]} />
+        <meshStandardMaterial color="#1B1612" roughness={1} />
+      </mesh>
+      <mesh position={[6.6, 2.4, 0]} rotation-y={-Math.PI / 2}>
+        <planeGeometry args={[14, 8]} />
+        <meshStandardMaterial color="#1B1612" roughness={1} />
       </mesh>
 
-      {/* walls */}
-      <mesh position={[0, 2.4, -4.4]}>
-        <planeGeometry args={[30, 8]} />
-        <meshStandardMaterial color="#2A2420" roughness={1} />
+      {/* the lit arch behind the tee, framed in brass, with the shop's name over it */}
+      <group position={[0, 0, WALL_Z + 0.04]}>
+        <mesh position={[0, 0.35, -0.01]}>
+          <planeGeometry args={[2.5, 2.3]} />
+          <meshStandardMaterial {...BRASS} />
+        </mesh>
+        <mesh position={[0, 1.5, -0.01]}>
+          <circleGeometry args={[1.25, 64, 0, Math.PI]} />
+          <meshStandardMaterial {...BRASS} />
+        </mesh>
+        <mesh position-y={0.35}>
+          <planeGeometry args={[2.32, 2.3]} />
+          <meshBasicMaterial color="#F4E2BD" toneMapped={false} />
+        </mesh>
+        <mesh position-y={1.5}>
+          <circleGeometry args={[1.16, 64, 0, Math.PI]} />
+          <meshBasicMaterial color="#F4E2BD" toneMapped={false} />
+        </mesh>
+        {/* light strips beside the arch */}
+        {[-1.36, 1.36].map((x) => (
+          <mesh key={x} position={[x, 0.75, 0.05]}>
+            <boxGeometry args={[0.025, 3.1, 0.02]} />
+            <meshBasicMaterial color="#FFDFA6" toneMapped={false} />
+          </mesh>
+        ))}
+      </group>
+      <mesh position={[0, 3.08, WALL_Z + 0.12]}>
+        <planeGeometry args={[2.2, 0.34]} />
+        <meshBasicMaterial map={sign} transparent toneMapped={false} />
       </mesh>
-      <mesh position={[-6.5, 2.4, 0]} rotation-y={Math.PI / 2}>
-        <planeGeometry args={[14, 8]} />
-        <meshStandardMaterial color="#241F1B" roughness={1} />
-      </mesh>
-      <mesh position={[6.5, 2.4, 0]} rotation-y={-Math.PI / 2}>
-        <planeGeometry args={[14, 8]} />
-        <meshStandardMaterial color="#241F1B" roughness={1} />
-      </mesh>
-      {/* a lit arch on the back wall, right behind the tee */}
-      <group position={[0, 0, -4.36]}>
+
+      {/* a clothes rack on each side, with a lamp over each */}
+      <Rack geo={geo} position={[-2.8, 0, -1.9]} turn={0.5} colours={RACK_TEES.slice(0, 6)} />
+      <Rack geo={geo} position={[2.8, 0, -1.9]} turn={-0.5} colours={[...RACK_TEES.slice(3), ...RACK_TEES.slice(0, 1)]} />
+      <Pendant position={[-1.8, 2.3, -2.6]} />
+      <Pendant position={[1.8, 2.3, -2.6]} />
+
+      {/* shelves of folded tees on the back wall */}
+      <Shelf position={[-3.2, 2.35, WALL_Z + 0.3]} colours={[["#EFE7D6", "#C9B48E", "#EFE7D6"], ["#1F2A44", "#15130F"], ["#5A1F2B", "#8C3B2A", "#5A1F2B"]]} />
+      <Shelf position={[3.2, 2.35, WALL_Z + 0.3]} colours={[["#4A5A3A", "#EFE7D6"], ["#B9A8D6", "#EFE7D6", "#B9A8D6"], ["#15130F", "#1F2A44"]]} />
+
+      {/* a round seat with a folded tee, and a tall mirror */}
+      <group position={[-2.1, 0, 1.1]}>
+        <mesh position-y={FLOOR_Y + 0.24} castShadow receiveShadow>
+          <cylinderGeometry args={[0.42, 0.4, 0.48, 48]} />
+          <meshStandardMaterial color="#7A5A40" roughness={0.9} />
+        </mesh>
+        <mesh position={[0.02, FLOOR_Y + 0.51, 0]} rotation-y={0.4}>
+          <boxGeometry args={[0.42, 0.06, 0.3]} />
+          <meshStandardMaterial color="#EFE7D6" roughness={1} />
+        </mesh>
+      </group>
+      <group position={[4.3, 0, -3.4]} rotation-y={-0.75}>
         <mesh position-y={0.55}>
-          <planeGeometry args={[2.3, 2.7]} />
-          <meshBasicMaterial color="#F1DDB6" />
-        </mesh>
-        <mesh position-y={1.9}>
-          <circleGeometry args={[1.15, 48, 0, Math.PI]} />
-          <meshBasicMaterial color="#F1DDB6" />
-        </mesh>
-        <mesh position={[0, 0.55, -0.01]}>
-          <planeGeometry args={[2.46, 2.7]} />
+          <boxGeometry args={[0.92, 2.74, 0.05]} />
           <meshStandardMaterial {...BRASS} />
         </mesh>
-        <mesh position={[0, 1.9, -0.01]}>
-          <circleGeometry args={[1.23, 48, 0, Math.PI]} />
-          <meshStandardMaterial {...BRASS} />
+        <mesh position={[0, 0.55, 0.03]}>
+          <planeGeometry args={[0.8, 2.62]} />
+          <meshStandardMaterial color="#DDE2E4" metalness={1} roughness={0.06} />
         </mesh>
       </group>
 
-      {/* a clothes rack on each side */}
-      <Rack geo={geo} position={[-2.75, 0, -1.9]} turn={0.5} colours={RACK_TEES.slice(0, 5)} />
-      <Rack geo={geo} position={[2.75, 0, -1.9]} turn={-0.5} colours={[...RACK_TEES.slice(2), RACK_TEES[0]].slice(0, 5)} />
-
-      {/* a round seat, front left */}
-      <mesh position={[-2.2, -0.56, 0.9]} castShadow receiveShadow>
-        <cylinderGeometry args={[0.42, 0.42, 0.48, 40]} />
-        <meshStandardMaterial color="#8A6A4A" roughness={0.9} />
-      </mesh>
+      {/* dust in the light */}
+      <Sparkles count={36} scale={[3.2, 3, 2.4]} position={[0, 0.9, 0.2]} size={1.6} speed={0.25} opacity={0.35} color="#FFE7BE" />
     </group>
   );
 }
@@ -448,7 +606,9 @@ function CameraRig({ request, getSpot, apiRef, wakeKey, room }) {
       to = look.clone().add(facing.multiplyScalar(dist));
     } else if (request.position) {
       to = new THREE.Vector3(...request.position);
+      if (request.look) look = new THREE.Vector3(...request.look);
     }
+    if (request.from) camera.position.set(...request.from);
     anim.current = { from: camera.position.clone(), to, tf: controls.target.clone(), tt: look, t0: performance.now(), ms: request.ms || 900 };
   };
   useEffect(() => {
@@ -468,7 +628,21 @@ function CameraRig({ request, getSpot, apiRef, wakeKey, room }) {
     invalidate();
   }, [wakeKey, request, size.width, size.height, invalidate]);
 
-  useFrame(() => {
+  // while the customer is turning the view themselves, the pointer lean waits
+  const dragging = useRef(false);
+  useEffect(() => {
+    if (!controls) return undefined;
+    const on = () => (dragging.current = true);
+    const off = () => (dragging.current = false);
+    controls.addEventListener("start", on);
+    controls.addEventListener("end", off);
+    return () => {
+      controls.removeEventListener("start", on);
+      controls.removeEventListener("end", off);
+    };
+  }, [controls]);
+
+  useFrame((frame) => {
     if (awake.current > 0) awake.current -= 1;
     if (awake.current > 0 || anim.current || pending.current) invalidate();
     const p = pending.current;
@@ -477,6 +651,11 @@ function CameraRig({ request, getSpot, apiRef, wakeKey, room }) {
       else start(p.request);
     }
     const a = anim.current;
+    // dressing room: the view leans slightly towards the pointer, which gives the room depth
+    if (!a && controls && room === "boutique" && !dragging.current) {
+      controls.setAzimuthalAngle(THREE.MathUtils.lerp(controls.getAzimuthalAngle(), -frame.pointer.x * 0.2, 0.03));
+      controls.setPolarAngle(THREE.MathUtils.lerp(controls.getPolarAngle(), Math.PI * 0.48 - frame.pointer.y * 0.05, 0.03));
+    }
     if (!a || !controls) return;
     const t = Math.min(1, (performance.now() - a.t0) / a.ms);
     const k = 1 - Math.pow(1 - t, 3);
@@ -486,7 +665,9 @@ function CameraRig({ request, getSpot, apiRef, wakeKey, room }) {
   });
 
   // Review mockups: render each side from a fixed camera into a JPEG.
-  useImperativeHandle(apiRef, () => ({
+  // Handed to the page at commit time, with no clean-up, so it is there as
+  // soon as the 3D view exists (the Review pictures need it straight away).
+  const api = {
     // an area's picture was repainted in place (dragging): show it again
     touch(areaKey) {
       scene.traverse((o) => {
@@ -511,6 +692,7 @@ function CameraRig({ request, getSpot, apiRef, wakeKey, room }) {
         tee.position.y = TEE_Y;
       }
       paintBackdrop(scene, "studio");
+      const env = swapEnvironment(scene, null);
       camera.position.set(...VIEWS[view]);
       camera.lookAt(0, 0.1, 0);
       gl.render(scene, camera);
@@ -522,6 +704,7 @@ function CameraRig({ request, getSpot, apiRef, wakeKey, room }) {
         tee.position.y = was.y;
       }
       paintBackdrop(scene, room);
+      swapEnvironment(scene, env);
       camera.position.copy(keepP);
       if (controls) {
         controls.target.copy(keepT);
@@ -529,7 +712,10 @@ function CameraRig({ request, getSpot, apiRef, wakeKey, room }) {
       }
       return url;
     },
-  }));
+  };
+  useLayoutEffect(() => {
+    if (apiRef) apiRef.current = api;
+  });
   return null;
 }
 

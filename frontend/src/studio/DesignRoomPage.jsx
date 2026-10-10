@@ -73,6 +73,8 @@ const lum = (hex) => {
 let reqSeq = 0; // camera-move request counter
 const nextReq = () => ++reqSeq;
 const rupees = (n) => `₹${n.toLocaleString("en-IN")}`;
+// Review: the camera stands back in the dressing room, looking at the floating tee
+const SHOWROOM = { position: [0, 0.8, 6.5], look: [0, 0.55, 0] };
 const makeId = () => `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
 
 // A 4:5 picture of the tee from a full 3D-view snapshot (for mockups).
@@ -690,7 +692,8 @@ export default function DesignRoomPage() {
     setSideShown(null);
     setQtys((q) => (Object.values(q).some((n) => n > 0) ? q : { [sizeNow]: 1 }));
     // the reveal: the camera pulls back while the tee makes one quicker full turn, then it turns slowly
-    setCamRequest({ position: [0, 0.4, 5], ms: 1700, n: nextReq() });
+    const calm = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    setCamRequest({ ...SHOWROOM, ...(calm ? {} : { from: [0, 1.9, 10.5], ms: 2600 }), n: nextReq() });
     if (!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
       setReveal(true);
       clearTimeout(revealTimer.current);
@@ -768,12 +771,12 @@ export default function DesignRoomPage() {
     setReveal(false);
     setSideShown(view);
     // the tee turns to that side; the camera comes back to the front of the dressing room
-    setCamRequest({ position: [0, 0.4, 5], n: nextReq() });
+    setCamRequest({ ...SHOWROOM, n: nextReq() });
   };
   const turn360 = () => {
     setSpin(true);
     setSideShown(null);
-    setCamRequest({ position: [0, 0.4, 5], n: nextReq() });
+    setCamRequest({ ...SHOWROOM, n: nextReq() });
   };
   const backToDesign = () => {
     setStep("design");
