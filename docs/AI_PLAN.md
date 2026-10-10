@@ -89,3 +89,4 @@ when switched on). Each on a feature branch, tested on a local copy, merged on "
 
 - When the assistant offers 2-4 designs or slogans, **all of them stay usable**: tapping another one swaps it on the tee (the chosen one shows "On tee"). Nothing is disabled after the first pick. Generated pictures are already paid for, so the customer should be able to try each.
 - Walkthrough prototype (team tee by chat): https://claude.ai/artifact/5NuXtHtrY1gpxdbyLgLaCL
+- Each suggested design has **Add to tee** (goes to the suggested/current print area and replaces what the assistant put there) and **Other area** (pick any print area), so the customer can (1) swap a design they no longer like and (2) use different designs on different areas, e.g. chest and back. The card shows where it is ("On Left Chest").
