@@ -223,9 +223,10 @@ function CameraRig({ request, getSpot, apiRef }) {
       const narrow = request.narrow;
       const tan = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
       const aspect = size.width / Math.max(1, size.height);
-      const freeW = narrow ? 1 : Math.max(0.35, 1 - 424 / Math.max(1, size.width));
+      // overlayPx: how much of the view's right side a floating panel covers (0 = panels sit beside the view)
+      const freeW = narrow ? 1 : Math.max(0.35, 1 - (request.overlayPx ?? 424) / Math.max(1, size.width));
       const freeH = narrow ? 0.28 : 1; // phone: the strip between the top bars and the editor sheet
-      const fitH = s.h / (2 * tan * freeH * (narrow ? 0.92 : 0.52)); // computer: clear of the size bar and the area cards
+      const fitH = s.h / (2 * tan * freeH * (narrow ? 0.92 : (request.fill ?? 0.52))); // fill: how much of the view's height the area may take
       const fitW = s.w / (2 * tan * aspect * freeW * 0.74);
       // not closer than 1.45: a small area (sleeve, chest) keeps some tee around it for context
       const dist = THREE.MathUtils.clamp(Math.max(fitH, fitW), 1.45, 9);
@@ -241,7 +242,7 @@ function CameraRig({ request, getSpot, apiRef }) {
             : new THREE.Vector3(s.normal.x, 0, s.normal.z).normalize();
       const right = new THREE.Vector3().crossVectors(facing.clone().negate(), new THREE.Vector3(0, 1, 0)).normalize();
       const pan = narrow ? 0 : ((1 - freeW) / 2) * viewH * aspect;
-      const drop = narrow ? viewH * 0.225 : viewH * 0.025; // phone: the strip's middle is ~27% from the top
+      const drop = narrow ? viewH * 0.225 : viewH * (request.lift ?? 0.025); // phone: the strip's middle is ~27% from the top
       look = s.point.clone().add(right.multiplyScalar(pan));
       look.y -= drop;
       to = look.clone().add(facing.multiplyScalar(dist));
@@ -253,6 +254,10 @@ function CameraRig({ request, getSpot, apiRef }) {
   useEffect(() => {
     if (request && controls) start(request);
   }, [request, controls]); // eslint-disable-line react-hooks/exhaustive-deps
+  // the view changed size (a side panel opened or closed): frame the same area again
+  useEffect(() => {
+    if (request?.area && request.keep && controls) start({ ...request, ms: 350 });
+  }, [size.width, size.height]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useFrame(() => {
     const p = pending.current;

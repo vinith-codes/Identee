@@ -241,3 +241,133 @@
   .dr-areas { left: 0; justify-content: flex-start; }
   .dr-area { width: 76px; flex: 0 0 auto; }
 }
+
+/* ================= studio layout (tools | panel | 3D view | editor) =================
+   Everything below restyles the design step: the tools live in a column on the
+   left, the tee has the middle to itself, and the editor is a column on the right. */
+.dr-app { background: #F1ECE1; }
+.dr-top { background: #fff; backdrop-filter: none; gap: 12px; }
+.dr-back { background: #F3EFE6; }
+.dr-step.on { background: none; color: var(--ink); }
+.dr-step.on .n { background: var(--ink); color: #fff; }
+.dr-cta { border-radius: 12px; }
+.dr-cta.gold { background: var(--gold); }
+.dr-reviewbtn { margin-left: 0; padding: 10px 18px; white-space: nowrap; }
+
+/* garment button + colour / size menu */
+.dr-pick { position: relative; min-width: 0; }
+.dr-pickbtn { display: flex; align-items: center; gap: 8px; max-width: 100%; border: 1px solid var(--line); background: #fff; border-radius: 12px; padding: 7px 12px; font-size: 13px; color: var(--ink-soft); white-space: nowrap; }
+.dr-pickbtn:hover, .dr-pickbtn[aria-expanded="true"] { border-color: var(--ink); }
+.dr-pickbtn i { width: 16px; height: 16px; border-radius: 50%; border: 1px solid rgba(0,0,0,.2); flex-shrink: 0; }
+.dr-pickbtn > span:nth-child(2) { overflow: hidden; text-overflow: ellipsis; }
+.dr-pickbtn b { color: var(--ink); font-weight: 700; margin-right: 4px; }
+.dr-scrim { position: fixed; inset: 0; z-index: 39; }
+.dr-pickpop { position: absolute; left: 0; top: calc(100% + 8px); z-index: 40; width: 340px; max-width: calc(100vw - 24px); box-sizing: border-box; background: #fff; border: 1px solid var(--line);
+  border-radius: 16px; box-shadow: var(--shadow); padding: 16px; display: grid; gap: 10px; }
+.dr-pickcolours { display: flex; flex-wrap: wrap; gap: 10px; padding: 2px 2px 6px; }
+.dr-picksizes { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.dr-pickpop .dr-chip { justify-self: end; padding-inline: 18px; }
+
+/* the stage */
+.dr-stage { display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto; grid-template-rows: minmax(0, 1fr); }
+.dr-tools { grid-column: 1; display: flex; flex-direction: column; gap: 2px; padding: 10px 6px; background: #fff; border-right: 1px solid var(--line); overflow-y: auto; scrollbar-width: none; z-index: 8; }
+.dr-toolbtn { position: relative; display: grid; justify-items: center; gap: 4px; width: 64px; padding: 10px 2px 8px; border: 0; border-radius: 12px; background: none; font-size: 11.5px; font-weight: 600; color: var(--muted); }
+.dr-toolbtn svg { width: 21px; height: 21px; }
+.dr-toolbtn:hover { color: var(--ink); background: #F6F2E9; }
+.dr-toolbtn.on { color: var(--ink); background: var(--gold-soft); }
+.dr-toolbtn small { font-size: 9.5px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--gold-deep); line-height: 1; }
+
+.dr-side { grid-column: 2; width: 296px; display: flex; flex-direction: column; min-height: 0; background: #fff; border-right: 1px solid var(--line); z-index: 7; }
+.dr-side > header, .dr-editor > header { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 14px 16px 12px; border-bottom: 1px solid var(--line); }
+.dr-side h2 { margin: 0; font: 800 16px/1.2 var(--display); }
+.dr-x { background: none; border-radius: 10px; color: var(--muted); font-size: 14px; }
+.dr-x:hover { background: #F3EFE6; color: var(--ink); }
+.dr-sidebody { padding: 14px 16px 20px; display: grid; gap: 12px; align-content: start; overflow-y: auto; min-height: 0; flex: 1; scrollbar-width: thin; }
+.dr-sidebody > div { display: grid; gap: 8px; }
+.dr-sidebody .dr-controls { padding: 0; overflow: visible; }
+.dr-sidebody .eyebrow, .dr-pickpop .eyebrow { font-size: 10.5px; letter-spacing: .16em; color: var(--muted); }
+
+/* print-area cards, now a grid in the side panel */
+.dr-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.dr-cards .dr-area { width: auto; min-width: 0; padding: 8px 2px; border-radius: 12px; }
+.dr-cards .dr-area b { font-size: 10.5px; line-height: 1.15; text-wrap: balance; }
+.dr-cards .dr-area span { font-size: 10px; }
+.dr-cards .dr-thumb { width: 58px; height: 49px; }
+.dr-area.on { border-color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); background: #fff; }
+
+/* add buttons in the Text / Upload / Ideas panels */
+.dr-add { border: 1px solid var(--line); background: #fff; border-radius: 12px; padding: 11px 12px; font-size: 13px; font-weight: 600; text-align: left; }
+.dr-add:hover { border-color: var(--ink); }
+.dr-add.big { background: var(--ink); color: #fff; border-color: var(--ink); font: 800 17px/1.2 var(--display); padding: 14px 12px; }
+.dr-add.idea { font: 700 14px/1.25 var(--display); }
+.dr-two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.dr-two > :last-child:nth-child(odd) { grid-column: 1 / -1; }
+.dr-idealist { display: grid; gap: 6px; }
+.dr-drop { display: grid; gap: 4px; justify-items: center; padding: 30px 12px; border: 1.5px dashed #CFC4AC; border-radius: 16px; background: #FBF9F4; text-align: center; }
+.dr-drop:hover { border-color: var(--ink); background: #fff; }
+.dr-drop b { font: 800 15px/1.2 var(--display); }
+.dr-drop span { font-size: 12px; color: var(--muted); }
+.dr-soon { display: grid; gap: 6px; padding: 18px 14px; border-radius: 16px; background: #FBF9F4; border: 1px solid var(--line); }
+.dr-soon b { font: 800 15px/1.2 var(--display); }
+.dr-soon span { font-size: 12.5px; color: var(--muted); }
+
+/* the 3D view */
+.dr-view { grid-column: 3; position: relative; min-width: 0; min-height: 0; overflow: hidden; background: radial-gradient(120% 90% at 50% 35%, #FAF7F0 0%, #EFE9DC 70%, #E7DFCF 100%); }
+.dr-hint { top: 20px; background: none; color: var(--muted); }
+.dr-credit { right: 14px; top: 12px; bottom: auto; max-width: 40%; text-align: right; }
+.dr-undo { position: absolute; left: 14px; top: 14px; z-index: 3; display: flex; gap: 2px; background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 3px; }
+.dr-undo button { width: 34px; height: 32px; border: 0; border-radius: 9px; background: none; font-size: 17px; line-height: 1; }
+.dr-undo button:hover:not(:disabled) { background: #F3EFE6; }
+.dr-viewsw { position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%); z-index: 3; display: flex; gap: 2px; background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 3px; box-shadow: 0 6px 18px -12px rgba(20,17,16,.4); }
+.dr-viewsw button { position: relative; border: 0; background: none; border-radius: 9px; padding: 8px 16px; font-size: 12.5px; font-weight: 600; color: var(--ink-soft); }
+.dr-viewsw button:hover { background: #F3EFE6; color: var(--ink); }
+.dr-viewsw .dot { position: absolute; right: 6px; top: 6px; width: 6px; height: 6px; border-radius: 50%; background: var(--gold); visibility: hidden; }
+.dr-viewsw .has .dot { visibility: visible; }
+
+/* the editor: a column beside the view */
+.dr-editor { grid-column: 4; position: static; width: 364px; max-width: none; border: 0; border-left: 1px solid var(--line); border-radius: 0; box-shadow: none; background: #fff; min-height: 0; }
+.dr-editor h2 { font-size: 16px; }
+.dr-flatwrap { padding: 16px 16px 4px; }
+.dr-controls { padding: 12px 16px 18px; }
+.dr-field input[type=text], .dr-field select, .dr-chip, .dr-quality { border-radius: 10px; }
+.dr-chip { border-radius: 10px; }
+
+/* review keeps its floating card on the right */
+.dr-review { background: #fff; }
+.dr-dock { background: #fff; }
+.dr-dock .dr-cta { margin-left: 0; }
+
+/* laptops: no room for both panels beside the tee — the tool panel slides over the view */
+@media (max-width: 1279px) {
+  .dr-stage[data-editing] .dr-side { position: absolute; left: 0; top: 0; bottom: 0; box-shadow: 18px 0 40px -24px rgba(20,17,16,.45); }
+  .dr-editor { width: 340px; }
+}
+@media (max-width: 1100px) {
+  .dr-steps { display: none; }
+  .dr-savebox { margin-left: auto; }
+}
+
+/* phones: tools along the bottom, panels as sheets */
+@media (max-width: 760px) {
+  .dr-top { flex-wrap: nowrap; }
+  .dr-pick { flex: 1; }
+  .dr-pickbtn { width: 100%; padding: 7px 10px; }
+  .dr-pickpop { position: fixed; left: 12px; right: 12px; top: 60px; width: auto; max-height: calc(100% - 80px); overflow-y: auto; }
+  .dr-price small, .dr-save { display: none; }
+  .dr-price { font-size: 16px; }
+  .dr-reviewbtn { width: auto; padding: 9px 12px; }
+  .dr-stage { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto; }
+  .dr-view { grid-column: 1; grid-row: 1; }
+  .dr-tools { grid-column: 1; grid-row: 2; flex-direction: row; justify-content: space-between; border-right: 0; border-top: 1px solid var(--line); padding: 4px 6px calc(4px + env(safe-area-inset-bottom, 0px)); overflow-x: auto; }
+  .dr-toolbtn { width: auto; flex: 1 0 52px; padding: 7px 2px 5px; gap: 2px; }
+  .dr-toolbtn small { position: absolute; top: 4px; right: 4px; font-size: 8px; }
+  .dr-side, .dr-stage[data-editing] .dr-side { grid-column: 1; grid-row: 1; position: relative; inset: auto; align-self: end; width: auto; max-height: 62%; border-right: 0; border-top: 1px solid var(--line);
+    border-radius: 18px 18px 0 0; box-shadow: 0 -18px 40px -24px rgba(20,17,16,.5); z-index: 9; }
+  .dr-cards { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .dr-editor { grid-column: 1; grid-row: 1 / -1; position: relative; inset: auto; align-self: end; width: auto; height: 58%; border-left: 0; border-top: 1px solid var(--line); border-radius: 18px 18px 0 0; box-shadow: 0 -18px 40px -24px rgba(20,17,16,.5); z-index: 8; }
+  .dr-viewsw { bottom: 10px; }
+  .dr-viewsw button { padding: 7px 11px; font-size: 12px; }
+  .dr-stage[data-editing] .dr-viewsw, .dr-stage[data-editing] .dr-undo { display: none; }
+  .dr-undo { left: 10px; top: 10px; }
+  .dr-dock .dr-cta { width: 100%; }
+}

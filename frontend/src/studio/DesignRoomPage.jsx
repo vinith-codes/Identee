@@ -27,6 +27,21 @@ import "./designRoom.css";
 const PX_PER_CM = 24; // texture / editor resolution (print files are made separately at 300 DPI)
 const MIN_AREA_PX = 480; // small areas (sleeves, chest) are drawn finer so they stay sharp on the 3D tee
 const INKS = ["#FFFFFF", "#141110", "#C9A24B", "#C2352C", "#2441B5", "#1C5A2B", "#F0C24C", "#B7A2E0", "#F08A24", "#8DC1EC"];
+// the tools in the left column: [key, label, icon path]
+const TOOLS = [
+  ["areas", "Areas", "M8 4 4 6.5 2 10l3 1.5V20h14v-8.5L22 10l-2-3.5L16 4a4 4 0 0 1-8 0Z"],
+  ["text", "Text", "M5 6V4h14v2M12 4v16M9 20h6"],
+  ["upload", "Upload", "M12 16V4m0 0-4 4m4-4 4 4M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"],
+  ["art", "Art", "M4 5h16v14H4zM8 13l3-3 5 5M15 9h.01"],
+  ["ideas", "Ideas", "M9 18h6M10 21h4M12 3a6 6 0 0 0-4 10.5c.7.7 1 1.5 1 2.5h6c0-1 .3-1.8 1-2.5A6 6 0 0 0 12 3Z"],
+  ["ai", "AI", "m12 3 1.8 4.7L18 9.5l-4.2 1.8L12 16l-1.8-4.7L6 9.5l4.2-1.8L12 3Z"],
+];
+const TOOL_TITLES = { areas: "Print areas", text: "Text", upload: "Upload", art: "Art library", ideas: "Ideas", ai: "AI design" };
+const AREA_GROUPS = [
+  ["Front", ["front"]],
+  ["Back", ["back"]],
+  ["Sleeves", ["left", "right"]],
+];
 const IDEAS = ["BIRTHDAY SQUAD", "Just Married", "TEAM 07", "Chennai Born", "Stay Curious", "Class of 2026", "Bride Squad", "Founder Mode"];
 const SIDES = [["front", "Front"], ["back", "Back"], ["left", "Left"], ["right", "Right"]];
 const DRAFT_KEY = (type) => `identee:design:v3:${type}`;
@@ -111,7 +126,9 @@ export default function DesignRoomPage() {
   const [positions, setPositions] = useState([]);
   const [active, setActive] = useState(null); // print area key being edited
   const [selectedId, setSelectedId] = useState(null);
-  const [panel, setPanel] = useState("edit"); // "edit" | "art"
+  // which tool's panel is open on the left (null = closed). Phones start closed so the tee is visible.
+  const [tool, setTool] = useState(() => (typeof window !== "undefined" && window.innerWidth < 760 ? null : "areas"));
+  const [pickOpen, setPickOpen] = useState(false); // colour & size menu in the top bar
   const [live, setLive] = useState(null); // { key, elements } while dragging
   const [textures, setTextures] = useState({}); // key -> { canvas, version }
   // returning to a saved design starts at the front view; new visits fly in after the fitting step
@@ -354,9 +371,11 @@ export default function DesignRoomPage() {
       return;
     }
     setActive(key);
-    setPanel("edit");
+    // not enough room for both side panels next to the tee: close the left one
+    if (window.innerWidth < 1280) setTool(null);
     setSelectedId((cur) => (elements.some((e) => e.id === cur && e.position === key) ? cur : elements.filter((e) => e.position === key).at(-1)?.id ?? null));
-    setCamRequest({ area: key, side: pos.side, sleeve: pos.side === "left" || pos.side === "right", narrow, n: nextReq() });
+    // the editor is a column beside the 3D view (not on top of it), so the area can fill the view
+    setCamRequest({ area: key, side: pos.side, sleeve: pos.side === "left" || pos.side === "right", narrow, overlayPx: 0, fill: 0.74, lift: 0.03, keep: true, n: nextReq() });
   };
   // keep the card of the area being edited in view in the card strip
   useEffect(() => {
@@ -384,6 +403,8 @@ export default function DesignRoomPage() {
     const full = { id: makeId(), position: pos.key, side: pos.side, rotation: 0, zIndex: elements.length + 1, ...el };
     commit((prev) => [...prev, full]);
     setSelectedId(full.id);
+    // phones: the tool sheet covers the editor, so put it away once something is added
+    if (window.innerWidth < 760) setTool(null);
   };
   const textBox = (el, pos) => {
     // keep the centre, refresh width/height from the real text size
@@ -395,13 +416,22 @@ export default function DesignRoomPage() {
     const height = (m.h / H) * 100;
     return { ...el, width, height, x: cx - width / 2, y: cy - height / 2 };
   };
-  const addText = (text) => {
+  // opts: { effect: "arc-up", vertical: true (text runs down the area), small: true }
+  const addText = (text, opts = {}) => {
     const pos = ensureArea();
     if (!pos) return;
-    const base = { type: "text", text, fontFamily: "Anton", fontSizePct: 12, color: inkDefault, align: "center", effect: "straight", x: 50, y: 18 + (elements.filter((e) => e.position === pos.key).length % 4) * 18, width: 0, height: 0 };
+    const base = { type: "text", text, fontFamily: "Anton", fontSizePct: opts.small ? 7 : 12, color: inkDefault, align: "center", effect: opts.effect || "straight", x: 50, y: 18 + (elements.filter((e) => e.position === pos.key).length % 4) * 18, width: 0, height: 0 };
     let el = textBox(base, pos);
-    // long text: shrink so it fits inside the print area (90% wide)
-    if (el.width > 90) el = textBox({ ...el, fontSizePct: (el.fontSizePct * 90) / el.width }, pos);
+    if (opts.vertical) {
+      // turned 90°: its length runs down the area, so fit it to 90% of the area's height
+      const { W, H } = areaPx(pos);
+      const lengthPctOfHeight = ((el.width / 100) * W / H) * 100;
+      if (lengthPctOfHeight > 90) el = textBox({ ...el, fontSizePct: (el.fontSizePct * 90) / lengthPctOfHeight }, pos);
+      el = { ...el, rotation: 90, x: 50 - el.width / 2, y: 50 - el.height / 2 };
+    } else if (el.width > 90) {
+      // long text: shrink so it fits inside the print area (90% wide)
+      el = textBox({ ...el, fontSizePct: (el.fontSizePct * 90) / el.width }, pos);
+    }
     addElement(pos, el);
   };
   const addImage = (pos, src, natW, natH, extra = {}) => {
@@ -482,7 +512,6 @@ export default function DesignRoomPage() {
     try {
       const img = await loadImage(design.imageUrl);
       addImage(pos, design.imageUrl, img.naturalWidth, img.naturalHeight, { artDesignId: design._id, artPrice: design.price || 0 });
-      setPanel("edit");
     } catch {
       say("That design couldn't be loaded. Please pick another.");
     }
@@ -689,9 +718,50 @@ export default function DesignRoomPage() {
       <header className="dr-top">
         <Link to="/customizable" className="dr-back" aria-label="Back to customizable garments">←</Link>
         <span className="dr-brand">IDENTEE</span>
-        <span className="dr-crumb">
-          Design room · <b>{garment.label} · {colour?.name} · {sizeNow}</b>
-        </span>
+        {step === "design" ? (
+          <div className="dr-pick">
+            <button type="button" className="dr-pickbtn" aria-expanded={pickOpen} aria-haspopup="dialog" onClick={() => setPickOpen((o) => !o)}>
+              <i style={{ background: fabricHex }} aria-hidden="true" />
+              <span>
+                <b>{garment.label}</b> {colour?.name} · {sizeNow}
+              </span>
+              <span aria-hidden="true">▾</span>
+            </button>
+            {pickOpen && (
+              <>
+                <div className="dr-scrim" onClick={() => setPickOpen(false)} />
+                <div className="dr-pickpop" role="dialog" aria-label="Colour and size">
+                  <div className="eyebrow">Colour · {colour?.name}</div>
+                  <div className="dr-pickcolours" role="radiogroup" aria-label="T-shirt colour">
+                    {colours.map((c) => (
+                      <button key={c.slug} type="button" role="radio" aria-checked={c.slug === colour?.slug} aria-label={c.name} title={c.name}
+                        className={`dr-sw${c.slug === colour?.slug ? " on" : ""}`} style={{ background: c.hex }} onClick={() => changeColour(c.slug)} />
+                    ))}
+                  </div>
+                  <div className="eyebrow">Your size</div>
+                  <div className="dr-picksizes">
+                    {sizes.map((sz) => {
+                      const r = garment.sizeChart?.find((x) => x.size === sz);
+                      return (
+                        <button key={sz} type="button" className={`dr-sz${sz === sizeNow ? " on" : ""}`} aria-pressed={sz === sizeNow}
+                          onClick={() => { setSize(sz); writeJSON(SIZE_KEY, sz); }}>
+                          {sz}
+                          {r && <small>{r.chest}″ / {r.length}″</small>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <p className="dr-qnote">Chest / length in inches. Every print is shown at its true size for {sizeNow}.</p>
+                  <button type="button" className="dr-chip on" onClick={() => setPickOpen(false)}>Done</button>
+                </div>
+              </>
+            )}
+          </div>
+        ) : (
+          <span className="dr-crumb">
+            Design room · <b>{garment.label} · {colour?.name} · {sizeNow}</b>
+          </span>
+        )}
         <nav className="dr-steps" aria-label="Steps">
           {[["design", "Design"], ["review", "Review"], ["qty", "Sizes & qty"], ["cart", "Cart"]].map(([k, label], i) => {
             const order = ["design", "review", "qty", "cart"];
@@ -733,136 +803,205 @@ export default function DesignRoomPage() {
           ₹{unitPrice.toLocaleString("en-IN")}
           <small>{artTotal ? `incl. ₹${artTotal} art` : "per piece"}</small>
         </div>
+        {step === "design" && (
+          <button type="button" className="dr-cta dr-reviewbtn" onClick={toReview}>
+            Review →
+          </button>
+        )}
       </header>
 
-      <main className="dr-stage">
-        {model && colour && (
-          <div className="dr-room" data-editing={active ? "1" : undefined}>
-          <Room3D
-            ref={roomApi}
-            model={model}
-            colour={fabricHex}
-            areas={areas3D}
-            onPickArea={(k) => step === "design" && openArea(k)}
-            camRequest={camRequest}
-            interactive={step === "design"}
-            still={!!active}
-            autoRotate={step === "review" && spin}
-          />
-          </div>
+      <main className="dr-stage" data-editing={step === "design" && active ? "1" : undefined}>
+        {step === "design" && (
+          <nav className="dr-tools" aria-label="Design tools">
+            {TOOLS.map(([k, label, icon]) => (
+              <button key={k} type="button" className={`dr-toolbtn${tool === k ? " on" : ""}`} aria-pressed={tool === k} onClick={() => setTool(tool === k ? null : k)}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d={icon} />
+                </svg>
+                {label}
+                {k === "ai" && <small>soon</small>}
+              </button>
+            ))}
+          </nav>
         )}
 
-        {step === "design" && (
-          <>
-            <div className="dr-rail left" role="radiogroup" aria-label="T-shirt colour">
-              {colours.map((c) => (
-                <button key={c.slug} type="button" role="radio" aria-checked={c.slug === colour?.slug} aria-label={c.name} title={c.name}
-                  className={`dr-sw${c.slug === colour?.slug ? " on" : ""}`} style={{ background: c.hex }} onClick={() => changeColour(c.slug)} />
-              ))}
-            </div>
-            <div className="dr-rail right" aria-label="Look at side">
-              {SIDES.map(([k, label]) => (
-                <button key={k} type="button" className={`dr-cam${usedSides.has(k) ? " has" : ""}`} onClick={() => goView(k)}>
-                  {label}
-                  <span className="dot" />
-                </button>
-              ))}
-            </div>
-            <div className="dr-sizechip">
-              <label htmlFor="dr-size">Your size</label>
-              <select id="dr-size" value={sizeNow} onChange={(e) => { setSize(e.target.value); writeJSON(SIZE_KEY, e.target.value); }}>
-                {sizes.map((s) => <option key={s}>{s}</option>)}
-              </select>
-              {chartRow && <span className="m">chest {chartRow.chest}″ · length {chartRow.length}″ · true to size</span>}
-            </div>
-            {!active && <div className="dr-hint">Drag to turn the tee · pinch or scroll to zoom · tap a print area to design it</div>}
-            <div className="dr-areas" aria-label="Print areas">
-              {positions.map((p) => {
-                const [w, h] = areaCm(p, sizeNow);
-                const used = usedKeys.includes(p.key);
-                const blockedBy = used ? [] : blockersOf(p.key, positions, usedKeys);
-                return (
-                  <button
-                    key={p.key}
-                    type="button"
-                    className={`dr-area${active === p.key ? " on" : ""}${used ? " used" : ""}${blockedBy.length ? " blocked" : ""}`}
-                    title={blockedBy.length ? `Overlaps ${blockedBy.map((b) => b.label).join(" and ")} — remove that design first` : `${p.label} · ${w} × ${h} cm`}
-                    aria-label={`${p.label}, ${w} by ${h} cm${used ? ", has a design" : ""}${blockedBy.length ? `, blocked by ${blockedBy.map((b) => b.label).join(" and ")}` : ""}`}
-                    aria-disabled={blockedBy.length ? "true" : undefined}
-                    aria-pressed={active === p.key}
-                    onClick={() => openArea(p.key)}
-                  >
-                    {/* one small tee per print area, with just that area's box */}
-                    <AreaThumb position={p} size={sizeNow} />
-                    <b>{p.label}</b>
-                    <span>{w}×{h} cm</span>
+        {step === "design" && tool && (
+          <aside className="dr-side" aria-label={TOOL_TITLES[tool]}>
+            <header>
+              <h2>{TOOL_TITLES[tool]}</h2>
+              <button type="button" className="dr-x" aria-label="Close this panel" onClick={() => setTool(null)}>✕</button>
+            </header>
+            <div className="dr-sidebody">
+              {tool === "areas" && (
+                <>
+                  <p className="dr-empty">Choose where to print. Each tee shows one print area at its real size for {sizeNow}.</p>
+                  {AREA_GROUPS.map(([title, sides]) => {
+                    const list = positions.filter((p) => sides.includes(p.side));
+                    if (!list.length) return null;
+                    return (
+                      <div key={title}>
+                        <div className="eyebrow">{title}</div>
+                        <div className="dr-cards">
+                          {list.map((p) => {
+                            const [w, h] = areaCm(p, sizeNow);
+                            const used = usedKeys.includes(p.key);
+                            const blockedBy = used ? [] : blockersOf(p.key, positions, usedKeys);
+                            return (
+                              <button
+                                key={p.key}
+                                type="button"
+                                className={`dr-area${active === p.key ? " on" : ""}${used ? " used" : ""}${blockedBy.length ? " blocked" : ""}`}
+                                title={blockedBy.length ? `Overlaps ${blockedBy.map((b) => b.label).join(" and ")} — remove that design first` : `${p.label} · ${w} × ${h} cm`}
+                                aria-label={`${p.label}, ${w} by ${h} cm${used ? ", has a design" : ""}${blockedBy.length ? `, blocked by ${blockedBy.map((b) => b.label).join(" and ")}` : ""}`}
+                                aria-disabled={blockedBy.length ? "true" : undefined}
+                                aria-pressed={active === p.key}
+                                onClick={() => openArea(p.key)}
+                              >
+                                {/* one small tee per print area, with just that area's box */}
+                                <AreaThumb position={p} size={sizeNow} />
+                                <b>{p.label}</b>
+                                <span>{w}×{h} cm</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                  <p className="dr-empty">Gold box = has a design. Faded = covered by another design.</p>
+                </>
+              )}
+
+              {tool === "text" && (
+                <>
+                  <p className="dr-empty">{activePos ? `Adds to ${activePos.label}.` : "Adds to Centre Front. Pick another place in Areas first if you like."}</p>
+                  <button type="button" className="dr-add big" onClick={() => addText("YOUR TEXT")}>Add a heading</button>
+                  <button type="button" className="dr-add" onClick={() => addText("your text here", { small: true })}>Add a small line</button>
+                  <div className="eyebrow">Shapes</div>
+                  <div className="dr-two">
+                    <button type="button" className="dr-add" onClick={() => addText("YOUR TEXT", { effect: "arc-up" })}>Curved up</button>
+                    <button type="button" className="dr-add" onClick={() => addText("YOUR TEXT", { effect: "arc-down" })}>Curved down</button>
+                    <button type="button" className="dr-add" onClick={() => addText("YOUR TEXT", { vertical: true })}>Vertical (runs down)</button>
+                  </div>
+                  <p className="dr-empty">Change the words, font, colour and size on the right after adding.</p>
+                </>
+              )}
+
+              {tool === "upload" && (
+                <>
+                  <button type="button" className="dr-drop" onClick={pickUpload}>
+                    <b>Upload a photo or logo</b>
+                    <span>JPG, PNG or WebP · up to 10 MB</span>
                   </button>
-                );
-              })}
+                  <p className="dr-empty">{activePos ? `Adds to ${activePos.label}.` : "Adds to Centre Front."} A print-quality check shows if a picture is too small to print sharp.</p>
+                </>
+              )}
+
+              {tool === "art" && <ArtPanel categories={artCategories} designs={artDesigns} onOpen={(id) => dispatch(fetchArtDesigns(id))} onPick={pickArt} />}
+
+              {tool === "ideas" && (
+                <>
+                  <p className="dr-empty">Tap a line to put it on the tee, then change the words.</p>
+                  <div className="dr-idealist">
+                    {IDEAS.map((t) => (
+                      <button key={t} type="button" className="dr-add idea" onClick={() => addText(t)}>{t}</button>
+                    ))}
+                  </div>
+                </>
+              )}
+
+              {tool === "ai" && (
+                <>
+                  <div className="dr-soon">
+                    <b>AI designs are coming soon</b>
+                    <span>Describe an idea, pick a style and get designs made for your tee.</span>
+                  </div>
+                </>
+              )}
             </div>
-            <div className="dr-credit">
-              <a href={model?.credit.href} target="_blank" rel="noopener noreferrer">{model?.credit.text}</a>
-            </div>
-          </>
+          </aside>
         )}
+
+        <div className="dr-view">
+          {model && colour && (
+            <div className="dr-room" data-editing={active ? "1" : undefined}>
+              <Room3D
+                ref={roomApi}
+                model={model}
+                colour={fabricHex}
+                areas={areas3D}
+                onPickArea={(k) => step === "design" && openArea(k)}
+                camRequest={camRequest}
+                interactive={step === "design"}
+                still={!!active}
+                autoRotate={step === "review" && spin}
+              />
+            </div>
+          )}
+          {step === "design" && (
+            <>
+              <div className="dr-undo" role="group" aria-label="Undo and redo">
+                <button type="button" onClick={undo} disabled={histSize.past === 0} aria-label="Undo" title="Undo (Ctrl+Z)">↶</button>
+                <button type="button" onClick={redo} disabled={histSize.future === 0} aria-label="Redo" title="Redo (Ctrl+Y)">↷</button>
+              </div>
+              {!active && <div className="dr-hint">Drag to turn the tee · scroll or pinch to zoom</div>}
+              <div className="dr-viewsw" role="group" aria-label="Look at side">
+                {SIDES.map(([k, label]) => (
+                  <button key={k} type="button" className={usedSides.has(k) ? "has" : ""} onClick={() => goView(k)}>
+                    {label}
+                    <span className="dot" />
+                  </button>
+                ))}
+              </div>
+              <div className="dr-credit">
+                <a href={model?.credit.href} target="_blank" rel="noopener noreferrer">{model?.credit.text}</a>
+              </div>
+            </>
+          )}
+        </div>
 
         {step === "design" && activePos && (
           <section className="dr-editor" aria-label={`Edit ${activePos.label}`}>
             <header>
               <div>
-                <h2>{panel === "art" ? "Art library" : activePos.label}</h2>
+                <h2>{activePos.label}</h2>
                 <div className="sub">
-                  {panel === "art" ? `Adds to ${activePos.label}` : `${areaPx(activePos).wCm} × ${areaPx(activePos).hCm} cm at size ${sizeNow} · drag, pinch or use the handles`}
+                  {areaPx(activePos).wCm} × {areaPx(activePos).hCm} cm at size {sizeNow} · drag, pinch or use the handles
                 </div>
               </div>
-              <button type="button" className="dr-x" aria-label={panel === "art" ? "Back to editor" : "Close editor"} onClick={() => (panel === "art" ? setPanel("edit") : closeArea())}>
-                {panel === "art" ? "←" : "✕"}
-              </button>
+              <button type="button" className="dr-x" aria-label="Close editor" onClick={() => goView(activePos.side)}>✕</button>
             </header>
-
-            {panel === "art" ? (
-              <ArtPanel categories={artCategories} designs={artDesigns} onOpen={(id) => dispatch(fetchArtDesigns(id))} onPick={pickArt} />
-            ) : (
-              <>
-                <div className="dr-flatwrap">
-                  <AreaEditor
-                    elements={activeEls}
-                    W={areaPx(activePos).W}
-                    H={areaPx(activePos).H}
-                    fabric={fabricHex}
-                    selectedId={selectedId}
-                    onSelect={setSelectedId}
-                    displayWidth={editorW}
-                    onLive={(els) => queueLive(active, els)}
-                    onCommit={(els) => {
-                      liveQueue.current = null;
-                      setLive(null);
-                      commit((prev) => [...prev.filter((e) => e.position !== active), ...els]);
-                    }}
-                  />
-                </div>
-                <div className="dr-ruler" style={{ width: editorW }}>
-                  <span>0</span>
-                  <span>{areaPx(activePos).wCm} cm</span>
-                </div>
-                <Controls
-                  sel={sel}
-                  areaCmW={areaPx(activePos).wCm}
-                  onIdea={addText}
-                  onAddText={() => addText("YOUR TEXT")}
-                  onUpload={pickUpload}
-                  onArt={() => setPanel("art")}
-                  onPatch={updateSel}
-                  onDelete={removeSel}
-                  onDuplicate={dupSel}
-                  onLayer={layerSel}
-                  canUndo={histSize.past > 0}
-                  canRedo={histSize.future > 0}
-                  onUndo={undo}
-                  onRedo={redo}
-                />
-              </>
-            )}
+            <div className="dr-flatwrap">
+              <AreaEditor
+                elements={activeEls}
+                W={areaPx(activePos).W}
+                H={areaPx(activePos).H}
+                fabric={fabricHex}
+                selectedId={selectedId}
+                onSelect={setSelectedId}
+                displayWidth={editorW}
+                onLive={(els) => queueLive(active, els)}
+                onCommit={(els) => {
+                  liveQueue.current = null;
+                  setLive(null);
+                  commit((prev) => [...prev.filter((e) => e.position !== active), ...els]);
+                }}
+              />
+            </div>
+            <div className="dr-ruler" style={{ width: editorW }}>
+              <span>0</span>
+              <span>{areaPx(activePos).wCm} cm</span>
+            </div>
+            <Controls
+              sel={sel}
+              empty={activeEls.length === 0}
+              areaCmW={areaPx(activePos).wCm}
+              onPatch={updateSel}
+              onDelete={removeSel}
+              onDuplicate={dupSel}
+              onLayer={layerSel}
+              onTool={setTool}
+            />
           </section>
         )}
 
@@ -974,44 +1113,21 @@ export default function DesignRoomPage() {
         {busy && <div className="dr-busy" role="status">{busy}</div>}
       </main>
 
-      <nav className="dr-dock" aria-label="Design tools">
-        {step === "design" ? (
-          <>
-            <Tool label="Text" onClick={() => addText("YOUR TEXT")} icon="M5 6V4h14v2M12 4v16M9 20h6" />
-            <Tool label="Upload" onClick={pickUpload} icon="M12 16V4m0 0-4 4m4-4 4 4M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3" />
-            <Tool label="Art" onClick={() => { ensureArea(); setPanel("art"); }} icon="M4 5h16v14H4zM8 13l3-3 5 5M15 9h.01" />
-            <Tool label="Ideas" onClick={() => addText(IDEAS[Math.floor(Math.random() * IDEAS.length)])} icon="M9 18h6M10 21h4M12 3a6 6 0 0 0-4 10.5c.7.7 1 1.5 1 2.5h6c0-1 .3-1.8 1-2.5A6 6 0 0 0 12 3Z" />
-            <Tool label="AI" soon onClick={() => say("AI designs are coming soon.")} icon="m12 3 1.8 4.7L18 9.5l-4.2 1.8L12 16l-1.8-4.7L6 9.5l4.2-1.8L12 3Z" />
-            <button type="button" className="dr-cta" onClick={toReview}>Review →</button>
-          </>
-        ) : step === "review" ? (
-          <>
-            <button type="button" className="dr-cta ghost" onClick={backToDesign}>← Edit design</button>
-            <button type="button" className="dr-cta" onClick={addToCart} disabled={!!busy || !pieces}>Add to cart</button>
-            <button type="button" className="dr-cta gold" onClick={order} disabled={!!busy || !pieces}>
-              Buy now · {pieces} pc{pieces === 1 ? "" : "s"} · ₹{(unitPrice * pieces).toLocaleString("en-IN")} →
-            </button>
-          </>
-        ) : null}
-        <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp" hidden onChange={onFile} />
-      </nav>
+      {step === "review" && (
+        <nav className="dr-dock" aria-label="Order">
+          <button type="button" className="dr-cta ghost" onClick={backToDesign}>← Edit design</button>
+          <button type="button" className="dr-cta" onClick={addToCart} disabled={!!busy || !pieces}>Add to cart</button>
+          <button type="button" className="dr-cta gold" onClick={order} disabled={!!busy || !pieces}>
+            Buy now · {pieces} pc{pieces === 1 ? "" : "s"} · ₹{(unitPrice * pieces).toLocaleString("en-IN")} →
+          </button>
+        </nav>
+      )}
+      <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp" hidden onChange={onFile} />
     </div>
   );
 }
 
 /* ---------- pieces ---------- */
-function Tool({ label, icon, onClick, soon }) {
-  return (
-    <button type="button" className={`dr-tool${soon ? " soon" : ""}`} onClick={onClick}>
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-        <path d={icon} />
-      </svg>
-      {label}
-      {soon && <small>soon</small>}
-    </button>
-  );
-}
-
 function Fitting({ garment, colours, colour, onColour, sizes, size, onSize, onEnter, credit, earlier, onContinue }) {
   return (
     <div className="dr-overlay">
@@ -1065,7 +1181,7 @@ function Fitting({ garment, colours, colour, onColour, sizes, size, onSize, onEn
   );
 }
 
-function Controls({ sel, areaCmW, onIdea, onAddText, onUpload, onArt, onPatch, onDelete, onDuplicate, onLayer, canUndo, canRedo, onUndo, onRedo }) {
+function Controls({ sel, empty, areaCmW, onPatch, onDelete, onDuplicate, onLayer, onTool }) {
   const quality = () => {
     if (!sel?.pxW) return null;
     const printCm = ((sel.width || 0) / 100) * areaCmW;
@@ -1080,22 +1196,17 @@ function Controls({ sel, areaCmW, onIdea, onAddText, onUpload, onArt, onPatch, o
   };
   return (
     <div className="dr-controls">
-      <div className="dr-row">
-        <button type="button" className="dr-chip" onClick={onAddText}>+ Text</button>
-        <button type="button" className="dr-chip" onClick={onUpload}>+ Upload</button>
-        <button type="button" className="dr-chip" onClick={onArt}>+ Art</button>
-        <span className="dr-spacer" />
-        <button type="button" className="dr-chip" onClick={onUndo} disabled={!canUndo} aria-label="Undo">↶</button>
-        <button type="button" className="dr-chip" onClick={onRedo} disabled={!canRedo} aria-label="Redo">↷</button>
-      </div>
       {!sel && (
         <>
+          <p className="dr-empty">
+            {empty ? "This area is empty. Add something to it:" : "Tap something on the print area above to change it, or add more:"}
+          </p>
           <div className="dr-row">
-            {IDEAS.slice(0, 4).map((t) => (
-              <button key={t} type="button" className="dr-chip idea" onClick={() => onIdea(t)}>{t}</button>
-            ))}
+            <button type="button" className="dr-chip" onClick={() => onTool("text")}>Text</button>
+            <button type="button" className="dr-chip" onClick={() => onTool("upload")}>Upload</button>
+            <button type="button" className="dr-chip" onClick={() => onTool("art")}>Art</button>
+            <button type="button" className="dr-chip" onClick={() => onTool("ideas")}>Ideas</button>
           </div>
-          <p className="dr-empty">Tap something on the print area to edit it, or add text, a photo, art or an idea.</p>
         </>
       )}
       {sel?.type === "text" && (
