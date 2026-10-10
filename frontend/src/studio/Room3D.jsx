@@ -292,6 +292,7 @@ function CameraRig({ request, getSpot, apiRef, wakeKey }) {
       scene.traverse((o) => {
         if (o.userData?.areaKey === areaKey && o.material?.map) o.material.map.needsUpdate = true;
       });
+      awake.current = Math.max(awake.current, 4); // a few frames, so no step of the drag is missed
       invalidate();
     },
     snapshot(view) {
