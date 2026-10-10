@@ -138,19 +138,13 @@ export class AreaRenderer {
     this.layer.destroyChildren();
     buildNodes(this.layer, elements, this.W, this.H, opts);
     if (opts?.outline) {
-      const line = Math.max(4, this.W / 120);
-      this.layer.add(
-        new Konva.Rect({
-          x: line / 2,
-          y: line / 2,
-          width: this.W - line,
-          height: this.H - line,
-          stroke: "rgba(201,162,75,0.95)",
-          strokeWidth: line,
-          dash: [line * 4.5, line * 3],
-          listening: false,
-        }),
-      );
+      // Two-tone border: dark and pale-gold dashes alternate, so it shows on
+      // every tee colour (plain gold disappeared on lavender, beige, cream).
+      const line = Math.max(5, this.W / 110);
+      const dash = line * 4;
+      const box = { x: line / 2, y: line / 2, width: this.W - line, height: this.H - line, strokeWidth: line, listening: false };
+      this.layer.add(new Konva.Rect({ ...box, stroke: "rgba(21,19,15,0.82)", dash: [dash, dash] }));
+      this.layer.add(new Konva.Rect({ ...box, stroke: "#F6DFA0", dash: [dash, dash], dashOffset: dash }));
     }
     this.layer.draw();
     return this.layer.getNativeCanvasElement();
