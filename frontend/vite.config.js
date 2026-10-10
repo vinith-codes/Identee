@@ -8,5 +8,6 @@ export default defineConfig({
   assetsInclude: ["**/*.glb"],
   // jszip is only loaded when an admin downloads print files; listing it here
   // stops the dev server from reloading the page the first time that happens
-  optimizeDeps: { include: ["jszip"] },
+  // (the same goes for the background remover's AI library)
+  optimizeDeps: { include: ["jszip", "@huggingface/transformers"] },
 });

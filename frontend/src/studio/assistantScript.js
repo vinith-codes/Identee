@@ -29,7 +29,7 @@ export function replyTo(text, areaLabel) {
   }
   if (text === MENU[0] || /slogan|quote|text|line|caption|words/i.test(text)) return [bot("Who is the tee for?"), chips(Object.keys(SLOGANS))];
   if (text === MENU[2] || /background|cut ?out|remove/i.test(text)) {
-    return [bot("Removing a picture’s background is coming soon. For now, upload a picture that already has a see-through background (PNG)."), chips(["Upload a picture", "Slogan ideas"])];
+    return [bot("Upload your picture, tap it on the print area, then press “Remove background” in its settings. It’s free and runs in your browser."), chips(["Upload a picture", "Slogan ideas"])];
   }
   if (text === MENU[1] || /design|draw|make|picture|art|image/i.test(text)) {
     return [bot("Designs made to order are coming soon. For now, pick from our art library or upload your own picture."), chips(["Open the art library", "Upload a picture", "Slogan ideas"])];

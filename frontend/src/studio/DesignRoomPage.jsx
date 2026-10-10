@@ -478,6 +478,28 @@ export default function DesignRoomPage() {
     commit((prev) => prev.filter((e) => e.id !== selectedId));
     setSelectedId(null);
   };
+  // Remove the selected picture's background (in this browser — see removeBackground.js),
+  // upload the cut-out and swap it in. Undo brings the original back.
+  const removeBg = async () => {
+    const el = elements.find((e) => e.id === selectedId);
+    if (!el || el.type !== "image" || busy) return;
+    setBusy("Removing the background…");
+    try {
+      const img = await loadImage(el.src, { full: true });
+      const { removeBackground } = await import("./removeBackground");
+      const out = await removeBackground(img, setBusy);
+      if (out.already) return say("This picture already has a see-through background.");
+      setBusy("Saving the cut-out…");
+      const res = await dispatch(uploadDesignImage(new File([out.blob], "cut-out.png", { type: "image/png" })));
+      if (!uploadDesignImage.fulfilled.match(res)) return say(res.payload || "The cut-out could not be saved. Please try again.");
+      commit((prev) => prev.map((e) => (e.id === el.id ? { ...e, src: res.payload.path, pxW: out.width } : e)));
+      say(out.method === "ai" ? "Background removed. Not right? Press Undo (↶) to get the original back." : "Background colour removed. Not right? Press Undo (↶).");
+    } catch {
+      say("The background could not be removed. Check your internet connection and try again.");
+    } finally {
+      setBusy("");
+    }
+  };
   const dupSel = () => {
     const el = elements.find((e) => e.id === selectedId);
     if (!el) return;
@@ -991,6 +1013,7 @@ export default function DesignRoomPage() {
                 onDelete={removeSel}
                 onDuplicate={dupSel}
                 onLayer={layerSel}
+                onRemoveBg={removeBg}
                 onAddMore={() => setSelectedId(null)}
               />
             ) : (
@@ -1218,7 +1241,7 @@ function Fitting({ garment, colours, colour, onColour, sizes, size, onSize, onEn
   );
 }
 
-function Controls({ sel, areaCmW, areaRatio, onPatch, onDelete, onDuplicate, onLayer, onAddMore }) {
+function Controls({ sel, areaCmW, areaRatio, onPatch, onDelete, onDuplicate, onLayer, onRemoveBg, onAddMore }) {
   const quality = () => {
     if (!sel?.pxW) return null;
     const printCm = ((sel.width || 0) / 100) * areaCmW;
@@ -1367,6 +1390,17 @@ function Controls({ sel, areaCmW, areaRatio, onPatch, onDelete, onDuplicate, onL
         <>
           {quality()}
           {sel.artPrice ? <div className="dr-quality">Art design · +₹{sel.artPrice}</div> : null}
+          {!sel.artDesignId && (
+            <button type="button" className="dr-add dr-bgbtn" onClick={onRemoveBg}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M4 4h4M4 4v4M20 4h-4M20 4v4M4 20h4M4 20v-4M20 20h-4M20 20v-4M9 15l3-6 3 6M10 13h4" />
+              </svg>
+              <span>
+                Remove background
+                <small>Free. Works in your browser; the first time takes a little longer.</small>
+              </span>
+            </button>
+          )}
           <label className="dr-field">
             Size
             <input

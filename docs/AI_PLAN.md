@@ -71,3 +71,9 @@ when switched on). Each on a feature branch, tested on a local copy, merged on "
 ## Needed from the client later
 - Budget for the image generator (and which service), then the key goes into `server/.env` on the server.
 - Optional Anthropic key for AI slogans (tiny cost); without it the free list is used.
+
+## Built so far (10 Oct 2026, branch `feature-design-room-two-step`)
+
+- **Design assistant** (Design Room → What to add → Assistant): guided chat, scripted and free (`studio/Assistant.jsx`, `assistantScript.js`). Slogans by occasion with Add to tee; points to art library / upload. The Ideas tab was removed.
+- **Background remover** (select an uploaded picture → Remove background): `studio/removeBackground.js`, runs in the browser. Flat-colour backgrounds are cleared directly; photos use ORMBG (`onnx-community/ormbg-ONNX`, Apache-2.0, q8, ~44 MB first download) through `@huggingface/transformers`. The cut-out is uploaded like any design image; Undo restores the original. IS-Net's ONNX build on Hugging Face is AGPL — not used.
+- Not built: made-to-order designs, AI slogans (need a paid key and the client's budget).

@@ -501,3 +501,8 @@
 .dr-tgl.on { background: var(--ink); border-color: var(--ink); color: #fff; }
 .dr-gap { width: 2px; }
 .dr-flatwrap { padding-top: 2px; }
+
+/* remove background */
+.dr-bgbtn { display: flex; align-items: center; gap: 12px; }
+.dr-bgbtn svg { width: 24px; height: 24px; flex-shrink: 0; color: var(--gold-deep); }
+.dr-bgbtn small { display: block; font-weight: 400; font-size: 11.5px; color: var(--muted); }
