@@ -70,6 +70,11 @@ const cleanElement = (positionByKey) => (el, i) => {
       underline: !!el.underline,
       align: ["left", "center", "right", "justify"].includes(el.align) ? el.align : "center",
       effect: ["straight", "arc-up", "arc-down"].includes(el.effect) ? el.effect : "straight",
+      // spacing and outline are in % of the letter size, so they scale with the print
+      letterSpacingPct: clampNum(el.letterSpacingPct, -10, 60, 0),
+      lineHeight: clampNum(el.lineHeight, 0.7, 2.5, 1.05),
+      strokeWidthPct: clampNum(el.strokeWidthPct, 0, 20, 0),
+      strokeColor: HEX.test(el.strokeColor) ? el.strokeColor : undefined,
       note: el.note ? String(el.note).slice(0, 300) : undefined,
     };
   }

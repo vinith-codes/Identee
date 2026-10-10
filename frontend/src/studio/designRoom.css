@@ -490,3 +490,14 @@
 .dr-seg button:hover { border-color: var(--ink); }
 .dr-seg button.on { background: var(--ink); border-color: var(--ink); color: #fff; }
 .dr-addhead .dr-chip { white-space: nowrap; flex-shrink: 0; }
+
+/* more text settings */
+.dr-field textarea { border: 1px solid var(--line); border-radius: 10px; padding: 9px 12px; background: #fff; font: 400 14px/1.4 var(--body); color: var(--ink); resize: none; width: 100%; box-sizing: border-box; }
+.dr-field small { font-weight: 400; font-size: 11px; color: var(--muted); }
+.dr-field input[type=range]:disabled { opacity: .35; }
+.dr-tgl { width: 32px; height: 34px; display: grid; place-items: center; border: 1px solid var(--line); background: #fff; border-radius: 10px; font-size: 13px; padding: 0; }
+.dr-tgl svg { width: 17px; height: 17px; }
+.dr-tgl:hover { border-color: var(--ink); }
+.dr-tgl.on { background: var(--ink); border-color: var(--ink); color: #fff; }
+.dr-gap { width: 2px; }
+.dr-flatwrap { padding-top: 2px; }

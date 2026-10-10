@@ -38,6 +38,14 @@ export const cachedImage = (src, full = false) => {
 /* ---------- text helpers ---------- */
 const fontStyle = (el) => [el.bold && "bold", el.italic && "italic"].filter(Boolean).join(" ") || "normal";
 
+// Letter spacing and outline are saved in % of the letter size.
+const letterPx = (el, H) => Math.max(4, ((el.fontSizePct || 15) / 100) * H);
+const spacingPx = (el, H) => ((el.letterSpacingPct || 0) / 100) * letterPx(el, H);
+const outline = (el, H) =>
+  el.strokeWidthPct > 0 && el.strokeColor
+    ? { stroke: el.strokeColor, strokeWidth: (el.strokeWidthPct / 100) * letterPx(el, H) * 2, fillAfterStrokeEnabled: true, lineJoin: "round" }
+    : {};
+
 // Size of a text element in px (unrotated), for a box of height H.
 export function measureText(el, H) {
   const t = new Konva.Text({
@@ -46,7 +54,8 @@ export function measureText(el, H) {
     fontSize: Math.max(4, ((el.fontSizePct || 15) / 100) * H),
     fontStyle: fontStyle(el),
     align: el.align || "center",
-    lineHeight: 1.05,
+    lineHeight: el.lineHeight || 1.05,
+    letterSpacing: spacingPx(el, H),
   });
   const w = t.width();
   const h = t.height() * (el.effect && el.effect !== "straight" ? 1.25 : 1);
@@ -63,6 +72,8 @@ function textNode(el, W, H) {
     fontStyle: fontStyle(el),
     textDecoration: el.underline ? "underline" : "",
     fill: el.color || "#000000",
+    letterSpacing: spacingPx(el, H),
+    ...outline(el, H),
   };
   if (el.effect === "arc-up" || el.effect === "arc-down") {
     const flat = measureText({ ...el, effect: "straight" }, H);
@@ -78,7 +89,7 @@ function textNode(el, W, H) {
     g.add(tp);
     return { node: g, w: box.w, h: box.h };
   }
-  const t = new Konva.Text({ ...common, text: el.text || " ", align: el.align || "center", lineHeight: 1.05 });
+  const t = new Konva.Text({ ...common, text: el.text || " ", align: el.align || "center", lineHeight: el.lineHeight || 1.05 });
   return { node: t, w: t.width(), h: t.height() };
 }
 

@@ -40,6 +40,10 @@ const elementSchema = new mongoose.Schema(
       enum: ["straight", "arc-up", "arc-down"],
       default: "straight",
     },
+    letterSpacingPct: { type: Number, default: 0 }, // % of the letter size
+    lineHeight: { type: Number, default: 1.05 },
+    strokeWidthPct: { type: Number, default: 0 }, // outline, % of the letter size (0 = none)
+    strokeColor: { type: String },
     note: { type: String, maxlength: 300 },
 
     // placement

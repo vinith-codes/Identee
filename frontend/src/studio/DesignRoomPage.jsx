@@ -730,14 +730,14 @@ export default function DesignRoomPage() {
   const editorW = (() => {
     if (!activePos) return 300;
     const { W, H } = areaPx(activePos);
-    const maxW = narrow ? Math.min(220, window.innerWidth - 64) : 300;
+    const maxW = narrow ? Math.min(200, window.innerWidth - 64) : 230;
     // Tall, thin areas (Vertical Front 10 × 52 cm …) get a taller box, but
     // never so tall that the controls below it are pushed out of the panel.
     const tall = H / W > 2;
     const maxH = narrow
-      ? Math.min(tall ? 240 : 170, window.innerHeight * (tall ? 0.3 : 0.22))
-      : Math.min(tall ? 330 : 260, window.innerHeight * (tall ? 0.42 : 0.34));
-    return Math.round(Math.max(tall ? 40 : 120, Math.min(maxW, (maxH * W) / H)));
+      ? Math.min(tall ? 200 : 140, window.innerHeight * (tall ? 0.26 : 0.18))
+      : Math.min(tall ? 230 : 170, window.innerHeight * (tall ? 0.3 : 0.22));
+    return Math.round(Math.max(tall ? 40 : 110, Math.min(maxW, (maxH * W) / H)));
   })();
 
   return (
@@ -1253,15 +1253,54 @@ function Controls({ sel, areaCmW, areaRatio, onPatch, onDelete, onDuplicate, onL
       {sel?.type === "text" && (
         <>
           <label className="dr-field">
-            Text
-            <input type="text" value={sel.text} maxLength={60} onChange={(e) => onPatch({ text: e.target.value || " " }, { measure: true })} />
+            Words
+            <textarea
+              rows={Math.min(4, Math.max(1, (sel.text || "").split("\n").length))}
+              value={sel.text}
+              maxLength={200}
+              placeholder="Your text"
+              onChange={(e) => onPatch({ text: e.target.value || " " }, { measure: true })}
+            />
+            <small>Press Enter for a new line.</small>
           </label>
-          <label className="dr-field">
-            Font
-            <select value={sel.fontFamily} onChange={(e) => onPatch({ fontFamily: e.target.value }, { measure: true })}>
-              {[...new Set([sel.fontFamily, ...FONTS])].map((f) => <option key={f}>{f}</option>)}
-            </select>
-          </label>
+          <div className="dr-row">
+            <label className="dr-field">
+              Font
+              <select value={sel.fontFamily} onChange={(e) => onPatch({ fontFamily: e.target.value }, { measure: true })}>
+                {[...new Set([sel.fontFamily, ...FONTS])].map((f) => <option key={f} style={{ fontFamily: f }}>{f}</option>)}
+              </select>
+            </label>
+            <label className="dr-field">
+              Size
+              <input type="range" min="2" max="60" step="0.5" value={sel.fontSizePct} onChange={(e) => onPatch({ fontSizePct: +e.target.value }, { measure: true })} />
+            </label>
+          </div>
+          <div className="dr-field">
+            Style
+            <div className="dr-row" aria-label="Text style">
+              <button type="button" className={`dr-tgl${sel.bold ? " on" : ""}`} aria-pressed={!!sel.bold} title="Bold" onClick={() => onPatch({ bold: !sel.bold }, { measure: true })}><b>B</b></button>
+              <button type="button" className={`dr-tgl${sel.italic ? " on" : ""}`} aria-pressed={!!sel.italic} title="Italic" onClick={() => onPatch({ italic: !sel.italic }, { measure: true })}><i>I</i></button>
+              <button type="button" className={`dr-tgl${sel.underline ? " on" : ""}`} aria-pressed={!!sel.underline} title="Underline" onClick={() => onPatch({ underline: !sel.underline })}><u>U</u></button>
+              <button
+                type="button"
+                className="dr-tgl"
+                title="Switch between CAPITALS and small letters"
+                onClick={() => onPatch({ text: sel.text === sel.text.toUpperCase() ? sel.text.toLowerCase() : sel.text.toUpperCase() }, { measure: true })}
+              >
+                Aa
+              </button>
+              <span className="dr-gap" />
+              {[
+                ["left", "Left", "M4 6h16M4 12h10M4 18h13"],
+                ["center", "Centre", "M4 6h16M7 12h10M5.5 18h13"],
+                ["right", "Right", "M4 6h16M10 12h10M7 18h13"],
+              ].map(([k, label, d]) => (
+                <button key={k} type="button" className={`dr-tgl${(sel.align || "center") === k ? " on" : ""}`} aria-pressed={(sel.align || "center") === k} title={`${label} — for text with more than one line`} aria-label={`Align ${label}`} onClick={() => onPatch({ align: k })}>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d={d} /></svg>
+                </button>
+              ))}
+            </div>
+          </div>
           <div className="dr-field">
             Shape
             <div className="dr-seg" role="group" aria-label="Text shape">
@@ -1296,19 +1335,45 @@ function Controls({ sel, areaCmW, areaRatio, onPatch, onDelete, onDuplicate, onL
               })}
             </div>
           </div>
-          <div className="dr-row" aria-label="Text style">
-            <button type="button" className={`dr-chip${sel.bold ? " on" : ""}`} onClick={() => onPatch({ bold: !sel.bold }, { measure: true })}><b>B</b></button>
-            <button type="button" className={`dr-chip${sel.italic ? " on" : ""}`} onClick={() => onPatch({ italic: !sel.italic }, { measure: true })}><i>I</i></button>
-            <button type="button" className={`dr-chip${sel.underline ? " on" : ""}`} onClick={() => onPatch({ underline: !sel.underline })}><u>U</u></button>
-            {INKS.map((k) => (
-              <button key={k} type="button" className={`dr-ink${k === sel.color ? " on" : ""}`} style={{ background: k }} aria-label={`Ink ${k}`} onClick={() => onPatch({ color: k })} />
-            ))}
-            <input type="color" className="dr-inkpick" value={sel.color} aria-label="Pick any ink colour" onChange={(e) => onPatch({ color: e.target.value.toUpperCase() })} />
+          <div className="dr-field">
+            Ink colour
+            <div className="dr-row">
+              {INKS.map((k) => (
+                <button key={k} type="button" className={`dr-ink${k === sel.color ? " on" : ""}`} style={{ background: k }} aria-label={`Ink ${k}`} onClick={() => onPatch({ color: k })} />
+              ))}
+              <input type="color" className="dr-inkpick" value={sel.color} aria-label="Pick any ink colour" onChange={(e) => onPatch({ color: e.target.value.toUpperCase() })} />
+            </div>
           </div>
-          <label className="dr-field">
-            Size
-            <input type="range" min="2" max="60" step="0.5" value={sel.fontSizePct} onChange={(e) => onPatch({ fontSizePct: +e.target.value }, { measure: true })} />
-          </label>
+          <div className="dr-row">
+            <label className="dr-field">
+              Letter spacing
+              <input type="range" min="-5" max="40" step="1" value={sel.letterSpacingPct || 0} onChange={(e) => onPatch({ letterSpacingPct: +e.target.value }, { measure: true })} />
+            </label>
+            <label className="dr-field">
+              Line spacing
+              <input type="range" min="0.8" max="2" step="0.05" value={sel.lineHeight || 1.05} disabled={!(sel.text || "").includes("\n")} title="For text with more than one line" onChange={(e) => onPatch({ lineHeight: +e.target.value }, { measure: true })} />
+            </label>
+          </div>
+          <div className="dr-field">
+            Outline
+            <div className="dr-row">
+              <button type="button" className={`dr-chip${sel.strokeWidthPct > 0 ? "" : " on"}`} onClick={() => onPatch({ strokeWidthPct: 0 })}>None</button>
+              {["#141110", "#FFFFFF", "#C9A24B", "#C2352C", "#2441B5"].map((k) => (
+                <button
+                  key={k}
+                  type="button"
+                  className={`dr-ink${sel.strokeWidthPct > 0 && sel.strokeColor === k ? " on" : ""}`}
+                  style={{ background: k }}
+                  aria-label={`Outline ${k}`}
+                  onClick={() => onPatch({ strokeColor: k, strokeWidthPct: sel.strokeWidthPct > 0 ? sel.strokeWidthPct : 4 })}
+                />
+              ))}
+              <input type="color" className="dr-inkpick" value={sel.strokeColor || "#141110"} aria-label="Pick any outline colour" onChange={(e) => onPatch({ strokeColor: e.target.value.toUpperCase(), strokeWidthPct: sel.strokeWidthPct > 0 ? sel.strokeWidthPct : 4 })} />
+            </div>
+            {sel.strokeWidthPct > 0 && (
+              <input type="range" min="1" max="12" step="0.5" value={sel.strokeWidthPct} aria-label="Outline thickness" onChange={(e) => onPatch({ strokeWidthPct: +e.target.value })} />
+            )}
+          </div>
         </>
       )}
       {sel?.type === "image" && (
