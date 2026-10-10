@@ -18,7 +18,7 @@ import { fetchCart } from "../redux/slices/cartWishlistSlice";
 import { imageUrl } from "../utils/imageUrl";
 import Room3D from "./Room3D";
 import AreaEditor from "./AreaEditor";
-import { AreaRenderer, imageSrcs, loadImage, measureText } from "./konvaRender";
+import { AreaRenderer, cachedImage, imageSrcs, loadImage, measureText } from "./konvaRender";
 import { areaCm, blockersOf, clashesIn, modelForGarment, placeArea } from "./teeModel";
 import AreaThumb from "./AreaThumb";
 import { FONTS, addStudioFonts } from "./fonts";
@@ -309,14 +309,20 @@ export default function DesignRoomPage() {
       if (alive && Object.keys(updates).length) setTextures((t) => ({ ...t, ...updates }));
     };
     run();
-    const srcs = imageSrcs(live ? [...elements, ...live.elements] : elements);
-    Promise.allSettled(srcs.map(loadImage)).then(() => {
-      lastSig.current.clear();
-      if (alive) run();
-    });
-    document.fonts?.ready.then(() => {
-      if (alive) run();
-    });
+    // Draw again only when a picture or font was still loading. (Doing this on
+    // every drag frame redrew every print area twice and made dragging slow.)
+    const waiting = imageSrcs(live ? [...elements, ...live.elements] : elements).filter((src) => !cachedImage(src));
+    if (waiting.length) {
+      Promise.allSettled(waiting.map((src) => loadImage(src))).then(() => {
+        lastSig.current.clear();
+        if (alive) run();
+      });
+    }
+    if (document.fonts && document.fonts.status !== "loaded") {
+      document.fonts.ready.then(() => {
+        if (alive) run();
+      });
+    }
     return () => {
       alive = false;
     };
@@ -403,8 +409,8 @@ export default function DesignRoomPage() {
     const full = { id: makeId(), position: pos.key, side: pos.side, rotation: 0, zIndex: elements.length + 1, ...el };
     commit((prev) => [...prev, full]);
     setSelectedId(full.id);
-    // phones: the tool sheet covers the editor, so put it away once something is added
-    if (window.innerWidth < 760) setTool(null);
+    // phones and laptops: the tool panel lies over the tee / editor, so put it away once something is added
+    if (window.innerWidth < 1280) setTool(null);
   };
   const textBox = (el, pos) => {
     // keep the centre, refresh width/height from the real text size
@@ -996,6 +1002,7 @@ export default function DesignRoomPage() {
               sel={sel}
               empty={activeEls.length === 0}
               areaCmW={areaPx(activePos).wCm}
+              areaRatio={areaPx(activePos).W / areaPx(activePos).H}
               onPatch={updateSel}
               onDelete={removeSel}
               onDuplicate={dupSel}
@@ -1181,7 +1188,7 @@ function Fitting({ garment, colours, colour, onColour, sizes, size, onSize, onEn
   );
 }
 
-function Controls({ sel, empty, areaCmW, onPatch, onDelete, onDuplicate, onLayer, onTool }) {
+function Controls({ sel, empty, areaCmW, areaRatio, onPatch, onDelete, onDuplicate, onLayer, onTool }) {
   const quality = () => {
     if (!sel?.pxW) return null;
     const printCm = ((sel.width || 0) / 100) * areaCmW;
@@ -1275,6 +1282,22 @@ function Controls({ sel, empty, areaCmW, onPatch, onDelete, onDuplicate, onLayer
             <input type="range" min="-180" max="180" value={sel.rotation || 0} onChange={(e) => onPatch({ rotation: +e.target.value })} />
           </label>
           <div className="dr-row">
+            {sel.type === "image" && (
+              <button
+                type="button"
+                className="dr-chip"
+                title="Make the picture as big as the print area allows"
+                onClick={() => {
+                  // picture's shape (width ÷ height) against the area's: fill the tighter direction
+                  const shape = ((sel.width || 50) / (sel.height || 50)) * areaRatio;
+                  const width = shape > areaRatio ? 100 : (100 * shape) / areaRatio;
+                  const height = shape > areaRatio ? (100 * areaRatio) / shape : 100;
+                  onPatch({ width, height, x: 50 - width / 2, y: 50 - height / 2, rotation: 0 });
+                }}
+              >
+                Fill area
+              </button>
+            )}
             <button type="button" className="dr-chip" onClick={() => onPatch({ x: 50 - (sel.width || 0) / 2 })}>Centre</button>
             <button type="button" className="dr-chip" onClick={onDuplicate}>Duplicate</button>
             <button type="button" className="dr-chip" onClick={() => onLayer(1)}>Bring forward</button>

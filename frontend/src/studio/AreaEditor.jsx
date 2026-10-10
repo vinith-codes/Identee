@@ -7,7 +7,7 @@
 // onLive keeps the 3D tee in sync.
 import { useEffect, useRef } from "react";
 import Konva from "konva";
-import { buildNodes, loadImage, imageSrcs } from "./konvaRender";
+import { buildNodes, cachedImage, loadImage, imageSrcs } from "./konvaRender";
 
 const SNAP_PX = 10; // in print-area pixels
 
@@ -159,8 +159,11 @@ export default function AreaEditor({ elements, W, H, fabric, selectedId, onSelec
     };
     draw();
     // redraw once pictures and fonts are ready
-    Promise.allSettled(imageSrcs(elements).map(loadImage)).then(draw);
-    document.fonts?.ready.then(draw);
+    // (only when something was still loading — a needless redraw rebuilds the
+    // items and can cut off a drag that has just started)
+    const waiting = imageSrcs(elements).filter((src) => !cachedImage(src));
+    if (waiting.length) Promise.allSettled(waiting.map((src) => loadImage(src))).then(draw);
+    if (document.fonts && document.fonts.status !== "loaded") document.fonts.ready.then(draw);
     return () => {
       alive = false;
     };
