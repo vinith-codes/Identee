@@ -219,8 +219,33 @@ function useSign(text) {
   }, [text]);
 }
 
+function warmUp(group, gl, scene, camera) {
+  if (!group || group.visible) return;
+  // with the studio's lights off, exactly as Review will draw it
+  const studio = scene.getObjectByName("set-studio");
+  group.visible = true;
+  if (studio) studio.visible = false;
+  try {
+    gl.compile(scene, camera);
+  } catch {
+    // only a head start; the room still works without it
+  }
+  group.visible = false;
+  if (studio) studio.visible = true;
+}
+
 function Boutique({ visible, model }) {
   const { geo } = useTeeGeometry(model.url);
+  // Get the room's materials ready while the customer is still designing, so
+  // stepping into Review does not stutter on its first frames.
+  const room = useRef();
+  const gl = useThree((st) => st.gl);
+  const scene = useThree((st) => st.scene);
+  const camera = useThree((st) => st.camera);
+  useEffect(() => {
+    const id = setTimeout(() => warmUp(room.current, gl, scene, camera), 1200);
+    return () => clearTimeout(id);
+  }, [gl, scene, camera]);
   const sign = useSign("IDENTEE");
   // wooden slats across the back wall (left clear around the arch)
   const slats = useMemo(() => {
@@ -236,7 +261,7 @@ function Boutique({ visible, model }) {
   }, [slats]);
 
   return (
-    <group name="set-boutique" visible={visible}>
+    <group ref={room} name="set-boutique" visible={visible}>
       {/* soft reflections for the brass and the glossy floor (made in the scene, nothing is downloaded) */}
       {visible && (
         <Environment resolution={128} frames={1}>
@@ -257,7 +282,7 @@ function Boutique({ visible, model }) {
       {/* polished floor that mirrors the room */}
       <mesh rotation-x={-Math.PI / 2} position-y={FLOOR_Y} receiveShadow>
         <planeGeometry args={[30, 30]} />
-        <MeshReflectorMaterial color="#1E1712" roughness={0.6} metalness={0.25} mirror={0.55} mixStrength={2.4} mixBlur={1.4} blur={[280, 90]} resolution={512} depthScale={0.6} minDepthThreshold={0.4} maxDepthThreshold={1.3} />
+        <MeshReflectorMaterial color="#1E1712" roughness={0.6} metalness={0.25} mirror={0.55} mixStrength={2.4} mixBlur={1.4} blur={[240, 80]} resolution={384} depthScale={0.6} minDepthThreshold={0.4} maxDepthThreshold={1.3} />
       </mesh>
       {/* the tee's spot: a low round plinth with a ring of light */}
       <mesh position-y={FLOOR_Y + 0.035} receiveShadow castShadow>
@@ -377,7 +402,7 @@ uniform float uFoldL;
 uniform float uFoldR;
 uniform float uFoldB;
 uniform vec4 uFoldDims;
-const float FOLD_SOFT = 0.05; // the crease is a short curve, not a hard edge
+const float FOLD_SOFT = 0.09; // the crease is a soft curve, not a hard edge
 vec3 foldPos(vec3 p) {
   float k = max(max(uFoldL, uFoldR), uFoldB) / 3.14159;
   p.z *= mix(1.0, uFoldDims.w, smoothstep(0.0, 0.7, k));
@@ -421,17 +446,21 @@ function foldable(shader) {
     .replace("#include <begin_vertex>", "#include <begin_vertex>\ntransformed = foldPos(transformed);");
 }
 const foldKey = () => "identee-fold";
-// the fold's values for a moment t (seconds) of the reveal
-const ease = (x) => {
-  const k = Math.min(1, Math.max(0, x));
-  return k < 0.5 ? 4 * k * k * k : 1 - (-2 * k + 2) ** 3 / 2;
+// The reveal moves like something with weight: each part starts gently,
+// swings, and settles (a spring), instead of stopping dead. z < 1 lets it go
+// a touch past its resting place and come back.
+const spring = (t, w, z = 1) => {
+  if (t <= 0) return 0;
+  if (z >= 1) return 1 - Math.exp(-w * t) * (1 + w * t);
+  const wd = w * Math.sqrt(1 - z * z);
+  return 1 - Math.exp(-z * w * t) * (Math.cos(wd * t) + ((z * w) / wd) * Math.sin(wd * t));
 };
-const UNFOLD = { rise: 1.0, bottom: [0.9, 1.9], left: [1.7, 2.5], right: [1.9, 2.7], print: 2.75, end: 4.1 };
+// when each part of the reveal starts (seconds); the parts overlap so the movement never pauses
+const UNFOLD = { bottom: 0.75, left: 1.5, right: 1.8, print: 3.05, end: 4.8 };
 function setFold(t) {
-  const part = ([a, b]) => Math.PI * (1 - ease((t - a) / (b - a)));
-  FOLD.bottom.value = part(UNFOLD.bottom);
-  FOLD.left.value = part(UNFOLD.left);
-  FOLD.right.value = part(UNFOLD.right);
+  FOLD.bottom.value = Math.PI * (1 - spring(t - UNFOLD.bottom, 4.6, 0.82));
+  FOLD.left.value = Math.PI * (1 - spring(t - UNFOLD.left, 4.8, 0.8));
+  FOLD.right.value = Math.PI * (1 - spring(t - UNFOLD.right, 4.8, 0.8));
   FOLD.printAt = t - UNFOLD.print;
 }
 function openFold() {
@@ -441,7 +470,10 @@ function openFold() {
   FOLD.printAt = 1e9;
 }
 // how visible a print is while they appear one after another
-const printShown = (order) => Math.min(1, Math.max(0, (FOLD.printAt - order * 0.22) / 0.55));
+const printShown = (order) => {
+  const k = Math.min(1, Math.max(0, (FOLD.printAt - order * 0.25) / 0.9));
+  return k * k * (3 - 2 * k);
+};
 
 /* ---------- the tee ---------- */
 // Quantized glTF positions are small integers: copy to floats before moving them.
@@ -628,16 +660,15 @@ function Tee({ model, colour, areas, onPickArea, interactive, still, spotsRef, t
     if (u.on) {
       // folded: lying tilted back low over the plinth; it rises and stands up, then opens
       const s = t - u.t0;
-      const up = ease(s / UNFOLD.rise);
       setFold(s);
-      g.position.y = THREE.MathUtils.lerp(TEE_Y - 0.5, TEE_Y + 0.22, up);
-      g.rotation.x = THREE.MathUtils.lerp(-1.15, 0, ease((s - 0.2) / 1.2));
-      g.rotation.y = THREE.MathUtils.lerp(0.9, 0, ease(s / 1.6));
+      g.position.y = THREE.MathUtils.lerp(TEE_Y - 0.5, TEE_Y + 0.22, spring(s, 2.6)) + Math.sin(t / 1.4) * 0.025 * spring(s - 2.5, 2);
+      g.rotation.x = -1.15 * (1 - spring(s - 0.1, 2.9));
+      g.rotation.y = 0.9 * (1 - spring(s, 2.2));
       speed.current = 0;
       return;
     }
     openFold();
-    g.rotation.x = THREE.MathUtils.lerp(g.rotation.x, 0, 0.15);
+    g.rotation.x = THREE.MathUtils.lerp(g.rotation.x, 0, 0.06);
     g.position.y = THREE.MathUtils.lerp(g.position.y, TEE_Y + (turntable ? 0.22 : 0) + Math.sin(t / 1.4) * 0.025 * k, 0.08);
     // the shortest way round to an angle
     const towards = (to, f) => {
