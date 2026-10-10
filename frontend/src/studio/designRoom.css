@@ -556,10 +556,10 @@
 }
 
 /* Review happens in the dressing room (dark): light controls over it, and the lights "change" on the way in */
-.dr-app[data-step="review"] .dr-view { background: #191512; }
-.dr-app[data-step="review"] .dr-view::after { background: radial-gradient(ellipse at 38% 45%, transparent 45%, rgba(0, 0, 0, .35) 100%); }
+.dr-app[data-step="review"] .dr-view { background: #0D0B09; }
+.dr-app[data-step="review"] .dr-view::after { background: radial-gradient(ellipse at 38% 45%, transparent 42%, rgba(0, 0, 0, .5) 100%); }
 /* the view is dark until the room has been drawn (data-lit), then the lights come up — the same on every visit */
-.dr-app[data-step="review"] .dr-view::before { content: ""; position: absolute; inset: 0; z-index: 4; pointer-events: none; background: #191512; opacity: 1; }
+.dr-app[data-step="review"] .dr-view::before { content: ""; position: absolute; inset: 0; z-index: 4; pointer-events: none; background: #0D0B09; opacity: 1; }
 .dr-app[data-step="review"][data-lit] .dr-view::before { opacity: 0; }
 @media (prefers-reduced-motion: no-preference) {
   @keyframes dr-lights { from { opacity: 1; } to { opacity: 0; } }

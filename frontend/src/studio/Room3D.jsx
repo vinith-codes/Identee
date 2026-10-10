@@ -34,7 +34,7 @@ const RAY = {
    in the studio, see snapshot.) */
 const SETS = {
   studio: { background: "#EDE3D0", fog: [6, 12] },
-  boutique: { background: "#191512", fog: [9, 20] },
+  boutique: { background: "#0D0B09", fog: [9, 20] },
 };
 // the tee in the Review step: which way it faces for each side picture
 const FACE = { front: 0, back: Math.PI, left: -Math.PI / 2, right: Math.PI / 2 };
@@ -185,7 +185,7 @@ function Pendant({ position }) {
         <sphereGeometry args={[0.24, 24, 16]} />
         <meshBasicMaterial color="#FFCF8A" transparent opacity={0.13} depthWrite={false} />
       </mesh>
-      <pointLight intensity={5} distance={5} decay={1.7} color="#FFD9A8" />
+      <pointLight intensity={2.5} distance={4} decay={1.8} color="#FFD9A8" />
     </group>
   );
 }
@@ -229,8 +229,33 @@ function warmUp(group, gl, scene, camera) {
   if (studio) studio.visible = true;
 }
 
-function Boutique({ visible, model }) {
+// A spotlight that points at a given place (three needs the target to be an object in the scene).
+function Spot({ position, at, ...light }) {
+  const ref = useRef();
+  const target = useMemo(() => new THREE.Object3D(), []);
+  useLayoutEffect(() => {
+    target.position.set(...at);
+    if (ref.current) ref.current.target = target;
+  }, [target, at]);
+  return (
+    <>
+      <spotLight ref={ref} position={position} {...light} />
+      <primitive object={target} />
+    </>
+  );
+}
+const TEE_AT = [0, 0.45, 0];
+const RACK_L = [-2.8, 0.5, -1.9];
+const RACK_R = [2.8, 0.5, -1.9];
+
+function Boutique({ visible, model, colour }) {
   const { geo } = useTeeGeometry(model.url);
+  // how dark the customer's tee is (0 = white, 1 = black): a dark tee gets more light on its edges,
+  // otherwise it would melt into the dark room
+  const dark = useMemo(() => {
+    const c = new THREE.Color(colour);
+    return 1 - Math.min(1, Math.sqrt(0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b));
+  }, [colour]);
   // Get the room's materials ready while the customer is still designing, so
   // stepping into Review does not stutter on its first frames.
   const room = useRef();
@@ -263,18 +288,24 @@ function Boutique({ visible, model }) {
       {
         <Environment resolution={128} frames={1}>
           <color attach="background" args={["#0C0A08"]} />
-          <Lightformer form="rect" intensity={5} color="#FFE6BF" position={[0, 5, 2]} rotation-x={Math.PI / 2} scale={[8, 3, 1]} />
-          <Lightformer form="rect" intensity={2.2} color="#FFD49A" position={[-6, 2, 1]} rotation-y={Math.PI / 2} scale={[5, 3, 1]} />
-          <Lightformer form="rect" intensity={2.2} color="#FFD49A" position={[6, 2, 1]} rotation-y={-Math.PI / 2} scale={[5, 3, 1]} />
-          <Lightformer form="rect" intensity={3} color="#FFF1D8" position={[0, 1.5, -6]} scale={[3, 4, 1]} />
+          <Lightformer form="rect" intensity={1.8} color="#FFE6BF" position={[0, 5, 2]} rotation-x={Math.PI / 2} scale={[8, 3, 1]} />
+          <Lightformer form="rect" intensity={0.8} color="#FFD49A" position={[-6, 2, 1]} rotation-y={Math.PI / 2} scale={[5, 3, 1]} />
+          <Lightformer form="rect" intensity={0.8} color="#FFD49A" position={[6, 2, 1]} rotation-y={-Math.PI / 2} scale={[5, 3, 1]} />
+          <Lightformer form="rect" intensity={1.2} color="#FFF1D8" position={[0, 1.5, -6]} scale={[3, 4, 1]} />
         </Environment>
       }
-      <hemisphereLight args={["#FFE9C8", "#1E1712", 0.28]} />
+      {/* A dark room with pools of light: one on the designed tee, one on each rack. */}
+      <hemisphereLight args={["#FFE9C8", "#120E0B", 0.1]} />
       {/* the key light on the designed tee */}
       <spotLight position={[1.2, 4.8, 4.2]} angle={Math.PI / 8.5} penumbra={0.75} decay={1.5} distance={16} intensity={120} color="#FFF0D8" castShadow shadow-mapSize={[1024, 1024]} shadow-bias={-0.0004} />
-      <directionalLight position={[-3.5, 2.2, 3]} intensity={0.7} color="#FFE7C7" />
-      {/* rim light from behind, so the tee stands off the wall */}
-      <directionalLight position={[0, 2.6, -4]} intensity={2.4} color="#FFD9A0" />
+      <directionalLight position={[-3.5, 2.2, 3]} intensity={0.18} color="#FFE7C7" />
+      {/* lights from behind that trace the tee's edges (stronger for a dark tee) */}
+      <Spot position={[0, 3.3, -3.6]} at={TEE_AT} angle={0.42} penumbra={0.8} decay={1.4} distance={12} intensity={45 + 90 * dark} color="#FFD9A0" />
+      <Spot position={[-2.7, 2.1, -2.9]} at={TEE_AT} angle={0.36} penumbra={0.9} decay={1.4} distance={10} intensity={14 + 70 * dark} color="#FFE2B8" />
+      <Spot position={[2.7, 2.1, -2.9]} at={TEE_AT} angle={0.36} penumbra={0.9} decay={1.4} distance={10} intensity={14 + 70 * dark} color="#FFE2B8" />
+      {/* a pool of light on each rack */}
+      <Spot position={[-2.5, 3.7, 0.4]} at={RACK_L} angle={0.5} penumbra={0.85} decay={1.5} distance={10} intensity={75} color="#FFE4BC" />
+      <Spot position={[2.5, 3.7, 0.4]} at={RACK_R} angle={0.5} penumbra={0.85} decay={1.5} distance={10} intensity={75} color="#FFE4BC" />
 
       {/* polished floor that mirrors the room */}
       <mesh rotation-x={-Math.PI / 2} position-y={FLOOR_Y} receiveShadow>
@@ -295,19 +326,19 @@ function Boutique({ visible, model }) {
       {/* walls: dark plaster with wooden slats */}
       <mesh position={[0, 2.4, WALL_Z]}>
         <planeGeometry args={[30, 8]} />
-        <meshStandardMaterial color="#17120F" roughness={1} />
+        <meshStandardMaterial color="#0F0C0A" roughness={1} />
       </mesh>
       <instancedMesh ref={slatRef} args={[null, null, slats.length]}>
         <boxGeometry args={[0.1, 6, 0.06]} />
-        <meshStandardMaterial color="#3D2D22" roughness={0.75} />
+        <meshStandardMaterial color="#2A1F18" roughness={0.75} />
       </instancedMesh>
       <mesh position={[-6.6, 2.4, 0]} rotation-y={Math.PI / 2}>
         <planeGeometry args={[14, 8]} />
-        <meshStandardMaterial color="#1B1612" roughness={1} />
+        <meshStandardMaterial color="#100D0B" roughness={1} />
       </mesh>
       <mesh position={[6.6, 2.4, 0]} rotation-y={-Math.PI / 2}>
         <planeGeometry args={[14, 8]} />
-        <meshStandardMaterial color="#1B1612" roughness={1} />
+        <meshStandardMaterial color="#100D0B" roughness={1} />
       </mesh>
 
       {/* the lit arch behind the tee, framed in brass, with the shop's name over it */}
@@ -322,11 +353,11 @@ function Boutique({ visible, model }) {
         </mesh>
         <mesh position-y={0.35}>
           <planeGeometry args={[2.32, 2.3]} />
-          <meshBasicMaterial color="#F4E2BD" toneMapped={false} />
+          <meshBasicMaterial color="#4E3D27" toneMapped={false} />
         </mesh>
         <mesh position-y={1.5}>
           <circleGeometry args={[1.16, 64, 0, Math.PI]} />
-          <meshBasicMaterial color="#F4E2BD" toneMapped={false} />
+          <meshBasicMaterial color="#4E3D27" toneMapped={false} />
         </mesh>
         {/* light strips beside the arch */}
         {[-1.36, 1.36].map((x) => (
@@ -344,8 +375,8 @@ function Boutique({ visible, model }) {
       {/* a clothes rack on each side, with a lamp over each */}
       <Rack geo={geo} position={[-2.8, 0, -1.9]} turn={0.5} colours={RACK_TEES.slice(0, 6)} />
       <Rack geo={geo} position={[2.8, 0, -1.9]} turn={-0.5} colours={[...RACK_TEES.slice(3), ...RACK_TEES.slice(0, 1)]} />
-      <Pendant position={[-1.8, 2.3, -2.6]} />
-      <Pendant position={[1.8, 2.3, -2.6]} />
+      <Pendant position={[-2.75, 2.25, -1.55]} />
+      <Pendant position={[2.75, 2.25, -1.55]} />
 
       {/* shelves of folded tees on the back wall */}
       <Shelf position={[-3.2, 2.35, WALL_Z + 0.3]} colours={[["#EFE7D6", "#C9B48E", "#EFE7D6"], ["#1F2A44", "#15130F"], ["#5A1F2B", "#8C3B2A", "#5A1F2B"]]} />
@@ -927,7 +958,7 @@ const Room3D = forwardRef(function Room3D({ model, colour, areas, onPickArea, ca
       <Backdrop room={room} />
       <Studio visible={!boutique} />
       <Suspense fallback={null}>
-        <Boutique visible={boutique} model={model} />
+        <Boutique visible={boutique} model={model} colour={colour} />
         <Tee model={model} colour={colour} areas={areas} onPickArea={onPickArea} interactive={interactive} still={still} spotsRef={spotsRef} turntable={boutique} spin={spin} face={face} spinSpeed={spinSpeed} unfoldKey={unfoldKey} onLit={onLit} />
       </Suspense>
       <OrbitControls
