@@ -74,6 +74,7 @@ export const rulerPerCm = (ruler, lengthIn) => {
  * @param {object} [scales]  per side, the main print's M–XL cm (same endpoint)
  * @param {object} [opts]
  * @param {string} [opts.group]     size range: small | standard | large (default standard)
+ * @param {string} [opts.size]      garment size ("M"): uses the area's exact size for it when known
  * @param {number} [opts.perCm]     size-accurate scale from rulerPerCm(); omit to use the zone
  * @returns {Object<string, {left, top, width, height}>} stage-% box per position key
  */
@@ -98,7 +99,7 @@ export const resolvePrintBoxes = (positions, colorDoc, scales = {}, opts = {}) =
     const anchorTop = anchor.top;
 
     for (const p of list) {
-      const [w, h] = p.cm[group] || p.cm.standard;
+      const [w, h] = (opts.size && p.cmBySize?.[opts.size]) || p.cm[group] || p.cm.standard;
       const width = w * perCm;
       const height = h * perCm * H_PER_W;
       if (p.main) {

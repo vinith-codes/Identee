@@ -1,6 +1,8 @@
 // Wizard step 5: all 15 print areas from the print guide.
 // Click an area to see it on the garment photo; turn on the ones customers
-// can use. Areas without a size in the guide need a size (cm) first.
+// can use. Areas without a size need a size (cm) first. An area has either
+// one size (M–XL, with the guide's ±4 cm rule for smaller/larger sizes) or
+// an exact size for each garment size (the print team's measurement sheet).
 // The blue dashed box is the print zone for that side — drag it (or its
 // corner) to line it up with the photo; it's saved for every colour.
 // The two red lines (front view) are the photo ruler: shoulder top and hem.
@@ -42,7 +44,17 @@ const DEFAULT_ZONE = {
 const isUnset = (a) =>
   !a || (Math.round(a.x) === 22 && Math.round(a.y) === 27 && Math.round(a.width) === 56 && Math.round(a.height) === 58);
 const clamp = (n, min, max) => Math.min(Math.max(n, min), max);
-const sized = (a) => Number(a.width) >= 2 && Number(a.height) >= 2;
+const okCm = (v) => Number(v) >= 2 && Number(v) <= 80;
+// [w, h] of a draft row for one garment size (null when not set)
+const cmOf = (d, size) => {
+  if (d.bySize) {
+    const v = d.bySize[size];
+    return v && okCm(v[0]) && okCm(v[1]) ? [Number(v[0]), Number(v[1])] : null;
+  }
+  if (!okCm(d.width) || !okCm(d.height)) return null;
+  const step = stepOf(groupOf(size));
+  return [Math.max(2, Number(d.width) + step), Math.max(2, Number(d.height) + step)];
+};
 
 export default function PrintAreasStep({ garment, catalog, images, save, saving, next }) {
   const [draft, setDraft] = useState(() =>
@@ -51,12 +63,16 @@ export default function PrintAreasStep({ garment, catalog, images, save, saving,
       offered: a.offered,
       width: a.cm ? a.cm.standard[0] : "",
       height: a.cm ? a.cm.standard[1] : "",
+      // exact size per garment size ({ S: [w, h], … }) or null = one size with the ±4 cm rule
+      bySize: a.exact && a.cmBySize ? a.cmBySize : null,
     })),
   );
   const [selected, setSelected] = useState("centre-front");
   const sizes = garment.sizes?.length ? garment.sizes : ALL_SIZES;
   const [previewSize, setPreviewSize] = useState(sizes.includes("M") ? "M" : sizes[0]);
   const group = groupOf(previewSize);
+  // an area is ready when every size this garment comes in has a print size
+  const sized = (d) => sizes.every((sz) => cmOf(d, sz));
   const savedRuler = garment.photoRuler?.topPct != null ? garment.photoRuler : null;
   const [rulerDraft, setRulerDraft] = useState(null); // unsaved ruler being dragged
   const ruler = rulerDraft || savedRuler || DEFAULT_RULER;
@@ -93,16 +109,17 @@ export default function PrintAreasStep({ garment, catalog, images, save, saving,
     .filter((d) => (d.offered || d.key === selected) && sized(d))
     .map((d) => {
       const a = info(d.key);
-      return { key: a.key, label: a.label, side: a.side, main: a.main, place: a.place, cm: groupCm(Number(d.width), Number(d.height)) };
+      const cmBySize = Object.fromEntries(ALL_SIZES.map((sz) => [sz, cmOf(d, sz) || cmOf(d, sizes[0])]));
+      return { key: a.key, label: a.label, side: a.side, main: a.main, place: a.place, cmBySize, cm: groupCm(cmBySize.L[0], cmBySize.L[1]) };
     });
   const scales = Object.fromEntries(
     catalog.filter((a) => a.main).map((a) => {
       const d = row(a.key);
-      return [a.side, sized(d) ? [Number(d.width), Number(d.height)] : a.guideCm];
+      return [a.side, cmOf(d, "L") || a.guideCm];
     }),
   );
   const previewDoc = { [view]: { printArea: zone } };
-  const boxes = resolvePrintBoxes(positions.filter((p) => p.side === view), previewDoc, scales, { group, perCm });
+  const boxes = resolvePrintBoxes(positions.filter((p) => p.side === view), previewDoc, scales, { group, perCm, size: previewSize });
 
   /* ---- drag the zone ---- */
   const drag = useRef(null);
@@ -165,10 +182,23 @@ export default function PrintAreasStep({ garment, catalog, images, save, saving,
   };
 
   const offeredCount = draft.filter((d) => d.offered).length;
-  const cmText = (d, g) => {
-    if (!sized(d)) return "size not set";
-    const step = stepOf(g);
-    return `${Math.max(2, Number(d.width) + step)} × ${Math.max(2, Number(d.height) + step)} cm`;
+  const cmText = (d) => {
+    const cm = cmOf(d, previewSize);
+    return cm ? `${cm[0]} × ${cm[1]} cm` : "size not set";
+  };
+  // switch an area between one size (±4 cm rule) and an exact size per garment size
+  const setExact = (key, on) => {
+    const d = row(key);
+    if (!on) return setRow(key, { bySize: null });
+    const start = Object.fromEntries(sizes.map((sz) => [sz, cmOf(d, sz) || info(key).guideBySize?.[sz] || ["", ""]]));
+    setRow(key, { bySize: start });
+  };
+  const setSizeCm = (key, sz, i, value) => {
+    const d = row(key);
+    const cur = d.bySize[sz] || ["", ""];
+    const next = [...cur];
+    next[i] = value;
+    setRow(key, { bySize: { ...d.bySize, [sz]: next } });
   };
 
   const submit = async () => {
@@ -179,6 +209,7 @@ export default function PrintAreasStep({ garment, catalog, images, save, saving,
           offered: d.offered,
           width: d.width === "" ? null : Number(d.width),
           height: d.height === "" ? null : Number(d.height),
+          bySize: d.bySize ? Object.fromEntries(sizes.filter((sz) => cmOf(d, sz)).map((sz) => [sz, cmOf(d, sz)])) : null,
         })),
       },
       "Print areas saved",
@@ -224,7 +255,7 @@ export default function PrintAreasStep({ garment, catalog, images, save, saving,
                       <button key={a.key} type="button" className={`aw-area${selected === a.key ? " sel" : ""}`} onClick={() => setSelected(a.key)}>
                         <span>
                           {a.label}
-                          <span style={{ display: "block", fontSize: 11.5, color: "#6B6559", fontWeight: 500 }}>{cmText(d, group)}</span>
+                          <span style={{ display: "block", fontSize: 11.5, color: "#6B6559", fontWeight: 500 }}>{cmText(d)}</span>
                         </span>
                         <span className={`state ${state}`}>{state === "on" ? "Offered" : state === "off" ? "Off" : "Needs size"}</span>
                       </button>
@@ -351,7 +382,11 @@ export default function PrintAreasStep({ garment, catalog, images, save, saving,
               <span>
                 <b style={{ fontSize: 15 }}>{sel.label}</b>
                 <span style={{ display: "block", fontSize: 12.5, color: "#6B6559" }}>
-                  {sel.guideCm ? `Print guide: ${sel.guideCm[0]} × ${sel.guideCm[1]} cm (M–XL)` : "No size in the print guide yet"}
+                  {sel.guideBySize
+                    ? "Sizes from the print team's measurement sheet"
+                    : sel.guideCm
+                      ? `Print guide: ${sel.guideCm[0]} × ${sel.guideCm[1]} cm (M–XL)`
+                      : "No size from the print team yet"}
                 </span>
               </span>
               <button
@@ -364,19 +399,53 @@ export default function PrintAreasStep({ garment, catalog, images, save, saving,
                 {selRow.offered ? "Offered ✓" : "Offer this area"}
               </button>
             </div>
-            <div style={{ display: "flex", gap: 12, marginTop: 12, alignItems: "flex-end", flexWrap: "wrap" }}>
-              <label>
-                <span className="aw-lbl">Width (cm)</span>
-                <input className="aw-inp small" style={{ width: 90 }} type="number" min="2" max="80" value={selRow.width} onChange={(e) => setRow(selected, { width: e.target.value })} />
-              </label>
-              <label>
-                <span className="aw-lbl">Height (cm)</span>
-                <input className="aw-inp small" style={{ width: 90 }} type="number" min="2" max="80" value={selRow.height} onChange={(e) => setRow(selected, { height: e.target.value })} />
-              </label>
-              <span className="aw-help" style={{ flex: "1 1 180px", margin: 0 }}>
-                Size for M–XL. XS–S is 4 cm smaller and 2XL–3XL 4 cm larger (print guide rule).
-              </span>
-            </div>
+            <label style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 12, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+              <input type="checkbox" checked={!!selRow.bySize} onChange={(e) => setExact(selected, e.target.checked)} style={{ width: 17, height: 17, accentColor: "#141110" }} />
+              Exact size for each garment size
+            </label>
+            {selRow.bySize ? (
+              <div style={{ overflowX: "auto", marginTop: 10 }}>
+                <table className="aw-table" style={{ minWidth: 300 }}>
+                  <thead>
+                    <tr>
+                      <th>Size</th>
+                      <th>Width (cm)</th>
+                      <th>Height (cm)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sizes.map((sz) => {
+                      const v = selRow.bySize[sz] || ["", ""];
+                      return (
+                        <tr key={sz}>
+                          <td style={{ fontWeight: 700 }}>{sz}</td>
+                          <td>
+                            <input className="aw-inp small" style={{ width: 84 }} type="number" min="2" max="80" value={v[0]} aria-label={`${sel.label} width for size ${sz}`} onChange={(e) => setSizeCm(selected, sz, 0, e.target.value)} />
+                          </td>
+                          <td>
+                            <input className="aw-inp small" style={{ width: 84 }} type="number" min="2" max="80" value={v[1]} aria-label={`${sel.label} height for size ${sz}`} onChange={(e) => setSizeCm(selected, sz, 1, e.target.value)} />
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div style={{ display: "flex", gap: 12, marginTop: 12, alignItems: "flex-end", flexWrap: "wrap" }}>
+                <label>
+                  <span className="aw-lbl">Width (cm)</span>
+                  <input className="aw-inp small" style={{ width: 90 }} type="number" min="2" max="80" value={selRow.width} onChange={(e) => setRow(selected, { width: e.target.value })} />
+                </label>
+                <label>
+                  <span className="aw-lbl">Height (cm)</span>
+                  <input className="aw-inp small" style={{ width: 90 }} type="number" min="2" max="80" value={selRow.height} onChange={(e) => setRow(selected, { height: e.target.value })} />
+                </label>
+                <span className="aw-help" style={{ flex: "1 1 180px", margin: 0 }}>
+                  Size for M–XL. XS–S is 4 cm smaller and 2XL–3XL 4 cm larger (print guide rule).
+                </span>
+              </div>
+            )}
             {!sel.main && (
               <p className="aw-help">Position is approximate until the print team confirms where each print starts.</p>
             )}

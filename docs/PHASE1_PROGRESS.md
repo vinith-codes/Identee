@@ -651,6 +651,47 @@ site fell back to Arial); tab title "IDENTEE". Motion stops for visitors who ask
 waiting for a scroll. Files: `pages/Home.jsx`, `components/home/HomeSections.jsx`, `home.css`, `useReveal.js`.
 No longer shown: the old hero video ("hero" slot) and the "Design your own" video slot; the footer is unchanged.
 
+## 6p. Print team's measurements: 6 more print areas, exact sizes, overlaps (DONE on branch `feature-print-areas-sizes`)
+
+The print team's handwritten sheet (10 Oct 2026; H × W in cm, groups S–M / L–XL / 2XL–3XL):
+
+| Area | S–M | L–XL | 2XL–3XL |
+|---|---|---|---|
+| Full Front | 52 × 35 | 52 × 35 | 54 × 37 |
+| Vertical Front | 52 × 10 | 52 × 10 | 54 × 10 |
+| Front Right Vertical | 52 × 10 | 52 × 10 | 54 × 10 |
+| Top Back | 10 × 35 | 10 × 35 | 10 × 37 |
+| Centre Back | 52 × 35 | 52 × 35 | 54 × 37 |
+| Vertical Back | 51 × 10 | 51 × 10 | 54 × 10 |
+
+Lower Left, Lower Right and Lower Back are crossed out (not printed). User's decisions: Vertical Back really is 51;
+**XS is not sold**; the 6 older areas (Centre Front, chests, Full Back, sleeves) stay with the PDF guide's sizes and
+±4 cm rule; **one print per overlapping spot**.
+
+What changed:
+- **Sizes per garment size.** `server/data/printPositions.js`: an area has either one size (`cm`, guide rule ±4 cm) or
+  `bySize` (exact size per garment size). Every position now carries `cmBySize` ({ S: [w, h], … }); `cm` (three groups)
+  stays for older code. Garment setting `printAreas[].bySize` (Admin → Customizable → Print areas: tick **Exact size
+  for each garment size** → a table of sizes).
+- **Overlaps.** Each position gets `conflicts` (areas whose rectangles overlap by more than 1 cm, from the placement
+  estimates). Design Room: an empty area covered by a used one is greyed/struck through and explains why when tapped;
+  Review is blocked while an older design has overlapping prints; the server refuses to save such a design.
+  E.g. Full Front ↔ Centre Front, chests, both verticals; Full Back ↔ Top Back, Centre Back, Vertical Back; Top Back
+  + Centre Back is allowed. (Before, Centre Front + Left Chest could both be used — existing designs with both can
+  still be ordered, but must drop one before being saved again.)
+- **Print files** group ordered sizes by their real print size (Full Front S+M+L → one 35 × 52 file, 2XL → 37 × 54).
+- **Camera.** Opening an area frames it by its real size: tall areas show whole, small ones get a close-up (not
+  closer than 1.45), centred in the space beside the editor; on phones the whole area fits above the editor sheet
+  (zoom-out limit 6 → 9). This also makes the tee much bigger while designing (user's request).
+- Positions of the new areas on the tee are still estimates (`place` in the catalog) until the print team says where
+  each print starts.
+
+**The user must do in the admin (real database):** Customizable → Oversized Tee → step 2 **untick XS**; step 5 turn
+on the 6 new areas (they show "Off" with their sizes) → Save.
+
+Tested on a local copy: 12 areas offered with the sheet's sizes; guide areas unchanged; overlap refused on save;
+XS refused; print pack per real size; wizard table saves; Design Room on computer and phone.
+
 ## 7. Phase 1 — remaining steps (audit findings)
 
 ### Step 3: Customization

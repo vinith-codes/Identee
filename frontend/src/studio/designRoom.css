@@ -215,3 +215,7 @@
 .dr-viewcart { text-decoration: none; }
 .dr-added-actions { display: grid; gap: 10px; }
 .dr-added-actions .dr-cta { margin-left: 0; text-align: center; text-decoration: none; display: block; }
+
+/* an empty area covered by a used one (one print per overlapping spot) */
+.dr-area.blocked { opacity: .45; text-decoration: line-through; text-decoration-color: rgba(21,19,15,.4); }
+.dr-areas { max-height: 92px; overflow-y: auto; }

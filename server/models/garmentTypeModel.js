@@ -31,13 +31,15 @@ const sizeChartRowSchema = new mongoose.Schema(
 );
 
 // One row per print area from data/printPositions.js PRINT_AREA_CATALOG.
-// width/height = M–XL print size in cm (smaller/larger sizes are ±4 cm).
+// width/height = M–XL print size in cm (smaller/larger sizes are ±4 cm), or
+// bySize = the exact size for each garment size: { S: [w, h], M: [w, h], … }.
 const printAreaSettingSchema = new mongoose.Schema(
   {
     key: { type: String, required: true },
     offered: { type: Boolean, default: false },
     width: { type: Number, default: null },
     height: { type: Number, default: null },
+    bySize: { type: mongoose.Schema.Types.Mixed, default: null },
   },
   { _id: false },
 );

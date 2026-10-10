@@ -7,7 +7,7 @@ import Order from "../models/orderModel.js";
 import User from "../models/userModel.js";
 import { customizationLine } from "../services/checkoutService.js";
 import { uploadFile, deleteStoredFile } from "../utils/imageStorage.js";
-import { positionsForGarment, catalogForGarment, sizeGroupOf, SIZES, SIZE_GROUPS } from "../data/printPositions.js";
+import { positionsForGarment, catalogForGarment, overlappingPairs, SIZES, SIZE_GROUPS } from "../data/printPositions.js";
 
 const MAX_ELEMENTS = 40;
 const clampNum = (v, min, max, fallback) => {
@@ -141,7 +141,11 @@ async function cleanDesign(body) {
   if (size !== undefined && size !== null && !sizes.includes(String(size))) {
     throw badRequest("This size isn't available for this garment");
   }
-  const positionByKey = Object.fromEntries(positionsForGarment(garment).positions.map((p) => [p.key, p]));
+  const positions = positionsForGarment(garment).positions;
+  const positionByKey = Object.fromEntries(positions.map((p) => [p.key, p]));
+  // Areas that overlap on the tee (e.g. Full Front and Centre Front): only one may be used.
+  const [clash] = overlappingPairs([...new Set(elements.map((e) => e?.position))], positions);
+  if (clash) throw badRequest(`${clash[0]} and ${clash[1]} overlap on the tee — keep your design in one of them.`);
   return {
     garmentType: garment.key,
     color: String(color).slice(0, 60),
@@ -364,24 +368,21 @@ export const getOrderPrintPack = async (req, res) => {
         .filter((i) => String(i.customization) === id)
         .map((i) => ({ size: i.size, qty: i.qty }));
       // every catalog area with a size (also one switched off after the order)
-      const catalog = catalogForGarment(garment).filter((a) => a.cm);
+      const catalog = catalogForGarment(garment).filter((a) => a.cmBySize);
       const used = [...new Set(doc.elements.map((e) => e.position).filter(Boolean))];
-      const groups = [...new Set(lines.map((l) => sizeGroupOf(l.size)))];
       const areas = used.map((key) => {
         const a = catalog.find((c) => c.key === key);
-        return {
-          key,
-          label: a?.label || key,
-          side: a?.side || null,
-          // one print file per size group ordered (same cm → same file)
-          files: a
-            ? groups.map((g) => ({
-                group: g,
-                sizes: lines.filter((l) => sizeGroupOf(l.size) === g).map((l) => l.size),
-                cm: a.cm[g],
-              }))
-            : [],
-        };
+        // one print file per print size among the ordered sizes (same cm → same file)
+        const files = [];
+        for (const l of a ? lines : []) {
+          const cm = a.cmBySize[String(l.size).toUpperCase()] || a.cmBySize.L;
+          const id = cm.join("x");
+          const f = files.find((x) => x.group === id);
+          if (f) {
+            if (!f.sizes.includes(l.size)) f.sizes.push(l.size);
+          } else files.push({ group: id, sizes: [l.size], cm });
+        }
+        return { key, label: a?.label || key, side: a?.side || null, files };
       });
       return {
         _id: id,

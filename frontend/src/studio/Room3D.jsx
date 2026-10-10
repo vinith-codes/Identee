@@ -136,7 +136,7 @@ function Decal({ probe, spot, canvas, version, areaKey, onPick, interactive }) {
     <mesh
       geometry={built.geo}
       renderOrder={2}
-      userData={{ areaKey, point: built.point, normal: built.normal }}
+      userData={{ areaKey, point: built.point, normal: built.normal, w: geometry.w, h: geometry.h }}
       onClick={(e) => {
         if (!interactive || e.delta > 6) return;
         e.stopPropagation();
@@ -175,7 +175,8 @@ function Tee({ model, colour, areas, onPickArea, interactive, still, spotsRef })
       mesh.current.updateMatrixWorld(true);
       const point = m.userData.point.clone().applyMatrix4(mesh.current.matrixWorld);
       const normal = m.userData.normal.clone().transformDirection(mesh.current.matrixWorld);
-      return { point, normal };
+      const scale = mesh.current.getWorldScale(new THREE.Vector3()).x;
+      return { point, normal, w: m.userData.w * scale, h: m.userData.h * scale }; // size on screen units
     };
   });
 
@@ -193,7 +194,7 @@ function Tee({ model, colour, areas, onPickArea, interactive, still, spotsRef })
 
 /* ---------- camera ---------- */
 function CameraRig({ request, getSpot, apiRef }) {
-  const { camera, controls, gl, scene } = useThree();
+  const { camera, controls, gl, scene, size } = useThree();
   const anim = useRef(null);
 
   const pending = useRef(null); // area request waiting for its decal to exist
@@ -210,16 +211,27 @@ function CameraRig({ request, getSpot, apiRef }) {
         return;
       }
       pending.current = null;
+      // Frame the area by its real size: as close as possible while the whole
+      // area stays inside the free part of the screen (the editor covers the
+      // right ~420 px on a computer, the lower part on a phone). Small areas
+      // (chest, sleeves) get a close-up; tall ones (Full Front) show whole.
       const narrow = request.narrow;
-      const dist = (request.sleeve ? 1.2 : 1.6) * (narrow ? 2.4 : 1);
-      const viewH = 2 * dist * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
-      const drop = narrow ? viewH * 0.28 : 0;
-      const side = narrow ? 0 : request.side === "back" ? 0.35 : -0.35;
-      to = s.point.clone().add(s.normal.clone().multiplyScalar(dist));
-      to.x += side;
-      to.y -= drop;
-      look = s.point.clone();
+      const tan = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
+      const aspect = size.width / Math.max(1, size.height);
+      const freeW = narrow ? 1 : Math.max(0.35, 1 - 424 / Math.max(1, size.width));
+      const freeH = narrow ? 0.28 : 1; // phone: the strip between the top bars and the editor sheet
+      const fitH = s.h / (2 * tan * freeH * (narrow ? 0.92 : 0.66));
+      const fitW = s.w / (2 * tan * aspect * freeW * 0.74);
+      // not closer than 1.45: a small area (sleeve, chest) keeps some tee around it for context
+      const dist = THREE.MathUtils.clamp(Math.max(fitH, fitW), 1.45, 9);
+      const viewH = 2 * dist * tan;
+      // slide the view so the area sits in the middle of the free space
+      const right = new THREE.Vector3().crossVectors(s.normal.clone().negate(), new THREE.Vector3(0, 1, 0)).normalize();
+      const pan = narrow ? 0 : ((1 - freeW) / 2) * viewH * aspect;
+      const drop = narrow ? viewH * 0.225 : -viewH * 0.03; // phone: the strip's middle is ~27% from the top
+      look = s.point.clone().add(right.multiplyScalar(pan));
       look.y -= drop;
+      to = look.clone().add(s.normal.clone().multiplyScalar(dist));
     } else if (request.position) {
       to = new THREE.Vector3(...request.position);
     }
@@ -284,7 +296,7 @@ const Room3D = forwardRef(function Room3D({ model, colour, areas, onPickArea, ca
         dampingFactor={0.08}
         enablePan={false}
         minDistance={1}
-        maxDistance={6}
+        maxDistance={9}
         minPolarAngle={Math.PI * 0.28}
         maxPolarAngle={Math.PI * 0.62}
         target={ORBIT_TARGET}

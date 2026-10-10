@@ -38,8 +38,26 @@ export const modelForGarment = (garment) => {
 export const SIZE_GROUPS = { XS: "small", S: "small", M: "standard", L: "standard", XL: "standard", "2XL": "large", "3XL": "large" };
 export const groupOf = (size) => SIZE_GROUPS[size] || "standard";
 
-// Print size (cm) of a position for a garment size.
-export const areaCm = (position, size) => position.cm[groupOf(size)] || position.cm.standard;
+// Print size (cm) of a position for a garment size: the exact size for
+// that garment size when the server sends one (cmBySize), else the older
+// three-group sizes.
+export const areaCm = (position, size) => position.cmBySize?.[size] || position.cm[groupOf(size)] || position.cm.standard;
+
+// Areas that overlap on the tee can't both carry a print. Returns the used
+// areas that block `key` ([] = free to use).
+export const blockersOf = (key, positions, usedKeys) => {
+  const pos = positions.find((p) => p.key === key);
+  if (!pos?.conflicts?.length) return [];
+  return positions.filter((p) => p.key !== key && pos.conflicts.includes(p.key) && usedKeys.includes(p.key));
+};
+
+// Pairs of used areas that overlap: [[posA, posB], …] (older designs may have some).
+export const clashesIn = (positions, usedKeys) => {
+  const used = positions.filter((p) => usedKeys.includes(p.key));
+  const out = [];
+  used.forEach((p, i) => used.slice(i + 1).forEach((q) => p.conflicts?.includes(q.key) && out.push([p, q])));
+  return out;
+};
 
 /**
  * Where a print area sits on the model, in raw metres.

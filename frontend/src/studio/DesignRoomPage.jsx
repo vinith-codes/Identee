@@ -19,7 +19,7 @@ import { imageUrl } from "../utils/imageUrl";
 import Room3D from "./Room3D";
 import AreaEditor from "./AreaEditor";
 import { AreaRenderer, imageSrcs, loadImage, measureText } from "./konvaRender";
-import { areaCm, modelForGarment, placeArea } from "./teeModel";
+import { areaCm, blockersOf, clashesIn, modelForGarment, placeArea } from "./teeModel";
 import { FONTS, addStudioFonts } from "./fonts";
 import "./designRoom.css";
 
@@ -349,9 +349,18 @@ export default function DesignRoomPage() {
     clearTimeout(toastTimer.current);
     toastTimer.current = setTimeout(() => setToast(""), 4500);
   };
+  // areas that already carry a print, and old designs' overlapping pairs
+  const usedKeys = [...new Set(elements.map((e) => e.position))];
+  const clashes = clashesIn(positions, usedKeys);
   const openArea = (key) => {
     const pos = positions.find((p) => p.key === key);
     if (!pos) return;
+    // one print per overlapping spot: an empty area covered by a used one stays closed
+    const blockers = usedKeys.includes(key) ? [] : blockersOf(key, positions, usedKeys);
+    if (blockers.length) {
+      say(`${pos.label} overlaps ${blockers.map((b) => b.label).join(" and ")}. Remove that print first to use ${pos.label}.`);
+      return;
+    }
     setActive(key);
     setPanel("edit");
     setSelectedId((cur) => (elements.some((e) => e.id === cur && e.position === key) ? cur : elements.filter((e) => e.position === key).at(-1)?.id ?? null));
@@ -364,7 +373,8 @@ export default function DesignRoomPage() {
   };
   const ensureArea = () => {
     if (active) return positions.find((p) => p.key === active);
-    const main = positions.find((p) => p.side === "front" && p.main) || positions[0];
+    const free = (p) => usedKeys.includes(p.key) || !blockersOf(p.key, positions, usedKeys).length;
+    const main = positions.find((p) => p.side === "front" && p.main && free(p)) || positions.find((p) => p.side === "front" && free(p)) || positions.find(free) || positions[0];
     if (main) openArea(main.key);
     return main;
   };
@@ -520,6 +530,7 @@ export default function DesignRoomPage() {
   };
   const toReview = () => {
     if (!elements.length) return say("Add a design first — tap a print area or use Text, Upload or Art.");
+    if (clashes.length) return say(`${clashes[0][0].label} and ${clashes[0][1].label} overlap on the tee. Remove the print from one of them to continue.`);
     closeArea();
     setStep("review");
     setSpin(true);
@@ -766,9 +777,17 @@ export default function DesignRoomPage() {
             <div className="dr-areas" aria-label="Print areas">
               {positions.map((p) => {
                 const [w, h] = areaCm(p, sizeNow);
-                const used = elements.some((e) => e.position === p.key);
+                const used = usedKeys.includes(p.key);
+                const blockedBy = used ? [] : blockersOf(p.key, positions, usedKeys);
                 return (
-                  <button key={p.key} type="button" className={`dr-area${active === p.key ? " on" : ""}${used ? " used" : ""}`} onClick={() => openArea(p.key)}>
+                  <button
+                    key={p.key}
+                    type="button"
+                    className={`dr-area${active === p.key ? " on" : ""}${used ? " used" : ""}${blockedBy.length ? " blocked" : ""}`}
+                    title={blockedBy.length ? `Overlaps ${blockedBy.map((b) => b.label).join(" and ")}` : undefined}
+                    aria-disabled={blockedBy.length ? "true" : undefined}
+                    onClick={() => openArea(p.key)}
+                  >
                     {p.label} <span>{w}×{h}</span>
                   </button>
                 );

@@ -5,6 +5,7 @@ import {
   CATALOG_BY_KEY,
   SIZES,
   catalogForGarment,
+  cleanBySize,
 } from "../data/printPositions.js";
 
 function slugify(str) {
@@ -144,10 +145,12 @@ export const updateGarmentType = asyncHandler(async (req, res) => {
         const width = num(p.width);
         const height = num(p.height);
         const sized = width >= 2 && width <= 80 && height >= 2 && height <= 80;
-        if (p.offered && !sized && !CATALOG_BY_KEY[p.key].cm) {
+        // exact size per garment size (optional): { S: [w, h], … }
+        const bySize = cleanBySize(p.bySize);
+        if (p.offered && !sized && !bySize && !CATALOG_BY_KEY[p.key].cm) {
           badRequest(res, `${CATALOG_BY_KEY[p.key].label}: enter its size in cm before offering it`);
         }
-        return { key: p.key, offered: !!p.offered, width: sized ? width : null, height: sized ? height : null };
+        return { key: p.key, offered: !!p.offered, width: sized ? width : null, height: sized ? height : null, bySize };
       });
   }
   if (b.photoRuler !== undefined) {
