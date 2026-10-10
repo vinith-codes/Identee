@@ -62,6 +62,22 @@ Admin → Settings (left out when empty; the social boxes currently hold "idente
 - Ask the print team: does 13 × 14 cm really fit a 2XL sleeve? (it reaches the hem on the 3D model).
 - AI plan written (`docs/AI_PLAN.md`), build not started: Phase 1 = Ideas panel + background remover (free parts first).
 
+**Branch `feature-design-room-two-step` — MERGED to `main` on 10 Oct 2026:**
+- Design Room is now **two steps**: left = *Step 1 Where to print* (tee cards only), right = *Step 2 What to add* with tabs
+  Text / Upload / Art / Assistant; a selected item shows *Edit text / Edit picture* with "+ Add more". Classy look from the
+  approved prototype (ivory/white, gold accent, pills). The Ideas tab was removed.
+- Text: several lines, align, CAPS toggle, letter + line spacing, outline, four shape buttons (straight, curved up/down,
+  vertical); new fields `letterSpacingPct`, `lineHeight`, `strokeWidthPct`, `strokeColor` saved by the server. Smaller print-area box.
+- **Background remover** (free, in the browser): `studio/removeBackground.js` — flat colours cleared directly, photos via ORMBG
+  through `@huggingface/transformers`. Go-live notes in section 7.
+- **Design assistant** (free, scripted): slogans (12 occasions x 4 tones), six layout templates, design check with one-tap fixes
+  (also runs once before Review), colour / where-to-print / size help. See `docs/AI_PLAN.md` (stages A-D, prices, decisions).
+- Decided: image generation = Gemini "Nano Banana" standard, **built when the client supplies the key** (plus daily limit and
+  monthly cap). Suggested designs must all stay usable (replace, or place on another area).
+- Prototypes: design room https://claude.ai/artifact/8MnzSPYMxprafYopkcvHba , assistant walkthrough https://claude.ai/artifact/5NuXtHtrY1gpxdbyLgLaCL
+- Not yet tested by anyone: phone layout after the restyle, saving/ordering a design that uses the new text settings, the
+  blurry / over-the-edge checks, five of the six templates.
+
 **Next:** policy pages (Privacy, Returns & refunds, Shipping, Terms — required by Razorpay for live payments; need the
 client's rules), Payments / Sellers admin pages; go-live items (Brevo email, deployment,
 Razorpay live keys). Gotcha: the C: drive is nearly full — keep throwaway test databases on E:.
