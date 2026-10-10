@@ -84,3 +84,8 @@ when switched on). Each on a feature branch, tested on a local copy, merged on "
 - Prices checked 10 Oct 2026: Nano Banana 2.1 (`gemini-nano-banana-2.1`) $0.0336 per 1K image (~Rs 2.90); FLUX.2 pro ~$0.03, FLUX.2 klein ~$0.014; Claude Haiku 5.5 $0.10 / $0.50 per million tokens (a chat message ~Rs 0.01-0.02).
 - Keep `AI_IMAGE_PROVIDER` as a switch (gemini default; FLUX / OpenAI possible later). Before launch, compare ~10 real tee prompts by eye.
 - Needs from the client: a Google AI (Gemini API) key with billing, a monthly cap, and (optional, almost free) an Anthropic key for the assistant's text.
+
+## Assistant behaviour agreed (10 Oct 2026)
+
+- When the assistant offers 2-4 designs or slogans, **all of them stay usable**: tapping another one swaps it on the tee (the chosen one shows "On tee"). Nothing is disabled after the first pick. Generated pictures are already paid for, so the customer should be able to try each.
+- Walkthrough prototype (team tee by chat): https://claude.ai/artifact/5NuXtHtrY1gpxdbyLgLaCL
