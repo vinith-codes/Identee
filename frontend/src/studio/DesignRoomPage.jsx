@@ -767,7 +767,8 @@ export default function DesignRoomPage() {
     setSpin(false);
     setReveal(false);
     setSideShown(view);
-    setCamRequest({ view, n: nextReq() });
+    // the tee turns to that side; the camera comes back to the front of the dressing room
+    setCamRequest({ position: [0, 0.4, 5], n: nextReq() });
   };
   const turn360 = () => {
     setSpin(true);
@@ -1016,7 +1017,9 @@ export default function DesignRoomPage() {
                 camRequest={camRequest}
                 interactive={step === "design"}
                 still={!!active}
-                autoRotate={step === "review" && spin}
+                room={step === "review" ? "boutique" : "studio"}
+                spin={spin}
+                face={sideShown}
                 spinSpeed={reveal ? 14 : 1.6}
               />
             </div>

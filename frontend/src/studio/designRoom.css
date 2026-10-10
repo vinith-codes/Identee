@@ -554,3 +554,12 @@
 @media (max-width: 760px) and (prefers-reduced-motion: no-preference) {
   .dr-review { animation-name: dr-rise; }
 }
+
+/* Review happens in the dressing room (dark): light controls over it, and the lights "change" on the way in */
+.dr-app[data-step="review"] .dr-view { background: #191512; }
+.dr-app[data-step="review"] .dr-view::after { background: radial-gradient(ellipse at 38% 45%, transparent 45%, rgba(0, 0, 0, .35) 100%); }
+.dr-app[data-step="review"] .dr-view::before { content: ""; position: absolute; inset: 0; z-index: 4; pointer-events: none; background: #191512; opacity: 0; }
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes dr-lights { from { opacity: 1; } to { opacity: 0; } }
+  .dr-app[data-step="review"] .dr-view::before { animation: dr-lights .9s ease-out both; }
+}

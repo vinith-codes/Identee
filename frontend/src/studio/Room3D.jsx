@@ -26,12 +26,35 @@ const RAY = {
   right: { origin: (p) => new THREE.Vector3(-2, p.y, p.z), dir: new THREE.Vector3(1, 0, 0) },
 };
 
-/* ---------- studio set ---------- */
-function Studio() {
+/* ---------- the sets ----------
+   "studio": the bright room you design in.
+   "boutique": the Review step's dressing room — dark walls, a lit arch, a
+   clothes rack on each side and the designed tee floating in the middle.
+   Both stay mounted; only one is visible. (Mockup pictures are always taken
+   in the studio, see snapshot.) */
+const SETS = {
+  studio: { background: "#EDE3D0", fog: [6, 12] },
+  boutique: { background: "#191512", fog: [9, 20] },
+};
+// the tee in the Review step: which way it faces for each side picture
+const FACE = { front: 0, back: Math.PI, left: -Math.PI / 2, right: Math.PI / 2 };
+
+function Backdrop({ room }) {
+  const scene = useThree((st) => st.scene);
+  useLayoutEffect(() => {
+    paintBackdrop(scene, room);
+  }, [scene, room]);
+  return null;
+}
+function paintBackdrop(scene, room) {
+  const set = SETS[room];
+  scene.background = new THREE.Color(set.background);
+  scene.fog = new THREE.Fog(set.background, ...set.fog);
+}
+
+function Studio({ visible }) {
   return (
-    <>
-      <color attach="background" args={["#EDE3D0"]} />
-      <fog attach="fog" args={["#EDE3D0", 6, 12]} />
+    <group name="set-studio" visible={visible}>
       <hemisphereLight args={["#FFF7E8", "#C9B48E", 1.1]} />
       <spotLight position={[2.2, 4.2, 3.4]} angle={Math.PI / 7} penumbra={0.55} decay={1.6} distance={14} intensity={70} color="#FFF1D6" castShadow shadow-mapSize={[1024, 1024]} shadow-bias={-0.0004} />
       <directionalLight position={[-3, 2, 2.5]} intensity={0.7} color="#E9F0FF" />
@@ -54,7 +77,125 @@ function Studio() {
         <torusGeometry args={[0.775, 0.012, 12, 96]} />
         <meshStandardMaterial color="#C9A24B" metalness={0.9} roughness={0.25} />
       </mesh>
-    </>
+    </group>
+  );
+}
+
+const RACK_TEES = ["#15130F", "#EFE7D6", "#5A1F2B", "#4A5A3A", "#1F2A44", "#C9B48E"];
+const BRASS = { color: "#B8923F", metalness: 0.85, roughness: 0.3 };
+
+// A clothes rail with tees hanging on it (the same tee shape, plain colours).
+function Rack({ geo, position, turn, colours }) {
+  const FLOOR = -0.8;
+  const RAIL = 1.42;
+  const posts = [-0.95, 0.95];
+  return (
+    <group position={position} rotation-y={turn}>
+      <mesh position-y={RAIL} rotation-z={Math.PI / 2}>
+        <cylinderGeometry args={[0.022, 0.022, 2.1, 16]} />
+        <meshStandardMaterial {...BRASS} />
+      </mesh>
+      {posts.map((x) => (
+        <group key={x} position-x={x}>
+          <mesh position-y={(RAIL + FLOOR) / 2}>
+            <cylinderGeometry args={[0.02, 0.02, RAIL - FLOOR, 12]} />
+            <meshStandardMaterial {...BRASS} />
+          </mesh>
+          <mesh position-y={FLOOR + 0.02} rotation-x={Math.PI / 2}>
+            <cylinderGeometry args={[0.02, 0.02, 0.7, 12]} />
+            <meshStandardMaterial {...BRASS} />
+          </mesh>
+        </group>
+      ))}
+      {colours.map((c, i) => {
+        const x = -0.72 + (i * 1.44) / Math.max(1, colours.length - 1);
+        return (
+          <group key={c} position={[x, 0, 0]} rotation-y={Math.PI / 2 + (i % 2 ? 0.12 : -0.1)}>
+            {/* hanger hook */}
+            <mesh position-y={RAIL - 0.09}>
+              <cylinderGeometry args={[0.008, 0.008, 0.18, 8]} />
+              <meshStandardMaterial {...BRASS} />
+            </mesh>
+            <mesh geometry={geo} scale={1.95} position-y={RAIL - 0.98}>
+              <meshStandardMaterial color={c} roughness={0.95} side={THREE.DoubleSide} />
+            </mesh>
+          </group>
+        );
+      })}
+    </group>
+  );
+}
+
+function Boutique({ visible, model }) {
+  const { geo } = useTeeGeometry(model.url);
+  return (
+    <group name="set-boutique" visible={visible}>
+      <hemisphereLight args={["#FFE9C8", "#2A211A", 0.5]} />
+      {/* the key light on the designed tee */}
+      <spotLight position={[1.4, 4.6, 4.2]} angle={Math.PI / 8} penumbra={0.7} decay={1.5} distance={16} intensity={150} color="#FFF0D8" castShadow shadow-mapSize={[1024, 1024]} shadow-bias={-0.0004} />
+      <directionalLight position={[-3.5, 2.2, 3]} intensity={0.9} color="#FFE7C7" />
+      {/* rim light from behind, so the tee stands off the dark wall */}
+      <directionalLight position={[0, 2.6, -4]} intensity={2.2} color="#FFD9A0" />
+      <pointLight position={[-2.9, 2.3, -0.9]} intensity={9} distance={6} decay={1.6} color="#FFD9A8" />
+      <pointLight position={[2.9, 2.3, -0.9]} intensity={9} distance={6} decay={1.6} color="#FFD9A8" />
+
+      {/* floor and a pale round rug under the tee */}
+      <mesh rotation-x={-Math.PI / 2} position-y={-0.8} receiveShadow>
+        <planeGeometry args={[30, 30]} />
+        <meshStandardMaterial color="#3A2C22" roughness={0.55} metalness={0.05} />
+      </mesh>
+      <mesh rotation-x={-Math.PI / 2} position-y={-0.792} receiveShadow>
+        <circleGeometry args={[1.25, 64]} />
+        <meshStandardMaterial color="#CDBFA6" roughness={1} />
+      </mesh>
+      <mesh rotation-x={Math.PI / 2} position-y={-0.785}>
+        <torusGeometry args={[1.25, 0.012, 10, 96]} />
+        <meshStandardMaterial {...BRASS} />
+      </mesh>
+
+      {/* walls */}
+      <mesh position={[0, 2.4, -4.4]}>
+        <planeGeometry args={[30, 8]} />
+        <meshStandardMaterial color="#2A2420" roughness={1} />
+      </mesh>
+      <mesh position={[-6.5, 2.4, 0]} rotation-y={Math.PI / 2}>
+        <planeGeometry args={[14, 8]} />
+        <meshStandardMaterial color="#241F1B" roughness={1} />
+      </mesh>
+      <mesh position={[6.5, 2.4, 0]} rotation-y={-Math.PI / 2}>
+        <planeGeometry args={[14, 8]} />
+        <meshStandardMaterial color="#241F1B" roughness={1} />
+      </mesh>
+      {/* a lit arch on the back wall, right behind the tee */}
+      <group position={[0, 0, -4.36]}>
+        <mesh position-y={0.55}>
+          <planeGeometry args={[2.3, 2.7]} />
+          <meshBasicMaterial color="#F1DDB6" />
+        </mesh>
+        <mesh position-y={1.9}>
+          <circleGeometry args={[1.15, 48, 0, Math.PI]} />
+          <meshBasicMaterial color="#F1DDB6" />
+        </mesh>
+        <mesh position={[0, 0.55, -0.01]}>
+          <planeGeometry args={[2.46, 2.7]} />
+          <meshStandardMaterial {...BRASS} />
+        </mesh>
+        <mesh position={[0, 1.9, -0.01]}>
+          <circleGeometry args={[1.23, 48, 0, Math.PI]} />
+          <meshStandardMaterial {...BRASS} />
+        </mesh>
+      </group>
+
+      {/* a clothes rack on each side */}
+      <Rack geo={geo} position={[-2.75, 0, -1.9]} turn={0.5} colours={RACK_TEES.slice(0, 5)} />
+      <Rack geo={geo} position={[2.75, 0, -1.9]} turn={-0.5} colours={[...RACK_TEES.slice(2), RACK_TEES[0]].slice(0, 5)} />
+
+      {/* a round seat, front left */}
+      <mesh position={[-2.2, -0.56, 0.9]} castShadow receiveShadow>
+        <cylinderGeometry args={[0.42, 0.42, 0.48, 40]} />
+        <meshStandardMaterial color="#8A6A4A" roughness={0.9} />
+      </mesh>
+    </group>
   );
 }
 
@@ -201,20 +342,33 @@ function Decal({ probe, spot, canvas, version, areaKey, onPick, interactive }) {
   );
 }
 
-function Tee({ model, colour, areas, onPickArea, interactive, still, spotsRef }) {
+function Tee({ model, colour, areas, onPickArea, interactive, still, spotsRef, turntable, spin, face, spinSpeed }) {
   const { geo, probe, map, normalMap } = useTeeGeometry(model.url);
   const group = useRef();
   const mesh = useRef();
   const mat = useRef();
   const target = useMemo(() => new THREE.Color(colour), [colour]);
+  const speed = useRef(0); // turntable speed, eased
 
   useFrame((state, dt) => {
     if (mat.current) mat.current.color.lerp(target, Math.min(1, dt * 6));
-    if (group.current) {
-      const t = state.clock.elapsedTime;
-      const k = still ? 0 : 1;
-      group.current.position.y = THREE.MathUtils.lerp(group.current.position.y, TEE_Y + Math.sin(t / 1.4) * 0.025 * k, 0.1);
-      group.current.rotation.y = THREE.MathUtils.lerp(group.current.rotation.y, Math.sin(t / 3.2) * 0.06 * k, 0.1);
+    const g = group.current;
+    if (!g) return;
+    const t = state.clock.elapsedTime;
+    const k = still ? 0 : 1;
+    g.position.y = THREE.MathUtils.lerp(g.position.y, TEE_Y + (turntable ? 0.22 : 0) + Math.sin(t / 1.4) * 0.025 * k, 0.08);
+    // the shortest way round to an angle
+    const towards = (to, f) => {
+      const d = Math.atan2(Math.sin(to - g.rotation.y), Math.cos(to - g.rotation.y));
+      g.rotation.y += d * f;
+    };
+    if (turntable && spin && face == null) {
+      // Review: the tee itself turns (the room stays still); spinSpeed 2 = one turn in 30 s
+      speed.current += ((spinSpeed * Math.PI) / 30 - speed.current) * 0.05;
+      g.rotation.y += speed.current * Math.min(dt, 0.05);
+    } else {
+      speed.current = 0;
+      towards(turntable ? FACE[face] ?? 0 : Math.sin(t / 3.2) * 0.06 * k, turntable ? 0.07 : 0.1);
     }
   });
 
@@ -232,7 +386,7 @@ function Tee({ model, colour, areas, onPickArea, interactive, still, spotsRef })
   });
 
   return (
-    <group ref={group} scale={TEE_SCALE} position-y={TEE_Y}>
+    <group ref={group} name="tee" scale={TEE_SCALE} position-y={TEE_Y}>
       <mesh ref={mesh} geometry={geo} castShadow>
         <meshStandardMaterial ref={mat} color={colour} map={map} normalMap={normalMap} normalScale={[0.8, 0.8]} roughness={0.92} metalness={0} side={THREE.DoubleSide} />
         {areas.map((a) => (
@@ -244,7 +398,7 @@ function Tee({ model, colour, areas, onPickArea, interactive, still, spotsRef })
 }
 
 /* ---------- camera ---------- */
-function CameraRig({ request, getSpot, apiRef, wakeKey, spinSpeed }) {
+function CameraRig({ request, getSpot, apiRef, wakeKey, room }) {
   const { camera, controls, gl, scene, size, invalidate } = useThree();
   const anim = useRef(null);
 
@@ -314,10 +468,7 @@ function CameraRig({ request, getSpot, apiRef, wakeKey, spinSpeed }) {
     invalidate();
   }, [wakeKey, request, size.width, size.height, invalidate]);
 
-  useFrame((frame) => {
-    // the turntable speeds up and slows down gently (the Review step's opening turn)
-    const orbit = frame.controls;
-    if (orbit) orbit.autoRotateSpeed += (spinSpeed - orbit.autoRotateSpeed) * 0.05;
+  useFrame(() => {
     if (awake.current > 0) awake.current -= 1;
     if (awake.current > 0 || anim.current || pending.current) invalidate();
     const p = pending.current;
@@ -347,10 +498,30 @@ function CameraRig({ request, getSpot, apiRef, wakeKey, spinSpeed }) {
     snapshot(view) {
       const keepP = camera.position.clone();
       const keepT = controls ? controls.target.clone() : new THREE.Vector3();
+      // mockup pictures are always taken in the bright studio with the tee
+      // facing forward, whatever the room and turntable are doing right now
+      const studio = scene.getObjectByName("set-studio");
+      const boutique = scene.getObjectByName("set-boutique");
+      const tee = scene.getObjectByName("tee");
+      const was = { studio: studio?.visible, boutique: boutique?.visible, turn: tee?.rotation.y, y: tee?.position.y };
+      if (studio) studio.visible = true;
+      if (boutique) boutique.visible = false;
+      if (tee) {
+        tee.rotation.y = 0;
+        tee.position.y = TEE_Y;
+      }
+      paintBackdrop(scene, "studio");
       camera.position.set(...VIEWS[view]);
       camera.lookAt(0, 0.1, 0);
       gl.render(scene, camera);
       const url = gl.domElement.toDataURL("image/jpeg", 0.85);
+      if (studio) studio.visible = was.studio;
+      if (boutique) boutique.visible = was.boutique;
+      if (tee) {
+        tee.rotation.y = was.turn;
+        tee.position.y = was.y;
+      }
+      paintBackdrop(scene, room);
       camera.position.copy(keepP);
       if (controls) {
         controls.target.copy(keepT);
@@ -362,7 +533,8 @@ function CameraRig({ request, getSpot, apiRef, wakeKey, spinSpeed }) {
   return null;
 }
 
-const Room3D = forwardRef(function Room3D({ model, colour, areas, onPickArea, camRequest, interactive = true, still = false, autoRotate = false, spinSpeed = 1.6 }, ref) {
+const Room3D = forwardRef(function Room3D({ model, colour, areas, onPickArea, camRequest, interactive = true, still = false, room = "studio", spin = false, face = null, spinSpeed = 1.6 }, ref) {
+  const boutique = room === "boutique";
   const spotsRef = useRef(() => null);
   return (
     <Canvas
@@ -373,9 +545,11 @@ const Room3D = forwardRef(function Room3D({ model, colour, areas, onPickArea, ca
       gl={{ antialias: true, preserveDrawingBuffer: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.05 }}
       style={{ position: "absolute", inset: 0, touchAction: "none" }}
     >
-      <Studio />
+      <Backdrop room={room} />
+      <Studio visible={!boutique} />
       <Suspense fallback={null}>
-        <Tee model={model} colour={colour} areas={areas} onPickArea={onPickArea} interactive={interactive} still={still} spotsRef={spotsRef} />
+        <Boutique visible={boutique} model={model} />
+        <Tee model={model} colour={colour} areas={areas} onPickArea={onPickArea} interactive={interactive} still={still} spotsRef={spotsRef} turntable={boutique} spin={spin} face={face} spinSpeed={spinSpeed} />
       </Suspense>
       <OrbitControls
         makeDefault
@@ -387,9 +561,11 @@ const Room3D = forwardRef(function Room3D({ model, colour, areas, onPickArea, ca
         minPolarAngle={Math.PI * 0.28}
         maxPolarAngle={Math.PI * 0.62}
         target={ORBIT_TARGET}
-        autoRotate={autoRotate}
+        // in the dressing room the camera stays in front (the racks are at the sides); the tee turns instead
+        minAzimuthAngle={boutique ? -0.5 : -Infinity}
+        maxAzimuthAngle={boutique ? 0.5 : Infinity}
       />
-      <CameraRig request={camRequest} getSpot={(k) => spotsRef.current(k)} apiRef={ref} spinSpeed={spinSpeed} wakeKey={`${colour}|${still}|${interactive}|${areas.map((a) => `${a.key}:${a.version}`).join(",")}`} />
+      <CameraRig request={camRequest} getSpot={(k) => spotsRef.current(k)} apiRef={ref} room={room} wakeKey={`${colour}|${still}|${interactive}|${areas.map((a) => `${a.key}:${a.version}`).join(",")}`} />
     </Canvas>
   );
 });
