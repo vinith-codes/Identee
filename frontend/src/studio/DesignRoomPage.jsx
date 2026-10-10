@@ -1256,21 +1256,45 @@ function Controls({ sel, areaCmW, areaRatio, onPatch, onDelete, onDuplicate, onL
             Text
             <input type="text" value={sel.text} maxLength={60} onChange={(e) => onPatch({ text: e.target.value || " " }, { measure: true })} />
           </label>
-          <div className="dr-row">
-            <label className="dr-field">
-              Font
-              <select value={sel.fontFamily} onChange={(e) => onPatch({ fontFamily: e.target.value }, { measure: true })}>
-                {[...new Set([sel.fontFamily, ...FONTS])].map((f) => <option key={f}>{f}</option>)}
-              </select>
-            </label>
-            <label className="dr-field">
-              Shape
-              <select value={sel.effect || "straight"} onChange={(e) => onPatch({ effect: e.target.value }, { measure: true })}>
-                <option value="straight">Straight</option>
-                <option value="arc-up">Arc up</option>
-                <option value="arc-down">Arc down</option>
-              </select>
-            </label>
+          <label className="dr-field">
+            Font
+            <select value={sel.fontFamily} onChange={(e) => onPatch({ fontFamily: e.target.value }, { measure: true })}>
+              {[...new Set([sel.fontFamily, ...FONTS])].map((f) => <option key={f}>{f}</option>)}
+            </select>
+          </label>
+          <div className="dr-field">
+            Shape
+            <div className="dr-seg" role="group" aria-label="Text shape">
+              {[
+                ["straight", "Straight"],
+                ["arc-up", "Curved up"],
+                ["arc-down", "Curved down"],
+                ["vertical", "Vertical"],
+              ].map(([k, label]) => {
+                const vertical = Math.abs(sel.rotation || 0) === 90;
+                const now = vertical ? "vertical" : sel.effect || "straight";
+                return (
+                  <button
+                    key={k}
+                    type="button"
+                    className={now === k ? "on" : ""}
+                    aria-pressed={now === k}
+                    onClick={() => {
+                      if (k === "vertical") {
+                        // turned 90°: its length runs down the area — shrink it to fit the height, and centre it
+                        const lengthPct = (sel.width || 0) * areaRatio;
+                        const fit = lengthPct > 90 ? 90 / lengthPct : 1;
+                        onPatch({ effect: "straight", rotation: 90, fontSizePct: (sel.fontSizePct || 12) * fit, x: 50 - (sel.width || 0) / 2, y: 50 - (sel.height || 0) / 2 }, { measure: true });
+                      } else {
+                        onPatch({ effect: k, ...(vertical ? { rotation: 0 } : {}) }, { measure: true });
+                      }
+                    }}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
           </div>
           <div className="dr-row" aria-label="Text style">
             <button type="button" className={`dr-chip${sel.bold ? " on" : ""}`} onClick={() => onPatch({ bold: !sel.bold }, { measure: true })}><b>B</b></button>

@@ -483,3 +483,10 @@
   .dr-toolbtn { border-radius: 999px; }
   .dr-side > header .dr-x { align-self: center; }
 }
+
+/* text shape: one tap, always visible */
+.dr-seg { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.dr-seg button { border: 1px solid var(--line); background: #fff; border-radius: 10px; padding: 9px 6px; font-size: 12.5px; font-weight: 600; }
+.dr-seg button:hover { border-color: var(--ink); }
+.dr-seg button.on { background: var(--ink); border-color: var(--ink); color: #fff; }
+.dr-addhead .dr-chip { white-space: nowrap; flex-shrink: 0; }
