@@ -22,7 +22,9 @@ import { AreaRenderer, cachedImage, imageSrcs, loadImage, measureText } from "./
 import { areaCm, blockersOf, clashesIn, modelForGarment, placeArea } from "./teeModel";
 import AreaThumb from "./AreaThumb";
 import Assistant from "./Assistant";
-import { firstMessages } from "./assistantScript";
+import { checkMessages, firstMessages, firstState } from "./assistantScript";
+import { checkDesign, inksFor } from "./designCheck";
+import { TEMPLATES } from "./designTemplates";
 import { FONTS, addStudioFonts } from "./fonts";
 import "./designRoom.css";
 
@@ -129,6 +131,8 @@ export default function DesignRoomPage() {
   // Step 1 (left): where to print. Step 2 (right, in the editor): what to add.
   const [addTab, setAddTab] = useState("text");
   const [chat, setChat] = useState(firstMessages); // the assistant's conversation (kept while you switch tabs)
+  const [chatState, setChatState] = useState(firstState);
+  const ackIssues = useRef(""); // design-check findings the customer has already been shown before Review
   const [areasOpen, setAreasOpen] = useState(false); // phones: the "where to print" sheet
   const [pickOpen, setPickOpen] = useState(false); // colour & size menu in the top bar
   const [live, setLive] = useState(null); // { key, elements } while dragging
@@ -379,11 +383,11 @@ export default function DesignRoomPage() {
   // areas that already carry a print, and old designs' overlapping pairs
   const usedKeys = [...new Set(elements.map((e) => e.position))];
   const clashes = clashesIn(positions, usedKeys);
-  const openArea = (key) => {
+  const openArea = (key, { force = false } = {}) => {
     const pos = positions.find((p) => p.key === key);
     if (!pos) return;
     // one print per overlapping spot: an empty area covered by a used one stays closed
-    const blockers = usedKeys.includes(key) ? [] : blockersOf(key, positions, usedKeys);
+    const blockers = force || usedKeys.includes(key) ? [] : blockersOf(key, positions, usedKeys);
     if (blockers.length) {
       say(`${pos.label} overlaps ${blockers.map((b) => b.label).join(" and ")}. Remove that print first to use ${pos.label}.`);
       return;
@@ -599,9 +603,82 @@ export default function DesignRoomPage() {
     setStep("design");
     setCamRequest({ view: "front", ms: 1800, n: nextReq() });
   };
-  const toReview = () => {
+  /* ---------- the design assistant ---------- */
+  const designIssues = () => checkDesign(elements, positions, { fabricHex, inkDefault, cmOf: (pos) => areaPx(pos) });
+  // what the assistant knows about the tee right now
+  const assistantCtx = () => ({
+    areaLabel: activePos?.label || "the tee",
+    teeName: colour?.name || "this",
+    hasDesign: elements.length > 0,
+    sizes,
+    sizeNow,
+    chart: (sz) => garment.sizeChart?.find((r) => r.size === sz),
+    areas: positions.map((p) => ({ key: p.key, label: p.label, free: usedKeys.includes(p.key) || !blockersOf(p.key, positions, usedKeys).length })),
+    issues: designIssues,
+    inks: inksFor(fabricHex, INKS),
+  });
+  // A ready-made layout: its texts go to the first area the garment offers that is free.
+  const applyTemplate = (key, fresh) => {
+    const tpl = TEMPLATES.find((t) => t.key === key);
+    if (!tpl) return;
+    const base = fresh ? [] : elements;
+    const taken = [...new Set(base.map((e) => e.position))];
+    const added = [];
+    for (const item of tpl.items) {
+      const pos = item.areas.map((k) => positions.find((p) => p.key === k)).find((p) => p && (taken.includes(p.key) || !blockersOf(p.key, positions, taken).length));
+      if (!pos) continue;
+      const { hCm } = areaPx(pos);
+      const start = { type: "text", text: item.text, fontFamily: item.font || "Anton", fontSizePct: Math.min(60, (item.cm / hCm) * 100), color: inkDefault, align: "center", effect: "straight", x: 50, y: item.y, width: 0, height: 0 };
+      let el = textBox(start, pos);
+      if (el.width > 90) el = textBox({ ...el, fontSizePct: (el.fontSizePct * 90) / el.width }, pos);
+      added.push({ id: makeId(), position: pos.key, side: pos.side, rotation: 0, zIndex: base.length + added.length + 1, ...el });
+      if (!taken.includes(pos.key)) taken.push(pos.key);
+    }
+    if (!added.length) return say("This layout needs print areas that are covered by your current design.");
+    commit(() => [...base, ...added]);
+    openArea(added[0].position, { force: true });
+    setSelectedId(null);
+  };
+  const applyFix = (issue) => {
+    const pos = positions.find((p) => p.key === issue.position);
+    commit((prev) => prev.map((e) => (e.id !== issue.elId ? e : issue.measure && pos ? textBox({ ...e, ...issue.patch }, pos) : { ...e, ...issue.patch })));
+  };
+  const assistantAct = (a) => {
+    if (a.type === "text") return addText(a.text);
+    if (a.type === "tab") return setAddTab(a.tab);
+    if (a.type === "template") return applyTemplate(a.key, a.fresh);
+    if (a.type === "size") {
+      setSize(a.value);
+      return writeJSON(SIZE_KEY, a.value);
+    }
+    if (a.type === "area") {
+      openArea(a.key);
+      return setSelectedId(null);
+    }
+    if (a.type === "review") return toReview(true);
+    if (a.type === "ink") {
+      const texts = elements.filter((e) => e.type === "text" && e.position === active);
+      if (!texts.length) return say("There’s no text on this print area yet. Add some, then pick a colour.");
+      commit((prev) => prev.map((e) => (e.type === "text" && e.position === active ? { ...e, color: a.color } : e)));
+      return say(`Text on ${activePos.label} recoloured. Press Undo (↶) to go back.`);
+    }
+  };
+
+  // sure === true: go even if the design check has findings (the customer chose to)
+  const toReview = (sure) => {
     if (!elements.length) return say("Add a design first — tap a print area or use Text, Upload or Art.");
     if (clashes.length) return say(`${clashes[0][0].label} and ${clashes[0][1].label} overlap on the tee. Remove the print from one of them to continue.`);
+    // design check: show findings in the assistant once; pressing Review again goes on
+    const issues = designIssues();
+    const sig = issues.map((i) => i.id).join();
+    if (sure !== true && issues.length && ackIssues.current !== sig) {
+      ackIssues.current = sig;
+      openArea(issues[0].position);
+      setSelectedId(null);
+      setAddTab("ai");
+      setChat((m) => [...m.map((x) => (x.chips ? { ...x, done: true } : x)), ...checkMessages(issues, { beforeReview: true })]);
+      return;
+    }
     closeArea();
     setStep("review");
     setSpin(true);
@@ -1029,7 +1106,7 @@ export default function DesignRoomPage() {
                   ))}
                 </div>
                 {chatting ? (
-                  <Assistant messages={chat} setMessages={setChat} areaLabel={activePos.label} onAddText={(t) => addText(t)} onGo={setAddTab} />
+                  <Assistant messages={chat} setMessages={setChat} state={chatState} setState={setChatState} ctx={assistantCtx} onAct={assistantAct} onFix={applyFix} />
                 ) : (
                 <div className="dr-controls">
 

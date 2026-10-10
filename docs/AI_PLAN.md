@@ -90,3 +90,12 @@ when switched on). Each on a feature branch, tested on a local copy, merged on "
 - When the assistant offers 2-4 designs or slogans, **all of them stay usable**: tapping another one swaps it on the tee (the chosen one shows "On tee"). Nothing is disabled after the first pick. Generated pictures are already paid for, so the customer should be able to try each.
 - Walkthrough prototype (team tee by chat): https://claude.ai/artifact/5NuXtHtrY1gpxdbyLgLaCL
 - Each suggested design has **Add to tee** (goes to the suggested/current print area and replaces what the assistant put there) and **Other area** (pick any print area), so the customer can (1) swap a design they no longer like and (2) use different designs on different areas, e.g. chest and back. The card shows where it is ("On Left Chest").
+
+## Stage A built (10 Oct 2026) — free assistant features
+
+All scripted, no AI call. Files in `frontend/src/studio/`: `assistantScript.js` (what it says: `replyTo(text, ctx, state)`), `assistantSlogans.js`, `designTemplates.js`, `designCheck.js`, `Assistant.jsx`.
+- **Slogans**: 12 occasions x 4 tones (funny, bold, emotional, simple), Show more, Add a name or year, Change tone; typed requests are understood by keywords ("funny line for my cricket team").
+- **Templates**: Team jersey, Birthday squad, Class of, Couple tee, Trip tee, Minimal brand. One tap places the texts in free print areas (letter sizes in cm); asks Start fresh / Add to my design when the tee is not empty.
+- **Design check**: blurry picture (< 100 DPI), letters under 0.8 cm, ink too close to the tee colour, item hanging over the area's edge; each with a one-tap fix. Runs from the chat and once automatically when Review is pressed (Review again or "Continue to review" goes on).
+- **Colour help** (inks that stand out on the tee colour; tap recolours the text on the open area), **Where to print** (opens the suggested area), **Size help** (oversized-fit advice, sets the size).
+- Stage B (text key) replaces `replyTo` with Claude; the message shapes and page actions (`assistantAct`) stay.
