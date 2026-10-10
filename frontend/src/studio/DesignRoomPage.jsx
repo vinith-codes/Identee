@@ -27,16 +27,16 @@ import "./designRoom.css";
 const PX_PER_CM = 24; // texture / editor resolution (print files are made separately at 300 DPI)
 const MIN_AREA_PX = 480; // small areas (sleeves, chest) are drawn finer so they stay sharp on the 3D tee
 const INKS = ["#FFFFFF", "#141110", "#C9A24B", "#C2352C", "#2441B5", "#1C5A2B", "#F0C24C", "#B7A2E0", "#F08A24", "#8DC1EC"];
-// the tools in the left column: [key, label, icon path]
-const TOOLS = [
-  ["areas", "Areas", "M8 4 4 6.5 2 10l3 1.5V20h14v-8.5L22 10l-2-3.5L16 4a4 4 0 0 1-8 0Z"],
+// what can be added to a print area — the tabs in the editor: [key, label, icon path]
+const ADD_TABS = [
   ["text", "Text", "M5 6V4h14v2M12 4v16M9 20h6"],
   ["upload", "Upload", "M12 16V4m0 0-4 4m4-4 4 4M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"],
   ["art", "Art", "M4 5h16v14H4zM8 13l3-3 5 5M15 9h.01"],
   ["ideas", "Ideas", "M9 18h6M10 21h4M12 3a6 6 0 0 0-4 10.5c.7.7 1 1.5 1 2.5h6c0-1 .3-1.8 1-2.5A6 6 0 0 0 12 3Z"],
   ["ai", "AI", "m12 3 1.8 4.7L18 9.5l-4.2 1.8L12 16l-1.8-4.7L6 9.5l4.2-1.8L12 3Z"],
 ];
-const TOOL_TITLES = { areas: "Print areas", text: "Text", upload: "Upload", art: "Art library", ideas: "Ideas", ai: "AI design" };
+const ICON_AREAS = "M8 4 4 6.5 2 10l3 1.5V20h14v-8.5L22 10l-2-3.5L16 4a4 4 0 0 1-8 0Z";
+const ICON_ADD = "M12 5v14M5 12h14";
 const AREA_GROUPS = [
   ["Front", ["front"]],
   ["Back", ["back"]],
@@ -126,8 +126,9 @@ export default function DesignRoomPage() {
   const [positions, setPositions] = useState([]);
   const [active, setActive] = useState(null); // print area key being edited
   const [selectedId, setSelectedId] = useState(null);
-  // which tool's panel is open on the left (null = closed). Phones start closed so the tee is visible.
-  const [tool, setTool] = useState(() => (typeof window !== "undefined" && window.innerWidth < 760 ? null : "areas"));
+  // Step 1 (left): where to print. Step 2 (right, in the editor): what to add.
+  const [addTab, setAddTab] = useState("text");
+  const [areasOpen, setAreasOpen] = useState(false); // phones: the "where to print" sheet
   const [pickOpen, setPickOpen] = useState(false); // colour & size menu in the top bar
   const [live, setLive] = useState(null); // { key, elements } while dragging
   const [textures, setTextures] = useState({}); // key -> { canvas, version }
@@ -387,8 +388,7 @@ export default function DesignRoomPage() {
       return;
     }
     setActive(key);
-    // not enough room for both side panels next to the tee: close the left one
-    if (window.innerWidth < 1280) setTool(null);
+    setAreasOpen(false);
     setSelectedId((cur) => (elements.some((e) => e.id === cur && e.position === key) ? cur : elements.filter((e) => e.position === key).at(-1)?.id ?? null));
     // the editor is a column beside the 3D view (not on top of it), so the area can fill the view
     setCamRequest({ area: key, side: pos.side, sleeve: pos.side === "left" || pos.side === "right", narrow, overlayPx: 0, fill: 0.74, lift: 0.03, keep: true, n: nextReq() });
@@ -414,13 +414,19 @@ export default function DesignRoomPage() {
     closeArea();
     setCamRequest({ view, n: nextReq() });
   };
+  // phones' "Add" button: open an area's editor on its Add tabs
+  const startAdding = () => {
+    const pos = ensureArea();
+    if (!pos) return;
+    if (active !== pos.key) openArea(pos.key);
+    setAreasOpen(false);
+    setSelectedId(null);
+  };
 
   const addElement = (pos, el) => {
     const full = { id: makeId(), position: pos.key, side: pos.side, rotation: 0, zIndex: elements.length + 1, ...el };
     commit((prev) => [...prev, full]);
     setSelectedId(full.id);
-    // phones and laptops: the tool panel lies over the tee / editor, so put it away once something is added
-    if (window.innerWidth < 1280) setTool(null);
   };
   const textBox = (el, pos) => {
     // keep the centre, refresh width/height from the real text size
@@ -828,29 +834,17 @@ export default function DesignRoomPage() {
 
       <main className="dr-stage" data-editing={step === "design" && active ? "1" : undefined}>
         {step === "design" && (
-          <nav className="dr-tools" aria-label="Design tools">
-            {TOOLS.map(([k, label, icon]) => (
-              <button key={k} type="button" className={`dr-toolbtn${tool === k ? " on" : ""}`} aria-pressed={tool === k} onClick={() => setTool(tool === k ? null : k)}>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <path d={icon} />
-                </svg>
-                {label}
-                {k === "ai" && <small>soon</small>}
-              </button>
-            ))}
-          </nav>
-        )}
-
-        {step === "design" && tool && (
-          <aside className="dr-side" aria-label={TOOL_TITLES[tool]}>
+          <aside className={`dr-side${areasOpen ? " open" : ""}`} aria-label="Where to print">
             <header>
-              <h2>{TOOL_TITLES[tool]}</h2>
-              <button type="button" className="dr-x" aria-label="Close this panel" onClick={() => setTool(null)}>✕</button>
+              <h2>
+                <span className="dr-stepno">1</span> Where to print
+              </h2>
+              <button type="button" className="dr-x" aria-label="Close" onClick={() => setAreasOpen(false)}>✕</button>
             </header>
             <div className="dr-sidebody">
-              {tool === "areas" && (
+              {
                 <>
-                  <p className="dr-empty">Choose where to print. Each tee shows one print area at its real size for {sizeNow}.</p>
+                  <p className="dr-empty">Pick a spot. Each tee shows one print area at its real size for {sizeNow}.</p>
                   {AREA_GROUPS.map(([title, sides]) => {
                     const list = positions.filter((p) => sides.includes(p.side));
                     if (!list.length) return null;
@@ -886,54 +880,8 @@ export default function DesignRoomPage() {
                   })}
                   <p className="dr-empty">Gold box = has a design. Faded = covered by another design.</p>
                 </>
-              )}
+              }
 
-              {tool === "text" && (
-                <>
-                  <p className="dr-empty">{activePos ? `Adds to ${activePos.label}.` : "Adds to Centre Front. Pick another place in Areas first if you like."}</p>
-                  <button type="button" className="dr-add big" onClick={() => addText("YOUR TEXT")}>Add a heading</button>
-                  <button type="button" className="dr-add" onClick={() => addText("your text here", { small: true })}>Add a small line</button>
-                  <div className="eyebrow">Shapes</div>
-                  <div className="dr-two">
-                    <button type="button" className="dr-add" onClick={() => addText("YOUR TEXT", { effect: "arc-up" })}>Curved up</button>
-                    <button type="button" className="dr-add" onClick={() => addText("YOUR TEXT", { effect: "arc-down" })}>Curved down</button>
-                    <button type="button" className="dr-add" onClick={() => addText("YOUR TEXT", { vertical: true })}>Vertical (runs down)</button>
-                  </div>
-                  <p className="dr-empty">Change the words, font, colour and size on the right after adding.</p>
-                </>
-              )}
-
-              {tool === "upload" && (
-                <>
-                  <button type="button" className="dr-drop" onClick={pickUpload}>
-                    <b>Upload a photo or logo</b>
-                    <span>JPG, PNG or WebP · up to 10 MB</span>
-                  </button>
-                  <p className="dr-empty">{activePos ? `Adds to ${activePos.label}.` : "Adds to Centre Front."} A print-quality check shows if a picture is too small to print sharp.</p>
-                </>
-              )}
-
-              {tool === "art" && <ArtPanel categories={artCategories} designs={artDesigns} onOpen={(id) => dispatch(fetchArtDesigns(id))} onPick={pickArt} />}
-
-              {tool === "ideas" && (
-                <>
-                  <p className="dr-empty">Tap a line to put it on the tee, then change the words.</p>
-                  <div className="dr-idealist">
-                    {IDEAS.map((t) => (
-                      <button key={t} type="button" className="dr-add idea" onClick={() => addText(t)}>{t}</button>
-                    ))}
-                  </div>
-                </>
-              )}
-
-              {tool === "ai" && (
-                <>
-                  <div className="dr-soon">
-                    <b>AI designs are coming soon</b>
-                    <span>Describe an idea, pick a style and get designs made for your tee.</span>
-                  </div>
-                </>
-              )}
             </div>
           </aside>
         )}
@@ -976,6 +924,23 @@ export default function DesignRoomPage() {
           )}
         </div>
 
+        {step === "design" && (
+          <nav className="dr-tools" aria-label="Design steps">
+            <button type="button" className={`dr-toolbtn${areasOpen ? " on" : ""}`} aria-pressed={areasOpen} onClick={() => setAreasOpen((o) => !o)}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d={ICON_AREAS} />
+              </svg>
+              Where to print
+            </button>
+            <button type="button" className="dr-toolbtn" onClick={startAdding}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d={ICON_ADD} />
+              </svg>
+              Add text or picture
+            </button>
+          </nav>
+        )}
+
         {step === "design" && activePos && (
           <section className="dr-editor" aria-label={`Edit ${activePos.label}`}>
             <header>
@@ -1008,17 +973,78 @@ export default function DesignRoomPage() {
               <span>0</span>
               <span>{areaPx(activePos).wCm} cm</span>
             </div>
-            <Controls
-              sel={sel}
-              empty={activeEls.length === 0}
-              areaCmW={areaPx(activePos).wCm}
-              areaRatio={areaPx(activePos).W / areaPx(activePos).H}
-              onPatch={updateSel}
-              onDelete={removeSel}
-              onDuplicate={dupSel}
-              onLayer={layerSel}
-              onTool={setTool}
-            />
+            {sel ? (
+              <Controls
+                sel={sel}
+                areaCmW={areaPx(activePos).wCm}
+                areaRatio={areaPx(activePos).W / areaPx(activePos).H}
+                onPatch={updateSel}
+                onDelete={removeSel}
+                onDuplicate={dupSel}
+                onLayer={layerSel}
+                onAddMore={() => setSelectedId(null)}
+              />
+            ) : (
+              <div className="dr-controls">
+                <div className="dr-addhead">
+                  <span className="dr-stepno">2</span> {activeEls.length ? "Add more, or tap an item above to change it" : "What to add"}
+                </div>
+                <div className="dr-addtabs" role="tablist" aria-label="What to add">
+                  {ADD_TABS.map(([k, label, icon]) => (
+                    <button key={k} type="button" role="tab" aria-selected={addTab === k} className={`dr-addtab${addTab === k ? " on" : ""}`} onClick={() => setAddTab(k)}>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <path d={icon} />
+                      </svg>
+                      {label}
+                      {k === "ai" && <small>soon</small>}
+                    </button>
+                  ))}
+                </div>
+
+                {addTab === "text" && (
+                  <>
+                    <button type="button" className="dr-add big" onClick={() => addText("YOUR TEXT")}>Add a heading</button>
+                    <button type="button" className="dr-add" onClick={() => addText("your text here", { small: true })}>Add a small line</button>
+                    <div className="dr-two">
+                      <button type="button" className="dr-add" onClick={() => addText("YOUR TEXT", { effect: "arc-up" })}>Curved up</button>
+                      <button type="button" className="dr-add" onClick={() => addText("YOUR TEXT", { effect: "arc-down" })}>Curved down</button>
+                      <button type="button" className="dr-add" onClick={() => addText("YOUR TEXT", { vertical: true })}>Vertical (runs down)</button>
+                    </div>
+                    <p className="dr-empty">Change the words, font, colour and size after adding.</p>
+                  </>
+                )}
+
+                {addTab === "upload" && (
+                  <>
+                    <button type="button" className="dr-drop" onClick={pickUpload}>
+                      <b>Upload a photo or logo</b>
+                      <span>JPG, PNG or WebP · up to 10 MB</span>
+                    </button>
+                    <p className="dr-empty">A print-quality check shows if a picture is too small to print sharp.</p>
+                  </>
+                )}
+
+                {addTab === "art" && <ArtPanel categories={artCategories} designs={artDesigns} onOpen={(id) => dispatch(fetchArtDesigns(id))} onPick={pickArt} />}
+
+                {addTab === "ideas" && (
+                  <>
+                    <p className="dr-empty">Tap a line to put it on the tee, then change the words.</p>
+                    <div className="dr-idealist">
+                      {IDEAS.map((t) => (
+                        <button key={t} type="button" className="dr-add idea" onClick={() => addText(t)}>{t}</button>
+                      ))}
+                    </div>
+                  </>
+                )}
+
+                {addTab === "ai" && (
+                  <div className="dr-soon">
+                    <b>AI designs are coming soon</b>
+                    <span>Describe an idea, pick a style and get designs made for your tee.</span>
+                  </div>
+                )}
+              </div>
+            )}
           </section>
         )}
 
@@ -1198,7 +1224,7 @@ function Fitting({ garment, colours, colour, onColour, sizes, size, onSize, onEn
   );
 }
 
-function Controls({ sel, empty, areaCmW, areaRatio, onPatch, onDelete, onDuplicate, onLayer, onTool }) {
+function Controls({ sel, areaCmW, areaRatio, onPatch, onDelete, onDuplicate, onLayer, onAddMore }) {
   const quality = () => {
     if (!sel?.pxW) return null;
     const printCm = ((sel.width || 0) / 100) * areaCmW;
@@ -1213,19 +1239,10 @@ function Controls({ sel, empty, areaCmW, areaRatio, onPatch, onDelete, onDuplica
   };
   return (
     <div className="dr-controls">
-      {!sel && (
-        <>
-          <p className="dr-empty">
-            {empty ? "This area is empty. Add something to it:" : "Tap something on the print area above to change it, or add more:"}
-          </p>
-          <div className="dr-row">
-            <button type="button" className="dr-chip" onClick={() => onTool("text")}>Text</button>
-            <button type="button" className="dr-chip" onClick={() => onTool("upload")}>Upload</button>
-            <button type="button" className="dr-chip" onClick={() => onTool("art")}>Art</button>
-            <button type="button" className="dr-chip" onClick={() => onTool("ideas")}>Ideas</button>
-          </div>
-        </>
-      )}
+      <div className="dr-addhead">
+        <span>{sel.type === "text" ? "Text" : "Picture"} settings</span>
+        <button type="button" className="dr-chip" onClick={onAddMore}>+ Add more</button>
+      </div>
       {sel?.type === "text" && (
         <>
           <label className="dr-field">

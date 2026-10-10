@@ -313,7 +313,7 @@
 
 /* the 3D view */
 .dr-view { grid-column: 3; position: relative; min-width: 0; min-height: 0; overflow: hidden; background: radial-gradient(120% 90% at 50% 35%, #FAF7F0 0%, #EFE9DC 70%, #E7DFCF 100%); }
-.dr-hint { top: 20px; background: none; color: var(--muted); }
+.dr-hint { top: auto; bottom: 62px; background: none; color: var(--muted); }
 .dr-credit { right: 14px; top: 12px; bottom: auto; max-width: 40%; text-align: right; }
 .dr-undo { position: absolute; left: 14px; top: 14px; z-index: 3; display: flex; gap: 2px; background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 3px; }
 .dr-undo button { width: 34px; height: 32px; border: 0; border-radius: 9px; background: none; font-size: 17px; line-height: 1; }
@@ -339,7 +339,6 @@
 
 /* laptops: no room for both panels beside the tee — the tool panel slides over the view */
 @media (max-width: 1279px) {
-  .dr-stage[data-editing] .dr-side { position: absolute; left: 0; top: 0; bottom: 0; box-shadow: 18px 0 40px -24px rgba(20,17,16,.45); }
   .dr-editor { width: 340px; }
 }
 @media (max-width: 1100px) {
@@ -370,4 +369,30 @@
   .dr-stage[data-editing] .dr-viewsw, .dr-stage[data-editing] .dr-undo { display: none; }
   .dr-undo { left: 10px; top: 10px; }
   .dr-dock .dr-cta { width: 100%; }
+}
+
+/* ================= two steps: 1 where to print (left) · 2 what to add (right) ================= */
+.dr-side { width: 264px; }
+.dr-stepno { display: inline-grid; place-items: center; width: 20px; height: 20px; margin-right: 4px; border-radius: 50%; background: var(--ink); color: #fff; font: 700 11px/1 var(--body); vertical-align: 2px; }
+.dr-addhead { display: flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 700; color: var(--ink-soft); }
+.dr-addhead .dr-chip { margin-left: auto; min-height: 30px; padding: 5px 10px; }
+.dr-addtabs { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 2px; padding: 3px; border: 1px solid var(--line); border-radius: 12px; background: #FBF9F4; }
+.dr-addtab { position: relative; display: grid; justify-items: center; gap: 3px; padding: 8px 2px 6px; border: 0; border-radius: 9px; background: none; font-size: 11.5px; font-weight: 600; color: var(--muted); }
+.dr-addtab svg { width: 19px; height: 19px; }
+.dr-addtab:hover { color: var(--ink); }
+.dr-addtab.on { background: #fff; color: var(--ink); box-shadow: 0 0 0 1px var(--line), 0 4px 10px -8px rgba(20,17,16,.5); }
+.dr-addtab small { position: absolute; top: 2px; right: 3px; font-size: 8px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--gold-deep); }
+.dr-controls .dr-controls { padding: 0; overflow: visible; } /* the art library inside the editor */
+@media (min-width: 761px) {
+  .dr-tools { display: none; } /* the bottom bar is for phones */
+  .dr-side .dr-x { display: none; }
+}
+@media (max-width: 1279px) and (min-width: 761px) {
+  .dr-side { width: 196px; }
+  .dr-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 760px) {
+  .dr-side:not(.open) { display: none; }
+  .dr-tools { justify-content: stretch; gap: 6px; }
+  .dr-toolbtn { grid-auto-flow: column; justify-content: center; align-items: center; gap: 8px; padding: 12px 6px; font-size: 13px; color: var(--ink); border: 1px solid var(--line); }
 }
