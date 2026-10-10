@@ -77,3 +77,10 @@ when switched on). Each on a feature branch, tested on a local copy, merged on "
 - **Design assistant** (Design Room → What to add → Assistant): guided chat, scripted and free (`studio/Assistant.jsx`, `assistantScript.js`). Slogans by occasion with Add to tee; points to art library / upload. The Ideas tab was removed.
 - **Background remover** (select an uploaded picture → Remove background): `studio/removeBackground.js`, runs in the browser. Flat-colour backgrounds are cleared directly; photos use ORMBG (`onnx-community/ormbg-ONNX`, Apache-2.0, q8, ~44 MB first download) through `@huggingface/transformers`. The cut-out is uploaded like any design image; Undo restores the original. IS-Net's ONNX build on Hugging Face is AGPL — not used.
 - Not built: made-to-order designs, AI slogans (need a paid key and the client's budget).
+
+## Decision (10 Oct 2026): image service = Google Gemini "Nano Banana" standard
+
+- Chosen by the user over FLUX.2 pro: better at words inside designs and at chat-style edits ("make it angrier"); price gap is tiny.
+- Prices checked 10 Oct 2026: Nano Banana 2.1 (`gemini-nano-banana-2.1`) $0.0336 per 1K image (~Rs 2.90); FLUX.2 pro ~$0.03, FLUX.2 klein ~$0.014; Claude Haiku 5.5 $0.10 / $0.50 per million tokens (a chat message ~Rs 0.01-0.02).
+- Keep `AI_IMAGE_PROVIDER` as a switch (gemini default; FLUX / OpenAI possible later). Before launch, compare ~10 real tee prompts by eye.
+- Needs from the client: a Google AI (Gemini API) key with billing, a monthly cap, and (optional, almost free) an Anthropic key for the assistant's text.
