@@ -50,6 +50,18 @@ Left for the user: re-add photos to 12 ready-made products; delete Cloudinary "s
 real links only (shop, live categories, account pages, about/contact), contact + address + map + social links from
 Admin → Settings (left out when empty; the social boxes currently hold "identee.co.in", not profile links).
 
+**Branches `feature-print-areas-sizes` + `feature-design-room-layout` — MERGED to `main` on 10 Oct 2026** (PHASE1_PROGRESS §6p–6q):
+- Print team's sheet: 6 more print areas (Full Front, Vertical Front, Front Right Vertical, Top Back, Centre Back, Vertical Back)
+  with exact sizes per garment size; older 6 areas kept; **one print per overlapping spot**; XS is not sold.
+- Design Room **studio layout**: tools column on the left (Areas, Text, Upload, Art, Ideas, AI soon) with a side panel; print
+  areas are small tee cards grouped Front / Back / Sleeves; colour + size in a top-bar menu; Review button in the top bar;
+  the 3D tee has the middle to itself; the editor is a column on the right. Phones: tools along the bottom, panels as sheets.
+- Text panel: heading, small line, curved, **vertical text**; images have **Fill area**.
+- Speed: a drag is painted straight onto the area's texture (`roomApi.touch`), no page redraw per frame; while an area is open
+  the 3D canvas renders on demand. Sleeve prints lie flat on the 3D tee (preview only; print files come from the flat editor).
+- Ask the print team: does 13 × 14 cm really fit a 2XL sleeve? (it reaches the hem on the 3D model).
+- AI plan written (`docs/AI_PLAN.md`), build not started: Phase 1 = Ideas panel + background remover (free parts first).
+
 **Next:** policy pages (Privacy, Returns & refunds, Shipping, Terms — required by Razorpay for live payments; need the
 client's rules), Payments / Sellers admin pages; go-live items (Brevo email, deployment,
 Razorpay live keys). Gotcha: the C: drive is nearly full — keep throwaway test databases on E:.

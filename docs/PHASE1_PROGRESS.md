@@ -692,6 +692,18 @@ on the 6 new areas (they show "Off" with their sizes) → Save.
 Tested on a local copy: 12 areas offered with the sheet's sizes; guide areas unchanged; overlap refused on save;
 XS refused; print pack per real size; wizard table saves; Design Room on computer and phone.
 
+## 6q. Design Room studio layout (DONE, merged 10 Oct 2026 with §6p)
+
+Branch `feature-design-room-layout`. The user found the room "clumsy"; rebuilt as a studio:
+- `DesignRoomPage.jsx`: `.dr-stage` is a grid `tools | side panel | 3D view | editor`. State `tool` (areas/text/upload/art/ideas/ai,
+  null = closed) and `pickOpen` (colour + size menu in the top bar). The dock only shows in the review step.
+- `addText(text, { effect, vertical, small })`; `Controls` shows only the selected item's settings (+ **Fill area** for images).
+- `Room3D.jsx`: camera request takes `overlayPx`, `fill`, `lift`, `keep` (re-frames when the view resizes);
+  `frameloop="demand"` while an area is open, woken by `wakeKey` changes; api `touch(areaKey)` refreshes a decal's texture
+  after the drag is painted in place (`queueLive` in the page — no React render per drag frame).
+- Sleeve decals: averaged sleeve normal (`sleeveNormal`), depth 0.09, `keepFacing` drops triangles turned away.
+- Laptops (< 1280 px): the tool panel slides over the view and closes after adding; phones (< 760 px): bottom tool bar + sheets.
+
 ## 7. Phase 1 — remaining steps (audit findings)
 
 ### Step 3: Customization
