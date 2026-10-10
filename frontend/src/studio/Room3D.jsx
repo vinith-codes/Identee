@@ -100,6 +100,49 @@ function useTeeGeometry(url) {
   }, [gltf]);
 }
 
+const SLEEVE_DEPTH = 0.09; // metres: enough for the sleeve's curve, not enough to reach the body behind it
+
+// The sleeve's general direction over the whole print area. (One triangle's
+// own direction can sit on a fold and tilt the whole print.)
+function sleeveNormal(probe, r, p, geometry, firstHit) {
+  const sum = new THREE.Vector3();
+  const ray = new THREE.Raycaster();
+  for (let i = -2; i <= 2; i++) {
+    for (let j = -2; j <= 2; j++) {
+      const q = new THREE.Vector3(p.x, p.y + (j / 2) * geometry.h * 0.35, p.z + (i / 2) * geometry.w * 0.35);
+      ray.set(r.origin(q), r.dir);
+      const hit = ray.intersectObject(probe, false)[0];
+      // only the sleeve's outer face (a ray past the sleeve's edge would hit the body)
+      if (hit && Math.abs(hit.distance - firstHit.distance) < 0.06) sum.add(hit.face.normal);
+    }
+  }
+  return sum.lengthSq() > 0 ? sum.normalize() : firstHit.face.normal.clone().normalize();
+}
+
+// Keep only the decal's triangles that face the way the print is pressed on.
+function keepFacing(geo, n, min) {
+  const pos = geo.getAttribute("position");
+  const nor = geo.getAttribute("normal");
+  const uv = geo.getAttribute("uv");
+  const P = [];
+  const N = [];
+  const U = [];
+  const v = new THREE.Vector3();
+  for (let i = 0; i < pos.count; i += 3) {
+    let facing = 0;
+    for (let k = 0; k < 3; k++) facing += v.fromBufferAttribute(nor, i + k).dot(n);
+    if (facing / 3 < min) continue;
+    for (let k = 0; k < 3; k++) {
+      P.push(pos.getX(i + k), pos.getY(i + k), pos.getZ(i + k));
+      N.push(nor.getX(i + k), nor.getY(i + k), nor.getZ(i + k));
+      U.push(uv.getX(i + k), uv.getY(i + k));
+    }
+  }
+  geo.setAttribute("position", new THREE.Float32BufferAttribute(P, 3));
+  geo.setAttribute("normal", new THREE.Float32BufferAttribute(N, 3));
+  geo.setAttribute("uv", new THREE.Float32BufferAttribute(U, 2));
+}
+
 function Decal({ probe, spot, canvas, version, areaKey, onPick, interactive }) {
   const texRef = useRef(null);
   const geometry = useMemo(() => {
@@ -119,12 +162,15 @@ function Decal({ probe, spot, canvas, version, areaKey, onPick, interactive }) {
     // on a fold, which twisted tall or off-centre areas.) Sleeves slope, so
     // they keep the fabric's direction.
     const flat = geometry.side === "front" || geometry.side === "back";
-    const n = flat ? r.dir.clone().negate() : hit.face.normal.clone().normalize();
+    const n = flat ? r.dir.clone().negate() : sleeveNormal(probe, r, p, geometry, hit);
     const up = new THREE.Vector3(0, 1, 0);
     const xAxis = up.clone().cross(n).normalize();
     const yAxis = n.clone().cross(xAxis);
     const q = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(xAxis, yAxis, n));
-    const geo = new DecalGeometry(probe, hit.point.clone(), new THREE.Euler().setFromQuaternion(q), new THREE.Vector3(geometry.w, geometry.h, 0.18));
+    const geo = new DecalGeometry(probe, hit.point.clone(), new THREE.Euler().setFromQuaternion(q), new THREE.Vector3(geometry.w, geometry.h, flat ? 0.18 : SLEEVE_DEPTH));
+    // a sleeve print must stay on the sleeve's outer face: drop the bits that
+    // landed on folds turned away from it, the hem's inside or the body behind
+    if (!flat) keepFacing(geo, n, 0.3);
     return { geo, point: hit.point.clone(), normal: n };
   }, [geometry, probe]);
 
