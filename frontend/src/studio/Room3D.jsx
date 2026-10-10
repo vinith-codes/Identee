@@ -220,7 +220,7 @@ function CameraRig({ request, getSpot, apiRef }) {
       const aspect = size.width / Math.max(1, size.height);
       const freeW = narrow ? 1 : Math.max(0.35, 1 - 424 / Math.max(1, size.width));
       const freeH = narrow ? 0.28 : 1; // phone: the strip between the top bars and the editor sheet
-      const fitH = s.h / (2 * tan * freeH * (narrow ? 0.92 : 0.6)); // computer: clear of the size bar and the area buttons
+      const fitH = s.h / (2 * tan * freeH * (narrow ? 0.92 : 0.52)); // computer: clear of the size bar and the area cards
       const fitW = s.w / (2 * tan * aspect * freeW * 0.74);
       // not closer than 1.45: a small area (sleeve, chest) keeps some tee around it for context
       const dist = THREE.MathUtils.clamp(Math.max(fitH, fitW), 1.45, 9);
@@ -236,7 +236,7 @@ function CameraRig({ request, getSpot, apiRef }) {
             : new THREE.Vector3(s.normal.x, 0, s.normal.z).normalize();
       const right = new THREE.Vector3().crossVectors(facing.clone().negate(), new THREE.Vector3(0, 1, 0)).normalize();
       const pan = narrow ? 0 : ((1 - freeW) / 2) * viewH * aspect;
-      const drop = narrow ? viewH * 0.225 : -viewH * 0.03; // phone: the strip's middle is ~27% from the top
+      const drop = narrow ? viewH * 0.225 : viewH * 0.025; // phone: the strip's middle is ~27% from the top
       look = s.point.clone().add(right.multiplyScalar(pan));
       look.y -= drop;
       to = look.clone().add(facing.multiplyScalar(dist));

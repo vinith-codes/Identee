@@ -216,6 +216,28 @@
 .dr-added-actions { display: grid; gap: 10px; }
 .dr-added-actions .dr-cta { margin-left: 0; text-align: center; text-decoration: none; display: block; }
 
-/* an empty area covered by a used one (one print per overlapping spot) */
-.dr-area.blocked { opacity: .45; text-decoration: line-through; text-decoration-color: rgba(21,19,15,.4); }
-.dr-areas { max-height: 92px; overflow-y: auto; }
+/* ---- print areas: one small tee card per area (AreaThumb.jsx) ---- */
+.dr-areas { left: 68px; flex-wrap: nowrap; justify-content: safe center; overflow-x: auto; overflow-y: hidden; padding: 4px 2px; scrollbar-width: none;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 14px, #000 calc(100% - 14px), transparent); mask-image: linear-gradient(90deg, transparent, #000 14px, #000 calc(100% - 14px), transparent); }
+.dr-areas::-webkit-scrollbar { display: none; }
+.dr-room[data-editing] .dr-areas { right: 412px; } /* keep clear of the editor on a computer */
+.dr-area { display: grid; justify-items: center; align-content: start; gap: 1px; width: 92px; padding: 6px 4px 7px; border-radius: 14px; line-height: 1.2; text-align: center; }
+.dr-area b { font-size: 11px; font-weight: 700; }
+.dr-area span { font-size: 10.5px; }
+.dr-thumb { width: 66px; height: 56px; display: block; }
+.dr-thumb .tee { fill: #F6F3EC; stroke: #8A8172; stroke-width: 3; stroke-linejoin: round; }
+.dr-thumb .box { fill: rgba(201,162,75,.28); stroke: #8A6A1E; stroke-width: 3; stroke-dasharray: 7 5; }
+.dr-area:hover:not(.blocked) { border-color: var(--gold); }
+.dr-area.on { border-color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); background: #fff; }
+/* has a design: the box fills in */
+.dr-area.used::after { content: none; }
+.dr-area.used .dr-thumb .box { fill: var(--gold); stroke: #6B4E0E; stroke-dasharray: none; }
+.dr-area.used { border-color: var(--gold); background: var(--gold-soft); }
+/* covered by an area that already has a design (one print per overlapping spot) */
+.dr-area.blocked { opacity: .4; cursor: not-allowed; }
+.dr-area.blocked b { text-decoration: line-through; }
+@media (max-width: 760px) {
+  .dr-room[data-editing] .dr-areas { right: 0; }
+  .dr-areas { left: 0; justify-content: flex-start; }
+  .dr-area { width: 76px; flex: 0 0 auto; }
+}

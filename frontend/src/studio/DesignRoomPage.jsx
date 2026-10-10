@@ -20,6 +20,7 @@ import Room3D from "./Room3D";
 import AreaEditor from "./AreaEditor";
 import { AreaRenderer, imageSrcs, loadImage, measureText } from "./konvaRender";
 import { areaCm, blockersOf, clashesIn, modelForGarment, placeArea } from "./teeModel";
+import AreaThumb from "./AreaThumb";
 import { FONTS, addStudioFonts } from "./fonts";
 import "./designRoom.css";
 
@@ -726,7 +727,7 @@ export default function DesignRoomPage() {
 
       <main className="dr-stage">
         {model && colour && (
-          <div className="dr-room">
+          <div className="dr-room" data-editing={active ? "1" : undefined}>
           <Room3D
             ref={roomApi}
             model={model}
@@ -775,11 +776,16 @@ export default function DesignRoomPage() {
                     key={p.key}
                     type="button"
                     className={`dr-area${active === p.key ? " on" : ""}${used ? " used" : ""}${blockedBy.length ? " blocked" : ""}`}
-                    title={blockedBy.length ? `Overlaps ${blockedBy.map((b) => b.label).join(" and ")}` : undefined}
+                    title={blockedBy.length ? `Overlaps ${blockedBy.map((b) => b.label).join(" and ")} — remove that design first` : `${p.label} · ${w} × ${h} cm`}
+                    aria-label={`${p.label}, ${w} by ${h} cm${used ? ", has a design" : ""}${blockedBy.length ? `, blocked by ${blockedBy.map((b) => b.label).join(" and ")}` : ""}`}
                     aria-disabled={blockedBy.length ? "true" : undefined}
+                    aria-pressed={active === p.key}
                     onClick={() => openArea(p.key)}
                   >
-                    {p.label} <span>{w}×{h}</span>
+                    {/* one small tee per print area, with just that area's box */}
+                    <AreaThumb position={p} size={sizeNow} />
+                    <b>{p.label}</b>
+                    <span>{w}×{h} cm</span>
                   </button>
                 );
               })}
