@@ -132,9 +132,26 @@ export class AreaRenderer {
     this.layer.getCanvas().setPixelRatio(1);
     this.stage.size({ width: this.W, height: this.H });
   }
+  // opts.outline: also draw the print area's dashed gold border (the area
+  // being edited). It is part of the layer, so Konva's own redraws keep it.
   render(elements, opts) {
     this.layer.destroyChildren();
     buildNodes(this.layer, elements, this.W, this.H, opts);
+    if (opts?.outline) {
+      const line = Math.max(4, this.W / 120);
+      this.layer.add(
+        new Konva.Rect({
+          x: line / 2,
+          y: line / 2,
+          width: this.W - line,
+          height: this.H - line,
+          stroke: "rgba(201,162,75,0.95)",
+          strokeWidth: line,
+          dash: [line * 4.5, line * 3],
+          listening: false,
+        }),
+      );
+    }
     this.layer.draw();
     return this.layer.getNativeCanvasElement();
   }

@@ -285,16 +285,7 @@ export default function DesignRoomPage() {
           updates[pos.key] = { canvas: null, version: nextReq() };
           continue;
         }
-        const canvas = entry.r.render(els);
-        if (outline) {
-          const ctx = canvas.getContext("2d");
-          ctx.save();
-          ctx.strokeStyle = "rgba(201,162,75,0.95)";
-          ctx.setLineDash([18, 12]);
-          ctx.lineWidth = Math.max(4, W / 120);
-          ctx.strokeRect(3, 3, W - 6, H - 6);
-          ctx.restore();
-        }
+        const canvas = entry.r.render(els, { outline });
         updates[pos.key] = { canvas, version: nextReq() };
       }
       if (alive && Object.keys(updates).length) setTextures((t) => ({ ...t, ...updates }));
