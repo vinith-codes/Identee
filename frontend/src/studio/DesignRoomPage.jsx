@@ -21,6 +21,8 @@ import AreaEditor from "./AreaEditor";
 import { AreaRenderer, cachedImage, imageSrcs, loadImage, measureText } from "./konvaRender";
 import { areaCm, blockersOf, clashesIn, modelForGarment, placeArea } from "./teeModel";
 import AreaThumb from "./AreaThumb";
+import Assistant from "./Assistant";
+import { firstMessages } from "./assistantScript";
 import { FONTS, addStudioFonts } from "./fonts";
 import "./designRoom.css";
 
@@ -33,7 +35,7 @@ const ADD_TABS = [
   ["upload", "Upload", "M12 16V4m0 0-4 4m4-4 4 4M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"],
   ["art", "Art", "M4 5h16v14H4zM8 13l3-3 5 5M15 9h.01"],
   ["ideas", "Ideas", "M9 18h6M10 21h4M12 3a6 6 0 0 0-4 10.5c.7.7 1 1.5 1 2.5h6c0-1 .3-1.8 1-2.5A6 6 0 0 0 12 3Z"],
-  ["ai", "AI", "m12 3 1.8 4.7L18 9.5l-4.2 1.8L12 16l-1.8-4.7L6 9.5l4.2-1.8L12 3Z"],
+  ["ai", "Assistant", "m12 3 1.8 4.7L18 9.5l-4.2 1.8L12 16l-1.8-4.7L6 9.5l4.2-1.8L12 3Z"],
 ];
 const ICON_AREAS = "M8 4 4 6.5 2 10l3 1.5V20h14v-8.5L22 10l-2-3.5L16 4a4 4 0 0 1-8 0Z";
 const ICON_ADD = "M12 5v14M5 12h14";
@@ -128,6 +130,7 @@ export default function DesignRoomPage() {
   const [selectedId, setSelectedId] = useState(null);
   // Step 1 (left): where to print. Step 2 (right, in the editor): what to add.
   const [addTab, setAddTab] = useState("text");
+  const [chat, setChat] = useState(firstMessages); // the assistant's conversation (kept while you switch tabs)
   const [areasOpen, setAreasOpen] = useState(false); // phones: the "where to print" sheet
   const [pickOpen, setPickOpen] = useState(false); // colour & size menu in the top bar
   const [live, setLive] = useState(null); // { key, elements } while dragging
@@ -720,6 +723,8 @@ export default function DesignRoomPage() {
   // state would rebuild its items mid-drag (that made dragging slow / jumpy).
   const activeEls = elements.filter((e) => e.position === active);
   const usedSides = new Set(elements.map((e) => e.side));
+  // the assistant tab takes the whole panel (the tee on the left shows the area)
+  const chatting = addTab === "ai" && !elements.some((e) => e.id === selectedId && e.position === active);
   // Fit the print area in the panel without squeezing the controls below it:
   // at most the panel width, and at most about a third of the screen height.
   const editorW = (() => {
@@ -836,9 +841,10 @@ export default function DesignRoomPage() {
         {step === "design" && (
           <aside className={`dr-side${areasOpen ? " open" : ""}`} aria-label="Where to print">
             <header>
-              <h2>
-                <span className="dr-stepno">1</span> Where to print
-              </h2>
+              <div>
+                <div className="eyebrow">Step 1</div>
+                <h2>Where to print</h2>
+              </div>
               <button type="button" className="dr-x" aria-label="Close" onClick={() => setAreasOpen(false)}>✕</button>
             </header>
             <div className="dr-sidebody">
@@ -945,13 +951,15 @@ export default function DesignRoomPage() {
           <section className="dr-editor" aria-label={`Edit ${activePos.label}`}>
             <header>
               <div>
-                <h2>{activePos.label}</h2>
+                <div className="eyebrow">Step 2 · {activePos.label}</div>
+                <h2>{sel ? (sel.type === "text" ? "Edit text" : "Edit picture") : "What to add"}</h2>
                 <div className="sub">
-                  {areaPx(activePos).wCm} × {areaPx(activePos).hCm} cm at size {sizeNow} · drag, pinch or use the handles
+                  {areaPx(activePos).wCm} × {areaPx(activePos).hCm} cm at size {sizeNow}
                 </div>
               </div>
               <button type="button" className="dr-x" aria-label="Close editor" onClick={() => goView(activePos.side)}>✕</button>
             </header>
+            {!chatting && (
             <div className="dr-flatwrap">
               <AreaEditor
                 elements={activeEls}
@@ -969,10 +977,13 @@ export default function DesignRoomPage() {
                 }}
               />
             </div>
+            )}
+            {!chatting && (
             <div className="dr-ruler" style={{ width: editorW }}>
               <span>0</span>
               <span>{areaPx(activePos).wCm} cm</span>
             </div>
+            )}
             {sel ? (
               <Controls
                 sel={sel}
@@ -985,10 +996,7 @@ export default function DesignRoomPage() {
                 onAddMore={() => setSelectedId(null)}
               />
             ) : (
-              <div className="dr-controls">
-                <div className="dr-addhead">
-                  <span className="dr-stepno">2</span> {activeEls.length ? "Add more, or tap an item above to change it" : "What to add"}
-                </div>
+              <>
                 <div className="dr-addtabs" role="tablist" aria-label="What to add">
                   {ADD_TABS.map(([k, label, icon]) => (
                     <button key={k} type="button" role="tab" aria-selected={addTab === k} className={`dr-addtab${addTab === k ? " on" : ""}`} onClick={() => setAddTab(k)}>
@@ -996,10 +1004,13 @@ export default function DesignRoomPage() {
                         <path d={icon} />
                       </svg>
                       {label}
-                      {k === "ai" && <small>soon</small>}
                     </button>
                   ))}
                 </div>
+                {chatting ? (
+                  <Assistant messages={chat} setMessages={setChat} areaLabel={activePos.label} onAddText={(t) => addText(t)} onGo={setAddTab} />
+                ) : (
+                <div className="dr-controls">
 
                 {addTab === "text" && (
                   <>
@@ -1037,13 +1048,9 @@ export default function DesignRoomPage() {
                   </>
                 )}
 
-                {addTab === "ai" && (
-                  <div className="dr-soon">
-                    <b>AI designs are coming soon</b>
-                    <span>Describe an idea, pick a style and get designs made for your tee.</span>
-                  </div>
+                </div>
                 )}
-              </div>
+              </>
             )}
           </section>
         )}
@@ -1240,7 +1247,7 @@ function Controls({ sel, areaCmW, areaRatio, onPatch, onDelete, onDuplicate, onL
   return (
     <div className="dr-controls">
       <div className="dr-addhead">
-        <span>{sel.type === "text" ? "Text" : "Picture"} settings</span>
+        <span>Tap another item on the print area to edit it</span>
         <button type="button" className="dr-chip" onClick={onAddMore}>+ Add more</button>
       </div>
       {sel?.type === "text" && (

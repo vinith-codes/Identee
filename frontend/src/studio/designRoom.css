@@ -396,3 +396,90 @@
   .dr-tools { justify-content: stretch; gap: 6px; }
   .dr-toolbtn { grid-auto-flow: column; justify-content: center; align-items: center; gap: 8px; padding: 12px 6px; font-size: 13px; color: var(--ink); border: 1px solid var(--line); }
 }
+
+/* ================= classy pass (matches the approved prototype) =================
+   Ivory and white, dark ink, gold only as a small accent; pill buttons;
+   "Step 1 / Step 2" headings; thin underlined tabs; the design assistant chat. */
+.dr-app { --ink: #15120F; --ink-soft: #40382E; --muted: #857A6A; --line: #E7DECB; --gold: #B8923F; --gold-deep: #8A6A1E; --gold-soft: #F5EAD0; --wall: #F0EADD; background: var(--wall); }
+.dr-top { padding: 12px 20px; padding-top: calc(12px + env(safe-area-inset-top, 0px)); gap: 14px; }
+.dr-brand { letter-spacing: .22em; }
+.dr-back { background: none; border: 1px solid var(--line); }
+.dr-back:hover { border-color: var(--ink); }
+.dr-pickbtn { border-radius: 999px; padding: 7px 14px 7px 10px; }
+.dr-pickbtn i { width: 18px; height: 18px; }
+.dr-pickpop { border-radius: 18px; padding: 18px; }
+.dr-steps { gap: 22px; }
+.dr-step { padding: 0 0 3px; border-radius: 0; font-weight: 500; font-size: 12.5px; border-bottom: 2px solid transparent; }
+.dr-step .n { display: none; }
+.dr-step.on { color: var(--ink); font-weight: 700; border-bottom-color: var(--gold); }
+.dr-step.done { color: var(--ink-soft); }
+.dr-save { border-color: var(--line); font-weight: 600; }
+.dr-save:hover { background: #fff; color: var(--ink); border-color: var(--ink); }
+.dr-cta, .dr-reviewbtn { border-radius: 999px; font-weight: 700; }
+.dr-cta.gold { background: var(--gold); color: #fff; }
+.dr-chip, .dr-field input[type=text], .dr-field select { border-radius: 999px; }
+.dr-field input[type=text], .dr-field select { border-radius: 10px; min-height: 42px; }
+.dr-chip { padding: 8px 14px; }
+
+/* panels */
+.dr-side > header, .dr-editor > header { padding: 18px 20px 12px; border-bottom: 0; align-items: flex-start; }
+.dr-side h2, .dr-editor h2 { margin: 4px 0 0; font: 700 19px/1.2 var(--display); }
+.dr-side > header .eyebrow, .dr-editor > header .eyebrow { font-size: 10.5px; letter-spacing: .18em; color: var(--gold-deep); font-weight: 700; }
+.dr-editor .sub { margin-top: 3px; }
+.dr-sidebody { padding: 4px 20px 22px; gap: 14px; }
+.dr-cards { gap: 8px; }
+.dr-cards .dr-area { border-radius: 14px; transition: border-color .15s, transform .15s; }
+.dr-cards .dr-area:hover:not(.blocked) { transform: translateY(-1px); }
+.dr-area.used { background: #fff; border-color: var(--line); position: relative; }
+.dr-area.used::after { content: ""; display: block; position: absolute; right: 7px; top: 7px; width: 7px; height: 7px; margin: 0; border-radius: 50%; background: var(--gold); }
+.dr-area.on, .dr-area.used.on { border-color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); }
+.dr-thumb .tee { fill: #F5F1E8; stroke: #9A8F7D; }
+
+/* the view */
+.dr-view { background: radial-gradient(110% 85% at 50% 38%, #FDFBF7 0%, #F1EBDF 62%, #E6DDCB 100%); }
+.dr-viewsw, .dr-undo { border-radius: 999px; padding: 4px; }
+.dr-viewsw button { border-radius: 999px; padding: 8px 18px; }
+.dr-undo button { border-radius: 999px; }
+
+/* step 2 */
+.dr-flatwrap { padding: 6px 20px 4px; }
+.dr-controls { padding: 14px 20px 22px; }
+.dr-addtabs { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0; margin: 8px 20px 0; padding: 0; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; background: none; flex-shrink: 0; }
+.dr-addtab { padding: 10px 0 11px; border-radius: 0; gap: 4px; font-size: 12px; }
+.dr-addtab.on { background: none; box-shadow: none; color: var(--ink); }
+.dr-addtab.on::after { content: ""; position: absolute; left: 18%; right: 18%; bottom: -1px; height: 2px; background: var(--gold); }
+.dr-addtab:last-child { color: var(--gold-deep); }
+.dr-addhead { font-weight: 500; color: var(--muted); font-size: 12px; }
+.dr-add { border-radius: 14px; padding: 13px 14px; }
+.dr-add.big { font: 700 18px/1.2 var(--display); padding: 16px 14px; }
+.dr-drop { border-radius: 18px; padding: 34px 14px; background: #FAF7F1; }
+.dr-artcats, .dr-artgrid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.dr-artcat, .dr-artitem { border-radius: 14px; background: #FAF7F1; }
+.dr-artcat:hover, .dr-artitem:hover { border-color: var(--ink); }
+.dr-review { border-radius: 22px; }
+
+/* the design assistant */
+.dr-chat { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+.dr-chatlog { flex: 1; min-height: 0; overflow-y: auto; padding: 16px 20px; display: flex; flex-direction: column; gap: 10px; scrollbar-width: thin; }
+.dr-msg { max-width: 88%; padding: 10px 13px; border-radius: 16px; font-size: 13.5px; }
+.dr-msg.bot { align-self: flex-start; background: #FAF7F1; border: 1px solid var(--line); border-bottom-left-radius: 5px; }
+.dr-msg.me { align-self: flex-end; background: var(--ink); color: #fff; border-bottom-right-radius: 5px; }
+.dr-chatchips { display: flex; flex-wrap: wrap; gap: 6px; }
+.dr-chatchips.done { opacity: .4; }
+.dr-chatcards { display: grid; gap: 8px; }
+.dr-chatcard { display: grid; gap: 8px; border: 1px solid var(--line); border-radius: 14px; padding: 12px; background: #fff; }
+.dr-chatcard b { font: 700 16px/1.2 var(--display); text-wrap: balance; }
+.dr-mini { justify-self: start; border: 0; border-radius: 999px; background: var(--ink); color: #fff; padding: 7px 13px; font-size: 12px; font-weight: 600; }
+.dr-typing { font-size: 12.5px; color: var(--muted); }
+.dr-composer { display: flex; gap: 8px; padding: 12px 20px calc(14px + env(safe-area-inset-bottom, 0px)); border-top: 1px solid var(--line); }
+.dr-composer input { flex: 1; min-width: 0; border: 1px solid var(--line); border-radius: 999px; padding: 10px 16px; background: #fff; }
+.dr-composer button { border: 0; border-radius: 999px; background: var(--ink); color: #fff; padding: 0 18px; font-weight: 700; }
+@media (prefers-reduced-motion: no-preference) {
+  .dr-msg, .dr-chatchips, .dr-chatcards { animation: dr-in .22s ease-out; }
+  @keyframes dr-in { from { opacity: 0; transform: translateY(5px); } }
+}
+@media (max-width: 760px) {
+  .dr-top { padding: 10px 14px; }
+  .dr-toolbtn { border-radius: 999px; }
+  .dr-side > header .dr-x { align-self: center; }
+}
