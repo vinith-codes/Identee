@@ -145,6 +145,8 @@ export default function DesignRoomPage() {
   const [camRequest, setCamRequest] = useState(() => (draft?.elements?.length ? { view: "front", ms: 1600, n: nextReq() } : null));
   const [shots, setShots] = useState(null);
   const [spin, setSpin] = useState(true);
+  const [lit, setLit] = useState(false); // Review: the dressing room has been drawn, so its lights can come up
+  const litTimer = useRef(null);
   const [unfoldKey, setUnfoldKey] = useState(0); // Review opens with the tee unfolding in the air (changes each time)
   const [sideShown, setSideShown] = useState(null); // the side picture last tapped in Review
   const [qtys, setQtys] = useState({}); // Review: { M: 2, L: 1 } — one design, any mix of sizes // Review: the tee turns 360° until a side is picked
@@ -694,6 +696,10 @@ export default function DesignRoomPage() {
     const calm = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
     setCamRequest({ ...SHOWROOM, ...(calm ? {} : { from: [0, 1.9, 10.5], ms: 2600 }), n: nextReq() });
     setUnfoldKey(calm ? 0 : nextReq());
+    // the view stays dark until the room is drawn (or 3 s pass, in case the 3D view cannot say so)
+    setLit(false);
+    clearTimeout(litTimer.current);
+    litTimer.current = setTimeout(() => setLit(true), 3000);
     // let the outline disappear from the textures, then take pictures
     // (retry for a few seconds in case the 3D view is still starting)
     captureMockups().then((m) => m && setShots(SIDES.map(([v, label]) => ({ label, url: m[v] }))));
@@ -851,7 +857,7 @@ export default function DesignRoomPage() {
   })();
 
   return (
-    <div className="dr-app" data-step={step}>
+    <div className="dr-app" data-step={step} data-lit={lit ? "1" : undefined}>
       <header className="dr-top">
         <Link to="/customizable" className="dr-back" aria-label="Back to customizable garments">←</Link>
         <span className="dr-brand">IDENTEE</span>
@@ -1018,6 +1024,7 @@ export default function DesignRoomPage() {
                 spin={spin}
                 face={sideShown}
                 unfoldKey={step === "review" ? unfoldKey : 0}
+                onLit={() => setLit(true)}
               />
             </div>
           )}

@@ -46,14 +46,9 @@ function Backdrop({ room }) {
   }, [scene, room]);
   return null;
 }
-// Sets the scene's reflections; returns what was there before.
-function swapEnvironment(scene, env) {
-  const before = scene.environment;
-  scene.environment = env;
-  return before;
-}
 function paintBackdrop(scene, room) {
   const set = SETS[room];
+  scene.environmentIntensity = room === "boutique" ? 1 : 0; // the dressing room's reflections
   scene.background = new THREE.Color(set.background);
   scene.fog = new THREE.Fog(set.background, ...set.fog);
 }
@@ -262,8 +257,10 @@ function Boutique({ visible, model }) {
 
   return (
     <group ref={room} name="set-boutique" visible={visible}>
-      {/* soft reflections for the brass and the glossy floor (made in the scene, nothing is downloaded) */}
-      {visible && (
+      {/* Soft reflections for the brass and the glossy floor (made in the scene, nothing is downloaded).
+          Always loaded — the studio simply turns them down to nothing (see paintBackdrop). Loading them
+          only on entering Review made the first visit stutter, because every material had to be rebuilt. */}
+      {
         <Environment resolution={128} frames={1}>
           <color attach="background" args={["#0C0A08"]} />
           <Lightformer form="rect" intensity={5} color="#FFE6BF" position={[0, 5, 2]} rotation-x={Math.PI / 2} scale={[8, 3, 1]} />
@@ -271,7 +268,7 @@ function Boutique({ visible, model }) {
           <Lightformer form="rect" intensity={2.2} color="#FFD49A" position={[6, 2, 1]} rotation-y={-Math.PI / 2} scale={[5, 3, 1]} />
           <Lightformer form="rect" intensity={3} color="#FFF1D8" position={[0, 1.5, -6]} scale={[3, 4, 1]} />
         </Environment>
-      )}
+      }
       <hemisphereLight args={["#FFE9C8", "#1E1712", 0.28]} />
       {/* the key light on the designed tee */}
       <spotLight position={[1.2, 4.8, 4.2]} angle={Math.PI / 8.5} penumbra={0.75} decay={1.5} distance={16} intensity={120} color="#FFF0D8" castShadow shadow-mapSize={[1024, 1024]} shadow-bias={-0.0004} />
@@ -627,7 +624,7 @@ function Decal({ probe, spot, canvas, version, areaKey, onPick, interactive, ord
   );
 }
 
-function Tee({ model, colour, areas, onPickArea, interactive, still, spotsRef, turntable, spin, face, spinSpeed, unfoldKey }) {
+function Tee({ model, colour, areas, onPickArea, interactive, still, spotsRef, turntable, spin, face, spinSpeed, unfoldKey, onLit }) {
   const { geo, probe, map, normalMap } = useTeeGeometry(model.url);
   const group = useRef();
   const mesh = useRef();
@@ -635,7 +632,11 @@ function Tee({ model, colour, areas, onPickArea, interactive, still, spotsRef, t
   const target = useMemo(() => new THREE.Color(colour), [colour]);
   const speed = useRef(0); // turntable speed, eased
   // the reveal: starts when unfoldKey changes (0 = no reveal); a tap on the tee skips it
-  const unfold = useRef({ key: 0, t0: 0, on: false });
+  // s = seconds of the reveal played so far (it counts its own time, so a slow frame pauses it instead of skipping ahead)
+  const unfold = useRef({ key: 0, s: 0, on: false });
+  // frames drawn since the dressing room appeared: the first few are slow the first time (the room is being
+  // built), so the reveal and the "lights on" wait for them
+  const roomFrames = useRef(0);
   const shadow = useMemo(() => {
     const m = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking });
     m.onBeforeCompile = foldable;
@@ -659,12 +660,16 @@ function Tee({ model, colour, areas, onPickArea, interactive, still, spotsRef, t
     if (u.key !== unfoldKey) {
       u.key = unfoldKey;
       u.on = !!unfoldKey && turntable;
-      u.t0 = t;
+      u.s = 0;
     }
-    if (u.on && (!turntable || t - u.t0 > UNFOLD.end)) u.on = false;
+    roomFrames.current = turntable ? roomFrames.current + 1 : 0;
+    const settled = roomFrames.current > 4;
+    if (roomFrames.current === 5) onLit?.();
+    if (u.on && settled) u.s += Math.min(dt, 0.05);
+    if (u.on && (!turntable || u.s > UNFOLD.end)) u.on = false;
     if (u.on) {
       // folded, lying flat on the plinth like a tee on a shop table; it lifts straight up and stands, then opens
-      const s = t - u.t0;
+      const s = u.s;
       const up = spring(s - UNFOLD.lift, 4.2);
       setFold(s);
       g.position.y = THREE.MathUtils.lerp(FLAT_Y, TEE_Y + 0.22, up) + Math.sin(t / 1.4) * 0.025 * spring(s - 2.6, 2);
@@ -780,7 +785,7 @@ function CameraRig({ request, getSpot, apiRef, wakeKey, room }) {
       if (request.look) look = new THREE.Vector3(...request.look);
     }
     if (request.from) camera.position.set(...request.from);
-    anim.current = { from: camera.position.clone(), to, tf: controls.target.clone(), tt: look, t0: performance.now(), ms: request.ms || 900 };
+    anim.current = { from: camera.position.clone(), to, tf: controls.target.clone(), tt: look, at: 0, ms: request.ms || 900 };
   };
   useEffect(() => {
     if (request && controls) start(request);
@@ -813,7 +818,7 @@ function CameraRig({ request, getSpot, apiRef, wakeKey, room }) {
     };
   }, [controls]);
 
-  useFrame((frame) => {
+  useFrame((frame, dt) => {
     if (awake.current > 0) awake.current -= 1;
     if (awake.current > 0 || anim.current || pending.current) invalidate();
     const p = pending.current;
@@ -828,7 +833,8 @@ function CameraRig({ request, getSpot, apiRef, wakeKey, room }) {
       controls.setPolarAngle(THREE.MathUtils.lerp(controls.getPolarAngle(), Math.PI * 0.48 - frame.pointer.y * 0.05, 0.03));
     }
     if (!a || !controls) return;
-    const t = Math.min(1, (performance.now() - a.t0) / a.ms);
+    a.at += Math.min(dt, 0.05) * 1000; // a slow frame pauses the move instead of skipping part of it
+    const t = Math.min(1, a.at / a.ms);
     const k = 1 - Math.pow(1 - t, 3);
     camera.position.lerpVectors(a.from, a.to, k);
     controls.target.lerpVectors(a.tf, a.tt, k);
@@ -873,7 +879,6 @@ function CameraRig({ request, getSpot, apiRef, wakeKey, room }) {
         tee.position.z = 0;
       }
       paintBackdrop(scene, "studio");
-      const env = swapEnvironment(scene, null);
       camera.position.set(...VIEWS[view]);
       camera.lookAt(0, 0.1, 0);
       gl.render(scene, camera);
@@ -889,7 +894,6 @@ function CameraRig({ request, getSpot, apiRef, wakeKey, room }) {
       prints.forEach(([m, o]) => (m.opacity = o));
       [FOLD.left.value, FOLD.right.value, FOLD.bottom.value] = was.fold;
       paintBackdrop(scene, room);
-      swapEnvironment(scene, env);
       camera.position.copy(keepP);
       if (controls) {
         controls.target.copy(keepT);
@@ -908,7 +912,7 @@ function CameraRig({ request, getSpot, apiRef, wakeKey, room }) {
   return null;
 }
 
-const Room3D = forwardRef(function Room3D({ model, colour, areas, onPickArea, camRequest, interactive = true, still = false, room = "studio", spin = false, face = null, spinSpeed = 1.6, unfoldKey = 0 }, ref) {
+const Room3D = forwardRef(function Room3D({ model, colour, areas, onPickArea, camRequest, interactive = true, still = false, room = "studio", spin = false, face = null, spinSpeed = 1.6, unfoldKey = 0, onLit }, ref) {
   const boutique = room === "boutique";
   const spotsRef = useRef(() => null);
   return (
@@ -924,7 +928,7 @@ const Room3D = forwardRef(function Room3D({ model, colour, areas, onPickArea, ca
       <Studio visible={!boutique} />
       <Suspense fallback={null}>
         <Boutique visible={boutique} model={model} />
-        <Tee model={model} colour={colour} areas={areas} onPickArea={onPickArea} interactive={interactive} still={still} spotsRef={spotsRef} turntable={boutique} spin={spin} face={face} spinSpeed={spinSpeed} unfoldKey={unfoldKey} />
+        <Tee model={model} colour={colour} areas={areas} onPickArea={onPickArea} interactive={interactive} still={still} spotsRef={spotsRef} turntable={boutique} spin={spin} face={face} spinSpeed={spinSpeed} unfoldKey={unfoldKey} onLit={onLit} />
       </Suspense>
       <OrbitControls
         makeDefault
