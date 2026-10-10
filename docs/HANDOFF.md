@@ -78,6 +78,21 @@ Admin → Settings (left out when empty; the social boxes currently hold "idente
 - Not yet tested by anyone: phone layout after the restyle, saving/ordering a design that uses the new text settings, the
   blurry / over-the-edge checks, five of the six templates.
 
+**Branch `feature-review-animation` — MERGED to `main` on 10 Oct 2026:**
+- Review step happens in a **dressing room** (`Boutique` in `studio/Room3D.jsx`): slatted wall, lit arch, IDENTEE sign, a rack
+  of tees each side, shelves, lamps, mirrored floor (drei `MeshReflectorMaterial`), plinth with a ring of light. The design
+  step keeps the bright `Studio`; both sets stay mounted and only one is visible (`room` prop).
+- In Review the **tee turns, not the camera** (`turntable`, `spin`, `face`); the camera sits at `SHOWROOM` and leans with the pointer.
+- **Unfold reveal**: the tee lies folded on the plinth, lifts, opens (bottom, then both sides), then the prints fade in.
+  The fold is drawn in the vertex shader (`FOLD`, `foldable`) and shared by tee, shadow and decals. Timings in `UNFOLD`.
+- Order pictures (`snapshot`) are always taken in the studio with the tee open and facing forward; the real view is redrawn
+  straight after each one (otherwise the studio shot flashes mid-reveal).
+- Panel glides in, totals roll (`studio/Rolling.jsx`), quantity ticks, drawn tick on the added-to-cart card. All motion is
+  skipped for `prefers-reduced-motion`.
+- Testing tip: the Browser pane only draws frames on a screenshot. To check an animation, step it manually (r3f `advance`
+  with a faked `performance.now`) and lay the frames out in a contact sheet.
+- Not tested: Review on a phone; the added-to-cart tick (needs a real cart write); speed on a slow laptop.
+
 **Next:** policy pages (Privacy, Returns & refunds, Shipping, Terms — required by Razorpay for live payments; need the
 client's rules), Payments / Sellers admin pages; go-live items (Brevo email, deployment,
 Razorpay live keys). Gotcha: the C: drive is nearly full — keep throwaway test databases on E:.
