@@ -675,8 +675,13 @@ export default function DesignRoomPage() {
     if (!activePos) return 300;
     const { W, H } = areaPx(activePos);
     const maxW = narrow ? Math.min(220, window.innerWidth - 64) : 300;
-    const maxH = narrow ? Math.min(170, window.innerHeight * 0.22) : Math.min(260, window.innerHeight * 0.34);
-    return Math.round(Math.max(120, Math.min(maxW, (maxH * W) / H)));
+    // Tall, thin areas (Vertical Front 10 × 52 cm …) get a taller box, but
+    // never so tall that the controls below it are pushed out of the panel.
+    const tall = H / W > 2;
+    const maxH = narrow
+      ? Math.min(tall ? 240 : 170, window.innerHeight * (tall ? 0.3 : 0.22))
+      : Math.min(tall ? 330 : 260, window.innerHeight * (tall ? 0.42 : 0.34));
+    return Math.round(Math.max(tall ? 40 : 120, Math.min(maxW, (maxH * W) / H)));
   })();
 
   return (
