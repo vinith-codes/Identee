@@ -145,9 +145,8 @@ export default function DesignRoomPage() {
   const [camRequest, setCamRequest] = useState(() => (draft?.elements?.length ? { view: "front", ms: 1600, n: nextReq() } : null));
   const [shots, setShots] = useState(null);
   const [spin, setSpin] = useState(true);
-  const [reveal, setReveal] = useState(false); // Review opens with one quicker full turn
+  const [unfoldKey, setUnfoldKey] = useState(0); // Review opens with the tee unfolding in the air (changes each time)
   const [sideShown, setSideShown] = useState(null); // the side picture last tapped in Review
-  const revealTimer = useRef(null);
   const [qtys, setQtys] = useState({}); // Review: { M: 2, L: 1 } — one design, any mix of sizes // Review: the tee turns 360° until a side is picked
   const [toast, setToast] = useState("");
   const [busy, setBusy] = useState("");
@@ -691,14 +690,10 @@ export default function DesignRoomPage() {
     setSpin(true);
     setSideShown(null);
     setQtys((q) => (Object.values(q).some((n) => n > 0) ? q : { [sizeNow]: 1 }));
-    // the reveal: the camera pulls back while the tee makes one quicker full turn, then it turns slowly
+    // the reveal: the camera glides in while a folded tee rises, opens in the air and the prints appear
     const calm = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
     setCamRequest({ ...SHOWROOM, ...(calm ? {} : { from: [0, 1.9, 10.5], ms: 2600 }), n: nextReq() });
-    if (!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
-      setReveal(true);
-      clearTimeout(revealTimer.current);
-      revealTimer.current = setTimeout(() => setReveal(false), 3400);
-    }
+    setUnfoldKey(calm ? 0 : nextReq());
     // let the outline disappear from the textures, then take pictures
     // (retry for a few seconds in case the 3D view is still starting)
     captureMockups().then((m) => m && setShots(SIDES.map(([v, label]) => ({ label, url: m[v] }))));
@@ -768,7 +763,6 @@ export default function DesignRoomPage() {
   // Review: show one side (stops the 360° turn) / turn again
   const showSide = (view) => {
     setSpin(false);
-    setReveal(false);
     setSideShown(view);
     // the tee turns to that side; the camera comes back to the front of the dressing room
     setCamRequest({ ...SHOWROOM, n: nextReq() });
@@ -1023,7 +1017,7 @@ export default function DesignRoomPage() {
                 room={step === "review" ? "boutique" : "studio"}
                 spin={spin}
                 face={sideShown}
-                spinSpeed={reveal ? 14 : 1.6}
+                unfoldKey={step === "review" ? unfoldKey : 0}
               />
             </div>
           )}

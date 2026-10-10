@@ -357,6 +357,92 @@ function Boutique({ visible, model }) {
   );
 }
 
+/* ---------- the unfold ----------
+   In the Review step the tee arrives folded like one from a shop shelf
+   (both sides tucked behind, then folded in half), rises, opens in the air,
+   and only then the customer's prints appear on it.
+
+   The tee is a fixed shape, not cloth, so the folds are done while drawing:
+   every point beyond a fold line is swung round that line. The same swing is
+   applied to the tee, to its shadow and to every print, so they stay together. */
+const FOLD = {
+  left: { value: 0 }, // angle of each fold: 0 = open, PI = folded flat
+  right: { value: 0 },
+  bottom: { value: 0 },
+  dims: { value: new THREE.Vector4(0.15, 0, 0.03, 0.12) }, // side fold line (x), bottom fold line (y), layer gap, how flat a folded tee is pressed
+  printAt: 1e9, // seconds since the prints started to appear (huge = fully shown)
+};
+const FOLD_GLSL = /* glsl */ `
+uniform float uFoldL;
+uniform float uFoldR;
+uniform float uFoldB;
+uniform vec4 uFoldDims;
+const float FOLD_SOFT = 0.05; // the crease is a short curve, not a hard edge
+vec3 foldPos(vec3 p) {
+  float k = max(max(uFoldL, uFoldR), uFoldB) / 3.14159;
+  p.z *= mix(1.0, uFoldDims.w, smoothstep(0.0, 0.7, k));
+  float xs = uFoldDims.x;
+  if (p.x > xs) {
+    float d = p.x - xs; float f = clamp(d / FOLD_SOFT, 0.0, 1.0); float a = uFoldL * f;
+    float z = p.z;
+    p.x = xs + d * cos(a) + z * sin(a);
+    p.z = -d * sin(a) + z * cos(a) - uFoldDims.z * f * (1.0 - cos(uFoldL)) * 0.5;
+  } else if (p.x < -xs) {
+    float d = -xs - p.x; float f = clamp(d / FOLD_SOFT, 0.0, 1.0); float a = uFoldR * f;
+    float z = p.z;
+    p.x = -xs - (d * cos(a) + z * sin(a));
+    p.z = -d * sin(a) + z * cos(a) - uFoldDims.z * f * (1.0 - cos(uFoldR));
+  }
+  if (p.y < uFoldDims.y) {
+    float d = p.y - uFoldDims.y; float f = clamp(-d / FOLD_SOFT, 0.0, 1.0); float b = uFoldB * f;
+    float z = p.z;
+    p.y = uFoldDims.y + d * cos(b) - z * sin(b);
+    p.z = d * sin(b) + z * cos(b) - uFoldDims.z * f * (1.0 - cos(uFoldB)) * 1.5;
+  }
+  return p;
+}
+vec3 foldDir(vec3 n, vec3 p) {
+  float xs = uFoldDims.x;
+  if (p.x > xs) { float a = uFoldL * clamp((p.x - xs) / FOLD_SOFT, 0.0, 1.0); n = vec3(n.x * cos(a) + n.z * sin(a), n.y, -n.x * sin(a) + n.z * cos(a)); }
+  else if (p.x < -xs) { float a = uFoldR * clamp((-xs - p.x) / FOLD_SOFT, 0.0, 1.0); n = vec3(n.x * cos(a) - n.z * sin(a), n.y, n.x * sin(a) + n.z * cos(a)); }
+  if (p.y < uFoldDims.y) { float b = uFoldB * clamp((uFoldDims.y - p.y) / FOLD_SOFT, 0.0, 1.0); n = vec3(n.x, n.y * cos(b) - n.z * sin(b), n.y * sin(b) + n.z * cos(b)); }
+  return n;
+}
+`;
+// Makes a material draw the fold (used on the tee, its shadow and the prints).
+function foldable(shader) {
+  shader.uniforms.uFoldL = FOLD.left;
+  shader.uniforms.uFoldR = FOLD.right;
+  shader.uniforms.uFoldB = FOLD.bottom;
+  shader.uniforms.uFoldDims = FOLD.dims;
+  shader.vertexShader = shader.vertexShader
+    .replace("#include <common>", `#include <common>\n${FOLD_GLSL}`)
+    .replace("#include <beginnormal_vertex>", "#include <beginnormal_vertex>\nobjectNormal = foldDir(objectNormal, position);")
+    .replace("#include <begin_vertex>", "#include <begin_vertex>\ntransformed = foldPos(transformed);");
+}
+const foldKey = () => "identee-fold";
+// the fold's values for a moment t (seconds) of the reveal
+const ease = (x) => {
+  const k = Math.min(1, Math.max(0, x));
+  return k < 0.5 ? 4 * k * k * k : 1 - (-2 * k + 2) ** 3 / 2;
+};
+const UNFOLD = { rise: 1.0, bottom: [0.9, 1.9], left: [1.7, 2.5], right: [1.9, 2.7], print: 2.75, end: 4.1 };
+function setFold(t) {
+  const part = ([a, b]) => Math.PI * (1 - ease((t - a) / (b - a)));
+  FOLD.bottom.value = part(UNFOLD.bottom);
+  FOLD.left.value = part(UNFOLD.left);
+  FOLD.right.value = part(UNFOLD.right);
+  FOLD.printAt = t - UNFOLD.print;
+}
+function openFold() {
+  FOLD.left.value = 0;
+  FOLD.right.value = 0;
+  FOLD.bottom.value = 0;
+  FOLD.printAt = 1e9;
+}
+// how visible a print is while they appear one after another
+const printShown = (order) => Math.min(1, Math.max(0, (FOLD.printAt - order * 0.22) / 0.55));
+
 /* ---------- the tee ---------- */
 // Quantized glTF positions are small integers: copy to floats before moving them.
 function floatGeometry(src) {
@@ -442,8 +528,12 @@ function keepFacing(geo, n, min) {
   geo.setAttribute("uv", new THREE.Float32BufferAttribute(U, 2));
 }
 
-function Decal({ probe, spot, canvas, version, areaKey, onPick, interactive }) {
+function Decal({ probe, spot, canvas, version, areaKey, onPick, interactive, order }) {
   const texRef = useRef(null);
+  const matRef = useRef(null);
+  useFrame(() => {
+    if (matRef.current) matRef.current.opacity = printShown(order);
+  });
   const geometry = useMemo(() => {
     if (!spot) return null;
     const raw = new THREE.Vector3(...areaCentreRaw(spot));
@@ -493,20 +583,34 @@ function Decal({ probe, spot, canvas, version, areaKey, onPick, interactive }) {
         onPick?.(areaKey);
       }}
     >
-      <meshStandardMaterial transparent depthWrite={false} polygonOffset polygonOffsetFactor={-4} roughness={0.8}>
+      <meshStandardMaterial ref={matRef} transparent depthWrite={false} polygonOffset polygonOffsetFactor={-4} roughness={0.8} onBeforeCompile={foldable} customProgramCacheKey={foldKey}>
         <canvasTexture ref={texRef} attach="map" args={[canvas]} colorSpace={THREE.SRGBColorSpace} anisotropy={8} />
       </meshStandardMaterial>
     </mesh>
   );
 }
 
-function Tee({ model, colour, areas, onPickArea, interactive, still, spotsRef, turntable, spin, face, spinSpeed }) {
+function Tee({ model, colour, areas, onPickArea, interactive, still, spotsRef, turntable, spin, face, spinSpeed, unfoldKey }) {
   const { geo, probe, map, normalMap } = useTeeGeometry(model.url);
   const group = useRef();
   const mesh = useRef();
   const mat = useRef();
   const target = useMemo(() => new THREE.Color(colour), [colour]);
   const speed = useRef(0); // turntable speed, eased
+  // the reveal: starts when unfoldKey changes (0 = no reveal); a tap on the tee skips it
+  const unfold = useRef({ key: 0, t0: 0, on: false });
+  const shadow = useMemo(() => {
+    const m = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking });
+    m.onBeforeCompile = foldable;
+    m.customProgramCacheKey = foldKey;
+    return m;
+  }, []);
+  useLayoutEffect(() => {
+    // fold lines from the tee's own size: sides at 30% of the half width, bottom at half the height
+    const b = geo.boundingBox;
+    if (b) FOLD.dims.value.set(Math.max(Math.abs(b.min.x), Math.abs(b.max.x)) * 0.3, (b.min.y + b.max.y) / 2, 0.03, 0.12);
+  }, [geo]);
+  useEffect(() => openFold, []);
 
   useFrame((state, dt) => {
     if (mat.current) mat.current.color.lerp(target, Math.min(1, dt * 6));
@@ -514,6 +618,26 @@ function Tee({ model, colour, areas, onPickArea, interactive, still, spotsRef, t
     if (!g) return;
     const t = state.clock.elapsedTime;
     const k = still ? 0 : 1;
+    const u = unfold.current;
+    if (u.key !== unfoldKey) {
+      u.key = unfoldKey;
+      u.on = !!unfoldKey && turntable;
+      u.t0 = t;
+    }
+    if (u.on && (!turntable || t - u.t0 > UNFOLD.end)) u.on = false;
+    if (u.on) {
+      // folded: lying tilted back low over the plinth; it rises and stands up, then opens
+      const s = t - u.t0;
+      const up = ease(s / UNFOLD.rise);
+      setFold(s);
+      g.position.y = THREE.MathUtils.lerp(TEE_Y - 0.5, TEE_Y + 0.22, up);
+      g.rotation.x = THREE.MathUtils.lerp(-1.15, 0, ease((s - 0.2) / 1.2));
+      g.rotation.y = THREE.MathUtils.lerp(0.9, 0, ease(s / 1.6));
+      speed.current = 0;
+      return;
+    }
+    openFold();
+    g.rotation.x = THREE.MathUtils.lerp(g.rotation.x, 0, 0.15);
     g.position.y = THREE.MathUtils.lerp(g.position.y, TEE_Y + (turntable ? 0.22 : 0) + Math.sin(t / 1.4) * 0.025 * k, 0.08);
     // the shortest way round to an angle
     const towards = (to, f) => {
@@ -545,10 +669,18 @@ function Tee({ model, colour, areas, onPickArea, interactive, still, spotsRef, t
 
   return (
     <group ref={group} name="tee" scale={TEE_SCALE} position-y={TEE_Y}>
-      <mesh ref={mesh} geometry={geo} castShadow>
-        <meshStandardMaterial ref={mat} color={colour} map={map} normalMap={normalMap} normalScale={[0.8, 0.8]} roughness={0.92} metalness={0} side={THREE.DoubleSide} />
-        {areas.map((a) => (
-          <Decal key={`${a.key}-${a.spotKey}`} areaKey={a.key} probe={probe} spot={a.spot} canvas={a.canvas} version={a.version} onPick={onPickArea} interactive={interactive} />
+      <mesh
+        ref={mesh}
+        geometry={geo}
+        castShadow
+        customDepthMaterial={shadow}
+        onPointerDown={() => {
+          unfold.current.on = false; // a tap skips the reveal
+        }}
+      >
+        <meshStandardMaterial ref={mat} color={colour} map={map} normalMap={normalMap} normalScale={[0.8, 0.8]} roughness={0.92} metalness={0} side={THREE.DoubleSide} onBeforeCompile={foldable} customProgramCacheKey={foldKey} />
+        {areas.map((a, i) => (
+          <Decal key={`${a.key}-${a.spotKey}`} order={i} areaKey={a.key} probe={probe} spot={a.spot} canvas={a.canvas} version={a.version} onPick={onPickArea} interactive={interactive} />
         ))}
       </mesh>
     </group>
@@ -684,11 +816,20 @@ function CameraRig({ request, getSpot, apiRef, wakeKey, room }) {
       const studio = scene.getObjectByName("set-studio");
       const boutique = scene.getObjectByName("set-boutique");
       const tee = scene.getObjectByName("tee");
-      const was = { studio: studio?.visible, boutique: boutique?.visible, turn: tee?.rotation.y, y: tee?.position.y };
+      const was = { studio: studio?.visible, boutique: boutique?.visible, turn: tee?.rotation.y, tilt: tee?.rotation.x, y: tee?.position.y, fold: [FOLD.left.value, FOLD.right.value, FOLD.bottom.value] };
+      const prints = [];
+      scene.traverse((o) => {
+        if (o.userData?.areaKey && o.material) prints.push([o.material, o.material.opacity]);
+      });
+      prints.forEach(([m]) => (m.opacity = 1));
+      FOLD.left.value = 0;
+      FOLD.right.value = 0;
+      FOLD.bottom.value = 0;
       if (studio) studio.visible = true;
       if (boutique) boutique.visible = false;
       if (tee) {
         tee.rotation.y = 0;
+        tee.rotation.x = 0;
         tee.position.y = TEE_Y;
       }
       paintBackdrop(scene, "studio");
@@ -701,8 +842,11 @@ function CameraRig({ request, getSpot, apiRef, wakeKey, room }) {
       if (boutique) boutique.visible = was.boutique;
       if (tee) {
         tee.rotation.y = was.turn;
+        tee.rotation.x = was.tilt;
         tee.position.y = was.y;
       }
+      prints.forEach(([m, o]) => (m.opacity = o));
+      [FOLD.left.value, FOLD.right.value, FOLD.bottom.value] = was.fold;
       paintBackdrop(scene, room);
       swapEnvironment(scene, env);
       camera.position.copy(keepP);
@@ -719,7 +863,7 @@ function CameraRig({ request, getSpot, apiRef, wakeKey, room }) {
   return null;
 }
 
-const Room3D = forwardRef(function Room3D({ model, colour, areas, onPickArea, camRequest, interactive = true, still = false, room = "studio", spin = false, face = null, spinSpeed = 1.6 }, ref) {
+const Room3D = forwardRef(function Room3D({ model, colour, areas, onPickArea, camRequest, interactive = true, still = false, room = "studio", spin = false, face = null, spinSpeed = 1.6, unfoldKey = 0 }, ref) {
   const boutique = room === "boutique";
   const spotsRef = useRef(() => null);
   return (
@@ -735,7 +879,7 @@ const Room3D = forwardRef(function Room3D({ model, colour, areas, onPickArea, ca
       <Studio visible={!boutique} />
       <Suspense fallback={null}>
         <Boutique visible={boutique} model={model} />
-        <Tee model={model} colour={colour} areas={areas} onPickArea={onPickArea} interactive={interactive} still={still} spotsRef={spotsRef} turntable={boutique} spin={spin} face={face} spinSpeed={spinSpeed} />
+        <Tee model={model} colour={colour} areas={areas} onPickArea={onPickArea} interactive={interactive} still={still} spotsRef={spotsRef} turntable={boutique} spin={spin} face={face} spinSpeed={spinSpeed} unfoldKey={unfoldKey} />
       </Suspense>
       <OrbitControls
         makeDefault
