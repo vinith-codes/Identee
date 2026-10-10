@@ -347,6 +347,8 @@ export default function DesignRoomPage() {
   /* ---------- actions ---------- */
   // While dragging, update the 3D tee at most once per screen frame.
   const liveQueue = useRef(null);
+  // The drag is painted straight onto the area's picture and the 3D tee is
+  // told to show it again — the page itself is not redrawn until you let go.
   const queueLive = (key, els) => {
     const first = !liveQueue.current;
     liveQueue.current = { key, elements: els };
@@ -354,7 +356,15 @@ export default function DesignRoomPage() {
       requestAnimationFrame(() => {
         const next = liveQueue.current;
         liveQueue.current = null;
-        if (next) setLive(next);
+        if (!next) return;
+        const entry = renderers.current.get(next.key);
+        if (entry && roomApi.current?.touch) {
+          entry.r.render(next.elements, { outline: true });
+          lastSig.current.delete(next.key); // the picture no longer matches the saved design
+          roomApi.current.touch(next.key);
+        } else {
+          setLive(next);
+        }
       });
     }
   };

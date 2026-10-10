@@ -198,8 +198,8 @@ function Tee({ model, colour, areas, onPickArea, interactive, still, spotsRef })
 }
 
 /* ---------- camera ---------- */
-function CameraRig({ request, getSpot, apiRef }) {
-  const { camera, controls, gl, scene, size } = useThree();
+function CameraRig({ request, getSpot, apiRef, wakeKey }) {
+  const { camera, controls, gl, scene, size, invalidate } = useThree();
   const anim = useRef(null);
 
   const pending = useRef(null); // area request waiting for its decal to exist
@@ -212,7 +212,7 @@ function CameraRig({ request, getSpot, apiRef }) {
       const s = getSpot(request.area);
       if (!s) {
         // the area's outline decal appears a moment later — try again then
-        if (!pending.current || pending.current.request !== request) pending.current = { request, until: performance.now() + 1500 };
+        if (!pending.current || pending.current.request !== request) pending.current = { request, frames: 90 };
         return;
       }
       pending.current = null;
@@ -259,10 +259,21 @@ function CameraRig({ request, getSpot, apiRef }) {
     if (request?.area && request.keep && controls) start({ ...request, ms: 350 });
   }, [size.width, size.height]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // While an area is being edited the room is only drawn when something
+  // changes (frameloop "demand"), so the computer is free for the dragging.
+  // Any change keeps it drawing for a moment so moves and fades can finish.
+  const awake = useRef(0);
+  useEffect(() => {
+    awake.current = 110; // frames (about 2 s) — counted in frames so a hidden tab doesn't use them up
+    invalidate();
+  }, [wakeKey, request, size.width, size.height, invalidate]);
+
   useFrame(() => {
+    if (awake.current > 0) awake.current -= 1;
+    if (awake.current > 0 || anim.current || pending.current) invalidate();
     const p = pending.current;
     if (p) {
-      if (performance.now() > p.until) pending.current = null;
+      if ((p.frames -= 1) <= 0) pending.current = null;
       else start(p.request);
     }
     const a = anim.current;
@@ -276,6 +287,13 @@ function CameraRig({ request, getSpot, apiRef }) {
 
   // Review mockups: render each side from a fixed camera into a JPEG.
   useImperativeHandle(apiRef, () => ({
+    // an area's picture was repainted in place (dragging): show it again
+    touch(areaKey) {
+      scene.traverse((o) => {
+        if (o.userData?.areaKey === areaKey && o.material?.map) o.material.map.needsUpdate = true;
+      });
+      invalidate();
+    },
     snapshot(view) {
       const keepP = camera.position.clone();
       const keepT = controls ? controls.target.clone() : new THREE.Vector3();
@@ -299,6 +317,7 @@ const Room3D = forwardRef(function Room3D({ model, colour, areas, onPickArea, ca
   return (
     <Canvas
       shadows
+      frameloop={still ? "demand" : "always"}
       dpr={[1, 2]}
       camera={{ fov: 32, position: [0, 1.5, 8], near: 0.05, far: 50 }}
       gl={{ antialias: true, preserveDrawingBuffer: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.05 }}
@@ -321,7 +340,7 @@ const Room3D = forwardRef(function Room3D({ model, colour, areas, onPickArea, ca
         autoRotate={autoRotate}
         autoRotateSpeed={1.6}
       />
-      <CameraRig request={camRequest} getSpot={(k) => spotsRef.current(k)} apiRef={ref} />
+      <CameraRig request={camRequest} getSpot={(k) => spotsRef.current(k)} apiRef={ref} wakeKey={`${colour}|${still}|${interactive}|${areas.map((a) => `${a.key}:${a.version}`).join(",")}`} />
     </Canvas>
   );
 });
