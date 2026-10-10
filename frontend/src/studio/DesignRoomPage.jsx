@@ -34,7 +34,6 @@ const ADD_TABS = [
   ["text", "Text", "M5 6V4h14v2M12 4v16M9 20h6"],
   ["upload", "Upload", "M12 16V4m0 0-4 4m4-4 4 4M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"],
   ["art", "Art", "M4 5h16v14H4zM8 13l3-3 5 5M15 9h.01"],
-  ["ideas", "Ideas", "M9 18h6M10 21h4M12 3a6 6 0 0 0-4 10.5c.7.7 1 1.5 1 2.5h6c0-1 .3-1.8 1-2.5A6 6 0 0 0 12 3Z"],
   ["ai", "Assistant", "m12 3 1.8 4.7L18 9.5l-4.2 1.8L12 16l-1.8-4.7L6 9.5l4.2-1.8L12 3Z"],
 ];
 const ICON_AREAS = "M8 4 4 6.5 2 10l3 1.5V20h14v-8.5L22 10l-2-3.5L16 4a4 4 0 0 1-8 0Z";
@@ -44,7 +43,6 @@ const AREA_GROUPS = [
   ["Back", ["back"]],
   ["Sleeves", ["left", "right"]],
 ];
-const IDEAS = ["BIRTHDAY SQUAD", "Just Married", "TEAM 07", "Chennai Born", "Stay Curious", "Class of 2026", "Bride Squad", "Founder Mode"];
 const SIDES = [["front", "Front"], ["back", "Back"], ["left", "Left"], ["right", "Right"]];
 const DRAFT_KEY = (type) => `identee:design:v3:${type}`;
 const SIZE_KEY = "identee:size";
@@ -1036,17 +1034,6 @@ export default function DesignRoomPage() {
                 )}
 
                 {addTab === "art" && <ArtPanel categories={artCategories} designs={artDesigns} onOpen={(id) => dispatch(fetchArtDesigns(id))} onPick={pickArt} />}
-
-                {addTab === "ideas" && (
-                  <>
-                    <p className="dr-empty">Tap a line to put it on the tee, then change the words.</p>
-                    <div className="dr-idealist">
-                      {IDEAS.map((t) => (
-                        <button key={t} type="button" className="dr-add idea" onClick={() => addText(t)}>{t}</button>
-                      ))}
-                    </div>
-                  </>
-                )}
 
                 </div>
                 )}

@@ -444,7 +444,7 @@
 /* step 2 */
 .dr-flatwrap { padding: 6px 20px 4px; }
 .dr-controls { padding: 14px 20px 22px; }
-.dr-addtabs { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0; margin: 8px 20px 0; padding: 0; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; background: none; flex-shrink: 0; }
+.dr-addtabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; margin: 8px 20px 0; padding: 0; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; background: none; flex-shrink: 0; }
 .dr-addtab { padding: 10px 0 11px; border-radius: 0; gap: 4px; font-size: 12px; }
 .dr-addtab.on { background: none; box-shadow: none; color: var(--ink); }
 .dr-addtab.on::after { content: ""; position: absolute; left: 18%; right: 18%; bottom: -1px; height: 2px; background: var(--gold); }
