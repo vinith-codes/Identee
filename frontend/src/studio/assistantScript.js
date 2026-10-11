@@ -10,7 +10,11 @@
 //   { slogans: [lines] }           each with "Add to tee" (all stay usable)
 //   { issues: [...] }              design-check findings, each with a fix
 //   { inks: [hex] }                ink colours to try
+//   { designs: [url] }             pictures the image AI made, each with "Add to tee"
 //   { act: { type, ... } }         something for the page to do (not shown)
+//
+// "Make a design" is the one paid part: the page asks the server, which asks
+// the image AI (act type "generate"). Everything else here is free.
 import { SLOGANS, TONES, occasionIn, personalLines, slogansFor, toneIn } from "./assistantSlogans";
 import { TEMPLATES } from "./designTemplates";
 
@@ -26,11 +30,14 @@ const PRINT_FOR = {
 };
 const NOT_ALLOWED = /logo of|nike|adidas|puma|marvel|disney|celebr|actor|actress|cricketer|footballer/i;
 
-const bot = (text) => ({ from: "bot", text });
-const chips = (list) => ({ chips: list });
+export const bot = (text) => ({ from: "bot", text });
+export const chips = (list) => ({ chips: list });
+const SUBJECT_IDEAS = ["A lion holding a cricket bat", "A mountain sunrise", "A cup of filter coffee", "A phoenix"];
+const AFTER_DESIGNS = ["Make more", "Something else"];
 const act = (a) => ({ act: a });
 export const firstMessages = () => [bot("Hi. Tell me what you have in mind, or pick a starting point."), chips(MENU)];
-export const firstState = () => ({ occasion: null, tone: null, shown: 0, wait: null, template: null });
+export const firstState = () => ({ occasion: null, tone: null, shown: 0, wait: null, template: null, subject: null, lastDesign: null, changeUrl: null });
+export const AFTER_DESIGN_CHIPS = AFTER_DESIGNS;
 
 const showSlogans = (st, ctx, lead) => [bot(lead || `${st.tone} lines for a ${st.occasion.toLowerCase()} tee. Tap one to put it on ${ctx.areaLabel}.`), { slogans: slogansFor(st.occasion, st.tone, st.shown) }, chips(AFTER_SLOGANS)];
 
@@ -46,7 +53,8 @@ export function checkMessages(issues, { beforeReview = false } = {}) {
 
 /**
  * @param text  what the customer tapped or typed
- * @param ctx   { areaLabel, teeName, hasDesign, sizes, sizeNow, chart(size), areas: [{ key, label, free }], issues(), inks }
+ * @param ctx   { areaLabel, teeName, hasDesign, sizes, sizeNow, chart(size), areas: [{ key, label, free }], issues(), inks,
+ *                ai: { available, reason, loggedIn, left, styles } }
  * @param st    conversation state (firstState())
  * @returns { out: messages, st: next state }
  */
@@ -72,6 +80,23 @@ export function replyTo(text, ctx, st) {
       chips([`Use size ${usual}`, ...(smaller ? [`Use size ${smaller}`] : []), "Something else"]),
     ]);
   }
+
+  /* ----- the design maker's questions ----- */
+  const offTopic = MENU.includes(t) || MORE.includes(t) || t === "Something else";
+  if (wait === "aiSubject" && !offTopic) {
+    if (NOT_ALLOWED.test(t)) return done([bot("I can’t make brand logos, famous characters or real people — they belong to someone else. Describe an original idea.")], { wait: "aiSubject" });
+    return done([bot("Which style?"), chips(ctx.ai.styles)], { subject: t, wait: "aiStyle" });
+  }
+  if (wait === "aiStyle" && ctx.ai.styles.includes(t)) {
+    const job = { subject: st.subject, style: t };
+    return done([act({ type: "generate", ...job })], { lastDesign: job });
+  }
+  if (wait === "aiChange" && !offTopic && st.changeUrl) {
+    if (NOT_ALLOWED.test(t)) return done([bot("I can’t add brand logos, famous characters or real people. Tell me another change.")], { wait: "aiChange" });
+    return done([act({ type: "generate", baseUrl: st.changeUrl, change: t })], { changeUrl: null });
+  }
+  if (t === "Make more" && st.lastDesign) return done([act({ type: "generate", ...st.lastDesign })]);
+  if (t === "Log in") return done([act({ type: "login" })]);
 
   /* ----- things the page does ----- */
   const useSize = /^use size (\S+)$/i.exec(t);
@@ -125,6 +150,23 @@ export function replyTo(text, ctx, st) {
     return done([bot("Upload your picture, tap it on the print area, then press “Remove background” in its settings. It’s free and runs in your browser."), chips(["Upload a picture", "Something else"])]);
   }
 
+  /* ----- make a design (the image AI) ----- */
+  // asked before slogans: "draw a lion with a cricket bat" is a picture, not a cricket slogan
+  const wordsWanted = /slogan|quote|tagline|caption|\bline\b|\bwords\b|\btext\b/.test(low);
+  const wantsDesign = t === "Make a design" || (!wordsWanted && /\b(design|draw|drawing|picture|image|logo|artwork|illustrat\w*|mascot)\b/.test(low));
+  if (wantsDesign) {
+    const ai = ctx.ai;
+    if (!ai.available) {
+      const why = ai.reason === "cap" ? "The design maker is taking a break until next month." : "Designs made to order are coming soon.";
+      return done([bot(`${why} For now, pick from our art library, upload your own picture, or start from a template.`), chips(["Open the art library", "Upload a picture", "Start from a template"])]);
+    }
+    if (!ai.loggedIn) return done([bot("I can draw a design from your description. Log in first so your designs are kept for you."), chips(["Log in", "Something else"])]);
+    if (ai.left === 0) return done([bot("You’ve used today’s design requests. They reset tomorrow. Until then, try the art library or upload a picture."), chips(["Open the art library", "Upload a picture"])]);
+    // a full description typed straight away ("draw a lion holding a bat") skips the first question
+    if (t !== "Make a design" && t.split(/\s+/).length >= 4) return done([bot("Which style?"), chips(ai.styles)], { subject: t, wait: "aiStyle" });
+    return done([bot("What should it show? Describe it in a few words, or pick one to try."), chips(SUBJECT_IDEAS)], { wait: "aiSubject" });
+  }
+
   /* ----- slogans ----- */
   if (t === "Show more" && st.occasion) return done(showSlogans({ ...st, shown: st.shown + 3 }, ctx, "Three more:"), { shown: st.shown + 3 });
   if (t === "Add a name or year" && st.occasion) return done([bot("Type the name, team name or year to put in the line.")], { wait: "name" });
@@ -139,8 +181,5 @@ export function replyTo(text, ctx, st) {
     return done(showSlogans(next, ctx), next);
   }
 
-  if (t === "Make a design" || /design|draw|make|picture|art|image|logo/.test(low)) {
-    return done([bot("Designs made to order are coming soon. For now, pick from our art library, upload your own picture, or start from a template."), chips(["Open the art library", "Upload a picture", "Start from a template"])]);
-  }
   return done([bot("I can help with slogans, layouts, checking your design, colours, print areas and sizes. Pick one to get going."), chips([...MENU.slice(0, 3), ...MORE.slice(0, 3)])]);
 }

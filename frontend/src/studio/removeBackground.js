@@ -131,9 +131,10 @@ async function clearWithModel(canvas, image, onStage) {
 /**
  * @param {HTMLImageElement} img  a loaded picture (CORS-safe)
  * @param {(text: string) => void} onStage  progress messages for the customer
+ * @param {{ flatOnly?: boolean }} opts    flatOnly: only clear a plain background (never load the AI model)
  * @returns {Promise<{ blob: Blob, width: number, height: number, method: "colour" | "ai" } | { already: true }>}
  */
-export async function removeBackground(img, onStage) {
+export async function removeBackground(img, onStage, { flatOnly = false } = {}) {
   const canvas = toCanvas(img);
   const ctx = canvas.getContext("2d", { willReadFrequently: true });
   const image = ctx.getImageData(0, 0, canvas.width, canvas.height);
@@ -142,6 +143,7 @@ export async function removeBackground(img, onStage) {
 
   let method = "colour";
   if (edge.flat) clearFlatColour(image, edge.colour, edge.idx);
+  else if (flatOnly) return { already: true }; // (AI-made designs: no plain background to clear, use the picture as it is)
   else {
     method = "ai";
     await clearWithModel(canvas, image, onStage);

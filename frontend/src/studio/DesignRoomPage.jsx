@@ -23,7 +23,8 @@ import { areaCm, blockersOf, clashesIn, modelForGarment, placeArea } from "./tee
 import AreaThumb from "./AreaThumb";
 import Rolling from "./Rolling";
 import Assistant from "./Assistant";
-import { checkMessages, firstMessages, firstState } from "./assistantScript";
+import { AFTER_DESIGN_CHIPS, bot as botSays, checkMessages, chips as chipRow, firstMessages, firstState } from "./assistantScript";
+import aiService from "../services/aiService";
 import { checkDesign, inksFor } from "./designCheck";
 import { TEMPLATES } from "./designTemplates";
 import { FONTS, addStudioFonts } from "./fonts";
@@ -136,6 +137,20 @@ export default function DesignRoomPage() {
   const [addTab, setAddTab] = useState("text");
   const [chat, setChat] = useState(firstMessages); // the assistant's conversation (kept while you switch tabs)
   const [chatState, setChatState] = useState(firstState);
+  // the AI design maker: whether it is on, how many requests are left today, and where its designs sit on the tee
+  const [ai, setAi] = useState({ available: false, reason: "setup", styles: [], left: null });
+  const [aiPlaced, setAiPlaced] = useState({}); // { [print area key]: { url, elId } }
+  const aiCuts = useRef(new Map()); // design url -> its cut-out, uploaded once: { path, w, h }
+  useEffect(() => {
+    let alive = true;
+    aiService
+      .status()
+      .then((st) => alive && setAi(st))
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, []);
   const ackIssues = useRef(""); // design-check findings the customer has already been shown before Review
   const [areasOpen, setAreasOpen] = useState(false); // phones: the "where to print" sheet
   const [pickOpen, setPickOpen] = useState(false); // colour & size menu in the top bar
@@ -624,7 +639,74 @@ export default function DesignRoomPage() {
     areas: positions.map((p) => ({ key: p.key, label: p.label, free: usedKeys.includes(p.key) || !blockersOf(p.key, positions, usedKeys).length })),
     issues: designIssues,
     inks: inksFor(fabricHex, INKS),
+    ai: { ...ai, loggedIn: isLoggedIn() },
   });
+  // Ask the image AI for designs (or for a change to one). Returns the chat messages to show.
+  const generateDesigns = async (a) => {
+    const { W, H } = activePos ? areaPx(activePos) : { W: 1, H: 1 };
+    try {
+      const res = await aiService.design(
+        a.baseUrl ? { baseUrl: a.baseUrl, change: a.change, ratio: W / H } : { subject: a.subject, style: a.style, teeColour: colour?.name || "white", teeIsDark: lum(fabricHex) < 0.55, ratio: W / H },
+      );
+      setAi((cur) => ({ ...cur, left: res.left }));
+      const n = res.images.length;
+      const left = `${res.left} request${res.left === 1 ? "" : "s"} left today.`;
+      return [
+        botSays(a.baseUrl ? `Here’s the changed design. ${left}` : `Here ${n === 1 ? "is one" : `are ${n}`}, made for ${activePos?.label || "your tee"} on a ${(colour?.name || "").toLowerCase()} tee. Add one, use another on a different area, or ask me to change one. ${left}`),
+        { designs: res.images },
+        chipRow(AFTER_DESIGN_CHIPS),
+      ];
+    } catch (err) {
+      return [botSays(err.response?.data?.message || "The design maker had a problem. Please try again."), chipRow(["Make a design", "Something else"])];
+    }
+  };
+  // Put an AI-made design on a print area (the open one unless areaKey is given): its plain
+  // background is cleared, the cut-out is uploaded once, and it replaces the AI design already there.
+  const placeAiDesign = async (url, areaKey) => {
+    const pos = positions.find((p) => p.key === (areaKey || active)) || ensureArea();
+    if (!pos || busy) return;
+    const blockedBy = usedKeys.includes(pos.key) ? [] : blockersOf(pos.key, positions, usedKeys);
+    if (blockedBy.length) return say(`${pos.label} overlaps ${blockedBy.map((b) => b.label).join(" and ")}. Remove that print first.`);
+    setBusy("Putting the design on your tee…");
+    try {
+      let cut = aiCuts.current.get(url);
+      if (!cut) {
+        const img = await loadImage(url, { full: true });
+        const { removeBackground } = await import("./removeBackground");
+        const out = await removeBackground(img, null, { flatOnly: true });
+        if (out.already) cut = { path: url, w: img.naturalWidth, h: img.naturalHeight };
+        else {
+          const res = await dispatch(uploadDesignImage(new File([out.blob], "ai-design.png", { type: "image/png" })));
+          if (!uploadDesignImage.fulfilled.match(res)) return say(res.payload || "The design could not be saved. Please try again.");
+          cut = { path: res.payload.path, w: out.width, h: out.height };
+        }
+        aiCuts.current.set(url, cut);
+      }
+      // as large as the area allows, centred
+      const { W, H } = areaPx(pos);
+      const shape = cut.w / cut.h;
+      const width = shape > W / H ? 92 : (92 * shape * H) / W;
+      const height = (width * W) / (shape * H);
+      const el = { id: makeId(), type: "image", src: cut.path, position: pos.key, side: pos.side, rotation: 0, zIndex: elements.length + 1, x: 50 - width / 2, y: 50 - height / 2, width, height, pxW: cut.w };
+      const old = aiPlaced[pos.key]?.elId;
+      commit((prev) => [...prev.filter((e) => e.id !== old), el]);
+      setAiPlaced((cur) => ({ ...cur, [pos.key]: { url, elId: el.id } }));
+      if (pos.key !== active) openArea(pos.key, { force: true });
+      setSelectedId(null);
+      say(old ? `Replaced the design on ${pos.label}.` : `Added to ${pos.label}.`);
+    } catch {
+      say("The design could not be added. Please try again.");
+    } finally {
+      setBusy("");
+    }
+  };
+  // where each AI design is on the tee right now (a removed or replaced one drops out)
+  const aiOn = {};
+  for (const [key, put] of Object.entries(aiPlaced)) {
+    if (!elements.some((e) => e.id === put.elId)) continue;
+    (aiOn[put.url] ||= []).push(positions.find((p) => p.key === key)?.label || key);
+  }
+
   // A ready-made layout: its texts go to the first area the garment offers that is free.
   const applyTemplate = (key, fresh) => {
     const tpl = TEMPLATES.find((t) => t.key === key);
@@ -652,6 +734,9 @@ export default function DesignRoomPage() {
     commit((prev) => prev.map((e) => (e.id !== issue.elId ? e : issue.measure && pos ? textBox({ ...e, ...issue.patch }, pos) : { ...e, ...issue.patch })));
   };
   const assistantAct = (a) => {
+    if (a.type === "generate") return generateDesigns(a);
+    if (a.type === "place") return placeAiDesign(a.url, a.areaKey);
+    if (a.type === "login") return goToLogin();
     if (a.type === "text") return addText(a.text);
     if (a.type === "tab") return setAddTab(a.tab);
     if (a.type === "template") return applyTemplate(a.key, a.fresh);
@@ -1129,7 +1214,7 @@ export default function DesignRoomPage() {
                   ))}
                 </div>
                 {chatting ? (
-                  <Assistant messages={chat} setMessages={setChat} state={chatState} setState={setChatState} ctx={assistantCtx} onAct={assistantAct} onFix={applyFix} />
+                  <Assistant messages={chat} setMessages={setChat} state={chatState} setState={setChatState} ctx={assistantCtx} onAct={assistantAct} onFix={applyFix} placed={aiOn} />
                 ) : (
                 <div className="dr-controls">
 

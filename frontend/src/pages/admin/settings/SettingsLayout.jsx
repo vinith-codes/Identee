@@ -2,11 +2,17 @@ import { useState } from "react";
 import { THEME } from "../../../theme/theme";
 import GeneralSettingsPage from "./GeneralSettingsPage";
 import ProfileSettingsPage from "./ProfileSettingsPage";
+import AiSettingsPage from "./AiSettingsPage";
 
 const ICONS = {
   profile: (
     <svg viewBox="0 0 20 20" fill="currentColor" width={17} height={17}>
       <path d="M10 9a4 4 0 100-8 4 4 0 000 8zM10 11c-4.4 0-8 2.24-8 5v1a1 1 0 001 1h14a1 1 0 001-1v-1c0-2.76-3.6-5-8-5z" />
+    </svg>
+  ),
+  ai: (
+    <svg viewBox="0 0 20 20" fill="currentColor" width={17} height={17}>
+      <path d="M10 1l2.2 5.6L18 8.8l-5.8 2.2L10 17l-2.2-6L2 8.8l5.8-2.2L10 1z" />
     </svg>
   ),
   general: (
@@ -20,12 +26,14 @@ const ICONS = {
 // login is by email code only, and the light theme was never wired up.
 const SECTIONS = [
   { key: "general", label: "Store Branding", desc: "Name, logo, contact, socials" },
+  { key: "ai", label: "AI designs", desc: "On / off, limits, spending" },
   { key: "profile", label: "Profile", desc: "Name, email, photo" },
 ];
 
 const PAGES = {
   general: GeneralSettingsPage,
   profile: ProfileSettingsPage,
+  ai: AiSettingsPage,
 };
 
 export default function SettingsLayout() {

@@ -1,0 +1,195 @@
+// controllers/aiController.js
+//
+// The Design Room's "Make a design": a customer describes a picture, the
+// image AI draws it, the pictures are stored in Cloudinary (identee/ai-designs)
+// and their addresses go back to the assistant chat.
+//
+// Kept in check by three limits the admin can change (Admin → Settings → AI):
+//   • requests per customer per day
+//   • pictures per request
+//   • a monthly spending cap — past it, the feature pauses until next month
+import asyncHandler from "express-async-handler";
+import Setting from "../models/settingModel.js";
+import AiUsage from "../models/aiUsageModel.js";
+import { uploadFile } from "../utils/imageStorage.js";
+import { AI_STYLES, aiImageConfigured, aiImageModel, changeDesignPrompt, generateImage, nearestRatio, newDesignPrompt } from "../services/aiImageService.js";
+
+const CATEGORY = "ai";
+const DEFAULTS = {
+  "ai.enabled": { value: true, type: "boolean", description: "Customers can make designs with AI" },
+  "ai.dailyPerUser": { value: 5, type: "number", description: "Design requests one customer may make per day" },
+  "ai.imagesPerRequest": { value: 3, type: "number", description: "Pictures shown for each new design request" },
+  "ai.monthlyCapInr": { value: 2000, type: "number", description: "Monthly spending cap in rupees" },
+  "ai.pricePerImageInr": { value: 2.9, type: "number", description: "What one picture costs, in rupees (for the spending figures)" },
+};
+const LIMITS = { "ai.dailyPerUser": [1, 50], "ai.imagesPerRequest": [1, 4], "ai.monthlyCapInr": [0, 1000000], "ai.pricePerImageInr": [0, 100] };
+
+// Things the shop must not print: other people's brands, characters and faces.
+const NOT_ALLOWED = /\b(nike|adidas|puma|reebok|gucci|supreme|louis vuitton|marvel|disney|pokemon|pok[eé]mon|naruto|mickey|spider-?man|batman|superman|avengers|hello kitty|ipl|bcci|fifa|real madrid|barcelona|celebrit|actor|actress|cricketer|footballer|politician)\b/i;
+
+const startOfDay = () => {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d;
+};
+const startOfMonth = () => {
+  const d = startOfDay();
+  d.setDate(1);
+  return d;
+};
+
+async function readSettings() {
+  const rows = await Setting.find({ category: CATEGORY }).select("key value").lean();
+  const saved = Object.fromEntries(rows.map((r) => [r.key, r.value]));
+  const get = (key) => (saved[key] === undefined || saved[key] === null ? DEFAULTS[key].value : saved[key]);
+  return {
+    enabled: get("ai.enabled") !== false,
+    dailyPerUser: Number(get("ai.dailyPerUser")),
+    imagesPerRequest: Number(get("ai.imagesPerRequest")),
+    monthlyCapInr: Number(get("ai.monthlyCapInr")),
+    pricePerImageInr: Number(get("ai.pricePerImageInr")),
+  };
+}
+async function monthSpend() {
+  const [row] = await AiUsage.aggregate([{ $match: { createdAt: { $gte: startOfMonth() } } }, { $group: { _id: null, cost: { $sum: "$costInr" }, images: { $sum: "$images" }, requests: { $sum: 1 } } }]);
+  return { cost: row?.cost || 0, images: row?.images || 0, requests: row?.requests || 0 };
+}
+// Why the feature is off (null = it is on).
+async function whyOff(settings) {
+  if (!aiImageConfigured()) return "setup";
+  if (!settings.enabled) return "off";
+  if (settings.monthlyCapInr > 0 && (await monthSpend()).cost >= settings.monthlyCapInr) return "cap";
+  return null;
+}
+const usedToday = (userId) => AiUsage.countDocuments({ user: userId, createdAt: { $gte: startOfDay() } });
+
+// GET /api/ai/status  (login optional)
+export const getAiStatus = asyncHandler(async (req, res) => {
+  const settings = await readSettings();
+  const reason = await whyOff(settings);
+  const left = req.user ? Math.max(0, settings.dailyPerUser - (await usedToday(req.user._id))) : null;
+  res.json({ available: !reason, reason, styles: Object.keys(AI_STYLES), dailyPerUser: settings.dailyPerUser, left });
+});
+
+// Only pictures this feature made may be sent back to be changed.
+const isAiDesign = (url) => {
+  const cloud = process.env.CLOUDINARY_NAME?.trim();
+  const s = String(url || "");
+  return (cloud && s.startsWith(`https://res.cloudinary.com/${cloud}/`) && s.includes("/identee/ai-designs/")) || /^\/uploads\/ai-designs\/[\w\-.]+$/.test(s);
+};
+async function fetchOurImage(url, req) {
+  const full = url.startsWith("/") ? `${req.protocol}://${req.get("host")}${url}` : url;
+  const r = await fetch(full);
+  if (!r.ok) throw Object.assign(new Error("That design could not be found. Make a new one."), { status: 404 });
+  return { data: Buffer.from(await r.arrayBuffer()), mime: r.headers.get("content-type") || "image/png" };
+}
+
+// POST /api/ai/design  (login required)
+// New design: { subject, style, teeColour, teeIsDark, ratio }
+// Change one: { baseUrl, change }
+export const makeAiDesign = asyncHandler(async (req, res) => {
+  const settings = await readSettings();
+  const reason = await whyOff(settings);
+  if (reason) {
+    res.status(503);
+    throw new Error(reason === "cap" ? "The design maker is taking a break until next month. You can still use the art library or upload your own picture." : "The design maker is not available right now.");
+  }
+  const used = await usedToday(req.user._id);
+  if (used >= settings.dailyPerUser) {
+    res.status(429);
+    throw new Error(`You’ve used today’s ${settings.dailyPerUser} design requests. They reset tomorrow.`);
+  }
+
+  const changing = Boolean(req.body.baseUrl);
+  const text = String((changing ? req.body.change : req.body.subject) || "").replace(/\s+/g, " ").trim().slice(0, 300);
+  if (text.length < 3) {
+    res.status(400);
+    throw new Error(changing ? "Tell me what to change." : "Describe what the design should show.");
+  }
+  if (NOT_ALLOWED.test(text)) {
+    res.status(422);
+    throw new Error("I can’t make brand logos, famous characters or real people — they belong to someone else. Try an original idea.");
+  }
+
+  let jobs;
+  if (changing) {
+    if (!isAiDesign(req.body.baseUrl)) {
+      res.status(400);
+      throw new Error("Only a design made here can be changed.");
+    }
+    const image = await fetchOurImage(req.body.baseUrl, req);
+    jobs = [generateImage({ prompt: changeDesignPrompt(text), image, ratio: nearestRatio(req.body.ratio) })];
+  } else {
+    const style = AI_STYLES[req.body.style] ? req.body.style : "Bold mascot";
+    const teeColour = String(req.body.teeColour || "white").replace(/[^\w \-]/g, "").slice(0, 30) || "white";
+    const of = Math.min(4, Math.max(1, settings.imagesPerRequest));
+    jobs = Array.from({ length: of }, (_, i) =>
+      generateImage({ prompt: newDesignPrompt({ subject: text, style, teeColour, teeIsDark: Boolean(req.body.teeIsDark), variation: i + 1, of }), ratio: nearestRatio(req.body.ratio) }),
+    );
+  }
+
+  const results = await Promise.allSettled(jobs);
+  const made = results.filter((r) => r.status === "fulfilled").map((r) => r.value);
+  if (!made.length) {
+    const err = results[0].reason;
+    res.status(err?.status || 502);
+    throw new Error(err?.message || "The design maker had a problem. Please try again.");
+  }
+  const stored = await Promise.all(made.map((m) => uploadFile(m.buffer, m.mime, "ai-designs")));
+
+  await AiUsage.create({
+    user: req.user._id,
+    kind: changing ? "change" : "new",
+    prompt: text,
+    style: changing ? undefined : req.body.style,
+    images: made.length,
+    costInr: Math.round(made.length * settings.pricePerImageInr * 100) / 100,
+    model: aiImageModel(),
+  });
+  res.status(201).json({ images: stored.map((s) => s.url), left: Math.max(0, settings.dailyPerUser - used - 1) });
+});
+
+// GET /api/ai/admin  (admin or seller): the settings and this month's use
+export const getAiAdmin = asyncHandler(async (req, res) => {
+  const settings = await readSettings();
+  const month = await monthSpend();
+  const recent = await AiUsage.find().sort({ createdAt: -1 }).limit(15).populate("user", "name email").lean();
+  res.json({
+    configured: aiImageConfigured(),
+    model: aiImageModel(),
+    reason: await whyOff(settings),
+    settings,
+    month,
+    recent: recent.map((r) => ({ when: r.createdAt, who: r.user?.name || r.user?.email || "Customer", kind: r.kind, prompt: r.prompt, images: r.images, costInr: r.costInr })),
+  });
+});
+
+// PUT /api/ai/admin  (admin only): { enabled, dailyPerUser, imagesPerRequest, monthlyCapInr, pricePerImageInr }
+export const saveAiAdmin = asyncHandler(async (req, res) => {
+  const incoming = {
+    "ai.enabled": req.body.enabled,
+    "ai.dailyPerUser": req.body.dailyPerUser,
+    "ai.imagesPerRequest": req.body.imagesPerRequest,
+    "ai.monthlyCapInr": req.body.monthlyCapInr,
+    "ai.pricePerImageInr": req.body.pricePerImageInr,
+  };
+  for (const [key, raw] of Object.entries(incoming)) {
+    if (raw === undefined) continue;
+    let value = raw;
+    if (key === "ai.enabled") value = Boolean(raw);
+    else {
+      value = Number(raw);
+      const [min, max] = LIMITS[key];
+      if (!Number.isFinite(value) || value < min || value > max) {
+        res.status(400);
+        throw new Error(`${DEFAULTS[key].description}: enter a number from ${min} to ${max}.`);
+      }
+    }
+    await Setting.findOneAndUpdate(
+      { key },
+      { $set: { value, updatedBy: req.user._id }, $setOnInsert: { type: DEFAULTS[key].type, category: CATEGORY, description: DEFAULTS[key].description, isPublic: false } },
+      { upsert: true },
+    );
+  }
+  res.json({ settings: await readSettings() });
+});

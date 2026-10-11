@@ -29,6 +29,7 @@ import cors from "cors";
 import "./utils/subscriptionCron.js";
 import "./utils/razorpayInstance.js";
 import notificationRoutes from "./routes/notificationRoutes.js";
+import aiRoutes from "./routes/aiRoutes.js";
 import categoryRoutes from "./routes/categoryRoutes.js";
 import shopRoutes from "./routes/shopRoutes.js";
 import adminRoutes from "./routes/adminRoutes.js";
@@ -101,6 +102,7 @@ app.use("/api/garment-types", garmentTypeRoutes);
 app.use("/api/art-categories", artCategoryRoutes);
 app.use("/api/art-designs", artDesignRoutes);
 app.use("/api/notifications", notificationRoutes);
+app.use("/api/ai", aiRoutes);
 app.get("/api/config/paypal", (req, res) =>
   res.send(process.env.PAYPAL_CLIENT_ID),
 );

@@ -99,3 +99,21 @@ All scripted, no AI call. Files in `frontend/src/studio/`: `assistantScript.js` 
 - **Design check**: blurry picture (< 100 DPI), letters under 0.8 cm, ink too close to the tee colour, item hanging over the area's edge; each with a one-tap fix. Runs from the chat and once automatically when Review is pressed (Review again or "Continue to review" goes on).
 - **Colour help** (inks that stand out on the tee colour; tap recolours the text on the open area), **Where to print** (opens the suggested area), **Size help** (oversized-fit advice, sets the size).
 - Stage B (text key) replaces `replyTo` with Claude; the message shapes and page actions (`assistantAct`) stay.
+
+## "Make a design" built (11 Oct 2026, branch `feature-ai-designs`)
+
+- **Server**: `POST /api/ai/design` (login) -> `services/aiImageService.js` (Gemini Interactions API, model
+  `gemini-nano-banana-2.1`, 1K PNG, aspect ratio nearest to the print area) -> pictures stored in `identee/ai-designs`
+  -> `{ images, left }`. `GET /api/ai/status`, `GET/PUT /api/ai/admin`. Usage rows in `AiUsage`.
+- **Key**: `GEMINI_API_KEY` in `server/.env` (never sent to the browser). `AI_IMAGE_MODEL` optional.
+  `AI_IMAGE_PROVIDER=mock` draws a sample picture without calling anyone (use it for testing; it costs nothing).
+- **Limits** (Admin -> Settings -> AI designs; stored as `ai.*` settings): on/off, requests per customer per day (5),
+  pictures per request (3), monthly cap in rupees (2000; the feature pauses past it), price per picture (2.9, for the
+  figures only). Also 6 requests a minute per address. Brand / character / real-person requests are refused on both sides.
+- **Prompt**: plain white background for light tees, plain black for dark ones, so the Design Room's flat-colour
+  background remover can cut the design out when it is added to the tee.
+- **Chat** (`assistantScript.js`, `Assistant.jsx`): Make a design -> what should it show -> style -> pictures. Each
+  picture: Add to tee (replaces the AI design on that area), Other area, Change (next message is the change).
+  "Make more" repeats the last request. A typed description with a picture word ("draw a lion...") skips to the style.
+- **Tested** with the mock provider on a local copy: new design, change, replace, other area, limits, cap, admin page.
+  **Not tested with the real Gemini API** — the first real request may need the answer parser (`findImage`) adjusted.
