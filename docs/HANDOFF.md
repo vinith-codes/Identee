@@ -145,6 +145,11 @@ agreed to).
   pushes in). Stepping in: the tee does one full turn (`twirlKey`, also on a colour change in the room), panels glide in.
   On a computer the room is three rounded cards on a soft ground (panel · stage · panel) with a gold hairline under the top
   bar; prints fade in when first placed; the main buttons have a slow sheen; the start cards moved above the tee.
+- **Light / dark studio switch** (sun/moon button in the top bar, remembered in `localStorage` `identee:room-dark`, light is the
+  default): only the 3D stage goes dark — charcoal walls, the same softboxes and gold ring, lights from behind so a dark tee keeps
+  its outline; panels stay light. `SKIN` + `skinStudio(scene, dark)` in `Room3D.jsx` set it by object name (`skin-…`); the saved
+  preview pictures are always taken in the light studio (`snapshot`). Review is unchanged. To make dark the default, flip the
+  `useState` initial value of `darkRoom` in `DesignRoomPage.jsx`.
 - **Fixed on the way:** the tee model has an outer and an inner fabric layer — a tap on the front reached a BACK print's inner
   layer and opened Full Back. Prints now use the outer layer only (`keepFacing` for flat areas), react only from their own side,
   and a tap ends on the tee. Front/back for picking goes by the viewing side, not the fabric's direction.

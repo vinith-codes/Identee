@@ -55,6 +55,7 @@ const ICON_UPLOAD = "M12 16V5m0 0-4 4m4-4 4 4M5 19h14";
 const SIDES = [["front", "Front"], ["back", "Back"], ["left", "Left"], ["right", "Right"]];
 const DRAFT_KEY = (type) => `identee:design:v3:${type}`;
 const SIZE_KEY = "identee:size";
+const DARK_KEY = "identee:room-dark"; // the customer's light / dark studio choice
 const HISTORY_CAP = 50;
 
 const readJSON = (key) => {
@@ -188,6 +189,14 @@ export default function DesignRoomPage() {
   // The per-player setting of a text is only shown for a team design: one that already has a text set as the
   // player's name or number (the Team jersey layout does that), or once the customer says they are ordering for a team.
   const [teamAsked, setTeamAsked] = useState(false);
+  // light studio (default) or the dark, evening one — the customer's switch in the top bar, remembered on this device
+  const [darkRoom, setDarkRoom] = useState(() => readJSON(DARK_KEY) === true);
+  const toggleDark = () => {
+    setDarkRoom((d) => {
+      writeJSON(DARK_KEY, !d);
+      return !d;
+    });
+  };
   // the print area the pointer is on — on the 3D tee itself or on its card in the list (it glows on the tee)
   const [hoverKey, setHoverKey] = useState(null);
   const hoverCam = useRef({ side: null, timer: 0 });
@@ -1297,6 +1306,17 @@ export default function DesignRoomPage() {
               {savedAt ? "Saved ✓" : "Save"}
             </button>
           )}
+          {step !== "review" && (
+            <button type="button" className="dr-darkbtn" onClick={toggleDark} aria-pressed={darkRoom} aria-label={darkRoom ? "Switch to the light studio" : "Switch to the dark studio"} title={darkRoom ? "Light studio" : "Dark studio"}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                {darkRoom ? (
+                  <path d="M12 3v2m0 14v2M3 12h2m14 0h2M5.6 5.6 7 7m10 10 1.4 1.4M5.6 18.4 7 17M17 7l1.4-1.4M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Z" />
+                ) : (
+                  <path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5Z" />
+                )}
+              </svg>
+            </button>
+          )}
           <Link to="/my-designs" className="dr-mydesigns">My designs</Link>
           {saveOpen && (
             <form
@@ -1335,7 +1355,7 @@ export default function DesignRoomPage() {
         )}
       </header>
 
-      <main className="dr-stage" data-editing={step === "design" && active ? "1" : undefined} data-fit={step === "fit" ? "1" : undefined}>
+      <main className="dr-stage" data-editing={step === "design" && active ? "1" : undefined} data-fit={step === "fit" ? "1" : undefined} data-dark={darkRoom && step !== "review" ? "1" : undefined}>
         {step === "design" && (
           <aside className={`dr-side${areasOpen ? " open" : ""}`} aria-label="Where to print" onMouseLeave={() => { hoverCam.current.side = null; }}>
             <header>
@@ -1439,6 +1459,7 @@ export default function DesignRoomPage() {
                 popKey={popKey}
                 showcase={step === "fit"}
                 twirlKey={twirlKey}
+                dark={darkRoom}
                 room={step === "review" ? "boutique" : "studio"}
                 spin={spin}
                 face={sideShown}

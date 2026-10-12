@@ -34,20 +34,23 @@ const RAY = {
    in the studio, see snapshot.) */
 const SETS = {
   studio: { background: "#EDE3D0", fog: [6, 12] },
+  studioDark: { background: "#16120E", fog: [7, 15] },
   boutique: { background: "#0D0B09", fog: [9, 20] },
 };
 // the tee in the Review step: which way it faces for each side picture
 const FACE = { front: 0, back: Math.PI, left: -Math.PI / 2, right: Math.PI / 2 };
 
-function Backdrop({ room }) {
+function Backdrop({ room, dark }) {
   const scene = useThree((st) => st.scene);
   useLayoutEffect(() => {
-    paintBackdrop(scene, room);
-  }, [scene, room]);
+    paintBackdrop(scene, room, dark);
+  }, [scene, room, dark]);
   return null;
 }
-function paintBackdrop(scene, room) {
-  const set = SETS[room];
+// dark: the studio's evening look (the customer's light / dark switch); the dressing room is always dark
+function paintBackdrop(scene, room, dark) {
+  const set = room === "studio" && dark ? SETS.studioDark : SETS[room];
+  if (room === "studio") skinStudio(scene, !!dark);
   scene.environmentIntensity = room === "boutique" ? 1 : 0; // the dressing room's reflections
   scene.background = new THREE.Color(set.background);
   scene.fog = new THREE.Fog(set.background, ...set.fog);
@@ -96,9 +99,46 @@ function Softbox({ position, turn }) {
   );
 }
 
-function Studio({ visible }) {
+// The studio's two looks. Light is the default; dark is an evening studio: charcoal walls, the same
+// softboxes and gold ring, and lights from behind so a dark tee keeps its outline.
+// Set by hand on the lights and materials (not through React), because the saved preview pictures are
+// always taken in the light studio: snapshot() switches to light for a moment and back (skinStudio).
+const SKIN = {
+  light: { wall: "#EADFC9", floor: "#E4D7BE", stand: "#F4EDE0", hemi: 1.1, key: 70, fill: [0.7, 1.2, 1.6], wallGlow: 0.85, pool: 0.7, rim: 0 },
+  dark: { wall: "#1E1915", floor: "#1B1612", stand: "#9A8D76", hemi: 0.3, key: 120, fill: [0.22, 0.45, 0.5], wallGlow: 0.16, pool: 0.34, rim: 1 },
+};
+// Puts the studio in its light or dark look: finds its lights and surfaces by name.
+function skinStudio(scene, dark) {
+  const s = dark ? SKIN.dark : SKIN.light;
+  const get = (name) => scene.getObjectByName(`skin-${name}`);
+  get("wall")?.material.color.set(s.wall);
+  get("floor")?.material.color.set(s.floor);
+  get("stand")?.material.color.set(s.stand);
+  const set = (name, value) => {
+    const o = get(name);
+    if (o) o.intensity = value;
+  };
+  set("hemi", s.hemi);
+  set("key", s.key);
+  s.fill.forEach((v, n) => set(`fill${n}`, v));
+  const fade = (name, value) => {
+    const o = get(name);
+    if (o) o.material.opacity = value;
+  };
+  fade("wallGlow", s.wallGlow);
+  fade("pool", s.pool);
+  const rims = get("rims");
+  if (rims) rims.visible = s.rim > 0;
+}
+
+function Studio({ visible, colour }) {
   const glow = useGlowTexture();
   const ring = useRef();
+  // how dark the tee is (0 white … 1 black): a dark tee needs more light from behind in the dark studio
+  const teeDark = useMemo(() => {
+    const c = new THREE.Color(colour);
+    return 1 - Math.min(1, Math.sqrt(0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b));
+  }, [colour]);
   useFrame((_, dt) => {
     PULSE.t += Math.min(dt, 0.05);
     if (ring.current) ring.current.emissiveIntensity = 2.2 * Math.max(0, 1 - PULSE.t / 0.7);
@@ -108,11 +148,11 @@ function Studio({ visible }) {
       {/* dressing that is left out of the saved preview pictures (see snapshot) */}
       <group name="studio-extra">
         {/* light on the wall behind the tee, and a pool of light on the floor */}
-        <mesh position={[0, 1.15, -4.6]}>
+        <mesh name="skin-wallGlow" position={[0, 1.15, -4.6]}>
           <planeGeometry args={[9, 6.5]} />
           <meshBasicMaterial map={glow} color="#FFF9EC" transparent opacity={0.85} depthWrite={false} toneMapped={false} />
         </mesh>
-        <mesh rotation-x={-Math.PI / 2} position-y={-0.792}>
+        <mesh name="skin-pool" rotation-x={-Math.PI / 2} position-y={-0.792}>
           <circleGeometry args={[3.4, 48]} />
           <meshBasicMaterial map={glow} color="#FFF6E0" transparent opacity={0.7} depthWrite={false} toneMapped={false} />
         </mesh>
@@ -124,21 +164,28 @@ function Studio({ visible }) {
         <Softbox position={[3.05, 1.15, -4.1]} turn={-0.5} />
         <Sparkles count={36} scale={[6, 3.2, 3.5]} position={[0, 0.9, -0.6]} size={2.2} speed={0.22} opacity={0.5} color="#C9A24B" />
       </group>
-      <hemisphereLight args={["#FFF7E8", "#C9B48E", 1.1]} />
-      <spotLight position={[2.2, 4.2, 3.4]} angle={Math.PI / 7} penumbra={0.55} decay={1.6} distance={14} intensity={70} color="#FFF1D6" castShadow shadow-mapSize={[1024, 1024]} shadow-bias={-0.0004} />
-      <directionalLight position={[-3, 2, 2.5]} intensity={0.7} color="#E9F0FF" />
-      <directionalLight position={[0, 2.5, -3]} intensity={1.2} color="#FFE3A8" />
+      <hemisphereLight name="skin-hemi" args={["#FFF7E8", "#C9B48E", 1.1]} />
+      <spotLight name="skin-key" position={[2.2, 4.2, 3.4]} angle={Math.PI / 7} penumbra={0.55} decay={1.6} distance={14} intensity={70} color="#FFF1D6" castShadow shadow-mapSize={[1024, 1024]} shadow-bias={-0.0004} />
+      <directionalLight name="skin-fill0" position={[-3, 2, 2.5]} intensity={0.7} color="#E9F0FF" />
+      <directionalLight name="skin-fill1" position={[0, 2.5, -3]} intensity={1.2} color="#FFE3A8" />
       {/* soft fill for the back of the tee */}
-      <directionalLight position={[1.5, 1.8, -3.5]} intensity={1.6} color="#FFF4E2" />
-      <mesh position={[0, 2.2, -1.2]}>
+      <directionalLight name="skin-fill2" position={[1.5, 1.8, -3.5]} intensity={1.6} color="#FFF4E2" />
+      {/* dark studio only: lights from behind and from the front corners that trace the tee's edges (stronger for a dark tee) */}
+      <group name="skin-rims" visible={false}>
+        <Spot position={[0, 3.2, -3.4]} at={STUDIO_TEE} angle={0.45} penumbra={0.8} decay={1.4} distance={12} intensity={40 + 110 * teeDark} color="#FFD9A0" />
+        <Spot position={[-2.8, 2.0, -2.6]} at={STUDIO_TEE} angle={0.4} penumbra={0.9} decay={1.4} distance={10} intensity={16 + 80 * teeDark} color="#FFE2B8" />
+        <Spot position={[2.8, 2.0, -2.6]} at={STUDIO_TEE} angle={0.4} penumbra={0.9} decay={1.4} distance={10} intensity={16 + 80 * teeDark} color="#FFE2B8" />
+        <Spot position={[-2.6, 1.6, 3.4]} at={STUDIO_TEE} angle={0.42} penumbra={0.9} decay={1.5} distance={10} intensity={8 + 46 * teeDark} color="#FFF1DC" />
+      </group>
+      <mesh name="skin-wall" position={[0, 2.2, -1.2]}>
         <cylinderGeometry args={[6, 6, 6, 64, 1, true, Math.PI * 0.75, Math.PI * 1.5]} />
         <meshStandardMaterial color="#EADFC9" roughness={1} side={THREE.BackSide} />
       </mesh>
-      <mesh rotation-x={-Math.PI / 2} position-y={-0.8} receiveShadow>
+      <mesh name="skin-floor" rotation-x={-Math.PI / 2} position-y={-0.8} receiveShadow>
         <circleGeometry args={[9, 64]} />
         <meshStandardMaterial color="#E4D7BE" roughness={0.95} />
       </mesh>
-      <mesh position-y={-0.74} receiveShadow castShadow>
+      <mesh name="skin-stand" position-y={-0.74} receiveShadow castShadow>
         <cylinderGeometry args={[0.75, 0.8, 0.12, 64]} />
         <meshStandardMaterial color="#F4EDE0" roughness={0.6} />
       </mesh>
@@ -298,6 +345,7 @@ function warmUp(group, gl, scene, camera) {
 }
 
 // A spotlight that points at a given place (three needs the target to be an object in the scene).
+const STUDIO_TEE = [0, 0.3, 0];
 function Spot({ position, at, ...light }) {
   const ref = useRef();
   const target = useMemo(() => new THREE.Object3D(), []);
@@ -976,7 +1024,7 @@ function Tee({ model, colour, areas, onPickArea, interactive, still, spotsRef, t
 }
 
 /* ---------- camera ---------- */
-function CameraRig({ request, getSpot, apiRef, wakeKey, room }) {
+function CameraRig({ request, getSpot, apiRef, wakeKey, room, dark }) {
   const { camera, controls, gl, scene, size, invalidate } = useThree();
   const anim = useRef(null);
 
@@ -1127,7 +1175,7 @@ function CameraRig({ request, getSpot, apiRef, wakeKey, room }) {
         tee.position.y = TEE_Y;
         tee.position.z = 0;
       }
-      paintBackdrop(scene, "studio");
+      paintBackdrop(scene, "studio", false);
       camera.position.set(...VIEWS[view]);
       camera.lookAt(0, 0.1, 0);
       gl.render(scene, camera);
@@ -1144,7 +1192,7 @@ function CameraRig({ request, getSpot, apiRef, wakeKey, room }) {
       hidden.forEach((o) => (o.visible = true));
       if (tee && scaleWas) tee.scale.setScalar(scaleWas);
       [FOLD.left.value, FOLD.right.value, FOLD.bottom.value] = was.fold;
-      paintBackdrop(scene, room);
+      paintBackdrop(scene, room, dark);
       camera.position.copy(keepP);
       if (controls) {
         controls.target.copy(keepT);
@@ -1163,7 +1211,7 @@ function CameraRig({ request, getSpot, apiRef, wakeKey, room }) {
   return null;
 }
 
-const Room3D = forwardRef(function Room3D({ model, colour, areas, onPickArea, camRequest, interactive = true, still = false, room = "studio", spin = false, face = null, spinSpeed = 1.6, unfoldKey = 0, onLit, hotspots, glowKey = null, activeKey = null, onHoverArea, popKey = 0, showcase = false, twirlKey = 0 }, ref) {
+const Room3D = forwardRef(function Room3D({ model, colour, areas, onPickArea, camRequest, interactive = true, still = false, room = "studio", spin = false, face = null, spinSpeed = 1.6, unfoldKey = 0, onLit, hotspots, glowKey = null, activeKey = null, onHoverArea, popKey = 0, showcase = false, twirlKey = 0, dark = false }, ref) {
   const boutique = room === "boutique";
   const spotsRef = useRef(() => null);
   return (
@@ -1175,8 +1223,8 @@ const Room3D = forwardRef(function Room3D({ model, colour, areas, onPickArea, ca
       gl={{ antialias: true, preserveDrawingBuffer: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.05 }}
       style={{ position: "absolute", inset: 0, touchAction: "none" }}
     >
-      <Backdrop room={room} />
-      <Studio visible={!boutique} />
+      <Backdrop room={room} dark={dark} />
+      <Studio visible={!boutique} colour={colour} />
       <Suspense fallback={null}>
         <Boutique visible={boutique} model={model} colour={colour} />
         <Tee model={model} colour={colour} areas={areas} onPickArea={onPickArea} interactive={interactive} still={still} spotsRef={spotsRef} turntable={boutique} spin={spin} face={face} spinSpeed={spinSpeed} unfoldKey={unfoldKey} onLit={onLit} hotspots={hotspots} glowKey={glowKey} activeKey={activeKey} onHoverArea={onHoverArea} popKey={popKey} showcase={showcase} twirlKey={twirlKey} />
@@ -1195,7 +1243,7 @@ const Room3D = forwardRef(function Room3D({ model, colour, areas, onPickArea, ca
         minAzimuthAngle={boutique ? -0.5 : -Infinity}
         maxAzimuthAngle={boutique ? 0.5 : Infinity}
       />
-      <CameraRig request={camRequest} getSpot={(k) => spotsRef.current(k)} apiRef={ref} room={room} wakeKey={`${colour}|${still}|${interactive}|${glowKey}|${popKey}|${twirlKey}|${areas.map((a) => `${a.key}:${a.version}`).join(",")}`} />
+      <CameraRig request={camRequest} getSpot={(k) => spotsRef.current(k)} apiRef={ref} room={room} dark={dark} wakeKey={`${dark}|${colour}|${still}|${interactive}|${glowKey}|${popKey}|${twirlKey}|${areas.map((a) => `${a.key}:${a.version}`).join(",")}`} />
     </Canvas>
   );
 });
