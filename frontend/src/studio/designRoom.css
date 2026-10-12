@@ -829,3 +829,8 @@
 @media (min-width: 900px) {
   .dr-stage[data-dark] .dr-overlay.fit { background: linear-gradient(90deg, rgba(22, 18, 14, .9) 0%, rgba(22, 18, 14, .6) 30%, transparent 50%); }
 }
+
+/* dark studio: the black "Ask the Assistant" card disappeared into the dark stage — it turns gold there */
+.dr-stage[data-dark] .dr-starts button.ai { background: linear-gradient(135deg, #C9A24B, #EBCB7A); border-color: #EBCB7A; color: var(--ink); box-shadow: 0 12px 30px -12px rgba(235, 203, 122, .55); }
+.dr-stage[data-dark] .dr-starts button.ai svg { color: var(--ink); }
+.dr-stage[data-dark] .dr-starts button.ai small { color: #4A3A12; }
