@@ -122,6 +122,9 @@ for dark tee colours (`dark` in `Boutique`), the arch dimmed to a glow, lamps ov
 **`feature-assistant-examples` — MERGED to `main` on 12 Oct 2026:** the assistant opens with a list of what it can do
 (`EXAMPLES` in `assistantScript.js`): tap-able examples that fill the message box or start the feature; "What can you do?" shows it again.
 
+**Branch `feature-ai-more` (pushed, awaiting "merge"):** Make it sharper / Recolour for this tee (picture settings) and the
+text stylist ("Style it for me"). Sharper and recolour are untested with the real image AI. See `docs/AI_PLAN.md`.
+
 **Asked earlier, not built — making the AI easy to find OUTSIDE the assistant** (user: "how does the user know these AI features are here?").
 Proposed, in order: (1) a Home-page section "Design with AI" with 3 examples and a button into the room with the assistant open;
 (2) an "AI" badge + one line on the Customizable card/page; (3) the assistant's first message lists what it can do with
