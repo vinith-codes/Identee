@@ -122,7 +122,7 @@ for dark tee colours (`dark` in `Boutique`), the arch dimmed to a glow, lamps ov
 **`feature-assistant-examples` — MERGED to `main` on 12 Oct 2026:** the assistant opens with a list of what it can do
 (`EXAMPLES` in `assistantScript.js`): tap-able examples that fill the message box or start the feature; "What can you do?" shows it again.
 
-**`feature-compare-pictures` — built 13 Oct 2026, pushed, waiting for the user's "merge":** in the order's print-files window,
+**`feature-compare-pictures` — MERGED to `main` on 13 Oct 2026:** in the order's print-files window,
 an enlarged picture has one button, **Compare with the original**: both pictures side by side on the tee's colour, with their
 pixel widths, shared zoom (Whole / 2× / 4× / 8×, mouse wheel, double-click) and shared dragging; Esc closes only the compare
 view (`ComparePictures` in `OrderDesignsModal.jsx`). Checked on a throwaway order with the real 1,024 px and 4,096 px pictures.
