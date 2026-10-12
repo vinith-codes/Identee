@@ -8,15 +8,24 @@ import {
   clearSelectedUser,
 } from "../../redux/slices/userManagementSlice";
 
-// Admin panel is dark-themed independently of the storefront theme.js
+// Same light look as the rest of the admin panel. (This page used pale text made for an
+// older dark panel, so the title and the tick-box labels could not be read.)
 const ADMIN = {
-  text: "#F3EFE6",
-  textMuted: "#8A877F",
-  border: "#2A2A30",
-  inputBg: "#1A1A1F",
+  text: "#141110",
+  textMuted: "#6B6559",
+  border: "#EAE3CF",
+  inputBg: "#FFFFFF",
   gold: "#C9A24B",
   ink: "#141110",
 };
+
+// What each tick box gives the person, in plain words.
+const ROLES = [
+  ["isAdmin", "Admin", "Full access to this admin panel: orders, customers, products, prices and other admins."],
+  ["isSeller", "Seller", "Can add and manage their own products."],
+  ["isDelivery", "Delivery person", "Can see and update the orders given to them for delivery."],
+  ["hideUserManagement", "Hide the customers list", "This person will not see the Customers page."],
+];
 
 const AdminEditUserPage = () => {
   const { id } = useParams();
@@ -122,7 +131,7 @@ They will be able to see every order and customer, change products and prices, a
 
   const checkboxRow = {
     display: "flex",
-    alignItems: "center",
+    alignItems: "flex-start",
     gap: 10,
     padding: "10px 2px",
     color: ADMIN.text,
@@ -132,6 +141,8 @@ They will be able to see every order and customer, change products and prices, a
   const checkboxStyle = {
     width: 16,
     height: 16,
+    marginTop: 2,
+    flexShrink: 0,
     accentColor: ADMIN.gold,
     cursor: "pointer",
   };
@@ -180,46 +191,15 @@ They will be able to see every order and customer, change products and prices, a
           </div>
 
           <div>
-            <label style={checkboxRow}>
-              <input
-                type="checkbox"
-                name="isAdmin"
-                checked={form.isAdmin}
-                onChange={handleChange}
-                style={checkboxStyle}
-              />
-              Promote as Admin
-            </label>
-            <label style={checkboxRow}>
-              <input
-                type="checkbox"
-                name="isSeller"
-                checked={form.isSeller}
-                onChange={handleChange}
-                style={checkboxStyle}
-              />
-              Promote as Seller
-            </label>
-            <label style={checkboxRow}>
-              <input
-                type="checkbox"
-                name="isDelivery"
-                checked={form.isDelivery}
-                onChange={handleChange}
-                style={checkboxStyle}
-              />
-              isDelivery
-            </label>
-            <label style={checkboxRow}>
-              <input
-                type="checkbox"
-                name="hideUserManagement"
-                checked={form.hideUserManagement}
-                onChange={handleChange}
-                style={checkboxStyle}
-              />
-              Hide User Management
-            </label>
+            {ROLES.map(([key, title, hint]) => (
+              <label key={key} style={checkboxRow}>
+                <input type="checkbox" name={key} checked={form[key]} onChange={handleChange} style={checkboxStyle} />
+                <span>
+                  <b style={{ fontWeight: 600 }}>{title}</b>
+                  <span style={{ display: "block", fontSize: 12.5, color: ADMIN.textMuted, lineHeight: 1.4 }}>{hint}</span>
+                </span>
+              </label>
+            ))}
           </div>
 
           <button

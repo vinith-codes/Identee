@@ -71,7 +71,7 @@ const AdminUsersPage = () => {
 
   return (
     <div className="min-h-screen p-6 text-white">
-      <h1 className="text-2xl font-semibold mb-6">User Management</h1>
+      <h1 className="text-2xl font-semibold mb-6" style={{ color: "#141110" }}>Customers</h1>
 
       {/* Pie chart */}
       <div className="bg-[#11141f] rounded-xl p-6 mb-6" style={{ height: 320 }}>
