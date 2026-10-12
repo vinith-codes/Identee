@@ -135,3 +135,18 @@ paisa, so it is not counted against the picture limits or logged. In the assista
 request for words ("a slogan about my mother") or the Slogan ideas chip goes to the AI; Show more avoids lines already
 shown (`st.said`); Change tone re-asks. Answers in the customer's language (Tanglish tested). Without a key the built-in
 library (12 occasions x 4 tones) still answers.
+
+## Edit by chat + photo to art built (12 Oct 2026)
+
+- **Edit by chat** — `POST /api/ai/edit` (`aiTextService.planEdit`): the text AI gets a small description of the design
+  (`studio/aiOps.js describeDesign`) and the typed message, and returns `{ reply, ops }`. `applyAiOps` checks and applies
+  the ops (update / move / delete / duplicate / add_text) as one Undo step; unknown ids, areas, fonts or values are skipped.
+  Routing (`assistantScript.js`): typed text with an edit word (`EDIT_WORDS`) when the tee has a design; tapped chips never
+  go to the AI; any other typed message the script does not recognise is also sent there, so the AI answers it. The prompt
+  forbids inventing shop facts (it had made up a "30-day return policy" before that line was added).
+- **Photo to art** — `POST /api/ai/design` with `{ photoUrl, artStyle }`: the customer's uploaded photo is resized, redrawn
+  in Cartoon / Sketch / Sticker / Watercolour / Pop art (two versions), cut out and returned like any AI design. Counts as
+  one daily request; usage kind `photo`. Chat: "Photo to art" (under More help) or typed ("turn my photo into a cartoon")
+  -> Upload a photo / Use the picture on my tee -> style.
+- Tested: edit by chat on the real site with the real text AI (colour + curve, delete, add text, move to sleeve, a shop
+  question). Photo to art only with the mock provider — **not yet with a real photo through Gemini**.
