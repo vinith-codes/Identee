@@ -119,7 +119,7 @@ for dark tee colours (`dark` in `Boutique`), the arch dimmed to a glow, lamps ov
 - Not yet tested with the real picture AI: photo to art, the whole-tee sentence, 'change it', styles other than Bold mascot.
 - `@imgly/background-removal-node` (AGPL) is still in `server/package.json` from earlier work; check whether anything uses it.
 
-**Built on `feature-assistant-examples` (pushed, awaiting "merge"):** the assistant opens with a list of what it can do
+**`feature-assistant-examples` — MERGED to `main` on 12 Oct 2026:** the assistant opens with a list of what it can do
 (`EXAMPLES` in `assistantScript.js`): tap-able examples that fill the message box or start the feature; "What can you do?" shows it again.
 
 **Asked earlier, not built — making the AI easy to find OUTSIDE the assistant** (user: "how does the user know these AI features are here?").
