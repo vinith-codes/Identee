@@ -282,6 +282,18 @@ Brevo + domain email (OTP mails land in spam), HTTPS + deploy to the Quindl serv
 run `scripts/migrateUserAuthIndexes.js`, old `server/uploads` → `scripts/migrateUploadsToCloudinary.js`, CC BY credit kept on the site,
 print-team start distances applied.
 
+**Deployment — the user decided on 12 Oct 2026 to do it LATER.** Plan agreed in words: a test link first (free hosting or the
+Quindl server — the user has not yet said whether Quindl has one), real launch after the client gives domain access, live keys and
+policy pages. Code to fix before any deployment (found by reading the code, NOT fixed yet):
+- `server/server.js` CORS list is hard-coded (two localhost addresses + an old `new-vyavarclient-3f1f.vercel.app`) — take the
+  site's address from a setting.
+- `server/controllers/contactController.js` sends Contact-page messages to a hard-coded outside address
+  (`paletteproductiondevelopers@gmail.com`), not to the shop — use the shop's address from store settings; check the enquiry and
+  review mailers for the same.
+- 34 frontend files fall back to `localhost` when `VITE_API_URL` is missing — build with the real address and verify.
+- Nothing may rely on the server's own disk (`server/uploads`) on hosts that restart — pictures must go to Cloudinary.
+- Write `docs/DEPLOYMENT.md` listing every `.env` setting.
+
 **Background remover (Design Room) at go-live:**
 - Host the AI model ourselves instead of fetching it from huggingface.co: copy `onnx-community/ormbg-ONNX` (`config.json`,
   `preprocessor_config.json`, `onnx/model_quantized.onnx`, ~44 MB) to our hosting and point Transformers.js at it
