@@ -96,7 +96,7 @@ export const changeDesignPrompt = (change) =>
 function findImage(node, depth = 0) {
   if (!node || typeof node !== "object" || depth > 8) return null;
   if (typeof node.data === "string" && node.data.length > 500 && (node.type === "image" || String(node.mime_type || node.mimeType || "").startsWith("image/"))) {
-    return { data: node.data, mime: node.mime_type || node.mimeType || "image/png" };
+    return { data: node.data, mime: node.mime_type || node.mimeType || "image/jpeg" };
   }
   for (const value of Array.isArray(node) ? node : Object.values(node)) {
     const hit = findImage(value, depth + 1);
@@ -127,7 +127,7 @@ export async function generateImage({ prompt, image, ratio = "1:1" }) {
     res = await fetch(ENDPOINT, {
       method: "POST",
       headers: { "x-goog-api-key": key, "Content-Type": "application/json" },
-      body: JSON.stringify({ model: aiImageModel(), input, response_format: { type: "image", mime_type: "image/png", aspect_ratio: ratio, image_size: "1K" } }),
+      body: JSON.stringify({ model: aiImageModel(), input, response_format: { type: "image", mime_type: "image/jpeg", aspect_ratio: ratio, image_size: "1K" } }),
       signal: ctrl.signal,
     });
   } catch (err) {
