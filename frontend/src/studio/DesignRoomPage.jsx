@@ -176,6 +176,10 @@ export default function DesignRoomPage() {
   const [players, setPlayers] = useState(() => (Array.isArray(draft?.players) ? draft.players.map((p) => ({ id: makeId(), ...p })) : []));
   const [team, setTeam] = useState(() => Boolean(draft?.players?.length));
   const [previewId, setPreviewId] = useState(null); // Review: the player whose tee is shown
+  // the print area the pointer is on — on the 3D tee itself or on its card in the list (it glows on the tee)
+  const [hoverKey, setHoverKey] = useState(null);
+  const hoverCam = useRef({ side: null, timer: 0 });
+  const [popKey, setPopKey] = useState(0); // goes up when something lands on the tee: the tee gives a small pop
   const [toast, setToast] = useState("");
   const [busy, setBusy] = useState("");
   // the saved design this is (My designs); locked = already ordered → saving makes a copy
@@ -308,6 +312,7 @@ export default function DesignRoomPage() {
     const prev = elementsRef.current;
     const value = typeof next === "function" ? next(prev) : next;
     hist.current = { past: [...hist.current.past, prev].slice(-HISTORY_CAP), future: [] };
+    if (value.length > prev.length) setPopKey((k) => k + 1);
     setElements(value);
     bumpHistory();
   }, []);
@@ -427,6 +432,26 @@ export default function DesignRoomPage() {
   // areas that already carry a print, and old designs' overlapping pairs
   const usedKeys = [...new Set(elements.map((e) => e.position))];
   const clashes = clashesIn(positions, usedKeys);
+  // print areas that can be picked by pointing at the tee: every one that is not covered by another design
+  const usedSig = usedKeys.join();
+  const hotspots = useMemo(
+    () => {
+      const used = usedSig ? usedSig.split(",") : [];
+      return positions.filter((p) => spots[p.key] && (used.includes(p.key) || !blockersOf(p.key, positions, used).length)).map((p) => ({ key: p.key, spot: spots[p.key], main: !!p.main }));
+    },
+    [positions, spots, usedSig],
+  );
+  const hoverPos = step === "design" && hoverKey && hoverKey !== active ? positions.find((p) => p.key === hoverKey) : null;
+  // Pointing at a card in the list: its area glows on the tee, and (when nothing is being edited) the tee turns to that side.
+  const hoverCard = (p) => {
+    setHoverKey(p ? p.key : null);
+    clearTimeout(hoverCam.current.timer);
+    if (!p || active || narrow || hoverCam.current.side === p.side) return;
+    hoverCam.current.timer = setTimeout(() => {
+      hoverCam.current.side = p.side;
+      setCamRequest({ view: p.side, ms: 700, n: nextReq() });
+    }, 180);
+  };
   const openArea = (key, { force = false } = {}) => {
     const pos = positions.find((p) => p.key === key);
     if (!pos) return;
@@ -437,6 +462,9 @@ export default function DesignRoomPage() {
       return;
     }
     setActive(key);
+    setHoverKey(null);
+    clearTimeout(hoverCam.current.timer);
+    hoverCam.current.side = null;
     setAreasOpen(false);
     setSelectedId((cur) => (elements.some((e) => e.id === cur && e.position === key) ? cur : elements.filter((e) => e.position === key).at(-1)?.id ?? null));
     // the editor is a column beside the 3D view (not on top of it), so the area can fill the view
@@ -1273,7 +1301,7 @@ export default function DesignRoomPage() {
 
       <main className="dr-stage" data-editing={step === "design" && active ? "1" : undefined}>
         {step === "design" && (
-          <aside className={`dr-side${areasOpen ? " open" : ""}`} aria-label="Where to print">
+          <aside className={`dr-side${areasOpen ? " open" : ""}`} aria-label="Where to print" onMouseLeave={() => { hoverCam.current.side = null; }}>
             <header>
               <div>
                 <div className="eyebrow">Step 1</div>
@@ -1300,7 +1328,11 @@ export default function DesignRoomPage() {
                               <button
                                 key={p.key}
                                 type="button"
-                                className={`dr-area${active === p.key ? " on" : ""}${used ? " used" : ""}${blockedBy.length ? " blocked" : ""}`}
+                                className={`dr-area${active === p.key ? " on" : ""}${used ? " used" : ""}${blockedBy.length ? " blocked" : ""}${hoverKey === p.key && active !== p.key ? " hot" : ""}`}
+                                onMouseEnter={() => hoverCard(blockedBy.length ? null : p)}
+                                onMouseLeave={() => hoverCard(null)}
+                                onFocus={() => !blockedBy.length && setHoverKey(p.key)}
+                                onBlur={() => setHoverKey(null)}
                                 title={blockedBy.length ? `Overlaps ${blockedBy.map((b) => b.label).join(" and ")} — remove that design first` : `${p.label} · ${w} × ${h} cm`}
                                 aria-label={`${p.label}, ${w} by ${h} cm${used ? ", has a design" : ""}${blockedBy.length ? `, blocked by ${blockedBy.map((b) => b.label).join(" and ")}` : ""}`}
                                 aria-disabled={blockedBy.length ? "true" : undefined}
@@ -1328,7 +1360,7 @@ export default function DesignRoomPage() {
 
         <div className="dr-view">
           {model && colour && (
-            <div className="dr-room" data-editing={active ? "1" : undefined}>
+            <div className="dr-room" data-editing={active ? "1" : undefined} data-room={step === "review" ? "boutique" : "studio"} data-hot={hoverPos ? "1" : undefined}>
               <Room3D
                 ref={roomApi}
                 model={model}
@@ -1338,6 +1370,11 @@ export default function DesignRoomPage() {
                 camRequest={camRequest}
                 interactive={step === "design"}
                 still={!!active}
+                hotspots={step === "design" ? hotspots : undefined}
+                glowKey={step === "design" ? hoverKey : null}
+                activeKey={active}
+                onHoverArea={setHoverKey}
+                popKey={popKey}
                 room={step === "review" ? "boutique" : "studio"}
                 spin={spin}
                 face={sideShown}
@@ -1352,7 +1389,15 @@ export default function DesignRoomPage() {
                 <button type="button" onClick={undo} disabled={histSize.past === 0} aria-label="Undo" title="Undo (Ctrl+Z)">↶</button>
                 <button type="button" onClick={redo} disabled={histSize.future === 0} aria-label="Redo" title="Redo (Ctrl+Y)">↷</button>
               </div>
-              {!active && <div className="dr-hint">Drag to turn the tee · scroll or pinch to zoom</div>}
+              {hoverPos ? (
+                <div className="dr-hotchip" role="status" key={hoverPos.key}>
+                  <b>{hoverPos.label}</b>
+                  <span>{areaCm(hoverPos, sizeNow).join(" × ")} cm</span>
+                  <i>{usedKeys.includes(hoverPos.key) ? "Tap to edit" : "Tap to design here"}</i>
+                </div>
+              ) : (
+                !active && <div className="dr-hint">Point at the tee and tap a spot to design there · drag to turn · scroll to zoom</div>
+              )}
               <div className="dr-viewsw" role="group" aria-label="Look at side">
                 {SIDES.map(([k, label]) => (
                   <button key={k} type="button" className={usedSides.has(k) ? "has" : ""} onClick={() => goView(k)}>

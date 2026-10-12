@@ -632,3 +632,47 @@
 .dr-paste textarea { width: 100%; border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; font: inherit; font-size: 13px; resize: vertical; background: #fff; color: var(--ink); }
 .dr-qty[hidden] { display: none; }
 .dr-qnote.warn { color: #9A3412; background: #FFF4E5; border: 1px solid #F3D3A4; border-radius: 10px; padding: 8px 10px; font-size: 12px; }
+
+/* ================= a livelier design room =================
+   The tee itself can be pointed at (the print area under the pointer glows
+   and is named), cards and buttons answer to the pointer, and the studio has
+   a soft edge. Movement is skipped for people who ask for less of it. */
+.dr-room canvas { cursor: grab; }
+.dr-room canvas:active { cursor: grabbing; }
+.dr-room[data-hot] canvas { cursor: pointer; }
+.dr-room[data-room="studio"]::after { content: ""; position: absolute; inset: 0; pointer-events: none; background: radial-gradient(120% 95% at 50% 42%, transparent 55%, rgba(120, 92, 40, .16) 100%); }
+.dr-hotchip { position: absolute; inset-inline: 0; margin-inline: auto; width: max-content; max-width: calc(100% - 32px); box-sizing: border-box; top: 58px; z-index: 4; display: flex; align-items: baseline; gap: 8px;
+  background: var(--ink); color: #fff; border-radius: 999px; padding: 8px 16px; font-size: 12.5px; box-shadow: 0 10px 28px rgba(20, 17, 16, .28); pointer-events: none; white-space: nowrap; }
+.dr-hotchip b { font-weight: 800; }
+.dr-hotchip span { color: #E9DCC0; font-variant-numeric: tabular-nums; }
+.dr-hotchip i { font-style: normal; color: var(--gold); font-weight: 700; padding-left: 8px; border-left: 1px solid rgba(255, 255, 255, .25); }
+.dr-area.hot { border-color: var(--gold-deep); background: var(--gold-soft); box-shadow: 0 6px 16px rgba(140, 106, 31, .22); }
+.dr-area.hot .dr-thumb .box { stroke: #6B4E0E; }
+.dr-cta, .dr-chip, .dr-toolbtn, .dr-tgl, .dr-seg button, .dr-add, .dr-enter, .dr-aibtn, .dr-mini, .dr-area, .dr-viewsw button, .dr-undo button, .dr-shot, .dr-example {
+  transition: transform .16s ease, box-shadow .2s ease, background-color .2s ease, border-color .2s ease, color .2s ease; }
+@media (hover: hover) {
+  .dr-cards .dr-area:hover:not(.blocked), .dr-area.hot { transform: translateY(-2px); }
+  .dr-cards .dr-area:hover:not(.blocked) { box-shadow: 0 6px 16px rgba(20, 17, 16, .1); }
+  .dr-cta:hover:not(:disabled), .dr-enter:hover, .dr-aibtn:hover { transform: translateY(-1px); box-shadow: 0 8px 20px rgba(20, 17, 16, .16); }
+  .dr-chip:hover:not(:disabled), .dr-add:hover, .dr-example:hover, .dr-mini:hover:not(:disabled) { transform: translateY(-1px); }
+  .dr-viewsw button:hover { background: var(--gold-soft); }
+}
+.dr-cta:active:not(:disabled), .dr-chip:active, .dr-toolbtn:active, .dr-tgl:active, .dr-seg button:active, .dr-add:active, .dr-enter:active, .dr-aibtn:active, .dr-mini:active, .dr-cards .dr-area:active:not(.blocked), .dr-viewsw button:active, .dr-example:active { transform: scale(.96); }
+@media (prefers-reduced-motion: no-preference) {
+  .dr-hotchip { animation: dr-chipin .18s ease-out both; }
+  @keyframes dr-chipin { from { opacity: 0; transform: translateY(-6px) scale(.96); } }
+  /* the print-area cards arrive one after another */
+  .dr-cards .dr-area { animation: dr-cardin .42s cubic-bezier(.2, .7, .2, 1) backwards; }
+  .dr-cards .dr-area:nth-child(2) { animation-delay: .04s; }
+  .dr-cards .dr-area:nth-child(3) { animation-delay: .08s; }
+  .dr-cards .dr-area:nth-child(4) { animation-delay: .12s; }
+  .dr-cards .dr-area:nth-child(5) { animation-delay: .16s; }
+  .dr-cards .dr-area:nth-child(6) { animation-delay: .2s; }
+  @keyframes dr-cardin { from { opacity: 0; transform: translateY(10px); } }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dr-cta, .dr-chip, .dr-toolbtn, .dr-tgl, .dr-seg button, .dr-add, .dr-enter, .dr-aibtn, .dr-mini, .dr-area, .dr-viewsw button, .dr-undo button, .dr-shot, .dr-example { transition: none; }
+}
+@media (max-width: 760px) {
+  .dr-hotchip { top: 12px; font-size: 12px; padding: 7px 12px; }
+}

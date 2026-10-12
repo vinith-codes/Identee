@@ -53,9 +53,77 @@ function paintBackdrop(scene, room) {
   scene.fog = new THREE.Fog(set.background, ...set.fog);
 }
 
+// A soft round patch of light (white in the middle, fading to nothing), used
+// for the glow on the studio wall and the pool of light on its floor.
+function useGlowTexture() {
+  return useMemo(() => {
+    const c = document.createElement("canvas");
+    c.width = c.height = 256;
+    const g = c.getContext("2d");
+    const grad = g.createRadialGradient(128, 128, 0, 128, 128, 128);
+    grad.addColorStop(0, "rgba(255,255,255,1)");
+    grad.addColorStop(0.45, "rgba(255,255,255,.45)");
+    grad.addColorStop(1, "rgba(255,255,255,0)");
+    g.fillStyle = grad;
+    g.fillRect(0, 0, 256, 256);
+    const t = new THREE.CanvasTexture(c);
+    t.colorSpace = THREE.SRGBColorSpace;
+    return t;
+  }, []);
+}
+
+// Something was just added to the tee, or its colour changed: the tee gives a
+// small pop and the gold ring under it lights up for a moment. t = seconds since.
+const PULSE = { t: 9 };
+
+// A tall softbox, like the lights in a photo studio.
+function Softbox({ position, turn }) {
+  return (
+    <group position={position} rotation-y={turn}>
+      <mesh>
+        <planeGeometry args={[1.05, 2.9]} />
+        <meshBasicMaterial color="#FFFAF0" toneMapped={false} side={THREE.DoubleSide} />
+      </mesh>
+      <mesh position-z={-0.03}>
+        <boxGeometry args={[1.13, 2.98, 0.05]} />
+        <meshStandardMaterial color="#2B241C" roughness={0.7} />
+      </mesh>
+      <mesh position-y={-1.72}>
+        <cylinderGeometry args={[0.025, 0.025, 0.7, 10]} />
+        <meshStandardMaterial {...{ color: "#C39A45", metalness: 1, roughness: 0.25 }} />
+      </mesh>
+    </group>
+  );
+}
+
 function Studio({ visible }) {
+  const glow = useGlowTexture();
+  const ring = useRef();
+  useFrame((_, dt) => {
+    PULSE.t += Math.min(dt, 0.05);
+    if (ring.current) ring.current.emissiveIntensity = 2.2 * Math.max(0, 1 - PULSE.t / 0.7);
+  });
   return (
     <group name="set-studio" visible={visible}>
+      {/* dressing that is left out of the saved preview pictures (see snapshot) */}
+      <group name="studio-extra">
+        {/* light on the wall behind the tee, and a pool of light on the floor */}
+        <mesh position={[0, 1.15, -4.6]}>
+          <planeGeometry args={[9, 6.5]} />
+          <meshBasicMaterial map={glow} color="#FFF9EC" transparent opacity={0.85} depthWrite={false} toneMapped={false} />
+        </mesh>
+        <mesh rotation-x={-Math.PI / 2} position-y={-0.792}>
+          <circleGeometry args={[3.4, 48]} />
+          <meshBasicMaterial map={glow} color="#FFF6E0" transparent opacity={0.7} depthWrite={false} toneMapped={false} />
+        </mesh>
+        <mesh rotation-x={Math.PI / 2} position-y={-0.788}>
+          <torusGeometry args={[1.55, 0.006, 8, 120]} />
+          <meshStandardMaterial color="#C9A24B" metalness={0.9} roughness={0.3} />
+        </mesh>
+        <Softbox position={[-3.05, 1.15, -4.1]} turn={0.5} />
+        <Softbox position={[3.05, 1.15, -4.1]} turn={-0.5} />
+        <Sparkles count={36} scale={[6, 3.2, 3.5]} position={[0, 0.9, -0.6]} size={2.2} speed={0.22} opacity={0.5} color="#C9A24B" />
+      </group>
       <hemisphereLight args={["#FFF7E8", "#C9B48E", 1.1]} />
       <spotLight position={[2.2, 4.2, 3.4]} angle={Math.PI / 7} penumbra={0.55} decay={1.6} distance={14} intensity={70} color="#FFF1D6" castShadow shadow-mapSize={[1024, 1024]} shadow-bias={-0.0004} />
       <directionalLight position={[-3, 2, 2.5]} intensity={0.7} color="#E9F0FF" />
@@ -76,7 +144,7 @@ function Studio({ visible }) {
       </mesh>
       <mesh rotation-x={Math.PI / 2} position-y={-0.68}>
         <torusGeometry args={[0.775, 0.012, 12, 96]} />
-        <meshStandardMaterial color="#C9A24B" metalness={0.9} roughness={0.25} />
+        <meshStandardMaterial ref={ring} color="#C9A24B" metalness={0.9} roughness={0.25} emissive="#FFD98A" emissiveIntensity={0} />
       </mesh>
     </group>
   );
@@ -593,24 +661,21 @@ function keepFacing(geo, n, min) {
   geo.setAttribute("uv", new THREE.Float32BufferAttribute(U, 2));
 }
 
-function Decal({ probe, spot, canvas, version, areaKey, onPick, interactive, order }) {
-  const texRef = useRef(null);
-  const matRef = useRef(null);
-  useFrame(() => {
-    if (matRef.current) matRef.current.opacity = printShown(order);
-  });
-  const geometry = useMemo(() => {
-    if (!spot) return null;
-    const raw = new THREE.Vector3(...areaCentreRaw(spot));
-    return { raw, side: spot.side, w: spot.w, h: spot.h };
-  }, [spot]);
-  const built = useMemo(() => {
+// Where a print area's middle lands on the tee (model space), or null.
+function landOn(probe, spot) {
+  const p = new THREE.Vector3(...areaCentreRaw(spot)).applyMatrix4(probe.userData.toModel);
+  const r = RAY[spot.side];
+  const hit = new THREE.Raycaster(r.origin(p), r.dir).intersectObject(probe, false)[0];
+  return hit ? { p, r, hit } : null;
+}
+
+// The shape of a print area pressed onto the tee: { geo, point, normal } or null.
+function pressOn(probe, geometry) {
+  {
     if (!geometry) return null;
-    const p = geometry.raw.clone().applyMatrix4(probe.userData.toModel);
-    const r = RAY[geometry.side];
-    const ray = new THREE.Raycaster(r.origin(p), r.dir);
-    const hit = ray.intersectObject(probe, false)[0];
-    if (!hit) return null;
+    const landed = landOn(probe, geometry);
+    if (!landed) return null;
+    const { p, r, hit } = landed;
     // Front and back prints are pressed on flat, so project them straight
     // on. (The fabric's own direction at the area's middle can face sideways
     // on a fold, which twisted tall or off-centre areas.) Sleeves slope, so
@@ -626,7 +691,53 @@ function Decal({ probe, spot, canvas, version, areaKey, onPick, interactive, ord
     // landed on folds turned away from it, the hem's inside or the body behind
     if (!flat) keepFacing(geo, n, 0.3);
     return { geo, point: hit.point.clone(), normal: n };
-  }, [geometry, probe]);
+  }
+}
+
+// The glow that shows a print area on the tee while the pointer is over it
+// (or over its card in the list): a soft gold patch with a bright edge.
+function AreaGlow({ probe, spot }) {
+  const built = useMemo(() => pressOn(probe, spot), [probe, spot]);
+  const mat = useRef();
+  const tex = useMemo(() => {
+    const long = Math.max(spot.w, spot.h);
+    const c = document.createElement("canvas");
+    c.width = Math.max(64, Math.round((512 * spot.w) / long));
+    c.height = Math.max(64, Math.round((512 * spot.h) / long));
+    const g = c.getContext("2d");
+    const line = 6;
+    g.fillStyle = "rgba(255,220,140,.3)";
+    g.fillRect(0, 0, c.width, c.height);
+    g.lineWidth = line;
+    g.strokeStyle = "rgba(90,62,10,.7)"; // dark edge, so it also shows on a cream or white tee
+    g.strokeRect(line / 2, line / 2, c.width - line, c.height - line);
+    g.strokeStyle = "rgba(255,236,180,1)";
+    g.strokeRect(line * 1.5, line * 1.5, c.width - line * 3, c.height - line * 3);
+    const t = new THREE.CanvasTexture(c);
+    t.colorSpace = THREE.SRGBColorSpace;
+    return t;
+  }, [spot]);
+  useEffect(() => () => built?.geo.dispose(), [built]);
+  useEffect(() => () => tex.dispose(), [tex]);
+  useFrame((st) => {
+    if (mat.current) mat.current.opacity = Math.min(1, mat.current.opacity + 0.14) * (0.86 + 0.14 * Math.sin(st.clock.elapsedTime * 4));
+  });
+  if (!built) return null;
+  return (
+    <mesh geometry={built.geo} renderOrder={3} name="area-glow">
+      <meshBasicMaterial ref={mat} map={tex} transparent opacity={0} depthWrite={false} polygonOffset polygonOffsetFactor={-6} toneMapped={false} />
+    </mesh>
+  );
+}
+
+function Decal({ probe, spot, canvas, version, areaKey, onPick, interactive, order }) {
+  const texRef = useRef(null);
+  const matRef = useRef(null);
+  useFrame(() => {
+    if (matRef.current) matRef.current.opacity = printShown(order);
+  });
+  const geometry = spot || null;
+  const built = useMemo(() => pressOn(probe, geometry), [geometry, probe]);
 
   useEffect(() => () => built?.geo.dispose(), [built]);
   useEffect(() => {
@@ -655,13 +766,58 @@ function Decal({ probe, spot, canvas, version, areaKey, onPick, interactive, ord
   );
 }
 
-function Tee({ model, colour, areas, onPickArea, interactive, still, spotsRef, turntable, spin, face, spinSpeed, unfoldKey, onLit }) {
+function Tee({ model, colour, areas, onPickArea, interactive, still, spotsRef, turntable, spin, face, spinSpeed, unfoldKey, onLit, hotspots, glowKey, activeKey, onHoverArea, popKey }) {
   const { geo, probe, map, normalMap } = useTeeGeometry(model.url);
   const group = useRef();
   const mesh = useRef();
   const mat = useRef();
   const target = useMemo(() => new THREE.Color(colour), [colour]);
   const speed = useRef(0); // turntable speed, eased
+  // Print areas that can be picked by pointing at the tee itself: where each one's middle lands.
+  const targets = useMemo(
+    () =>
+      (hotspots || [])
+        .map(({ key, spot, main }) => {
+          const landed = landOn(probe, spot);
+          // rank: the smaller area wins where areas overlap, but a side's main area is favoured
+          // and a tall thin strip gives way (it runs through the middle of the bigger areas)
+          const rank = spot.w * spot.h * (main ? 0.5 : 1) * (spot.h / spot.w > 3 ? 3 : 1);
+          return landed ? { key, side: spot.side, at: landed.hit.point, w: spot.w, h: spot.h, rank } : null;
+        })
+        .filter(Boolean),
+    [hotspots, probe],
+  );
+  // The print area under the pointer: of those that contain the point, the one with the lowest rank
+  // (so Left Chest wins inside Centre Front, and Centre Front wins in the middle of the chest).
+  const areaAt = (e) => {
+    if (!mesh.current || !e.face) return null;
+    const p = mesh.current.worldToLocal(e.point.clone());
+    const n = e.face.normal;
+    let best = null;
+    for (const t of targets) {
+      const sleeve = t.side === "left" || t.side === "right";
+      const inside = sleeve
+        ? Math.abs(n.x) > 0.45 && Math.abs(p.x - t.at.x) < 0.1 && Math.abs(p.z - t.at.z) <= t.w / 2 && Math.abs(p.y - t.at.y) <= t.h / 2
+        : (t.side === "front" ? n.z > 0.2 : n.z < -0.2) && Math.abs(p.x - t.at.x) <= t.w / 2 && Math.abs(p.y - t.at.y) <= t.h / 2;
+      if (inside && (!best || t.rank < best.rank)) best = t;
+    }
+    return best && best.key !== activeKey ? best.key : null;
+  };
+  const hovered = useRef(null);
+  const hover = (key) => {
+    if (hovered.current === key) return;
+    hovered.current = key;
+    onHoverArea?.(key);
+  };
+  const glowSpot = glowKey && glowKey !== activeKey ? hotspots?.find((h) => h.key === glowKey)?.spot : null;
+  // a small pop when something lands on the tee or its colour changes
+  const popped = useRef(popKey);
+  const firstColour = useRef(colour);
+  useEffect(() => {
+    if (firstColour.current === colour) return;
+    firstColour.current = colour;
+    PULSE.t = 0;
+  }, [colour]);
   // the reveal: starts when unfoldKey changes (0 = no reveal); a tap on the tee skips it
   // s = seconds of the reveal played so far (it counts its own time, so a slow frame pauses it instead of skipping ahead)
   const unfold = useRef({ key: 0, s: 0, on: false });
@@ -687,6 +843,13 @@ function Tee({ model, colour, areas, onPickArea, interactive, still, spotsRef, t
     if (!g) return;
     const t = state.clock.elapsedTime;
     const k = still ? 0 : 1;
+    if (popped.current !== popKey) {
+      popped.current = popKey;
+      PULSE.t = 0;
+    }
+    // the pop: a quick swell that settles (only for something added; a colour change just lights the ring)
+    const x = PULSE.t / 0.5;
+    g.scale.setScalar(TEE_SCALE * (1 + (x < 1 && !turntable ? 0.035 * Math.sin(Math.PI * x) * (1 - x) : 0)));
     const u = unfold.current;
     if (u.key !== unfoldKey) {
       u.key = unfoldKey;
@@ -725,7 +888,8 @@ function Tee({ model, colour, areas, onPickArea, interactive, still, spotsRef, t
       g.rotation.y += speed.current * Math.min(dt, 0.05);
     } else {
       speed.current = 0;
-      towards(turntable ? FACE[face] ?? 0 : Math.sin(t / 3.2) * 0.06 * k, turntable ? 0.07 : 0.1);
+      // design room: the tee sways a little and leans towards the pointer, so it feels alive
+      towards(turntable ? FACE[face] ?? 0 : (Math.sin(t / 3.2) * 0.06 + state.pointer.x * 0.1) * k, turntable ? 0.07 : 0.1);
     }
   });
 
@@ -752,11 +916,23 @@ function Tee({ model, colour, areas, onPickArea, interactive, still, spotsRef, t
         onPointerDown={() => {
           unfold.current.on = false; // a tap skips the reveal
         }}
+        onPointerMove={(e) => {
+          // pointing at the tee lights up the print area under the pointer (not while turning the view)
+          if (!interactive || e.buttons) return;
+          hover(areaAt(e));
+        }}
+        onPointerOut={() => hover(null)}
+        onClick={(e) => {
+          if (!interactive || e.delta > 6) return;
+          const key = areaAt(e);
+          if (key) onPickArea?.(key);
+        }}
       >
         <meshStandardMaterial ref={mat} color={colour} map={map} normalMap={normalMap} normalScale={[0.8, 0.8]} roughness={0.92} metalness={0} side={THREE.DoubleSide} onBeforeCompile={foldable} customProgramCacheKey={foldKey} />
         {areas.map((a, i) => (
           <Decal key={`${a.key}-${a.spotKey}`} order={i} areaKey={a.key} probe={probe} spot={a.spot} canvas={a.canvas} version={a.version} onPick={onPickArea} interactive={interactive} />
         ))}
+        {interactive && glowSpot && <AreaGlow key={glowKey} probe={probe} spot={glowSpot} />}
       </mesh>
     </group>
   );
@@ -894,9 +1070,14 @@ function CameraRig({ request, getSpot, apiRef, wakeKey, room }) {
       const tee = scene.getObjectByName("tee");
       const was = { studio: studio?.visible, boutique: boutique?.visible, turn: tee?.rotation.y, tilt: tee?.rotation.x, y: tee?.position.y, z: tee?.position.z, fold: [FOLD.left.value, FOLD.right.value, FOLD.bottom.value] };
       const prints = [];
+      const hidden = [];
       scene.traverse((o) => {
         if (o.userData?.areaKey && o.material) prints.push([o.material, o.material.opacity]);
+        if ((o.name === "studio-extra" || o.name === "area-glow") && o.visible) hidden.push(o);
       });
+      hidden.forEach((o) => (o.visible = false));
+      const scaleWas = tee?.scale.x;
+      if (tee) tee.scale.setScalar(TEE_SCALE);
       prints.forEach(([m]) => (m.opacity = 1));
       FOLD.left.value = 0;
       FOLD.right.value = 0;
@@ -923,6 +1104,8 @@ function CameraRig({ request, getSpot, apiRef, wakeKey, room }) {
         tee.position.z = was.z;
       }
       prints.forEach(([m, o]) => (m.opacity = o));
+      hidden.forEach((o) => (o.visible = true));
+      if (tee && scaleWas) tee.scale.setScalar(scaleWas);
       [FOLD.left.value, FOLD.right.value, FOLD.bottom.value] = was.fold;
       paintBackdrop(scene, room);
       camera.position.copy(keepP);
@@ -943,7 +1126,7 @@ function CameraRig({ request, getSpot, apiRef, wakeKey, room }) {
   return null;
 }
 
-const Room3D = forwardRef(function Room3D({ model, colour, areas, onPickArea, camRequest, interactive = true, still = false, room = "studio", spin = false, face = null, spinSpeed = 1.6, unfoldKey = 0, onLit }, ref) {
+const Room3D = forwardRef(function Room3D({ model, colour, areas, onPickArea, camRequest, interactive = true, still = false, room = "studio", spin = false, face = null, spinSpeed = 1.6, unfoldKey = 0, onLit, hotspots, glowKey = null, activeKey = null, onHoverArea, popKey = 0 }, ref) {
   const boutique = room === "boutique";
   const spotsRef = useRef(() => null);
   return (
@@ -959,7 +1142,7 @@ const Room3D = forwardRef(function Room3D({ model, colour, areas, onPickArea, ca
       <Studio visible={!boutique} />
       <Suspense fallback={null}>
         <Boutique visible={boutique} model={model} colour={colour} />
-        <Tee model={model} colour={colour} areas={areas} onPickArea={onPickArea} interactive={interactive} still={still} spotsRef={spotsRef} turntable={boutique} spin={spin} face={face} spinSpeed={spinSpeed} unfoldKey={unfoldKey} onLit={onLit} />
+        <Tee model={model} colour={colour} areas={areas} onPickArea={onPickArea} interactive={interactive} still={still} spotsRef={spotsRef} turntable={boutique} spin={spin} face={face} spinSpeed={spinSpeed} unfoldKey={unfoldKey} onLit={onLit} hotspots={hotspots} glowKey={glowKey} activeKey={activeKey} onHoverArea={onHoverArea} popKey={popKey} />
       </Suspense>
       <OrbitControls
         makeDefault
@@ -975,7 +1158,7 @@ const Room3D = forwardRef(function Room3D({ model, colour, areas, onPickArea, ca
         minAzimuthAngle={boutique ? -0.5 : -Infinity}
         maxAzimuthAngle={boutique ? 0.5 : Infinity}
       />
-      <CameraRig request={camRequest} getSpot={(k) => spotsRef.current(k)} apiRef={ref} room={room} wakeKey={`${colour}|${still}|${interactive}|${areas.map((a) => `${a.key}:${a.version}`).join(",")}`} />
+      <CameraRig request={camRequest} getSpot={(k) => spotsRef.current(k)} apiRef={ref} room={room} wakeKey={`${colour}|${still}|${interactive}|${glowKey}|${popKey}|${areas.map((a) => `${a.key}:${a.version}`).join(",")}`} />
     </Canvas>
   );
 });

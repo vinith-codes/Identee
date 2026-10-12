@@ -122,6 +122,23 @@ for dark tee colours (`dark` in `Boutique`), the arch dimmed to a glow, lamps ov
 **`feature-assistant-examples` — MERGED to `main` on 12 Oct 2026:** the assistant opens with a list of what it can do
 (`EXAMPLES` in `assistantScript.js`): tap-able examples that fill the message box or start the feature; "What can you do?" shows it again.
 
+**`feature-room-polish` — BUILT 12 Oct 2026, pushed, waiting for the user's "merge":** a livelier Design Room (ideas 1–4 of 7
+the user agreed to; 5 quick-start cards on an empty tee, 6 tidier left panel with Front/Back/Sleeves tabs, 7 floating tool bar
+by the selected item are NOT built yet).
+- **Point at the tee:** the print area under the pointer glows on the 3D tee (`AreaGlow` in `Room3D.jsx`), a dark chip names it
+  ("Centre Front · 28 × 32 cm · Tap to design here") and its card lights up in the list; a tap opens it. Where areas overlap
+  the lowest `rank` wins (smaller area first, a side's main area favoured, tall thin strips give way) — `areaAt` in `Tee`.
+  Areas covered by another design are left out (`hotspots` in `DesignRoomPage.jsx`).
+- **Point at a card in "Where to print":** the area glows on the tee and, when nothing is being edited, the tee turns to that side.
+- **Studio:** two softboxes, a glow on the wall, a pool of light and a second gold ring on the floor, gold dust, a soft vignette
+  (CSS). All of it is in the group `studio-extra`, which the saved preview pictures leave out (`snapshot`).
+- **Feedback:** the tee leans a little towards the pointer; it gives a small pop and the plinth ring lights up when something is
+  added (`popKey`) and the ring lights on a colour change (`PULSE`); cards and buttons lift on hover and press in; the cards
+  arrive one after another. Motion is skipped for "reduce motion".
+- Checked in the browser on a computer: hover/tap on the tee (Centre Front, Left Chest, Vertical Front), card hover turning
+  the tee to the back, opening an area, adding text, Review and its four side pictures (clean). **Not checked:** phones,
+  dragging speed with the new studio on a slow computer, the pop itself (too quick to catch in a screenshot).
+
 **`feature-team-order` — MERGED to `main` on 12 Oct 2026:** team orders — one design, a different
 name and number on each tee.
 - **Marking:** a text has "Does this text change for each player? No, same on all / Yes, the name / Yes, the number" in its settings
