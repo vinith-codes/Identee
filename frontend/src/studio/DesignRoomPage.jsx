@@ -140,7 +140,7 @@ export default function DesignRoomPage() {
   // the AI design maker: whether it is on, how many requests are left today, and where its designs sit on the tee
   const [ai, setAi] = useState({ available: false, reason: "setup", styles: [], left: null });
   const [aiPlaced, setAiPlaced] = useState({}); // { [print area key]: { url, elId } }
-  const aiCuts = useRef(new Map()); // design url -> its cut-out, uploaded once: { path, w, h }
+  const aiCuts = useRef(new Map()); // design url -> { path, w, h } (the server sends each design already cut out)
   useEffect(() => {
     let alive = true;
     aiService
@@ -646,14 +646,20 @@ export default function DesignRoomPage() {
     const { W, H } = activePos ? areaPx(activePos) : { W: 1, H: 1 };
     try {
       const res = await aiService.design(
-        a.baseUrl ? { baseUrl: a.baseUrl, change: a.change, ratio: W / H } : { subject: a.subject, style: a.style, teeColour: colour?.name || "white", teeIsDark: lum(fabricHex) < 0.55, ratio: W / H },
+        a.baseUrl ? { baseUrl: a.baseUrl, change: a.change, teeIsDark: lum(fabricHex) < 0.55, ratio: W / H } : { subject: a.subject, style: a.style, teeColour: colour?.name || "white", teeIsDark: lum(fabricHex) < 0.55, ratio: W / H },
       );
       setAi((cur) => ({ ...cur, left: res.left }));
+      // the pictures arrive already cut out of their background; remember their size and start
+      // loading them, so "Add to tee" has nothing left to wait for
+      res.images.forEach((im) => {
+        aiCuts.current.set(im.url, { path: im.url, w: im.width, h: im.height });
+        loadImage(im.url).catch(() => {});
+      });
       const n = res.images.length;
       const left = `${res.left} request${res.left === 1 ? "" : "s"} left today.`;
       return [
         botSays(a.baseUrl ? `Here’s the changed design. ${left}` : `Here ${n === 1 ? "is one" : `are ${n}`}, made for ${activePos?.label || "your tee"} on a ${(colour?.name || "").toLowerCase()} tee. Add one, use another on a different area, or ask me to change one. ${left}`),
-        { designs: res.images },
+        { designs: res.images.map((im) => im.url) },
         chipRow(AFTER_DESIGN_CHIPS),
       ];
     } catch (err) {
@@ -667,10 +673,11 @@ export default function DesignRoomPage() {
     if (!pos || busy) return;
     const blockedBy = usedKeys.includes(pos.key) ? [] : blockersOf(pos.key, positions, usedKeys);
     if (blockedBy.length) return say(`${pos.label} overlaps ${blockedBy.map((b) => b.label).join(" and ")}. Remove that print first.`);
-    setBusy("Putting the design on your tee…");
     try {
       let cut = aiCuts.current.get(url);
       if (!cut) {
+        // (an older design from before the server did the cutting: clear its background here)
+        setBusy("Putting the design on your tee…");
         const img = await loadImage(url, { full: true });
         const { removeBackground } = await import("./removeBackground");
         const out = await removeBackground(img, null, { flatOnly: true });
@@ -1214,7 +1221,7 @@ export default function DesignRoomPage() {
                   ))}
                 </div>
                 {chatting ? (
-                  <Assistant messages={chat} setMessages={setChat} state={chatState} setState={setChatState} ctx={assistantCtx} onAct={assistantAct} onFix={applyFix} placed={aiOn} />
+                  <Assistant messages={chat} setMessages={setChat} state={chatState} setState={setChatState} ctx={assistantCtx} onAct={assistantAct} onFix={applyFix} placed={aiOn} fabric={fabricHex} />
                 ) : (
                 <div className="dr-controls">
 

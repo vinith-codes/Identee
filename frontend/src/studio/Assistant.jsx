@@ -16,11 +16,12 @@ import { imageUrl } from "../utils/imageUrl";
  *   onAct(a)   the page does something: add text, apply a layout, change size, open an area / tab, go to review, recolour
  *   onFix(i)   apply a design-check fix
  *   placed     which print areas each AI-made design is on: { [url]: ["Left Chest"] }
+ *   fabric     the tee's colour — AI designs are shown on it, as they will look on the tee
  *
  * The act "generate" (the image AI) takes a while: onAct returns a promise of
  * the messages to show when the pictures are ready.
  */
-export default function Assistant({ messages, setMessages, state, setState, ctx, onAct, onFix, placed = {} }) {
+export default function Assistant({ messages, setMessages, state, setState, ctx, onAct, onFix, placed = {}, fabric }) {
   const [draft, setDraft] = useState("");
   const [thinking, setThinking] = useState(false); // false | true | a line of text to show while waiting
   const [pickFor, setPickFor] = useState(null); // the design whose "Other area" list is open
@@ -111,7 +112,7 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
               <div key={i} className="dr-designs">
                 {m.designs.map((url) => (
                   <div key={url} className="dr-design">
-                    <img src={imageUrl(url, 400)} alt="A design made for you" loading="lazy" />
+                    <img src={imageUrl(url, 400)} alt="A design made for you" loading="lazy" style={{ background: fabric }} />
                     {placed[url]?.length ? <span className="dr-onlabel">On {placed[url].join(" and ")} ✓</span> : null}
                     {/* every design stays usable: Add to tee replaces what the assistant put on this area; Other area uses it somewhere else as well */}
                     <button type="button" className="dr-mini" onClick={() => onAct({ type: "place", url })}>Add to tee</button>

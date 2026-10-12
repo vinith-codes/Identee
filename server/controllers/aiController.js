@@ -12,6 +12,7 @@ import asyncHandler from "express-async-handler";
 import Setting from "../models/settingModel.js";
 import AiUsage from "../models/aiUsageModel.js";
 import { uploadFile } from "../utils/imageStorage.js";
+import { cutOutPlainBackground, onPlainBackground } from "../services/cutoutService.js";
 import { AI_STYLES, aiImageConfigured, aiImageModel, changeDesignPrompt, generateImage, nearestRatio, newDesignPrompt } from "../services/aiImageService.js";
 
 const CATEGORY = "ai";
@@ -86,7 +87,8 @@ async function fetchOurImage(url, req) {
 
 // POST /api/ai/design  (login required)
 // New design: { subject, style, teeColour, teeIsDark, ratio }
-// Change one: { baseUrl, change }
+// Change one: { baseUrl, change, teeIsDark, ratio }
+// -> { images: [{ url, width, height }], left }   (each picture already cut out of its background)
 export const makeAiDesign = asyncHandler(async (req, res) => {
   const settings = await readSettings();
   const reason = await whyOff(settings);
@@ -117,7 +119,9 @@ export const makeAiDesign = asyncHandler(async (req, res) => {
       res.status(400);
       throw new Error("Only a design made here can be changed.");
     }
-    const image = await fetchOurImage(req.body.baseUrl, req);
+    // the stored design is a cut-out: put it back on its plain background for the AI
+    const stored = await fetchOurImage(req.body.baseUrl, req);
+    const image = { data: await onPlainBackground(stored.data, Boolean(req.body.teeIsDark)), mime: "image/jpeg" };
     jobs = [generateImage({ prompt: changeDesignPrompt(text), image, ratio: nearestRatio(req.body.ratio) })];
   } else {
     const style = AI_STYLES[req.body.style] ? req.body.style : "Bold mascot";
@@ -135,7 +139,9 @@ export const makeAiDesign = asyncHandler(async (req, res) => {
     res.status(err?.status || 502);
     throw new Error(err?.message || "The design maker had a problem. Please try again.");
   }
-  const stored = await Promise.all(made.map((m) => uploadFile(m.buffer, m.mime, "ai-designs")));
+  // cut each design out of its plain background here, so "Add to tee" is instant in the Design Room
+  const cut = await Promise.all(made.map((m) => cutOutPlainBackground(m.buffer).catch(() => ({ buffer: m.buffer, mime: m.mime, width: 1024, height: 1024, cut: false }))));
+  const stored = await Promise.all(cut.map((c) => uploadFile(c.buffer, c.mime, "ai-designs")));
 
   await AiUsage.create({
     user: req.user._id,
@@ -146,7 +152,7 @@ export const makeAiDesign = asyncHandler(async (req, res) => {
     costInr: Math.round(made.length * settings.pricePerImageInr * 100) / 100,
     model: aiImageModel(),
   });
-  res.status(201).json({ images: stored.map((s) => s.url), left: Math.max(0, settings.dailyPerUser - used - 1) });
+  res.status(201).json({ images: stored.map((s, i) => ({ url: s.url, width: cut[i].width, height: cut[i].height })), left: Math.max(0, settings.dailyPerUser - used - 1) });
 });
 
 // GET /api/ai/admin  (admin or seller): the settings and this month's use
