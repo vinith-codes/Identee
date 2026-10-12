@@ -10,6 +10,7 @@ import { Link } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { fetchCategories } from "../redux/slices/categorySlice";
 import { fetchPublicSettings } from "../redux/slices/publicSettingsSlice";
+import { TEE_MODELS } from "../studio/teeModel";
 
 const CSS = `
   .sf { background: #fff; color: #15130F; font-family: "Inter", "Helvetica Neue", Arial, sans-serif; border-top: 1px solid #E2DED3; }
@@ -34,6 +35,9 @@ const CSS = `
   .sf-social a { width: 38px; height: 38px; border-radius: 50%; border: 1px solid #D8D2C4; display: grid; place-items: center; transition: background .2s, color .2s; }
   .sf-social a:hover { background: #15130F; color: #fff; }
   .sf-social svg { width: 17px; height: 17px; }
+  .sf-credits { margin: 0; padding-bottom: 18px; font-size: 11.5px; color: #8A8478; }
+  .sf-credits a { color: inherit; text-decoration: underline; }
+  .sf-credits a:hover { color: #141110; }
   .sf-bottom { border-top: 1px solid #E2DED3; padding-block: 18px; display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; font-size: 12.5px; color: #6F6A60; }
   .sf a:focus-visible { outline: 2px solid #B8912F; outline-offset: 3px; border-radius: 4px; }
   @media (max-width: 900px) { .sf-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
@@ -170,6 +174,12 @@ export default function SiteFooter() {
           <span>© {new Date().getFullYear()} {storeName}. All rights reserved.</span>
           {s["general.storeDescription"] && <span>{s["general.storeDescription"]}</span>}
         </div>
+        {/* Credits. The 3D tee is free to use under CC BY 4.0 only while its maker is named — keep this line. */}
+        <p className="sf-credits">
+          Credits:{" "}
+          <a href={TEE_MODELS.oversized.credit.href} target="_blank" rel="noopener noreferrer">3D tee model “oversized_t-shirt” by ap-school</a>, used under{" "}
+          <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener noreferrer">CC BY 4.0</a>.
+        </p>
       </div>
     </footer>
   );
