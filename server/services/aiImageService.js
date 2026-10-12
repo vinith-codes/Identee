@@ -170,7 +170,9 @@ export async function generateImage({ prompt, image, ratio = "1:1" }) {
     throw Object.assign(
       new Error(
         refused
-          ? "The design maker couldn’t make that one. Try describing it a little differently. You were not charged for it."
+          ? // Google's picture service decides this, not us. It gives no reason; in practice it is nearly always
+            // a real, named person (a famous player, actor, politician) or a protected character.
+            "The picture service refused this one. It usually refuses real, named people (famous players, actors) and some well-known characters. Try it without the name — for example “a footballer in a blue and white striped jersey kicking a ball”. You were not charged for it."
           : noBilling
             ? "The design maker is unavailable right now. Please try again later."
             : "The design maker had a problem. Please try again.",

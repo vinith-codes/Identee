@@ -803,6 +803,7 @@ export default function DesignRoomPage() {
       let focus = done.focus;
       // 3. new pictures, one print area each (each one is a paid request to the image AI)
       const extra = [];
+      let pictureFailed = false;
       const placed = {};
       const pictures = all.filter((o) => o?.op === "make_picture" && typeof o.subject === "string" && o.subject.trim()).slice(0, 3);
       if (pictures.length && !ai.available) extra.push(botSays("Pictures can’t be made right now. You can pick from the art library or upload your own."));
@@ -828,6 +829,7 @@ export default function DesignRoomPage() {
             changed++;
             extra.push(botSays(`For ${pos.label} I drew ${pic.subject}. The first one is on your tee; tap Add to tee on the other to swap.`), { designs: made.images.map((im) => im.url) });
           } catch (err) {
+            pictureFailed = true;
             extra.push(botSays(err.response?.data?.message || "The design maker had a problem. Please try again."));
             break;
           }
@@ -838,7 +840,11 @@ export default function DesignRoomPage() {
       if (Object.keys(placed).length) setAiPlaced((cur) => ({ ...cur, ...placed }));
       if (focus && focus !== active) openArea(focus, { force: true });
       setSelectedId(null);
-      return [botSays(changed ? `${res.reply || "Done."} Not right? Press Undo (↶).` : res.reply || "Here’s what I could do."), ...extra];
+      // The text AI writes its reply ("I've added a picture of…") before the picture is drawn. When the picture
+      // could not be made, that reply would be untrue, so only what really happened is said.
+      if (!changed) return extra;
+      if (pictureFailed) return [botSays("I’ve done the rest of what you asked. The picture is the part that didn’t work:"), ...extra];
+      return [botSays(`${res.reply || "Done."} Not right? Press Undo (↶).`), ...extra];
     } catch (err) {
       return [botSays(err.response?.data?.message || "I couldn’t work that out just now. Please try again.")];
     }
