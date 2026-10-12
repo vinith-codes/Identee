@@ -154,7 +154,30 @@ export default function CartPage() {
               <p style={{ margin: "2px 0 8px", fontSize: 12.5, color: C.muted, textTransform: "capitalize" }}>
                 Your design · {g.design.garmentType?.replace(/-/g, " ")} · {g.design.color?.replace(/-/g, " ")}
               </p>
-              {g.items.map((item) => (
+              {/* a team order: one tee per player, so sizes change in the design, not here */}
+              {g.design.players?.length > 0 && (
+                <div style={{ padding: "2px 0 4px" }}>
+                  <p style={{ margin: 0, fontSize: 13, color: C.ink }}>
+                    <b>Team order · {g.design.players.length} player{g.design.players.length === 1 ? "" : "s"}</b>, each with their own name and number
+                  </p>
+                  <p style={{ margin: "2px 0 6px", fontSize: 12.5, color: C.muted }}>
+                    {g.design.players.slice(0, 6).map((p) => [p.number, p.name].filter(Boolean).join(" ")).join(", ")}
+                    {g.design.players.length > 6 ? ` and ${g.design.players.length - 6} more` : ""}
+                  </p>
+                  {g.items.map((item) => (
+                    <div key={item._id} style={{ display: "flex", gap: 10, padding: "2px 0", fontSize: 13 }}>
+                      <span style={{ color: C.ink, fontWeight: 700, minWidth: 34 }}>{item.size}</span>
+                      <span style={{ color: C.muted }}>× {item.qty}</span>
+                      <span style={{ marginLeft: "auto", fontWeight: 700, color: C.ink }}>₹ {item.price}</span>
+                    </div>
+                  ))}
+                  <button type="button" onClick={() => handleRemove(g.items[0])}
+                    style={{ background: "none", border: "none", color: C.danger, fontSize: 12, cursor: "pointer", textDecoration: "underline", padding: 0, marginTop: 4 }}>
+                    Remove this team order
+                  </button>
+                </div>
+              )}
+              {!g.design.players?.length && g.items.map((item) => (
                 <div key={item._id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "4px 0", flexWrap: "wrap" }}>
                   <span style={{ fontSize: 13, color: C.ink, fontWeight: 700, minWidth: 34 }}>{item.size}</span>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -172,7 +195,7 @@ export default function CartPage() {
               ))}
               <div style={{ display: "flex", gap: 14, marginTop: 8, fontSize: 12.5 }}>
                 <Link to={`/customize/${g.design.garmentType}?design=${g.design._id}`} style={{ color: C.gold, fontWeight: 700 }}>
-                  {g.design.orderedAt ? "Edit as a new design" : "Edit design / add sizes"}
+                  {g.design.orderedAt ? "Edit as a new design" : g.design.players?.length ? "Edit design / players" : "Edit design / add sizes"}
                 </Link>
                 <span style={{ color: C.muted }}>
                   {g.items.reduce((n, it) => n + it.qty, 0)} pcs · ₹ {g.items.reduce((n, it) => n + it.price, 0)}

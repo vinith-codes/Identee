@@ -18,10 +18,12 @@
 // the image AI (act type "generate"). Everything else here is free.
 import { SLOGANS, TONES, occasionIn, personalLines, slogansFor, toneIn } from "./assistantSlogans";
 import { TEMPLATES } from "./designTemplates";
+import { parsePlayers, playerLabel } from "./teamOrder";
 
 const MENU = ["Slogan ideas", "Start from a template", "Check my design", "More help"];
 const MORE_PHOTO = "Photo to art";
 const MORE_STYLE = "Style it for me";
+const TEAM_ORDER = "Team order";
 const MOODS = ["Royal", "Sporty", "Cute", "Minimal", "Retro", "Bold"];
 const MORE = ["Colour help", "Where to print", "Size help", MORE_PHOTO, MORE_STYLE, "Remove a background", "Make a design"];
 const AFTER_SLOGANS = ["Show more", "Add a name or year", "Change tone", "Something else"];
@@ -51,6 +53,7 @@ export const EXAMPLES = [
   { title: "Write a slogan", say: "A slogan for my mother", fill: true },
   { title: "Change things by telling me", say: "Make the text gold, curved and a bit bigger", fill: true, needs: "text" },
   { title: "Style my text for a mood", hint: "Royal, sporty, cute, minimal…", say: "Style it for me", needs: "text" },
+  { title: "Order for a team", hint: "A different name and number on each tee", say: TEAM_ORDER },
   { title: "Start from a ready layout", hint: "Team jersey, birthday, couple tee…", say: "Start from a template" },
   { title: "Check my design before printing", hint: "Blurry pictures, tiny text, colours that won’t show", say: "Check my design" },
 ];
@@ -78,7 +81,8 @@ export function checkMessages(issues, { beforeReview = false } = {}) {
  * @param ctx   { areaLabel, teeName, hasDesign, sizes, sizeNow, chart(size), areas: [{ key, label, free }], issues(), inks,
  *                ai: { available, reason, loggedIn, left, styles, photoStyles, text },   text = the text AI is on
  *                photoOnTee,    the address of an uploaded picture on the tee, if any
- *                hasText }      there is at least one text item on the tee
+ *                hasText,       there is at least one text item on the tee
+ *                hasRoles }     a text is marked as the player's name / number (team orders)
  * @param st    conversation state (firstState())
  * @param opts  { tapped }  true when the customer tapped a choice instead of typing
  * @returns { out: messages, st: next state }
@@ -89,6 +93,26 @@ export function replyTo(text, ctx, st, { tapped = false } = {}) {
   const wait = st.wait;
   st = { ...st, wait: null };
   const done = (out, patch = {}) => ({ out, st: { ...st, ...patch } });
+
+  /* ----- team order: one tee per player, each with their own name and number ----- */
+  const list = tapped ? [] : parsePlayers(t, ctx.sizes, ctx.sizeNow);
+  if (list.length >= 2 && list.every((p) => p.name && p.number)) {
+    if (!ctx.hasRoles) {
+      return done([bot("That looks like a team list. First the tee needs a place for the name and the number: start with the Team jersey layout, then send me the list again."), chips(["Team jersey"])]);
+    }
+    const names = list.slice(0, 4).map((p) => `${playerLabel(p)} (${p.size})`).join(", ");
+    return done([
+      act({ type: "players", players: list }),
+      bot(`Done. ${list.length} players, one tee each: ${names}${list.length > 4 ? " and more" : ""}. In Review, tap a player to see their tee.`),
+      chips(["Continue to review", "Check my design"]),
+    ]);
+  }
+  if (t === TEAM_ORDER || /team order|each player|per player|every player|different (name|number)/.test(low)) {
+    if (!ctx.hasRoles) {
+      return done([bot("One design, with a different name and number on each tee. Start with the Team jersey layout (or tap a text and set “On a team order, this text is” to Player’s name)."), chips(["Team jersey"])]);
+    }
+    return done([bot("Send me your players, one per line or separated by commas, like this: Arun 7 L, Karthik 10 XL. You can also fill the list in Review.")]);
+  }
 
   /* ----- answers to a question the assistant just asked ----- */
   if (wait === "name" && !MENU.includes(t) && !AFTER_SLOGANS.includes(t)) {

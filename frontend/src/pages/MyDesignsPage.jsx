@@ -35,7 +35,7 @@ export default function MyDesignsPage() {
       await customizationService.addDesignToCart(d._id, items);
       const token = JSON.parse(localStorage.getItem("userInfo") || "{}").token;
       dispatch(fetchCart(token));
-      const n = items.reduce((a, i) => a + i.qty, 0);
+      const n = d.playerCount || items.reduce((a, i) => a + i.qty, 0);
       setAdded(`Added ${n} piece${n === 1 ? "" : "s"} of “${d.name || "your design"}” to your cart.`);
       setCartFor(null);
     } catch (err) {
@@ -131,12 +131,20 @@ export default function MyDesignsPage() {
                   <b style={{ fontSize: 15, color: THEME.text }}>{d.name || "Untitled design"}</b>
                   <span style={{ fontSize: 12.5, color: THEME.textMuted, textTransform: "capitalize" }}>
                     {d.garmentType.replace(/-/g, " ")} · {d.color.replace(/-/g, " ")} · {d.size || "—"} · {d.areaCount} print area{d.areaCount === 1 ? "" : "s"}
+                    {d.playerCount ? ` · team of ${d.playerCount}` : ""}
                   </span>
                   <span style={{ fontSize: 12, color: THEME.textFaint }}>Saved {when(d.updatedAt)}</span>
                   <div style={{ display: "flex", gap: 6, marginTop: 10, flexWrap: "wrap" }}>
-                    <button type="button" onClick={() => setCartFor(cartFor === d._id ? null : d._id)} style={btn(true)} aria-expanded={cartFor === d._id}>
-                      Add to cart
-                    </button>
+                    {d.playerCount ? (
+                      // a team order goes in as its player list: one tee per player
+                      <button type="button" onClick={() => addToCart(d, [])} disabled={working === d._id} style={btn(true)}>
+                        Add team to cart
+                      </button>
+                    ) : (
+                      <button type="button" onClick={() => setCartFor(cartFor === d._id ? null : d._id)} style={btn(true)} aria-expanded={cartFor === d._id}>
+                        Add to cart
+                      </button>
+                    )}
                     <button type="button" onClick={() => open(d)} style={btn()}>{d.orderedAt ? "Edit a copy" : "Open"}</button>
                     <button type="button" onClick={() => duplicate(d)} disabled={working === d._id} style={btn()}>Duplicate</button>
                     {confirmDelete === d._id ? (

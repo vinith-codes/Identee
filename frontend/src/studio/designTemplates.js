@@ -4,6 +4,7 @@
 // which print area it prefers (first one the garment offers and that is
 // free), the placeholder words, the letter size in cm and where its middle
 // sits (y, % down the area). The customer then changes the words.
+// role: this text is the player's name / number on a team order (studio/teamOrder.js).
 
 const YEAR = new Date().getFullYear();
 
@@ -11,12 +12,12 @@ export const TEMPLATES = [
   {
     key: "team",
     label: "Team jersey",
-    says: "A small team name on the chest, and the team name, player name and number on the back.",
+    says: "A small team name on the chest, and the team name, player name and number on the back. Ordering for a team? In Review every player gets their own name and number.",
     items: [
       { areas: ["left-chest"], text: "TEAM NAME", cm: 1.6, y: 50 },
       { areas: ["full-back", "centre-back"], text: "TEAM NAME", cm: 4, y: 12 },
-      { areas: ["full-back", "centre-back"], text: "PLAYER", cm: 2.6, y: 32 },
-      { areas: ["full-back", "centre-back"], text: "07", cm: 20, y: 66 },
+      { areas: ["full-back", "centre-back"], text: "PLAYER", cm: 2.6, y: 32, role: "name" },
+      { areas: ["full-back", "centre-back"], text: "07", cm: 20, y: 66, role: "number" },
     ],
   },
   {

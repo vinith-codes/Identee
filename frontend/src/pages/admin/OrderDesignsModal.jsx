@@ -101,6 +101,12 @@ export default function OrderDesignsModal({ orderId, onClose }) {
               {d.colour.hex && <span style={{ display: "inline-block", width: 10, height: 10, borderRadius: "50%", background: d.colour.hex, border: `1px solid ${THEME.border}`, verticalAlign: "middle" }} />}{" "}
               {d.colour.name} · sizes <b style={{ color: THEME.text }}>{d.lines.map((l) => `${l.size} × ${l.qty}`).join(", ")}</b>
             </p>
+            {d.players?.length > 0 && (
+              <p style={{ margin: "6px 0 0", fontSize: 13 }}>
+                <b>Team order · {d.players.length} tees</b>, each with its own name and number.{" "}
+                {!d.playersMatch && <span style={{ color: THEME.danger, fontWeight: 600 }}>The player list does not match the sizes ordered. Check with the customer.</span>}
+              </p>
+            )}
             {d.layoutVersion !== 2 ? (
               <p style={{ color: THEME.danger, fontSize: 13 }}>Saved in an older format — no print files can be made for it.</p>
             ) : (
@@ -109,7 +115,7 @@ export default function OrderDesignsModal({ orderId, onClose }) {
                   <thead>
                     <tr style={{ textAlign: "left", color: THEME.textMuted }}>
                       <th style={{ padding: "4px 14px 4px 0", fontWeight: 600 }}>Print area</th>
-                      <th style={{ padding: "4px 14px 4px 0", fontWeight: 600 }}>Sizes</th>
+                      <th style={{ padding: "4px 14px 4px 0", fontWeight: 600 }}>{d.players?.length ? "Player / sizes" : "Sizes"}</th>
                       <th style={{ padding: "4px 14px 4px 0", fontWeight: 600 }}>Print size</th>
                       <th style={{ padding: "4px 0", fontWeight: 600 }}>File at 300 DPI</th>
                     </tr>
@@ -119,7 +125,10 @@ export default function OrderDesignsModal({ orderId, onClose }) {
                       a.files.map((f) => (
                         <tr key={`${a.key}-${f.group}`} style={{ borderTop: `1px solid ${THEME.border}` }}>
                           <td style={{ padding: "5px 14px 5px 0", fontWeight: 600 }}>{a.label}</td>
-                          <td style={{ padding: "5px 14px 5px 0" }}>{f.sizes.join(", ")}</td>
+                          <td style={{ padding: "5px 14px 5px 0" }}>
+                            {f.player ? `${f.player.n}. ${[f.player.number, f.player.name].filter(Boolean).join(" ")} · ` : ""}
+                            {f.sizes.join(", ")}
+                          </td>
                           <td style={{ padding: "5px 14px 5px 0", fontVariantNumeric: "tabular-nums" }}>
                             {f.cm[0]} × {f.cm[1]} cm
                           </td>

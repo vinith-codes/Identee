@@ -122,10 +122,29 @@ for dark tee colours (`dark` in `Boutique`), the arch dimmed to a glow, lamps ov
 **`feature-assistant-examples` — MERGED to `main` on 12 Oct 2026:** the assistant opens with a list of what it can do
 (`EXAMPLES` in `assistantScript.js`): tap-able examples that fill the message box or start the feature; "What can you do?" shows it again.
 
-**Next big feature the user wants: the TEAM ORDER HELPER** — one design, a different name and number on each tee (today the
-Team jersey layout prints the same name/number on every tee; the workaround is one saved design per player). Touches: marking
-which texts are the name and the number, a player table in Review (name, number, size), cart + order storage per player,
-one print file per player, and the assistant accepting a pasted list ("Arun 7 L, Karthik 10 XL").
+**`feature-team-order` — BUILT 12 Oct 2026, pushed, waiting for the user's "merge":** team orders — one design, a different
+name and number on each tee.
+- **Marking:** a text has "On a team order, this text is: The same / Player's name / Player's number" in its settings
+  (`element.role` = `name` | `number`). The Team jersey layout marks PLAYER and 07 by itself.
+- **Review:** when a text is marked, a switch appears — "The same on every tee" / "A name & number per tee". The second shows
+  a player list (name, number, size; + Add a player; Paste a list). One row = one tee. Tapping a row shows that player's
+  tee on the 3D model (turned to the side the name is on). A long name is made smaller to stay inside the print area.
+- **Storage:** `design.players = [{ name, number, size }]` (max 99), saved with the design; code in `studio/teamOrder.js`
+  (list reader `parsePlayers`, counts) and `playerElements()` in `studio/konvaRender.js` (draws one player's tee — used by the
+  Review preview and by the print files).
+- **Cart / checkout:** a team design is always its list: the server counts sizes from the list (`rosterItems`), ignores
+  quantities sent by the browser, keeps the cart in step when the list changes (`syncTeamCart`), and refuses quantity
+  changes in the cart ("open the design to add or remove players"). Buy now does the same. Price per tee is unchanged.
+- **Print files:** an area that carries a marked text gets ONE FILE PER PLAYER
+  (`Full-Back_02-10-Karthik-Subramaniam_XL_38x42cm_300dpi.png`); other areas stay one file per size group. ORDER-SHEET.txt
+  lists the players; a warning shows if the list and the ordered sizes ever disagree.
+- **Assistant:** understands a pasted list ("Arun 7 L, Karthik 10 XL") and "Team order"; listed in its examples.
+- **Tested** on a throwaway DB: 16 API checks (save, validation, cart follows list, order, print pack), and in the browser:
+  assistant list → Review list → player preview on the tee → cart page → print ZIP (file per player looked right).
+  **Not tested:** phone layout of the player list, the role buttons' look in the text settings, My designs "Add team to
+  cart" button, the admin print window's table (its data was tested), Razorpay path.
+- Known limits: the saved preview pictures show the placeholder name/number, not a player's; one size per player row
+  (a player wanting two tees needs two rows).
 
 **`feature-ai-more` — MERGED to `main` on 12 Oct 2026:** Make it sharper / Recolour for this tee (picture settings) and the
 text stylist ("Style it for me"). Sharper and recolour are untested with the real image AI. See `docs/AI_PLAN.md`.

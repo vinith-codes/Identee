@@ -18,7 +18,8 @@ import { fetchCart } from "../redux/slices/cartWishlistSlice";
 import { imageUrl } from "../utils/imageUrl";
 import Room3D from "./Room3D";
 import AreaEditor from "./AreaEditor";
-import { AreaRenderer, cachedImage, imageSrcs, loadImage, measureText } from "./konvaRender";
+import { AreaRenderer, cachedImage, imageSrcs, loadImage, measureText, playerElements } from "./konvaRender";
+import { MAX_PLAYERS, NAME_MAX, NUMBER_MAX, filled, hasRoles, parsePlayers, rolesIn, sizeCounts } from "./teamOrder";
 import { areaCm, blockersOf, clashesIn, modelForGarment, placeArea } from "./teeModel";
 import AreaThumb from "./AreaThumb";
 import Rolling from "./Rolling";
@@ -170,6 +171,11 @@ export default function DesignRoomPage() {
   const [unfoldKey, setUnfoldKey] = useState(0); // Review opens with the tee unfolding in the air (changes each time)
   const [sideShown, setSideShown] = useState(null); // the side picture last tapped in Review
   const [qtys, setQtys] = useState({}); // Review: { M: 2, L: 1 } — one design, any mix of sizes // Review: the tee turns 360° until a side is picked
+  // Team order (studio/teamOrder.js): one tee per player, each with their own name and number
+  // in place of the texts marked for them. Filled in Review; saved with the design.
+  const [players, setPlayers] = useState(() => (Array.isArray(draft?.players) ? draft.players.map((p) => ({ id: makeId(), ...p })) : []));
+  const [team, setTeam] = useState(() => Boolean(draft?.players?.length));
+  const [previewId, setPreviewId] = useState(null); // Review: the player whose tee is shown
   const [toast, setToast] = useState("");
   const [busy, setBusy] = useState("");
   // the saved design this is (My designs); locked = already ordered → saving makes a copy
@@ -211,6 +217,10 @@ export default function DesignRoomPage() {
   const artTotal = elements.reduce((n, e) => n + (e.artPrice || 0), 0);
   const unitPrice = (garment?.basePrice || 0) + artTotal;
   const activePos = positions.find((p) => p.key === active) || null;
+  const roles = hasRoles(elements);
+  const teamMode = roles && team;
+  const teamPlayers = teamMode ? players.filter(filled) : [];
+  const previewPlayer = step === "review" && teamMode ? players.find((p) => p.id === previewId && filled(p)) || null : null;
 
   const areaPx = useCallback(
     (pos) => {
@@ -229,8 +239,8 @@ export default function DesignRoomPage() {
     if (!type) return;
     if (elements.length) hadElements.current = true;
     else if (!hadElements.current) return;
-    writeJSON(DRAFT_KEY(type), { elements, colour: colour?.slug, size: sizeNow, designId, name: designName });
-  }, [type, elements, colour?.slug, sizeNow, designId, designName]);
+    writeJSON(DRAFT_KEY(type), { elements, colour: colour?.slug, size: sizeNow, designId, name: designName, players: players.filter(filled).map(({ name, number, size: sz }) => ({ name, number, size: sz })) });
+  }, [type, elements, colour?.slug, sizeNow, designId, designName, players]);
 
   // drop ?new=1 from the address so a reload keeps the design in progress
   useEffect(() => {
@@ -247,6 +257,8 @@ export default function DesignRoomPage() {
     if (earlier.size) setSize(earlier.size);
     setDesignId(earlier.designId || null);
     setDesignName(earlier.name || "");
+    setPlayers((earlier.players || []).map((p) => ({ id: makeId(), ...p })));
+    setTeam(Boolean(earlier.players?.length));
     setEarlier(null);
     setStep("design");
     setCamRequest({ view: "front", ms: 1600, n: nextReq() });
@@ -272,6 +284,8 @@ export default function DesignRoomPage() {
         setDesignId(d._id);
         setDesignName(d.name || "");
         setLocked(!!d.orderedAt);
+        setPlayers((d.players || []).map((p) => ({ id: makeId(), name: p.name, number: p.number, size: p.size })));
+        setTeam(Boolean(d.players?.length));
         setStep("design");
         setCamRequest({ view: "front", ms: 1400, n: nextReq() });
         if (d.orderedAt) setToast("This design was ordered. Changes will be saved as a new design.");
@@ -328,7 +342,9 @@ export default function DesignRoomPage() {
           entry = { r: new AreaRenderer(W, H), W, H };
           renderers.current.set(pos.key, entry);
         }
-        const els = live?.key === pos.key ? live.elements : elements.filter((e) => e.position === pos.key);
+        let els = live?.key === pos.key ? live.elements : elements.filter((e) => e.position === pos.key);
+        // Review of a team order: the tee of the player being looked at
+        if (previewPlayer) els = playerElements(els, previewPlayer, W, H);
         const outline = active === pos.key;
         const sig = JSON.stringify([W, H, outline, els, [...document.fonts].filter((f) => f.status === "loaded").length]);
         if (lastSig.current.get(pos.key) === sig && textures[pos.key]) continue;
@@ -360,7 +376,7 @@ export default function DesignRoomPage() {
     return () => {
       alive = false;
     };
-  }, [positions, elements, live, active, areaPx]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [positions, elements, live, active, areaPx, previewPlayer]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => () => renderers.current.forEach((e) => e.r.destroy()), []);
 
@@ -683,6 +699,7 @@ export default function DesignRoomPage() {
     inks: inksFor(fabricHex, INKS),
     ai: { ...ai, loggedIn: isLoggedIn() },
     hasText: elements.some((e) => e.type === "text"),
+    hasRoles: roles, // a text is marked as the player's name / number (team orders)
     // an uploaded picture on the tee (not library art, not an AI design) — "photo to art" can use it
     photoOnTee: [...elements].reverse().find((e) => e.type === "image" && !e.artDesignId && !aiCuts.current.has(e.src))?.src || null,
   });
@@ -865,7 +882,7 @@ export default function DesignRoomPage() {
       const pos = item.areas.map((k) => positions.find((p) => p.key === k)).find((p) => p && (taken.includes(p.key) || !blockersOf(p.key, positions, taken).length));
       if (!pos) continue;
       const { hCm } = areaPx(pos);
-      const start = { type: "text", text: item.text, fontFamily: item.font || "Anton", fontSizePct: Math.min(60, (item.cm / hCm) * 100), color: inkDefault, align: "center", effect: "straight", x: 50, y: item.y, width: 0, height: 0 };
+      const start = { type: "text", text: item.text, fontFamily: item.font || "Anton", fontSizePct: Math.min(60, (item.cm / hCm) * 100), color: inkDefault, align: "center", effect: "straight", x: 50, y: item.y, width: 0, height: 0, ...(item.role ? { role: item.role } : {}) };
       let el = textBox(start, pos);
       if (el.width > 90) el = textBox({ ...el, fontSizePct: (el.fontSizePct * 90) / el.width }, pos);
       added.push({ id: makeId(), position: pos.key, side: pos.side, rotation: 0, zIndex: base.length + added.length + 1, ...el });
@@ -905,6 +922,11 @@ export default function DesignRoomPage() {
       return setSelectedId(null);
     }
     if (a.type === "review") return toReview(true);
+    if (a.type === "players") {
+      // a pasted team list: one tee per player
+      setPlayers(a.players.slice(0, MAX_PLAYERS).map((p) => ({ id: makeId(), ...p })));
+      return setTeam(true);
+    }
     if (a.type === "ink") {
       const texts = elements.filter((e) => e.type === "text" && e.position === active);
       if (!texts.length) return say("There’s no text on this print area yet. Add some, then pick a colour.");
@@ -933,6 +955,7 @@ export default function DesignRoomPage() {
     setSpin(true);
     setSideShown(null);
     setQtys((q) => (Object.values(q).some((n) => n > 0) ? q : { [sizeNow]: 1 }));
+    setPreviewId(null);
     // the reveal: the camera glides in while a folded tee rises, opens in the air and the prints appear
     const calm = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
     setCamRequest({ ...SHOWROOM, ...(calm ? {} : { from: [0, 1.9, 10.5], ms: 2600 }), n: nextReq() });
@@ -975,7 +998,7 @@ export default function DesignRoomPage() {
       const mockups = shots?.length === 4 && step === "review"
         ? Object.fromEntries(shots.map((sh, i) => [SIDES[i][0], sh.url]))
         : await captureMockups();
-      const body = { garmentType: type, color: colour.slug, size: sizeNow, elements, name: name || `${garment.label} design`, mockups: mockups || undefined };
+      const body = { garmentType: type, color: colour.slug, size: sizeNow, elements, name: name || `${garment.label} design`, mockups: mockups || undefined, players: teamPlayers.map(({ name: n, number, size: sz }) => ({ name: n, number, size: sz })) };
       let saved;
       let copied = false;
       if (designId && !locked) {
@@ -1024,11 +1047,30 @@ export default function DesignRoomPage() {
     setShots(null);
     setCamRequest({ view: "front", n: nextReq() });
   };
-  const chosen = Object.entries(qtys)
-    .filter(([, n]) => n > 0)
-    .map(([sz, n]) => ({ size: sz, qty: n }));
+  // a team order is one tee per player; otherwise the sizes × quantities picked
+  const chosen = teamMode
+    ? sizeCounts(teamPlayers)
+    : Object.entries(qtys)
+        .filter(([, n]) => n > 0)
+        .map(([sz, n]) => ({ size: sz, qty: n }));
   const pieces = chosen.reduce((n, c) => n + c.qty, 0);
   const setQty = (sz, n) => setQtys((q) => ({ ...q, [sz]: Math.max(0, Math.min(99, n)) }));
+  // Team order on / off. Turning it on starts the list with the name and number typed on the tee.
+  const setTeamOn = (on) => {
+    setTeam(on);
+    setPreviewId(null);
+    if (on && !players.length) {
+      const typed = (role) => (elements.find((e) => e.type === "text" && e.role === role)?.text || "").trim();
+      setPlayers([{ id: makeId(), name: typed("name").slice(0, NAME_MAX), number: typed("number").slice(0, NUMBER_MAX), size: sizeNow }]);
+    }
+  };
+  // Show one player's tee: their name and number go on the 3D tee, turned to the side they are printed on.
+  const showPlayer = (id) => {
+    if (id === previewId) return;
+    setPreviewId(id);
+    const side = elements.find((e) => e.type === "text" && e.role)?.side;
+    if (side && sideShown !== side) showSide(side);
+  };
 
   // Buy now: the design is saved to My designs (with its mockups); ordering locks it
   const order = async () => {
@@ -1453,7 +1495,19 @@ export default function DesignRoomPage() {
                   </button>
                 ))}
               </div>
-              <div className="dr-qty" aria-label="Sizes and quantity">
+              {roles && (
+                <div className="dr-teamswitch">
+                  <div className="eyebrow">What is printed on each tee?</div>
+                  <div className="dr-seg" role="group" aria-label="What is printed on each tee">
+                    <button type="button" className={!teamMode ? "on" : ""} aria-pressed={!teamMode} onClick={() => setTeamOn(false)}>The same on every tee</button>
+                    <button type="button" className={teamMode ? "on" : ""} aria-pressed={teamMode} onClick={() => setTeamOn(true)}>A name &amp; number per tee</button>
+                  </div>
+                </div>
+              )}
+              {teamMode && (
+                <TeamList players={players} setPlayers={setPlayers} sizes={sizes} sizeNow={sizeNow} roles={rolesIn(elements)} shownId={previewId} onShow={showPlayer} />
+              )}
+              <div className="dr-qty" aria-label="Sizes and quantity" hidden={teamMode}>
                 <div className="eyebrow">Sizes &amp; quantity</div>
                 {sizes.map((sz) => {
                   const r = garment.sizeChart?.find((x) => x.size === sz);
@@ -1476,7 +1530,7 @@ export default function DesignRoomPage() {
               <div className="dr-summary">
                 <div>
                   <p>
-                    {garment.label} · {colour?.name} · size <b>{sizeNow}</b>
+                    {garment.label} · {colour?.name} · {teamMode ? <b>{chosen.map((c) => `${c.size} × ${c.qty}`).join(", ") || "no players yet"}</b> : <>size <b>{sizeNow}</b></>}
                   </p>
                   <p className="muted">
                     {positions
@@ -1564,6 +1618,65 @@ export default function DesignRoomPage() {
 }
 
 /* ---------- pieces ---------- */
+// Review of a team order: one row per player (name, number, size). Each row is one tee.
+// Tapping a row shows that player's tee on the 3D model.
+function TeamList({ players, setPlayers, sizes, sizeNow, roles, shownId, onShow }) {
+  const [pasteOpen, setPasteOpen] = useState(false);
+  const [pasted, setPasted] = useState("");
+  const full = players.length >= MAX_PLAYERS;
+  const patch = (id, p) => setPlayers((list) => list.map((x) => (x.id === id ? { ...x, ...p } : x)));
+  const add = () => {
+    const row = { id: makeId(), name: "", number: "", size: players[players.length - 1]?.size || sizeNow };
+    setPlayers((list) => [...list, row]);
+    onShow(row.id);
+  };
+  const found = parsePlayers(pasted, sizes, sizeNow);
+  const addPasted = () => {
+    if (!found.length) return;
+    // an untouched first row makes way for the list
+    setPlayers((list) => [...list.filter(filled), ...found.map((p) => ({ id: makeId(), ...p }))].slice(0, MAX_PLAYERS));
+    setPasted("");
+    setPasteOpen(false);
+  };
+  const ready = players.filter(filled);
+  return (
+    <div className="dr-team" aria-label="Players">
+      <div className="dr-teamhead">
+        <div className="eyebrow">Players · one tee each</div>
+        <b>{ready.length}</b>
+      </div>
+      <div className="dr-teamrows">
+        {players.map((p, i) => (
+          <div key={p.id} className={`dr-prow${shownId === p.id ? " on" : ""}`} onFocus={() => onShow(p.id)} onClick={() => onShow(p.id)}>
+            <span className="n">{i + 1}</span>
+            {roles.name && <input value={p.name} maxLength={NAME_MAX} placeholder="Name" aria-label={`Player ${i + 1} name`} onChange={(e) => patch(p.id, { name: e.target.value })} />}
+            {roles.number && <input className="num" value={p.number} maxLength={NUMBER_MAX} inputMode="numeric" placeholder="No." aria-label={`Player ${i + 1} number`} onChange={(e) => patch(p.id, { number: e.target.value.replace(/[^0-9]/g, "") })} />}
+            <select value={p.size} aria-label={`Player ${i + 1} size`} onChange={(e) => patch(p.id, { size: e.target.value })}>
+              {sizes.map((sz) => <option key={sz}>{sz}</option>)}
+            </select>
+            <button type="button" className="dr-x" aria-label={`Remove player ${i + 1}`} onClick={(e) => { e.stopPropagation(); setPlayers((list) => list.filter((x) => x.id !== p.id)); }}>✕</button>
+          </div>
+        ))}
+      </div>
+      <div className="dr-teamadd">
+        <button type="button" className="dr-chip" onClick={add} disabled={full}>+ Add a player</button>
+        <button type="button" className="dr-chip" onClick={() => setPasteOpen((o) => !o)} aria-expanded={pasteOpen} disabled={full}>Paste a list</button>
+      </div>
+      {pasteOpen && (
+        <div className="dr-paste">
+          <textarea rows={4} value={pasted} placeholder={"One player per line:\nArun 7 L\nKarthik 10 XL"} aria-label="Paste your list of players" onChange={(e) => setPasted(e.target.value)} />
+          <button type="button" className="dr-mini" onClick={addPasted} disabled={!found.length}>
+            {found.length ? `Add ${found.length} player${found.length === 1 ? "" : "s"}` : "Add players"}
+          </button>
+        </div>
+      )}
+      <p className="dr-qnote">Tap a player to see their tee. A long name is made smaller so it fits the print area.</p>
+      <p className="dr-qnote">Every size is printed at its own true size from the print guide.</p>
+      <p className="dr-qnote">By ordering, you confirm you have the right to print everything in this design.</p>
+    </div>
+  );
+}
+
 function Fitting({ garment, colours, colour, onColour, sizes, size, onSize, onEnter, onAssistant, credit, earlier, onContinue }) {
   return (
     <div className="dr-overlay">
@@ -1658,6 +1771,21 @@ function Controls({ sel, areaCmW, areaRatio, onPatch, onDelete, onDuplicate, onL
             />
             <small>Press Enter for a new line.</small>
           </label>
+          <div className="dr-field">
+            On a team order, this text is
+            <div className="dr-seg three" role="group" aria-label="On a team order, this text is">
+              {[
+                [undefined, "The same"],
+                ["name", "Player’s name"],
+                ["number", "Player’s number"],
+              ].map(([k, label]) => (
+                <button key={label} type="button" className={sel.role === k || (!k && !sel.role) ? "on" : ""} aria-pressed={sel.role === k || (!k && !sel.role)} onClick={() => onPatch({ role: k })}>
+                  {label}
+                </button>
+              ))}
+            </div>
+            {sel.role && <small>Each tee gets its own {sel.role}. You fill the list of players in Review.</small>}
+          </div>
           <div className="dr-row">
             <label className="dr-field">
               Font

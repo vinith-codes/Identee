@@ -8,7 +8,10 @@
 // (konvaRender.js), so the file matches what the customer saw — but with
 // the original uploaded pictures instead of the small screen copies.
 // Sizes in one size group share a print size, so they share one file.
-import { AreaRenderer, cachedImage, imageSrcs, loadImage } from "./konvaRender";
+// Team orders: an area that carries the player's name or number gets one
+// file per player (their name and number drawn in), named after the player.
+import { AreaRenderer, cachedImage, imageSrcs, loadImage, playerElements } from "./konvaRender";
+import { playerLabel } from "./teamOrder";
 import { fontsReady } from "./fonts";
 
 export const PRINT_DPI = 300;
@@ -107,6 +110,15 @@ export async function buildPrintPack(pack, onStep = () => {}) {
       `   Garment: ${d.garment.label} · colour ${d.colour.name}${d.colour.hex ? ` (${d.colour.hex})` : ""}`,
       `   Sizes:   ${d.lines.map((l) => `${l.size} × ${l.qty}`).join(", ")}  (${pieces} piece${pieces === 1 ? "" : "s"})`,
     );
+    if (d.players?.length) {
+      sheet.push(`   TEAM ORDER — ${d.players.length} tees, each with its own name and number:`);
+      for (const p of d.players) sheet.push(`     ${String(p.n).padStart(2, "0")}.  ${(p.name || "-").padEnd(24)}  no. ${(p.number || "-").padEnd(4)}  size ${p.size}`);
+      if (!d.playersMatch) {
+        const msg = `“${title}”: the player list does not match the sizes ordered. Check with the customer before printing.`;
+        warnings.push(msg);
+        sheet.push(`   ! ${msg}`);
+      }
+    }
     if (d.layoutVersion !== 2) {
       warnings.push(`“${title}” was saved in an older format and can't be made into print files.`);
       sheet.push("   ! Older design format — no print files. Ask the customer to re-make it.", "");
@@ -130,11 +142,14 @@ export async function buildPrintPack(pack, onStep = () => {}) {
       const els = d.elements.filter((e) => e.position === area.key).map((e, n) => ({ ...e, id: e.id ?? `${area.key}-${n}` }));
       for (const f of area.files) {
         const [w, h] = f.cm;
-        const name = `${safe(area.label)}_${f.sizes.join("-")}_${fmtCm(w)}x${fmtCm(h)}cm_${PRINT_DPI}dpi.png`;
-        onStep(done, total, `Drawing ${area.label} (${f.sizes.join(", ")}) for “${title}”…`);
-        folder.file(name, await renderPrintFile(els, f.cm));
+        // a player's own file: their name and number in place of the marked texts
+        const who = f.player ? `${String(f.player.n).padStart(2, "0")}-${safe(playerLabel(f.player))}` : "";
+        const drawn = f.player ? playerElements(els, f.player, cmToPx(w), cmToPx(h)) : els;
+        const name = `${safe(area.label)}_${who ? `${who}_` : ""}${f.sizes.join("-")}_${fmtCm(w)}x${fmtCm(h)}cm_${PRINT_DPI}dpi.png`;
+        onStep(done, total, `Drawing ${area.label} (${f.player ? playerLabel(f.player) : f.sizes.join(", ")}) for “${title}”…`);
+        folder.file(name, await renderPrintFile(drawn, f.cm));
         done += 1;
-        sheet.push(`   ${area.label} — sizes ${f.sizes.join(", ")}: ${fmtCm(w)} × ${fmtCm(h)} cm = ${cmToPx(w)} × ${cmToPx(h)} px  → ${name}`);
+        sheet.push(`   ${area.label} — ${f.player ? `player ${playerLabel(f.player)}, size` : "sizes"} ${f.sizes.join(", ")}: ${fmtCm(w)} × ${fmtCm(h)} cm = ${cmToPx(w)} × ${cmToPx(h)} px  → ${name}`);
 
         // picture sharpness at this print size
         for (const e of els.filter((x) => x.type === "image")) {
@@ -149,7 +164,7 @@ export async function buildPrintPack(pack, onStep = () => {}) {
       }
     }
     const texts = d.elements.filter((e) => e.type === "text");
-    if (texts.length) sheet.push(`   Text: ${texts.map((e) => `“${e.text}” (${e.fontFamily}, ${e.color})`).join("; ")}`);
+    if (texts.length) sheet.push(`   Text: ${texts.map((e) => `${d.players?.length && e.role ? `[each player's ${e.role}]` : `“${e.text}”`} (${e.fontFamily}, ${e.color})`).join("; ")}`);
 
     // the customer's preview pictures, to check the print against
     for (const side of ["front", "back", "left", "right"]) {

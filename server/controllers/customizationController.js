@@ -76,6 +76,7 @@ const cleanElement = (positionByKey) => (el, i) => {
       strokeWidthPct: clampNum(el.strokeWidthPct, 0, 20, 0),
       strokeColor: HEX.test(el.strokeColor) ? el.strokeColor : undefined,
       note: el.note ? String(el.note).slice(0, 300) : undefined,
+      role: ["name", "number"].includes(el.role) ? el.role : undefined,
     };
   }
 
@@ -135,7 +136,7 @@ async function dropMockups(mockups, exceptId) {
 
 // Validates garment / colour / size / elements; returns the fields to store.
 async function cleanDesign(body) {
-  const { garmentType, color, elements, size, name } = body;
+  const { garmentType, color, elements, size, name, players } = body;
   if (!garmentType || !color) throw badRequest("garmentType and color are required");
   if (!Array.isArray(elements) || elements.length === 0) throw badRequest("Add at least one design element before saving");
   if (elements.length > MAX_ELEMENTS) throw badRequest(`A design can have at most ${MAX_ELEMENTS} elements`);
@@ -151,14 +152,52 @@ async function cleanDesign(body) {
   // Areas that overlap on the tee (e.g. Full Front and Centre Front): only one may be used.
   const [clash] = overlappingPairs([...new Set(elements.map((e) => e?.position))], positions);
   if (clash) throw badRequest(`${clash[0]} and ${clash[1]} overlap on the tee — keep your design in one of them.`);
+  const cleaned = elements.map(cleanElement(positionByKey));
   return {
     garmentType: garment.key,
     color: String(color).slice(0, 60),
     size: size ? String(size) : null,
     name: String(name || "").trim().slice(0, 60) || `${garment.label} design`,
     layoutVersion: 2,
-    elements: elements.map(cleanElement(positionByKey)),
+    elements: cleaned,
+    players: cleanPlayers(players, cleaned, sizes),
   };
+}
+
+// Team order: the player list sent with a design → what is stored.
+// Only kept when the design has a text marked as the player's name or number.
+const MAX_PLAYERS = 99;
+function cleanPlayers(list, elements, sizes) {
+  if (!Array.isArray(list) || !list.length) return [];
+  if (!elements.some((e) => e.role)) return [];
+  if (list.length > MAX_PLAYERS) throw badRequest(`A team order can have at most ${MAX_PLAYERS} players`);
+  return list.map((p, i) => {
+    const name = String(p?.name || "").replace(/\s+/g, " ").trim().slice(0, 24);
+    const number = String(p?.number || "").trim().slice(0, 4);
+    const size = String(p?.size || "");
+    if (!name && !number) throw badRequest(`Player ${i + 1}: add a name or a number`);
+    if (!sizes.includes(size)) throw badRequest(`Player ${i + 1}: choose a size`);
+    return { name, number, size };
+  });
+}
+
+// A team design in the cart is always its player list: one tee per player.
+export const rosterItems = (players) => {
+  const count = {};
+  for (const p of players || []) count[p.size] = (count[p.size] || 0) + 1;
+  return Object.entries(count).map(([size, qty]) => ({ size, qty }));
+};
+
+// Puts a design's cart lines in step with its player list (only when it is already in the cart, unless `add`).
+async function syncTeamCart(user, doc, { add = false } = {}) {
+  const mine = user.cartItems.filter((c) => String(c.customization) === String(doc._id));
+  if (!mine.length && !add) return false;
+  mine.forEach((c) => user.cartItems.pull(c._id));
+  for (const { size, qty } of rosterItems(doc.players)) {
+    const line = await customizationLine(doc._id.toString(), qty, size, user);
+    user.cartItems.push({ customization: doc._id, size: line.size, qty, price: line.unitPrice * qty });
+  }
+  return true;
 }
 
 const sendError = (res, err, fallback) =>
@@ -201,6 +240,11 @@ export const updateCustomization = async (req, res) => {
     Object.assign(doc, fields);
     if (mockups) doc.mockups = mockups;
     await doc.save();
+    // a team design that is in the cart: its lines follow the new player list
+    if (doc.players.length) {
+      const user = await User.findById(req.user._id);
+      if (await syncTeamCart(user, doc)) await user.save();
+    }
     if (mockups && old) await dropMockups(old, doc._id);
     res.json(doc);
   } catch (err) {
@@ -212,13 +256,14 @@ export const updateCustomization = async (req, res) => {
 export const listMyCustomizations = async (req, res) => {
   try {
     const docs = await Customization.find({ user: req.user._id, hiddenAt: null })
-      .select("name garmentType color size mockups orderedAt createdAt updatedAt elements.position")
+      .select("name garmentType color size mockups orderedAt createdAt updatedAt elements.position players")
       .sort({ updatedAt: -1 })
       .limit(200)
       .lean();
     res.json(
-      docs.map(({ elements, ...d }) => ({
+      docs.map(({ elements, players, ...d }) => ({
         ...d,
+        playerCount: players?.length || 0,
         elementCount: elements?.length || 0,
         areaCount: new Set((elements || []).map((e) => e.position)).size,
       })),
@@ -240,6 +285,7 @@ export const duplicateCustomization = async (req, res) => {
       user: req.user._id,
       layoutVersion: src.layoutVersion,
       elements: src.elements,
+      players: src.players,
       mockups: src.mockups,
       name: `${src.name || "Design"} (copy)`.slice(0, 60),
     });
@@ -292,16 +338,23 @@ export const getCustomizationById = async (req, res) => {
 async function cartOf(userId) {
   const user = await User.findById(userId)
     .populate("cartItems.product", "brandname images price")
-    .populate("cartItems.customization", "name garmentType color size mockups orderedAt");
+    .populate("cartItems.customization", "name garmentType color size mockups orderedAt players");
   return user.cartItems;
 }
 
 // POST /api/customizations/:id/cart  (owner)
 // Body: { items: [{ size, qty }] } — one design in any mix of sizes.
 // A size already in the cart for this design gets the quantity added.
+// A team design ignores the body: it goes in as its player list (one tee per player).
 export const addDesignToCart = async (req, res) => {
   try {
     const doc = await ownDesign(req);
+    if (doc.players.length) {
+      const team = await User.findById(req.user._id);
+      await syncTeamCart(team, doc, { add: true });
+      await team.save();
+      return res.status(201).json({ cartItems: await cartOf(req.user._id), team: doc.players.length });
+    }
     const items = (Array.isArray(req.body.items) ? req.body.items : [])
       .map((i) => ({ size: String(i?.size || ""), qty: Math.floor(Number(i?.qty)) }))
       .filter((i) => i.size && i.qty > 0);
@@ -334,7 +387,12 @@ export const setDesignCartQty = async (req, res) => {
     const user = await User.findById(req.user._id);
     const item = user.cartItems.id(req.params.cartItemId);
     if (!item || !item.customization) return res.status(404).json({ message: "Cart item not found" });
-    if (qty === 0) {
+    const design = await Customization.findById(item.customization).select("players").lean();
+    if (design?.players?.length) {
+      // a team design: every tee belongs to a player, so it is removed whole or changed in the design
+      if (qty !== 0) return res.status(400).json({ message: "This is a team order. Open the design to add or remove players." });
+      user.cartItems.filter((c) => String(c.customization) === String(item.customization)).forEach((c) => user.cartItems.pull(c._id));
+    } else if (qty === 0) {
       user.cartItems.pull(item._id);
     } else {
       const line = await customizationLine(item.customization.toString(), qty, item.size, req.user);
@@ -375,10 +433,19 @@ export const getOrderPrintPack = async (req, res) => {
       // every catalog area with a size (also one switched off after the order)
       const catalog = catalogForGarment(garment).filter((a) => a.cmBySize);
       const used = [...new Set(doc.elements.map((e) => e.position).filter(Boolean))];
+      // team order: the players, numbered in the customer's order
+      const players = (doc.players || []).map((p, n) => ({ n: n + 1, name: p.name, number: p.number, size: p.size }));
       const areas = used.map((key) => {
         const a = catalog.find((c) => c.key === key);
-        // one print file per print size among the ordered sizes (same cm → same file)
         const files = [];
+        // an area with the player's name or number: one print file per player
+        if (a && players.length && doc.elements.some((e) => e.position === key && e.role)) {
+          for (const p of players) {
+            files.push({ group: `player-${p.n}`, sizes: [p.size], cm: a.cmBySize[String(p.size).toUpperCase()] || a.cmBySize.L, player: p });
+          }
+          return { key, label: a.label, side: a.side || null, files, perPlayer: true };
+        }
+        // one print file per print size among the ordered sizes (same cm → same file)
         for (const l of a ? lines : []) {
           const cm = a.cmBySize[String(l.size).toUpperCase()] || a.cmBySize.L;
           const id = cm.join("x");
@@ -398,6 +465,9 @@ export const getOrderPrintPack = async (req, res) => {
         mockups: doc.mockups || {},
         elements: doc.elements,
         lines,
+        players,
+        // the order must hold exactly one tee per player
+        playersMatch: !players.length || rosterItems(players).every((r) => lines.filter((l) => l.size === r.size).reduce((n, l) => n + l.qty, 0) === r.qty) && lines.reduce((n, l) => n + l.qty, 0) === players.length,
         areas,
       };
     });

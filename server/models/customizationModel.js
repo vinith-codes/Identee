@@ -45,6 +45,8 @@ const elementSchema = new mongoose.Schema(
     strokeWidthPct: { type: Number, default: 0 }, // outline, % of the letter size (0 = none)
     strokeColor: { type: String },
     note: { type: String, maxlength: 300 },
+    // Team orders: this text is replaced on each tee by that player's name / number
+    role: { type: String, enum: ["name", "number"] },
 
     // placement
     x: { type: Number, required: true },
@@ -71,6 +73,18 @@ const customizationSchema = new mongoose.Schema(
       back: { type: String, default: null },
       left: { type: String, default: null },
       right: { type: String, default: null },
+    },
+    // Team order: one tee per player, each with their own name and number (in place of
+    // the texts marked role "name" / "number"). Empty = every tee is printed the same.
+    // The cart and the order hold this design as sizes × quantities counted from this list.
+    players: {
+      type: [
+        new mongoose.Schema(
+          { name: { type: String, default: "" }, number: { type: String, default: "" }, size: { type: String, required: true } },
+          { _id: false },
+        ),
+      ],
+      default: [],
     },
     orderedAt: { type: Date, default: null }, // set when ordered → the design is locked
     hiddenAt: { type: Date, default: null }, // "deleted" by the customer but kept for an order

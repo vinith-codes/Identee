@@ -167,3 +167,37 @@ export class AreaRenderer {
 
 // Every image src used by the elements (to preload before rendering).
 export const imageSrcs = (elements) => [...new Set(elements.filter((e) => e.type === "image" && e.src).map((e) => e.src))];
+
+/* ---------- team orders: one player's tee ---------- */
+// The elements of ONE print area with a player's name and number in place of
+// the texts marked for them (el.role). Each replaced text keeps its middle and
+// its look; a long name is made smaller so it stays inside the print area.
+// A player without a number (or name) simply has no such text on their tee.
+// W, H: the area's size in px (any scale — only its shape matters).
+export function playerElements(elements, player, W, H) {
+  const out = [];
+  for (const el of elements) {
+    if (el.type !== "text" || !el.role) {
+      out.push(el);
+      continue;
+    }
+    const value = String((el.role === "name" ? player.name : player.number) || "").trim();
+    if (!value) continue;
+    const upper = el.text === el.text.toUpperCase() && el.text !== el.text.toLowerCase();
+    let next = { ...el, text: upper ? value.toUpperCase() : value };
+    const cx = (el.x || 0) + (el.width || 0) / 2;
+    const cy = (el.y || 0) + (el.height || 0) / 2;
+    const turned = Math.abs(el.rotation || 0) === 90; // vertical text runs down the area
+    const lengthOf = (m) => (turned ? (m.w / H) * 100 : (m.w / W) * 100);
+    let m = measureText(next, H);
+    const room = Math.max(el.width && !turned ? el.width : 0, 92);
+    if (lengthOf(m) > room) {
+      next = { ...next, fontSizePct: (next.fontSizePct * room) / lengthOf(m) };
+      m = measureText(next, H);
+    }
+    const width = (m.w / W) * 100;
+    const height = (m.h / H) * 100;
+    out.push({ ...next, width, height, x: cx - width / 2, y: cy - height / 2 });
+  }
+  return out;
+}

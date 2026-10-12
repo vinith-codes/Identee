@@ -102,9 +102,16 @@ const resolveLines = async (user, body) => {
   const buyNow = body.buyNow;
 
   if (buyNow?.customizationId) {
-    const wanted = Array.isArray(buyNow.items) && buyNow.items.length
-      ? buyNow.items
-      : [{ size: buyNow.size, qty: buyNow.qty ?? 1 }];
+    // a team design is always bought as its player list: one tee per player
+    const team = isId(buyNow.customizationId) ? await Customization.findById(buyNow.customizationId).select("players").lean() : null;
+    const count = {};
+    for (const p of team?.players || []) count[p.size] = (count[p.size] || 0) + 1;
+    const roster = Object.entries(count).map(([size, qty]) => ({ size, qty }));
+    const wanted = roster.length
+      ? roster
+      : Array.isArray(buyNow.items) && buyNow.items.length
+        ? buyNow.items
+        : [{ size: buyNow.size, qty: buyNow.qty ?? 1 }];
     const lines = [];
     for (const { size, qty } of wanted) {
       lines.push(await customizationLine(buyNow.customizationId, parseQty(qty), size, user));
