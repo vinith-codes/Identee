@@ -802,3 +802,7 @@
 @media (max-width: 760px) {
   .dr-starts { top: 8px; bottom: auto; width: calc(100% - 16px); }
 }
+
+/* the per-player setting stays out of the way until the customer says it is a team order */
+.dr-teamlink { border: 0; background: none; padding: 4px 0; text-align: left; font-size: 12px; font-weight: 600; color: var(--gold-deep); text-decoration: underline; text-underline-offset: 3px; }
+.dr-teamlink:hover { color: var(--ink); }

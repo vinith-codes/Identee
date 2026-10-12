@@ -185,6 +185,9 @@ export default function DesignRoomPage() {
   const [players, setPlayers] = useState(() => (Array.isArray(draft?.players) ? draft.players.map((p) => ({ id: makeId(), ...p })) : []));
   const [team, setTeam] = useState(() => Boolean(draft?.players?.length));
   const [previewId, setPreviewId] = useState(null); // Review: the player whose tee is shown
+  // The per-player setting of a text is only shown for a team design: one that already has a text set as the
+  // player's name or number (the Team jersey layout does that), or once the customer says they are ordering for a team.
+  const [teamAsked, setTeamAsked] = useState(false);
   // the print area the pointer is on — on the 3D tee itself or on its card in the list (it glows on the tee)
   const [hoverKey, setHoverKey] = useState(null);
   const hoverCam = useRef({ side: null, timer: 0 });
@@ -986,6 +989,7 @@ export default function DesignRoomPage() {
     if (a.type === "players") {
       // a pasted team list: one tee per player
       setPlayers(a.players.slice(0, MAX_PLAYERS).map((p) => ({ id: makeId(), ...p })));
+      setTeamAsked(true);
       return setTeam(true);
     }
     if (a.type === "ink") {
@@ -1591,6 +1595,8 @@ export default function DesignRoomPage() {
                 onRemoveBg={removeBg}
                 onFix={ai.available ? fixPicture : null}
                 onAddMore={() => setSelectedId(null)}
+                teamTools={roles || teamAsked || players.length > 0}
+                onTeamTools={() => setTeamAsked(true)}
               />
             ) : (
               <>
@@ -1911,7 +1917,7 @@ function Fitting({ garment, colours, colour, onColour, sizes, size, onSize, onEn
   );
 }
 
-function Controls({ sel, areaCmW, areaRatio, onPatch, onDelete, onDuplicate, onLayer, onRemoveBg, onFix, onAddMore }) {
+function Controls({ sel, areaCmW, areaRatio, onPatch, onDelete, onDuplicate, onLayer, onRemoveBg, onFix, onAddMore, teamTools, onTeamTools }) {
   const quality = () => {
     if (!sel?.pxW) return null;
     const printCm = ((sel.width || 0) / 100) * areaCmW;
@@ -1943,6 +1949,7 @@ function Controls({ sel, areaCmW, areaRatio, onPatch, onDelete, onDuplicate, onL
             />
             <small>Press Enter for a new line.</small>
           </label>
+          {teamTools && (
           <div className="dr-field">
             Does this text change for each player?
             <div className="dr-seg three" role="group" aria-label="Does this text change for each player?">
@@ -1956,8 +1963,9 @@ function Controls({ sel, areaCmW, areaRatio, onPatch, onDelete, onDuplicate, onL
                 </button>
               ))}
             </div>
-            <small>{sel.role ? `What you typed here is only a sample. Each player’s ${sel.role} is printed on their own tee; you add the players in Review.` : "For team orders: choose Yes if every player gets their own name or number here."}</small>
+            <small>{sel.role ? `What you typed here is only a sample. Each player’s ${sel.role} is printed on their own tee; you add the players in Review.` : "Choose Yes if every player gets their own name or number here."}</small>
           </div>
+          )}
           <div className="dr-row">
             <label className="dr-field">
               Font
@@ -2146,6 +2154,11 @@ function Controls({ sel, areaCmW, areaRatio, onPatch, onDelete, onDuplicate, onL
             <button type="button" className="dr-chip danger" onClick={onDelete}>Delete</button>
           </div>
         </>
+      )}
+      {sel?.type === "text" && !teamTools && (
+        <button type="button" className="dr-teamlink" onClick={onTeamTools}>
+          Ordering for a team? Give each player their own name or number →
+        </button>
       )}
     </div>
   );

@@ -154,6 +154,8 @@ agreed to).
 
 **`feature-team-order` — MERGED to `main` on 12 Oct 2026:** team orders — one design, a different
 name and number on each tee.
+- **The per-player setting is hidden unless it is a team design** (a text already set as name/number, players in the list, or the
+  customer pressed the small "Ordering for a team?" link at the bottom of a text's settings — `teamTools` in `Controls`).
 - **Marking:** a text has "Does this text change for each player? No, same on all / Yes, the name / Yes, the number" in its settings
   (`element.role` = `name` | `number`). The Team jersey layout marks PLAYER and 07 by itself.
 - **Review:** when a text is marked, a switch appears — "The same on every tee" / "A name & number per tee". The second shows
