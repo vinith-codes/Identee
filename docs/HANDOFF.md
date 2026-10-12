@@ -122,7 +122,7 @@ for dark tee colours (`dark` in `Boutique`), the arch dimmed to a glow, lamps ov
 **`feature-assistant-examples` — MERGED to `main` on 12 Oct 2026:** the assistant opens with a list of what it can do
 (`EXAMPLES` in `assistantScript.js`): tap-able examples that fill the message box or start the feature; "What can you do?" shows it again.
 
-**`feature-team-order` — BUILT 12 Oct 2026, pushed, waiting for the user's "merge":** team orders — one design, a different
+**`feature-team-order` — MERGED to `main` on 12 Oct 2026:** team orders — one design, a different
 name and number on each tee.
 - **Marking:** a text has "Does this text change for each player? No, same on all / Yes, the name / Yes, the number" in its settings
   (`element.role` = `name` | `number`). The Team jersey layout marks PLAYER and 07 by itself.
