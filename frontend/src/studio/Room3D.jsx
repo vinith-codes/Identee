@@ -690,6 +690,10 @@ function pressOn(probe, geometry) {
     // a sleeve print must stay on the sleeve's outer face: drop the bits that
     // landed on folds turned away from it, the hem's inside or the body behind
     if (!flat) keepFacing(geo, n, 0.3);
+    // The tee is made of two layers of fabric, an outer and an inner one. A print belongs on the outer
+    // layer only: its inner-layer copy faces the other way, so a tap on the FRONT of the tee went through
+    // and landed on a BACK print's inner layer (and opened the back area).
+    else keepFacing(geo, n, -0.3);
     return { geo, point: hit.point.clone(), normal: n };
   }
 }
@@ -755,6 +759,9 @@ function Decal({ probe, spot, canvas, version, areaKey, onPick, interactive, ord
       userData={{ areaKey, point: built.point, normal: built.normal, w: geometry.w, h: geometry.h }}
       onClick={(e) => {
         if (!interactive || e.delta > 6) return;
+        // only from the side it is printed on: a tap on the front must not reach a print on the back
+        const look = e.ray.direction.clone().transformDirection(new THREE.Matrix4().copy(e.object.matrixWorld).invert());
+        if (look.dot(built.normal) > -0.1) return;
         e.stopPropagation();
         onPick?.(areaKey);
       }}
@@ -929,6 +936,7 @@ function Tee({ model, colour, areas, onPickArea, interactive, still, spotsRef, t
         onPointerOut={() => hover(null)}
         onClick={(e) => {
           if (!interactive || e.delta > 6) return;
+          e.stopPropagation(); // the tap ends on the tee: nothing behind this spot reacts to it
           const key = areaAt(e);
           if (key) onPickArea?.(key);
         }}
