@@ -447,10 +447,22 @@ const updateUserProfile = asyncHandler(async (req, res) => {
 // @route PUT /api/users/:id
 // @access Private/Admin
 
+// Admin access is given and taken here (Admin → Customers → Edit). Two rules keep the shop
+// from being locked out: an admin can't take away their own admin access, and the last
+// admin can't be removed.
 const updateUser = asyncHandler(async (req, res) => {
   const user = await User.findById(req.params.id);
 
   if (user) {
+    const losesAdmin = user.isAdmin && req.body.isAdmin === false;
+    if (losesAdmin && String(user._id) === String(req.user._id)) {
+      res.status(400);
+      throw new Error("You can't remove your own admin access. Ask another admin to do it.");
+    }
+    if (losesAdmin && (await User.countDocuments({ isAdmin: true })) <= 1) {
+      res.status(400);
+      throw new Error("This is the only admin. Make someone else an admin first.");
+    }
     user.name = req.body.name || user.name;
     user.email = req.body.email || user.email;
     user.isAdmin = req.body.isAdmin ?? user.isAdmin;
@@ -522,6 +534,15 @@ const getUserByID = asyncHandler(async (req, res) => {
 const deleteUser = asyncHandler(async (req, res) => {
   const user = await User.findById(req.params.id);
   if (user) {
+    // an admin account is not deleted by accident: not your own, and not while it still has admin access
+    if (String(user._id) === String(req.user._id)) {
+      res.status(400);
+      throw new Error("You can't delete your own account from here.");
+    }
+    if (user.isAdmin) {
+      res.status(400);
+      throw new Error("This person is an admin. Remove their admin access first, then delete.");
+    }
     await user.deleteOne({ _id: req.params.id });
     res.json({ message: "User removed" });
   } else {

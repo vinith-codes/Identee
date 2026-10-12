@@ -63,6 +63,15 @@ const AdminEditUserPage = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    // giving admin access is a big step: say what it means and ask once
+    if (form.isAdmin && !selectedUser.isAdmin) {
+      const ok = window.confirm(
+        `Make ${form.name || form.email || "this person"} an admin?
+
+They will be able to see every order and customer, change products and prices, and make or remove other admins.`,
+      );
+      if (!ok) return;
+    }
     try {
       await dispatch(editUser({ id, userData: form })).unwrap();
       toast.success("User updated successfully");

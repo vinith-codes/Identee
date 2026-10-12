@@ -122,6 +122,12 @@ for dark tee colours (`dark` in `Boutique`), the arch dimmed to a glow, lamps ov
 **`feature-assistant-examples` — MERGED to `main` on 12 Oct 2026:** the assistant opens with a list of what it can do
 (`EXAMPLES` in `assistantScript.js`): tap-able examples that fill the message box or start the feature; "What can you do?" shows it again.
 
+**`fix-admin-role-guards` — built 12 Oct 2026, pushed, waiting for the user's "merge":** making another person an admin already
+existed (Admin → Customers → Edit → "Promote as Admin"; the person must have logged in to the site once so they have an account).
+Added rules in `server/controllers/userControler.js`: an admin can't remove their own admin access or delete their own account, an
+admin account can't be deleted until its admin access is removed, the last admin can't be removed; and a confirmation in the Edit
+page before giving admin access. 9 API checks passed on a throwaway DB. The confirmation box itself was not clicked through.
+
 **`feature-area-cards-colour` — MERGED to `main` on 12 Oct 2026:** the small tees on the "Where to print"
 cards are drawn in the colour of the tee being designed (`AreaThumb` `fabric`); a dark tee gets a light box (`.dr-thumb.on-dark`).
 
