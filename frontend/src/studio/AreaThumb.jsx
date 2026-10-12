@@ -32,13 +32,22 @@ function boxOf(position, size) {
   return { x, y: MAIN_TOP[position.side] + (place.topCm || 0) * UNITS_PER_CM, w, h };
 }
 
-// print: a small picture of what is on this area (a data URL); the drawing then
-// shows the tee in its own colour with that print in the box.
+// How light a colour is, 0 (black) to 1 (white).
+const lightness = (hex) => {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex || "");
+  if (!m) return 1;
+  const n = parseInt(m[1], 16);
+  return (0.2126 * ((n >> 16) & 255) + 0.7152 * ((n >> 8) & 255) + 0.0722 * (n & 255)) / 255;
+};
+
+// fabric: the tee's colour — the drawing is in that colour, like the tee being designed.
+// print: a small picture of what is on this area (a data URL), shown in the box.
 export default function AreaThumb({ position, size, print, fabric }) {
   const b = boxOf(position, size);
+  const dark = fabric ? lightness(fabric) < 0.5 : false; // a dark tee gets a light box and outline
   return (
-    <svg className={`dr-thumb${print ? " has-print" : ""}`} viewBox="0 0 200 170" aria-hidden="true" focusable="false">
-      <path className="tee" d={position.side === "back" ? BACK : FRONT} style={print && fabric ? { fill: fabric } : undefined} />
+    <svg className={`dr-thumb${print ? " has-print" : ""}${dark ? " on-dark" : ""}`} viewBox="0 0 200 170" aria-hidden="true" focusable="false">
+      <path className="tee" d={position.side === "back" ? BACK : FRONT} style={fabric ? { fill: fabric } : undefined} />
       {print ? <image href={print} x={b.x} y={b.y} width={b.w} height={b.h} preserveAspectRatio="none" /> : <rect className="box" x={b.x} y={b.y} width={b.w} height={b.h} rx="2" />}
     </svg>
   );

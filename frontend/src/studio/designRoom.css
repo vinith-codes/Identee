@@ -837,3 +837,10 @@
 
 /* the back arrow is a button inside the room (it steps back) and a link on the first screen */
 button.dr-back { padding: 0; font: inherit; font-weight: 700; cursor: pointer; }
+
+/* the small tees on the "Where to print" cards are in the colour of the tee being designed */
+.dr-thumb .tee { transition: fill .35s ease; }
+.dr-thumb.on-dark .tee { stroke: #3A332A; }
+.dr-thumb.on-dark .box { fill: rgba(255, 226, 150, .22); stroke: #F2D48A; }
+.dr-area.used .dr-thumb.on-dark .box { fill: var(--gold); stroke: #F6E3B0; }
+.dr-area.hot .dr-thumb.on-dark .box { stroke: #FFF1C9; }
