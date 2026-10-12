@@ -116,4 +116,4 @@ All scripted, no AI call. Files in `frontend/src/studio/`: `assistantScript.js` 
   picture: Add to tee (replaces the AI design on that area), Other area, Change (next message is the change).
   "Make more" repeats the last request. A typed description with a picture word ("draw a lion...") skips to the style.
 - **Tested** with the mock provider on a local copy: new design, change, replace, other area, limits, cap, admin page.
-  **Not tested with the real Gemini API** — the first real request may need the answer parser (`findImage`) adjusted.
+  Real Gemini API tested 12 Oct 2026: one picture (bold-mascot lion, 1024 px JPEG, 22 s) came back and cut out cleanly on a dark tee. Google only returns JPEG. The full path through the server (Cloudinary + usage row) with the real key is still to be tried from the site.
