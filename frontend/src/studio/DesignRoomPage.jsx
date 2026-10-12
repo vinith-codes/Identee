@@ -54,6 +54,10 @@ const ICON_TEXT = "M5 6h14M12 6v13M9 19h6";
 const ICON_UPLOAD = "M12 16V5m0 0-4 4m4-4 4 4M5 19h14";
 const SIDES = [["front", "Front"], ["back", "Back"], ["left", "Left"], ["right", "Right"]];
 const DRAFT_KEY = (type) => `identee:design:v3:${type}`;
+// What a reload must bring back besides the design itself: that the customer is in the room, the colour and
+// size, and the assistant's conversation (with the pictures it offered that are not on the tee yet).
+const ROOM_KEY = (type) => `identee:room:v1:${type}`;
+const CHAT_KEPT = 80; // messages
 const SIZE_KEY = "identee:size";
 const DARK_KEY = "identee:room-dark"; // the customer's light / dark studio choice
 const HISTORY_CAP = 50;
@@ -132,9 +136,10 @@ export default function DesignRoomPage() {
   // (a design already saved to My designs isn't "unfinished" — it's kept there)
   const [earlier, setEarlier] = useState(() => (fresh && stored?.elements?.length && !stored.designId ? stored : null));
   const draft = fresh ? null : stored;
-  const [step, setStep] = useState(draft?.elements?.length ? "design" : "fit");
-  const [colourSlug, setColourSlug] = useState(params.get("color") || draft?.colour || null);
-  const [size, setSize] = useState(draft?.size || readJSON(SIZE_KEY) || "M");
+  const session = useMemo(() => (fresh ? null : readJSON(ROOM_KEY(type))), [type]); // eslint-disable-line react-hooks/exhaustive-deps
+  const [step, setStep] = useState(draft?.elements?.length || session?.entered ? "design" : "fit");
+  const [colourSlug, setColourSlug] = useState(params.get("color") || draft?.colour || session?.colour || null);
+  const [size, setSize] = useState(draft?.size || session?.size || readJSON(SIZE_KEY) || "M");
   const [elements, setElements] = useState(() => (Array.isArray(draft?.elements) ? draft.elements : []));
   const [positions, setPositions] = useState([]);
   const [active, setActive] = useState(null); // print area key being edited
@@ -143,13 +148,14 @@ export default function DesignRoomPage() {
   const [addTab, setAddTab] = useState("text");
   // The design assistant has its own panel (it works on the whole tee, not one print area). It takes
   // the editor's place on the right; picking a print area or "Edit by hand" brings the editor back.
-  const [assist, setAssist] = useState(false);
-  const [chat, setChat] = useState(firstMessages); // the assistant's conversation (kept while you switch tabs)
-  const [chatState, setChatState] = useState(firstState);
+  const [assist, setAssist] = useState(() => Boolean(session?.assist));
+  // the assistant's conversation (kept while you switch tabs, and across a reload of the page)
+  const [chat, setChat] = useState(() => (Array.isArray(session?.chat) && session.chat.length ? session.chat : firstMessages()));
+  const [chatState, setChatState] = useState(() => session?.chatState || firstState());
   // the AI design maker: whether it is on, how many requests are left today, and where its designs sit on the tee
   const [ai, setAi] = useState({ available: false, reason: "setup", styles: [], photoStyles: [], left: null });
   const photoRef = useRef(null); // the file picker for "photo to art"
-  const [aiPlaced, setAiPlaced] = useState({}); // { [print area key]: { url, elId } }
+  const [aiPlaced, setAiPlaced] = useState(() => session?.aiPlaced || {}); // { [print area key]: { url, elId } }
   const aiCuts = useRef(new Map()); // design url -> { path, w, h } (the server sends each design already cut out)
   useEffect(() => {
     let alive = true;
@@ -171,7 +177,7 @@ export default function DesignRoomPage() {
   // (the 3D picture itself is slid to the right in designRoom.css, and slides back on stepping in).
   const SHOWCASE = { position: [0, 0.4, 5.2], ms: 1600 }; // a slow push-in as the page opens
   const [camRequest, setCamRequest] = useState(() =>
-    draft?.elements?.length ? { view: "front", ms: 1600, n: nextReq() } : typeof window !== "undefined" && window.innerWidth >= 900 ? { ...SHOWCASE, n: nextReq() } : null,
+    draft?.elements?.length || session?.entered ? { view: "front", ms: 1600, n: nextReq() } : typeof window !== "undefined" && window.innerWidth >= 900 ? { ...SHOWCASE, n: nextReq() } : null,
   );
   const [twirlKey, setTwirlKey] = useState(0); // goes up to make the tee do one full turn
   const [shots, setShots] = useState(null);
@@ -202,12 +208,16 @@ export default function DesignRoomPage() {
   const hoverCam = useRef({ side: null, timer: 0 });
   const [areaTab, setAreaTab] = useState(AREA_GROUPS[0][0]); // "Where to print": Front / Back / Sleeves
   const [popKey, setPopKey] = useState(0); // goes up when something lands on the tee: the tee gives a small pop
-  const [toast, setToast] = useState("");
+  // A design saved to My designs that was changed afterwards on this device: a reload keeps those changes
+  // (the page used to fetch the saved version again and throw them away).
+  const keepLocal = Boolean(draft?.dirty && draft?.designId && draft.designId === params.get("design") && draft.elements?.length);
+  const unsaved = useRef(Boolean(draft?.dirty)); // changed since the last save / load from My designs
+  const [toast, setToast] = useState(keepLocal ? "These are your latest changes. Press Save to keep them in My designs." : "");
   const [busy, setBusy] = useState("");
   // the saved design this is (My designs); locked = already ordered → saving makes a copy
   const [designId, setDesignId] = useState(params.get("design") || draft?.designId || null);
   const [designName, setDesignName] = useState(draft?.name || "");
-  const [locked, setLocked] = useState(false);
+  const [locked, setLocked] = useState(Boolean(draft?.locked));
   const [saveOpen, setSaveOpen] = useState(false);
   const [cartNote, setCartNote] = useState(null); // { pieces, name } after "Add to cart"
   const [savedAt, setSavedAt] = useState(null);
@@ -265,8 +275,19 @@ export default function DesignRoomPage() {
     if (!type) return;
     if (elements.length) hadElements.current = true;
     else if (!hadElements.current) return;
-    writeJSON(DRAFT_KEY(type), { elements, colour: colour?.slug, size: sizeNow, designId, name: designName, players: players.filter(filled).map(({ name, number, size: sz }) => ({ name, number, size: sz })) });
-  }, [type, elements, colour?.slug, sizeNow, designId, designName, players]);
+    writeJSON(DRAFT_KEY(type), { elements, colour: colour?.slug, size: sizeNow, designId, name: designName, dirty: unsaved.current, locked, players: players.filter(filled).map(({ name, number, size: sz }) => ({ name, number, size: sz })) });
+  }, [type, elements, colour?.slug, sizeNow, designId, designName, players, locked]);
+
+  // The room itself, so a reload comes back to where the customer was — also with an empty tee — and the
+  // assistant still remembers the conversation. Not written before they step in, so looking at the first
+  // screen never disturbs what was kept from an earlier visit.
+  const entered = useRef(step !== "fit");
+  useEffect(() => {
+    if (!type) return;
+    if (step !== "fit") entered.current = true;
+    if (!entered.current) return;
+    writeJSON(ROOM_KEY(type), { entered: step !== "fit", colour: colour?.slug, size: sizeNow, assist, chat: chat.slice(-CHAT_KEPT), chatState, aiPlaced });
+  }, [type, step, colour?.slug, sizeNow, assist, chat, chatState, aiPlaced]);
 
   // drop ?new=1 from the address so a reload keeps the design in progress
   useEffect(() => {
@@ -292,7 +313,7 @@ export default function DesignRoomPage() {
 
   /* ---------- open a saved design: /customize/<garment>?design=<id> ---------- */
   const openId = params.get("design");
-  const onScreenId = useRef(null); // id of the saved design currently shown (set on load and on save)
+  const onScreenId = useRef(keepLocal ? draft.designId : null); // id of the saved design currently shown (set on load and on save)
   useEffect(() => {
     // after Save the address gets ?design=<id> of the design already on screen —
     // nothing to load (re-loading would jump back from Review to Design)
@@ -307,6 +328,7 @@ export default function DesignRoomPage() {
         setColourSlug(d.color);
         if (d.size) setSize(d.size);
         onScreenId.current = d._id;
+        unsaved.current = false;
         setDesignId(d._id);
         setDesignName(d.name || "");
         setLocked(!!d.orderedAt);
@@ -334,6 +356,7 @@ export default function DesignRoomPage() {
     const prev = elementsRef.current;
     const value = typeof next === "function" ? next(prev) : next;
     hist.current = { past: [...hist.current.past, prev].slice(-HISTORY_CAP), future: [] };
+    unsaved.current = true;
     if (value.length > prev.length) setPopKey((k) => k + 1);
     setElements(value);
     bumpHistory();
@@ -751,6 +774,10 @@ export default function DesignRoomPage() {
 
   /* ---------- steps ---------- */
   const enterRoom = () => {
+    // Starting new here replaces the unfinished design kept from before (it was offered as "Continue it" on
+    // this screen). Without this, a reload would bring the old design back together with the new conversation.
+    hadElements.current = true;
+    if (!elements.length) writeJSON(DRAFT_KEY(type), { elements: [], colour: colour?.slug, size: sizeNow, designId: null, name: "", dirty: false, locked: false, players: [] });
     writeJSON(SIZE_KEY, sizeNow);
     setStep("design");
     setCamRequest({ view: "front", ms: 1800, n: nextReq() });
@@ -1121,6 +1148,7 @@ export default function DesignRoomPage() {
         copied = !!(designId && locked);
       }
       onScreenId.current = saved._id;
+      unsaved.current = false;
       setDesignId(saved._id);
       setDesignName(saved.name);
       setLocked(false);

@@ -122,6 +122,17 @@ for dark tee colours (`dark` in `Boutique`), the arch dimmed to a glow, lamps ov
 **`feature-assistant-examples` — MERGED to `main` on 12 Oct 2026:** the assistant opens with a list of what it can do
 (`EXAMPLES` in `assistantScript.js`): tap-able examples that fill the message box or start the feature; "What can you do?" shows it again.
 
+**`fix-keep-on-reload` — built 12 Oct 2026, pushed, waiting for the user's "merge":** what a page reload keeps in the Design Room.
+- New `identee:room:v1:<garment>` in localStorage (`ROOM_KEY`): that the customer is in the room, colour, size, whether the
+  assistant is open, its conversation (last 80 messages, with the pictures it offered) and `aiPlaced`. Before, only the design's
+  items were kept: an empty tee went back to the first screen and the chat was always lost.
+- A design saved to My designs and changed afterwards: the draft now carries `dirty` + `locked`, and a reload keeps the local
+  changes instead of fetching the saved version over them (`keepLocal`, `unsaved`).
+- Stepping in on a fresh start (`?new=1`) now replaces the unfinished design kept from before (it was offered as "Continue it").
+- Checked on the dev site: reload with an empty tee (room, colour, open assistant and chat came back) and after the Team jersey
+  layout (design + chat came back). NOT checked: the saved-design case (needs a login and a real save), and pictures offered by
+  the AI after a reload ("Add to tee" then takes the slower path once, by design).
+
 **`feature-delete-garment` (built on `fix-admin-role-guards`) — MERGED to `main` on 12 Oct 2026:** a garment
 added by mistake can be deleted from Admin → Customizable → open it → last step (Publish) → "Delete this garment". Server rules
 (`deleteGarmentType`): not while it is live (unpublish first), not when any saved design uses it (it stays an unpublished draft);
