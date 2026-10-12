@@ -124,7 +124,7 @@ export async function planEdit({ message, design }) {
     '- {"op":"move","id":ID,"area":AREA_KEY}  move an item to another print area (only areas with free:true, or the area it is already in)',
     '- {"op":"delete","id":ID}',
     '- {"op":"duplicate","id":ID}',
-    '- {"op":"add_text","area":AREA_KEY,"text":string,"color":"#RRGGBB" (optional),"fontFamily":font (optional),"shape":shape (optional),"placeY":"top"|"middle"|"bottom" (optional)}',
+    '- {"op":"add_text","area":AREA_KEY,"text":string,"color":"#RRGGBB" (optional),"fontFamily":font (optional),"shape":shape (optional),"placeY":"top"|"middle"|"bottom" (optional),"scale":number (optional: 0.5 = small line, 1 = normal heading, 2 = very large)}',
     "You know nothing about the shop's prices, delivery times, returns, offers or policies. If asked, say you can't answer that and point to the Contact page — never guess or invent one.",
     "Rules: only use ids and area keys from the design below. \"it\" / \"this\" / \"the text\" means the selected item if there is one, else the only item of that kind, else the last item in the open area. If it is unclear which item is meant, change nothing and ask. Pick ink colours that show on the tee colour. For words like bigger/smaller use scale. Do not invent slogans unless asked to write or add text.",
     "The design: " + JSON.stringify(design),

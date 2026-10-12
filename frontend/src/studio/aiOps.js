@@ -144,7 +144,7 @@ export function applyAiOps(ops, d) {
         type: "text",
         text: op.text.slice(0, 200),
         fontFamily: d.fonts.includes(op.fontFamily) ? op.fontFamily : "Anton",
-        fontSizePct: 12,
+        fontSizePct: clamp(12 * (Number.isFinite(op.scale) ? clamp(op.scale, 0.3, 3) : 1), 2, 60),
         color: HEX.test(op.color) ? op.color.toUpperCase() : d.inkDefault,
         align: "center",
         effect: SHAPES[op.shape] || "straight",

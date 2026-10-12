@@ -154,7 +154,7 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
           setDraft("");
         }}
       >
-        <input value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="A funny line for my cricket team" aria-label="Message the design assistant" maxLength={200} autoComplete="off" />
+        <input value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="A funny line for my cricket team" aria-label="Message the design assistant" maxLength={400} autoComplete="off" />
         <button type="submit">Send</button>
       </form>
     </div>
