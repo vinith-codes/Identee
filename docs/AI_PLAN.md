@@ -117,3 +117,12 @@ All scripted, no AI call. Files in `frontend/src/studio/`: `assistantScript.js` 
   "Make more" repeats the last request. A typed description with a picture word ("draw a lion...") skips to the style.
 - **Tested** with the mock provider on a local copy: new design, change, replace, other area, limits, cap, admin page.
   Real Gemini API tested 12 Oct 2026: one picture (bold-mascot lion, 1024 px JPEG, 22 s) came back and cut out cleanly on a dark tee. Google only returns JPEG. The full path through the server (Cloudinary + usage row) with the real key is still to be tried from the site.
+
+## Decision (12 Oct 2026): no subject restrictions in "Make a design"
+
+The user asked for customers to be able to generate any image. Our own word list and the "no brand logos / trademarked
+characters / real people" line in the prompt were removed (server and assistant). I advised against it: designs are
+printed and sold, so famous characters, brands and real people's faces are a copyright / trademark risk that falls on
+the shop. What remains: the image AI's own rules (it may still refuse), and a line in the Review step — "By ordering,
+you confirm you have the right to print everything in this design." Whether the client (Quindl) has agreed to this is
+not recorded; raise it before go-live, and consider a tick-box and a line in the Terms page.

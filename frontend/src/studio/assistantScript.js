@@ -28,8 +28,6 @@ const PRINT_FOR = {
   "Name and number": [["full-back", "centre-back"], "A name and number go on the back, with the number large in the middle."],
   "Down the side": [["vertical-front", "front-right-vertical", "vertical-back"], "Text running down the tee uses one of the tall, narrow areas."],
 };
-// brands, famous characters and real people: the same list the server checks (server/controllers/aiController.js)
-const NOT_ALLOWED = /\b(nike|adidas|puma|reebok|gucci|supreme|louis vuitton|coca.?cola|pepsi|apple logo|marvel|dc comics|disney|pixar|pokemon|pok[eé]mon|pikachu|naruto|goku|dragon ball|one piece|luffy|anime character|mickey|minnie|donald duck|spider.?man|bat.?man|super.?man|iron.?man|hulk|thor|captain america|avengers|deadpool|wolverine|joker|thanos|wonder woman|harry potter|star wars|darth vader|yoda|barbie|hello kitty|super mario|mario bros|sonic the hedgehog|minions?|shrek|doraemon|shin.?chan|chhota bheem|motu patlu|tom and jerry|ipl|bcci|csk|rcb|mumbai indians|fifa|real madrid|barcelona|manchester united|celebrit|actor|actress|cricketer|footballer|politician|film star|movie star)\b/i;
 
 export const bot = (text) => ({ from: "bot", text });
 export const chips = (list) => ({ chips: list });
@@ -85,7 +83,6 @@ export function replyTo(text, ctx, st) {
   /* ----- the design maker's questions ----- */
   const offTopic = MENU.includes(t) || MORE.includes(t) || t === "Something else";
   if (wait === "aiSubject" && !offTopic) {
-    if (NOT_ALLOWED.test(t)) return done([bot("I can’t make brand logos, famous characters or real people — they belong to someone else. Describe an original idea.")], { wait: "aiSubject" });
     return done([bot("Which style?"), chips(ctx.ai.styles)], { subject: t, wait: "aiStyle" });
   }
   if (wait === "aiStyle" && ctx.ai.styles.includes(t)) {
@@ -93,7 +90,6 @@ export function replyTo(text, ctx, st) {
     return done([act({ type: "generate", ...job })], { lastDesign: job });
   }
   if (wait === "aiChange" && !offTopic && st.changeUrl) {
-    if (NOT_ALLOWED.test(t)) return done([bot("I can’t add brand logos, famous characters or real people. Tell me another change.")], { wait: "aiChange" });
     return done([act({ type: "generate", baseUrl: st.changeUrl, change: t })], { changeUrl: null });
   }
   if (t === "Make more" && st.lastDesign) return done([act({ type: "generate", ...st.lastDesign })]);
@@ -144,9 +140,6 @@ export function replyTo(text, ctx, st) {
     return done([bot(open.length ? why : `${why} Those areas are covered by another print on your tee right now.`), chips([...open.map((a) => `Open ${a.label}`), "Something else"])]);
   }
   if (t === "Size help" || /\bsize\b|which size|fit me/.test(low)) return done([bot("What size do you usually wear in regular tees?"), chips(ctx.sizes)], { wait: "size" });
-  if (NOT_ALLOWED.test(t)) {
-    return done([bot("I can’t help with brand logos or famous faces — they belong to someone else and can’t be printed. Try an original idea instead."), chips(["Slogan ideas", "Open the art library"])]);
-  }
   if (t === "Remove a background" || /background|cut ?out/.test(low)) {
     return done([bot("Upload your picture, tap it on the print area, then press “Remove background” in its settings. It’s free and runs in your browser."), chips(["Upload a picture", "Something else"])]);
   }

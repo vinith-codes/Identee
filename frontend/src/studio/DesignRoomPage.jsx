@@ -1298,6 +1298,7 @@ export default function DesignRoomPage() {
                   );
                 })}
                 <p className="dr-qnote">Every size is printed at its own true size from the print guide.</p>
+                <p className="dr-qnote">By ordering, you confirm you have the right to print everything in this design.</p>
               </div>
               <div className="dr-summary">
                 <div>

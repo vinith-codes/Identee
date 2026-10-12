@@ -81,7 +81,6 @@ export function newDesignPrompt({ subject, style, teeColour, teeIsDark, variatio
     `Style: ${AI_STYLES[style] || AI_STYLES["Bold mascot"]}.`,
     `Rules: one centred design that fills most of the picture. The background must be flat pure ${bg} and nothing else: no scenery, no texture, no shadow on it.`,
     "Do not draw a t-shirt, a mockup, a person wearing it, a frame or a border. No watermark or signature.",
-    "No brand logos, no trademarked characters, no real people.",
     `Use colours that stand out on a ${teeColour} t-shirt.`,
     "Only include words if the subject asks for them, spelled exactly as written.",
     of > 1 ? `This is option ${variation} of ${of}: make its composition clearly different from the other options.` : "",
@@ -90,7 +89,7 @@ export function newDesignPrompt({ subject, style, teeColour, teeIsDark, variatio
     .join(" ");
 }
 export const changeDesignPrompt = (change) =>
-  `Edit this t-shirt design: ${change}. Keep everything else the same, including the flat plain background. Do not add a t-shirt, a frame, a watermark, brand logos or real people.`;
+  `Edit this t-shirt design: ${change}. Keep everything else the same, including the flat plain background. Do not add a t-shirt, a frame or a watermark.`;
 
 // The answer's shape differs a little between models, so the picture is found by looking for it.
 function findImage(node, depth = 0) {
@@ -145,7 +144,7 @@ export async function generateImage({ prompt, image, ratio = "1:1" }) {
     throw Object.assign(
       new Error(
         refused
-          ? "The design maker refused that description. This usually means it involves a famous character, a brand or a real person, which can’t be printed. Try an original idea. You were not charged for it."
+          ? "The design maker couldn’t make that one. Try describing it a little differently. You were not charged for it."
           : noBilling
             ? "The design maker is unavailable right now. Please try again later."
             : "The design maker had a problem. Please try again.",

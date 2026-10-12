@@ -8,6 +8,11 @@
 //   • requests per customer per day
 //   • pictures per request
 //   • a monthly spending cap — past it, the feature pauses until next month
+//
+// Customers may ask for anything (the shop owner's decision, 12 Oct 2026): this
+// code does not filter subjects. The image AI still applies its own rules and
+// may refuse some requests. The Review step tells the customer that ordering
+// means they have the right to print the design.
 import asyncHandler from "express-async-handler";
 import Setting from "../models/settingModel.js";
 import AiUsage from "../models/aiUsageModel.js";
@@ -25,8 +30,6 @@ const DEFAULTS = {
 };
 const LIMITS = { "ai.dailyPerUser": [1, 50], "ai.imagesPerRequest": [1, 4], "ai.monthlyCapInr": [0, 1000000], "ai.pricePerImageInr": [0, 100] };
 
-// Things the shop must not print: other people's brands, characters and faces.
-const NOT_ALLOWED = /\b(nike|adidas|puma|reebok|gucci|supreme|louis vuitton|coca.?cola|pepsi|apple logo|marvel|dc comics|disney|pixar|pokemon|pok[eé]mon|pikachu|naruto|goku|dragon ball|one piece|luffy|anime character|mickey|minnie|donald duck|spider.?man|bat.?man|super.?man|iron.?man|hulk|thor|captain america|avengers|deadpool|wolverine|joker|thanos|wonder woman|harry potter|star wars|darth vader|yoda|barbie|hello kitty|super mario|mario bros|sonic the hedgehog|minions?|shrek|doraemon|shin.?chan|chhota bheem|motu patlu|tom and jerry|ipl|bcci|csk|rcb|mumbai indians|fifa|real madrid|barcelona|manchester united|celebrit|actor|actress|cricketer|footballer|politician|film star|movie star)\b/i;
 
 const startOfDay = () => {
   const d = new Date();
@@ -108,11 +111,6 @@ export const makeAiDesign = asyncHandler(async (req, res) => {
     res.status(400);
     throw new Error(changing ? "Tell me what to change." : "Describe what the design should show.");
   }
-  if (NOT_ALLOWED.test(text)) {
-    res.status(422);
-    throw new Error("I can’t make brand logos, famous characters or real people — they belong to someone else. Try an original idea.");
-  }
-
   let jobs;
   if (changing) {
     if (!isAiDesign(req.body.baseUrl)) {
