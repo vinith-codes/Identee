@@ -14,7 +14,7 @@ const FIELDS = [
   ["pricePerImageInr", "Cost of one picture (₹)", "Used only for the spending figures here. Update it if Google changes its price.", 0, 100, 0.1],
 ];
 const WHY = {
-  setup: "Not working yet: no AI key is set on the server (GEMINI_API_KEY).",
+  setup: "Not working yet: no AI key is set on the server (IDENTEE_GEMINI_API_KEY).",
   off: "Switched off. Customers see “coming soon”.",
   cap: "Paused: this month's spending cap has been reached.",
 };

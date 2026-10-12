@@ -2,8 +2,8 @@
 //
 // Talks to the image AI that makes t-shirt designs from a description.
 // Provider: Google Gemini "Nano Banana" (chosen 10 Oct 2026, see
-// docs/AI_PLAN.md). The key lives in server/.env as GEMINI_API_KEY and is
-// never sent to the browser.
+// docs/AI_PLAN.md). The key lives in server/.env as IDENTEE_GEMINI_API_KEY
+// (GEMINI_API_KEY also works) and is never sent to the browser.
 //
 //   AI_IMAGE_MODEL      optional, defaults to gemini-nano-banana-2.1
 //   AI_IMAGE_PROVIDER   "gemini" (default) or "mock" — mock draws a plain
@@ -15,7 +15,11 @@ const ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/interactions"
 const TIMEOUT_MS = 90_000;
 
 const mock = () => process.env.AI_IMAGE_PROVIDER?.trim() === "mock";
-export const aiImageConfigured = () => mock() || Boolean(process.env.GEMINI_API_KEY?.trim());
+// The shop's own key name comes first. (A computer may already have a
+// GEMINI_API_KEY in its system settings for other work; that one would
+// otherwise win over the project's .env file.)
+const apiKey = () => process.env.IDENTEE_GEMINI_API_KEY?.trim() || process.env.GEMINI_API_KEY?.trim() || "";
+export const aiImageConfigured = () => mock() || Boolean(apiKey());
 export const aiImageModel = () => (mock() ? "mock" : process.env.AI_IMAGE_MODEL?.trim() || "gemini-nano-banana-2.1");
 
 // The stand-in picture for AI_IMAGE_PROVIDER=mock: a coloured disc with a
@@ -110,7 +114,7 @@ function findImage(node, depth = 0) {
  */
 export async function generateImage({ prompt, image, ratio = "1:1" }) {
   if (mock()) return { buffer: mockPng(prompt + (image ? "changed" : "")), mime: "image/png" };
-  const key = process.env.GEMINI_API_KEY?.trim();
+  const key = apiKey();
   if (!key) throw Object.assign(new Error("The design maker is not set up yet."), { status: 503 });
 
   const input = [{ type: "text", text: prompt }];

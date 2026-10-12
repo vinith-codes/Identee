@@ -105,7 +105,7 @@ All scripted, no AI call. Files in `frontend/src/studio/`: `assistantScript.js` 
 - **Server**: `POST /api/ai/design` (login) -> `services/aiImageService.js` (Gemini Interactions API, model
   `gemini-nano-banana-2.1`, 1K PNG, aspect ratio nearest to the print area) -> pictures stored in `identee/ai-designs`
   -> `{ images, left }`. `GET /api/ai/status`, `GET/PUT /api/ai/admin`. Usage rows in `AiUsage`.
-- **Key**: `GEMINI_API_KEY` in `server/.env` (never sent to the browser). `AI_IMAGE_MODEL` optional.
+- **Key**: `IDENTEE_GEMINI_API_KEY` in `server/.env` (`GEMINI_API_KEY` also works, but a system-wide one on the PC wins over .env) (never sent to the browser). `AI_IMAGE_MODEL` optional.
   `AI_IMAGE_PROVIDER=mock` draws a sample picture without calling anyone (use it for testing; it costs nothing).
 - **Limits** (Admin -> Settings -> AI designs; stored as `ai.*` settings): on/off, requests per customer per day (5),
   pictures per request (3), monthly cap in rupees (2000; the feature pauses past it), price per picture (2.9, for the
