@@ -122,7 +122,7 @@ for dark tee colours (`dark` in `Boutique`), the arch dimmed to a glow, lamps ov
 **`feature-assistant-examples` — MERGED to `main` on 12 Oct 2026:** the assistant opens with a list of what it can do
 (`EXAMPLES` in `assistantScript.js`): tap-able examples that fill the message box or start the feature; "What can you do?" shows it again.
 
-**`fix-keep-on-reload` — built 12 Oct 2026, pushed, waiting for the user's "merge":** what a page reload keeps in the Design Room.
+**`fix-keep-on-reload` — MERGED to `main` on 12 Oct 2026:** what a page reload keeps in the Design Room.
 - New `identee:room:v1:<garment>` in localStorage (`ROOM_KEY`): that the customer is in the room, colour, size, whether the
   assistant is open, its conversation (last 80 messages, with the pictures it offered) and `aiPlaced`. Before, only the design's
   items were kept: an empty tee went back to the first screen and the chat was always lost.
