@@ -124,7 +124,7 @@ for dark tee colours (`dark` in `Boutique`), the arch dimmed to a glow, lamps ov
 
 **`feature-team-order` — BUILT 12 Oct 2026, pushed, waiting for the user's "merge":** team orders — one design, a different
 name and number on each tee.
-- **Marking:** a text has "On a team order, this text is: The same / Player's name / Player's number" in its settings
+- **Marking:** a text has "Does this text change for each player? No, same on all / Yes, the name / Yes, the number" in its settings
   (`element.role` = `name` | `number`). The Team jersey layout marks PLAYER and 07 by itself.
 - **Review:** when a text is marked, a switch appears — "The same on every tee" / "A name & number per tee". The second shows
   a player list (name, number, size; + Add a player; Paste a list). One row = one tee. Tapping a row shows that player's

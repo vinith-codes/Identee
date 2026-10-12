@@ -1772,19 +1772,19 @@ function Controls({ sel, areaCmW, areaRatio, onPatch, onDelete, onDuplicate, onL
             <small>Press Enter for a new line.</small>
           </label>
           <div className="dr-field">
-            On a team order, this text is
-            <div className="dr-seg three" role="group" aria-label="On a team order, this text is">
+            Does this text change for each player?
+            <div className="dr-seg three" role="group" aria-label="Does this text change for each player?">
               {[
-                [undefined, "The same"],
-                ["name", "Player’s name"],
-                ["number", "Player’s number"],
+                [undefined, "No, same on all"],
+                ["name", "Yes, the name"],
+                ["number", "Yes, the number"],
               ].map(([k, label]) => (
                 <button key={label} type="button" className={sel.role === k || (!k && !sel.role) ? "on" : ""} aria-pressed={sel.role === k || (!k && !sel.role)} onClick={() => onPatch({ role: k })}>
                   {label}
                 </button>
               ))}
             </div>
-            {sel.role && <small>Each tee gets its own {sel.role}. You fill the list of players in Review.</small>}
+            <small>{sel.role ? `What you typed here is only a sample. Each player’s ${sel.role} is printed on their own tee; you add the players in Review.` : "For team orders: choose Yes if every player gets their own name or number here."}</small>
           </div>
           <div className="dr-row">
             <label className="dr-field">
