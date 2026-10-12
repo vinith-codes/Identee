@@ -25,6 +25,7 @@ import Rolling from "./Rolling";
 import Assistant from "./Assistant";
 import { AFTER_AI_SLOGANS, AFTER_DESIGN_CHIPS, bot as botSays, checkMessages, chips as chipRow, firstMessages, firstState } from "./assistantScript";
 import aiService from "../services/aiService";
+import { applyAiOps, describeDesign } from "./aiOps";
 import { checkDesign, inksFor } from "./designCheck";
 import { TEMPLATES } from "./designTemplates";
 import { FONTS, addStudioFonts } from "./fonts";
@@ -138,7 +139,8 @@ export default function DesignRoomPage() {
   const [chat, setChat] = useState(firstMessages); // the assistant's conversation (kept while you switch tabs)
   const [chatState, setChatState] = useState(firstState);
   // the AI design maker: whether it is on, how many requests are left today, and where its designs sit on the tee
-  const [ai, setAi] = useState({ available: false, reason: "setup", styles: [], left: null });
+  const [ai, setAi] = useState({ available: false, reason: "setup", styles: [], photoStyles: [], left: null });
+  const photoRef = useRef(null); // the file picker for "photo to art"
   const [aiPlaced, setAiPlaced] = useState({}); // { [print area key]: { url, elId } }
   const aiCuts = useRef(new Map()); // design url -> { path, w, h } (the server sends each design already cut out)
   useEffect(() => {
@@ -640,12 +642,48 @@ export default function DesignRoomPage() {
     issues: designIssues,
     inks: inksFor(fabricHex, INKS),
     ai: { ...ai, loggedIn: isLoggedIn() },
+    // an uploaded picture on the tee (not library art, not an AI design) — "photo to art" can use it
+    photoOnTee: [...elements].reverse().find((e) => e.type === "image" && !e.artDesignId && !aiCuts.current.has(e.src))?.src || null,
   });
+  // Edit the tee by chat: the text AI suggests changes, aiOps checks and applies them (one Undo step).
+  const chatEdit = async (a) => {
+    try {
+      const res = await aiService.edit({
+        message: a.message,
+        design: describeDesign({ elements, positions, active, selectedId, fonts: FONTS, teeName: colour?.name || "", areaPx }),
+      });
+      const asked = Array.isArray(res.ops) ? res.ops.length : 0;
+      if (!asked) return [botSays(res.reply || "I’m not sure what to change. Tell me which item, and what to do with it.")];
+      const done = applyAiOps(res.ops, { elements, positions, active, fonts: FONTS, inkDefault, areaPx, textBox, makeId });
+      if (!done.changed) return [botSays("I couldn’t do that one. Tap the item on the print area and tell me again, or use its settings.")];
+      commit(() => done.elements);
+      if (done.focus && done.focus !== active) openArea(done.focus, { force: true });
+      setSelectedId(null);
+      return [botSays(`${res.reply || "Done."} Not right? Press Undo (↶).`)];
+    } catch (err) {
+      return [botSays(err.response?.data?.message || "I couldn’t work that out just now. Please try again.")];
+    }
+  };
+  // Photo to art: the customer picks a photo; it is uploaded, then the assistant asks for a style.
+  const onPhotoForArt = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    if (!/^image\/(png|jpe?g|webp)$/.test(file.type)) return say("Please choose a JPG, PNG or WebP photo.");
+    if (file.size > 10 * 1024 * 1024) return say("That photo is over 10 MB. Please choose a smaller one.");
+    setBusy("Uploading your photo…");
+    const res = await dispatch(uploadDesignImage(file));
+    setBusy("");
+    if (!uploadDesignImage.fulfilled.match(res)) return say(res.payload || "Upload failed. Please try again.");
+    setChatState((st) => ({ ...st, photoUrl: res.payload.path, wait: "photoStyle" }));
+    setChat((m) => [...m.map((x) => (x.chips ? { ...x, done: true } : x)), botSays("Got it. Which style?"), chipRow(ai.photoStyles)]);
+  };
   // Ask the image AI for designs (or for a change to one). Returns the chat messages to show.
   const generateDesigns = async (a) => {
     const { W, H } = activePos ? areaPx(activePos) : { W: 1, H: 1 };
     try {
       const res = await aiService.design(
+        a.photoUrl ? { photoUrl: a.photoUrl, artStyle: a.artStyle, teeColour: colour?.name || "white", teeIsDark: lum(fabricHex) < 0.55, ratio: W / H } :
         a.baseUrl ? { baseUrl: a.baseUrl, change: a.change, teeIsDark: lum(fabricHex) < 0.55, ratio: W / H } : { subject: a.subject, style: a.style, teeColour: colour?.name || "white", teeIsDark: lum(fabricHex) < 0.55, ratio: W / H },
       );
       setAi((cur) => ({ ...cur, left: res.left }));
@@ -658,9 +696,9 @@ export default function DesignRoomPage() {
       const n = res.images.length;
       const left = `${res.left} request${res.left === 1 ? "" : "s"} left today.`;
       return [
-        botSays(a.baseUrl ? `Here’s the changed design. ${left}` : `Here ${n === 1 ? "is one" : `are ${n}`}, made for ${activePos?.label || "your tee"} on a ${(colour?.name || "").toLowerCase()} tee. Add one, use another on a different area, or ask me to change one. ${left}`),
+        botSays(a.photoUrl ? `Here ${n === 1 ? "it is" : `are ${n} versions`} as ${String(a.artStyle || "art").toLowerCase()}. Add one to your tee, or ask me to change it. ${left}` : a.baseUrl ? `Here’s the changed design. ${left}` : `Here ${n === 1 ? "is one" : `are ${n}`}, made for ${activePos?.label || "your tee"} on a ${(colour?.name || "").toLowerCase()} tee. Add one, use another on a different area, or ask me to change one. ${left}`),
         { designs: res.images.map((im) => im.url) },
-        chipRow(AFTER_DESIGN_CHIPS),
+        chipRow(a.photoUrl ? ["Something else"] : AFTER_DESIGN_CHIPS),
       ];
     } catch (err) {
       return [botSays(err.response?.data?.message || "The design maker had a problem. Please try again."), chipRow(["Make a design", "Something else"])];
@@ -753,6 +791,8 @@ export default function DesignRoomPage() {
   const assistantAct = (a) => {
     if (a.type === "generate") return generateDesigns(a);
     if (a.type === "slogans") return writeSlogans(a);
+    if (a.type === "edit") return chatEdit(a);
+    if (a.type === "photoPick") return photoRef.current?.click();
     if (a.type === "place") return placeAiDesign(a.url, a.areaKey);
     if (a.type === "login") return goToLogin();
     if (a.type === "text") return addText(a.text);
@@ -1391,6 +1431,7 @@ export default function DesignRoomPage() {
         </nav>
       )}
       <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp" hidden onChange={onFile} />
+      <input ref={photoRef} type="file" accept="image/png,image/jpeg,image/webp" hidden onChange={onPhotoForArt} />
     </div>
   );
 }

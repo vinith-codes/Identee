@@ -18,8 +18,9 @@ import Setting from "../models/settingModel.js";
 import AiUsage from "../models/aiUsageModel.js";
 import { uploadFile } from "../utils/imageStorage.js";
 import { cutOutPlainBackground, onPlainBackground } from "../services/cutoutService.js";
-import { aiTextConfigured, writeSlogans } from "../services/aiTextService.js";
-import { AI_STYLES, aiImageConfigured, aiImageModel, changeDesignPrompt, generateImage, nearestRatio, newDesignPrompt } from "../services/aiImageService.js";
+import { aiTextConfigured, planEdit, writeSlogans } from "../services/aiTextService.js";
+import sharp from "sharp";
+import { AI_STYLES, PHOTO_STYLES, aiImageConfigured, aiImageModel, changeDesignPrompt, generateImage, nearestRatio, newDesignPrompt, photoArtPrompt } from "../services/aiImageService.js";
 
 const CATEGORY = "ai";
 const DEFAULTS = {
@@ -74,7 +75,7 @@ export const getAiStatus = asyncHandler(async (req, res) => {
   const reason = await whyOff(settings);
   const left = req.user ? Math.max(0, settings.dailyPerUser - (await usedToday(req.user._id))) : null;
   // text: the assistant can write slogans to order (same key; switched off together with the design maker)
-  res.json({ available: !reason, reason, text: aiTextConfigured() && settings.enabled, styles: Object.keys(AI_STYLES), dailyPerUser: settings.dailyPerUser, left });
+  res.json({ available: !reason, reason, text: aiTextConfigured() && settings.enabled, styles: Object.keys(AI_STYLES), photoStyles: Object.keys(PHOTO_STYLES), dailyPerUser: settings.dailyPerUser, left });
 });
 
 // Only pictures this feature made may be sent back to be changed.
@@ -83,8 +84,15 @@ const isAiDesign = (url) => {
   const s = String(url || "");
   return (cloud && s.startsWith(`https://res.cloudinary.com/${cloud}/`) && s.includes("/identee/ai-designs/")) || /^\/uploads\/ai-designs\/[\w\-.]+$/.test(s);
 };
+// A picture the customer uploaded in the Design Room (for photo to art).
+const isOurUpload = (url) => {
+  const cloud = process.env.CLOUDINARY_NAME?.trim();
+  const s = String(url || "");
+  return (cloud && s.startsWith(`https://res.cloudinary.com/${cloud}/`) && s.includes("/identee/")) || /^\/?uploads\/[\w\-./]+$/.test(s);
+};
 async function fetchOurImage(url, req) {
-  const full = url.startsWith("/") ? `${req.protocol}://${req.get("host")}${url}` : url;
+  const path = url.startsWith("uploads/") ? `/${url}` : url;
+  const full = path.startsWith("/") ? `${req.protocol}://${req.get("host")}${path}` : path;
   const r = await fetch(full);
   if (!r.ok) throw Object.assign(new Error("That design could not be found. Make a new one."), { status: 404 });
   return { data: Buffer.from(await r.arrayBuffer()), mime: r.headers.get("content-type") || "image/png" };
@@ -108,13 +116,30 @@ export const makeAiDesign = asyncHandler(async (req, res) => {
   }
 
   const changing = Boolean(req.body.baseUrl);
-  const text = String((changing ? req.body.change : req.body.subject) || "").replace(/\s+/g, " ").trim().slice(0, 300);
+  const fromPhoto = !changing && Boolean(req.body.photoUrl);
+  const text = fromPhoto
+    ? `Photo to art: ${PHOTO_STYLES[req.body.artStyle] ? req.body.artStyle : "Cartoon"}`
+    : String((changing ? req.body.change : req.body.subject) || "").replace(/\s+/g, " ").trim().slice(0, 300);
   if (text.length < 3) {
     res.status(400);
     throw new Error(changing ? "Tell me what to change." : "Describe what the design should show.");
   }
   let jobs;
-  if (changing) {
+  const teeName = String(req.body.teeColour || "white").replace(/[^\w \-]/g, "").slice(0, 30) || "white";
+  if (fromPhoto) {
+    // a customer's own photo, redrawn as art (two options)
+    if (!isOurUpload(req.body.photoUrl)) {
+      res.status(400);
+      throw new Error("Upload the photo here first.");
+    }
+    const photo = await fetchOurImage(req.body.photoUrl, req);
+    const small = await sharp(photo.data).rotate().resize(1536, 1536, { fit: "inside", withoutEnlargement: true }).flatten({ background: "#ffffff" }).jpeg({ quality: 90 }).toBuffer();
+    const style = PHOTO_STYLES[req.body.artStyle] ? req.body.artStyle : "Cartoon";
+    const of = Math.min(2, Math.max(1, settings.imagesPerRequest));
+    jobs = Array.from({ length: of }, (_, i) =>
+      generateImage({ prompt: photoArtPrompt({ style, teeColour: teeName, teeIsDark: Boolean(req.body.teeIsDark), variation: i + 1, of }), image: { data: small, mime: "image/jpeg" }, ratio: nearestRatio(req.body.ratio) }),
+    );
+  } else if (changing) {
     if (!isAiDesign(req.body.baseUrl)) {
       res.status(400);
       throw new Error("Only a design made here can be changed.");
@@ -145,9 +170,9 @@ export const makeAiDesign = asyncHandler(async (req, res) => {
 
   await AiUsage.create({
     user: req.user._id,
-    kind: changing ? "change" : "new",
+    kind: fromPhoto ? "photo" : changing ? "change" : "new",
     prompt: text,
-    style: changing ? undefined : req.body.style,
+    style: fromPhoto ? req.body.artStyle : changing ? undefined : req.body.style,
     images: made.length,
     costInr: Math.round(made.length * settings.pricePerImageInr * 100) / 100,
     model: aiImageModel(),
@@ -176,6 +201,43 @@ export const makeSlogans = asyncHandler(async (req, res) => {
   } catch {
     res.status(502);
     throw new Error("I couldn’t think of any just now. Please try again.");
+  }
+});
+
+// POST /api/ai/edit  (no login needed; limited per address in the route)
+// { message, design } -> { reply, ops }   — "edit the tee by chat" (see services/aiTextService.js planEdit)
+export const makeEdit = asyncHandler(async (req, res) => {
+  const settings = await readSettings();
+  if (!settings.enabled || !aiTextConfigured()) {
+    res.status(503);
+    throw new Error("I can’t do that right now.");
+  }
+  const message = String(req.body.message || "").trim();
+  const d = req.body.design && typeof req.body.design === "object" ? req.body.design : {};
+  if (message.length < 2) {
+    res.status(400);
+    throw new Error("Tell me what to change.");
+  }
+  // only pass on a small, tidy description of the design
+  const str = (v, n) => String(v ?? "").slice(0, n);
+  const design = {
+    tee: str(d.tee, 30),
+    openArea: str(d.openArea, 40),
+    selectedId: d.selectedId ? str(d.selectedId, 40) : null,
+    fonts: (Array.isArray(d.fonts) ? d.fonts : []).slice(0, 20).map((f) => str(f, 40)),
+    areas: (Array.isArray(d.areas) ? d.areas : []).slice(0, 20).map((a) => ({ key: str(a.key, 40), label: str(a.label, 40), free: Boolean(a.free) })),
+    items: (Array.isArray(d.items) ? d.items : []).slice(0, 30).map((it) => ({
+      id: str(it.id, 40),
+      type: it.type === "text" ? "text" : "picture",
+      area: str(it.area, 40),
+      ...(it.type === "text" ? { text: str(it.text, 200), font: str(it.font, 40), color: str(it.color, 9), sizeCm: Number(it.sizeCm) || 0, shape: str(it.shape, 12), bold: Boolean(it.bold), italic: Boolean(it.italic) } : { widthCm: Number(it.widthCm) || 0 }),
+    })),
+  };
+  try {
+    res.json(await planEdit({ message, design }));
+  } catch {
+    res.status(502);
+    throw new Error("I couldn’t work that out just now. Please try again.");
   }
 });
 

@@ -1,7 +1,7 @@
 // services/aiTextService.js
 //
-// Short pieces of writing from the text AI — today: t-shirt slogans for the
-// Design Room's assistant. Uses the same Google key as the image maker
+// The text AI behind the Design Room's assistant: slogans written to order,
+// and turning a typed request ("make the text gold") into changes to the design. Uses the same Google key as the image maker
 // (IDENTEE_GEMINI_API_KEY) with a small, cheap text model; a slogan request
 // costs a fraction of a paisa.
 //
@@ -73,4 +73,63 @@ export async function writeSlogans({ ask, tone, avoid = [], count = 5 }) {
   }
   if (!out.length) throw Object.assign(new Error("empty"), { status: 502 });
   return out.slice(0, count);
+}
+
+// A shared way to ask the text model for a JSON answer.
+async function askJson(prompt, temperature = 0.3) {
+  const key = apiKey();
+  if (!key) throw Object.assign(new Error("not set up"), { status: 503 });
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
+  let res;
+  try {
+    res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model()}:generateContent`, {
+      method: "POST",
+      headers: { "x-goog-api-key": key, "Content-Type": "application/json" },
+      body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: prompt }] }], generationConfig: { temperature, responseMimeType: "application/json" } }),
+      signal: ctrl.signal,
+    });
+  } catch {
+    throw Object.assign(new Error("unreachable"), { status: 502 });
+  } finally {
+    clearTimeout(timer);
+  }
+  const json = await res.json().catch(() => null);
+  if (!res.ok) {
+    console.error("[ai] text request failed:", res.status, json?.error?.message || "");
+    throw Object.assign(new Error("failed"), { status: 502 });
+  }
+  const text = (json?.candidates?.[0]?.content?.parts || []).map((p) => p.text || "").join("");
+  return JSON.parse(text.replace(/^```(?:json)?|```$/g, "").trim());
+}
+
+/**
+ * "Edit the tee by chat": turns what the customer typed into a short list of
+ * changes to their design. The Design Room checks every change before
+ * applying it (studio/aiOps.js) — nothing the model says is trusted blindly.
+ *
+ * @param message  what the customer typed
+ * @param design   { tee, openArea, selectedId, areas: [{ key, label, free }], fonts: [..],
+ *                   items: [{ id, type, area, text?, font?, color?, sizeCm?, shape?, bold?, italic? }] }
+ * @returns {Promise<{ reply: string, ops: object[] }>}
+ */
+export async function planEdit({ message, design }) {
+  const prompt = [
+    "You are the design assistant inside a custom t-shirt design tool. The customer types a message; decide what to change on their design.",
+    "Answer with JSON only: {\"reply\": string, \"ops\": array}.",
+    "reply: one or two short friendly sentences in the customer's language, saying what you changed, or answering their question. Never mention JSON, ids or ops.",
+    "ops: the changes, in order. Use [] when the message is a question or you cannot do it (then say so in reply and suggest what you can do: slogans, making a picture design, layouts, checking the design, colours, sizes).",
+    "Allowed ops:",
+    '- {"op":"update","id":ID,"set":{...}} where set may contain: "text" (string), "fontFamily" (one of the fonts listed), "color" (#RRGGBB ink colour), "bold"/"italic"/"underline" (true/false), "shape" ("straight"|"curved-up"|"curved-down"|"vertical"), "align" ("left"|"center"|"right"), "letterSpacingPct" (-5 to 40), "outlineColor" (#RRGGBB or "none"), "scale" (number: 1.3 = 30% bigger, 0.7 = smaller; between 0.3 and 3), "rotation" (degrees -180 to 180), "placeX" ("left"|"center"|"right"), "placeY" ("top"|"middle"|"bottom"). Pictures only accept scale, rotation, placeX, placeY.',
+    '- {"op":"move","id":ID,"area":AREA_KEY}  move an item to another print area (only areas with free:true, or the area it is already in)',
+    '- {"op":"delete","id":ID}',
+    '- {"op":"duplicate","id":ID}',
+    '- {"op":"add_text","area":AREA_KEY,"text":string,"color":"#RRGGBB" (optional),"fontFamily":font (optional),"shape":shape (optional),"placeY":"top"|"middle"|"bottom" (optional)}',
+    "You know nothing about the shop's prices, delivery times, returns, offers or policies. If asked, say you can't answer that and point to the Contact page — never guess or invent one.",
+    "Rules: only use ids and area keys from the design below. \"it\" / \"this\" / \"the text\" means the selected item if there is one, else the only item of that kind, else the last item in the open area. If it is unclear which item is meant, change nothing and ask. Pick ink colours that show on the tee colour. For words like bigger/smaller use scale. Do not invent slogans unless asked to write or add text.",
+    "The design: " + JSON.stringify(design),
+    "The customer's message: " + JSON.stringify(String(message).slice(0, 400)),
+  ].join("\n");
+  const out = await askJson(prompt, 0.2);
+  return { reply: String(out?.reply || "").slice(0, 400), ops: Array.isArray(out?.ops) ? out.ops.slice(0, 12) : [] };
 }

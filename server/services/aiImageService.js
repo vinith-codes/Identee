@@ -63,6 +63,25 @@ export const AI_STYLES = {
   Watercolour: "soft watercolour painting with loose, flowing edges",
 };
 
+// "Photo to art": the styles a customer's own photo can be redrawn in.
+export const PHOTO_STYLES = {
+  Cartoon: "a clean cartoon illustration with bold outlines and flat colours",
+  Sketch: "a hand-drawn pencil sketch with confident lines and light shading",
+  Sticker: "a glossy die-cut sticker illustration with a thick white border around the subject",
+  Watercolour: "a soft watercolour painting with loose edges",
+  "Pop art": "a bold pop-art poster with halftone dots and strong contrasting colours",
+};
+export const photoArtPrompt = ({ style, teeColour, teeIsDark, variation, of }) =>
+  [
+    `Redraw the main subject of this photo as ${PHOTO_STYLES[style] || PHOTO_STYLES.Cartoon}, as artwork to print on a ${teeColour} t-shirt.`,
+    "Keep the subject clearly recognisable: same pose, same features, same clothing colours.",
+    `Remove the photo's surroundings. The background must be flat pure ${teeIsDark ? "black" : "white"} and nothing else.`,
+    "One centred subject that fills most of the picture. Do not draw a t-shirt, a mockup, a frame or a border. No watermark or text.",
+    of > 1 ? `This is option ${variation} of ${of}: vary the crop or the line style a little from the other option.` : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
 // Picture shapes the AI offers; the closest to the print area is used.
 const RATIOS = { "1:1": 1, "4:5": 0.8, "5:4": 1.25, "3:4": 0.75, "4:3": 4 / 3, "2:3": 2 / 3, "3:2": 1.5, "9:16": 9 / 16, "16:9": 16 / 9 };
 export const nearestRatio = (wOverH) => {

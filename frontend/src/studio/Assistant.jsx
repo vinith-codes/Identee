@@ -33,17 +33,18 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
   }, [messages, thinking]);
   useEffect(() => () => clearTimeout(timer.current), []);
 
-  const say = (text) => {
+  // tapped: the customer tapped a choice (typed messages may be sent to the text AI; taps never are)
+  const say = (text, tapped = false) => {
     if (thinking || !text) return;
     // the chips just answered can't be tapped again
     setMessages((m) => [...m.map((x) => (x.chips ? { ...x, done: true } : x)), { from: "me", text }]);
-    const { out, st } = replyTo(text, ctx(), state);
+    const { out, st } = replyTo(text, ctx(), state, { tapped });
     setState(st);
     const reply = out.filter((o) => !o.act);
-    const slow = out.find((o) => o.act?.type === "generate" || o.act?.type === "slogans");
+    const slow = out.find((o) => ["generate", "slogans", "edit"].includes(o.act?.type));
     if (slow) {
       // the AI: wait for the answer, then show what the page hands back
-      setThinking(slow.act.type === "slogans" ? "Writing a few…" : slow.act.baseUrl ? "Changing your design… this takes about 20 seconds." : "Drawing your designs… this takes about 20 seconds.");
+      setThinking(slow.act.type === "edit" ? true : slow.act.type === "slogans" ? "Writing a few…" : slow.act.photoUrl ? "Redrawing your photo… this takes about 20 seconds." : slow.act.baseUrl ? "Changing your design… this takes about 20 seconds." : "Drawing your designs… this takes about 20 seconds.");
       Promise.resolve(onAct(slow.act)).then((made) => {
         setThinking(false);
         setMessages((m) => [...m, ...(made || []), ...reply]);
@@ -77,7 +78,7 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
             return (
               <div key={i} className={`dr-chatchips${m.done ? " done" : ""}`}>
                 {m.chips.map((c) => (
-                  <button key={c} type="button" className="dr-chip" disabled={m.done} onClick={() => say(c)}>{c}</button>
+                  <button key={c} type="button" className="dr-chip" disabled={m.done} onClick={() => say(c, true)}>{c}</button>
                 ))}
               </div>
             );
