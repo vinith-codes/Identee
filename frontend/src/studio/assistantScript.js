@@ -24,6 +24,7 @@ const MENU = ["Slogan ideas", "Start from a template", "Check my design", "More 
 const MORE_PHOTO = "Photo to art";
 const MORE_STYLE = "Style it for me";
 const TEAM_ORDER = "Team order";
+const ADD_PLAYERS = "Add my players";
 const MOODS = ["Royal", "Sporty", "Cute", "Minimal", "Retro", "Bold"];
 const MORE = ["Colour help", "Where to print", "Size help", MORE_PHOTO, MORE_STYLE, "Remove a background", "Make a design"];
 const AFTER_SLOGANS = ["Show more", "Add a name or year", "Change tone", "Something else"];
@@ -107,11 +108,11 @@ export function replyTo(text, ctx, st, { tapped = false } = {}) {
       chips(["Continue to review", "Check my design"]),
     ]);
   }
-  if (t === TEAM_ORDER || /team order|each player|per player|every player|different (name|number)/.test(low)) {
+  if (t === TEAM_ORDER || t === ADD_PLAYERS || /team order|each player|per player|every player|different (name|number)/.test(low)) {
     if (!ctx.hasRoles) {
       return done([bot("One design, with a different name and number on each tee. Start with the Team jersey layout (or tap a text and set “On a team order, this text is” to Player’s name)."), chips(["Team jersey"])]);
     }
-    return done([bot("Send me your players, one per line or separated by commas, like this: Arun 7 L, Karthik 10 XL. You can also fill the list in Review.")]);
+    return done([bot("Send me your players as name, number and size, one per line or separated by commas, like this: Arun 7 L, Karthik 10 XL. Every player gets their own tee with the same design. You can also fill the list in Review.")]);
   }
 
   /* ----- answers to a question the assistant just asked ----- */
@@ -215,12 +216,12 @@ export function replyTo(text, ctx, st, { tapped = false } = {}) {
   const tpl = TEMPLATES.find((x) => x.label === t);
   if (tpl) {
     if (ctx.hasDesign) return done([bot(`${tpl.label}: ${tpl.says} Your tee already has a design. What should I do?`), chips(["Start fresh", "Add to my design"])], { template: tpl.key });
-    return done([act({ type: "template", key: tpl.key, fresh: true }), bot(`Done. ${tpl.says} Tap any text on the print area to change the words.`), chips(["Check my design", "Slogan ideas", "Something else"])]);
+    return done([act({ type: "template", key: tpl.key, fresh: true }), bot(`Done. ${tpl.says} Tap any text on the print area to change the words.`), chips(tpl.key === "team" ? [ADD_PLAYERS, "Check my design", "Something else"] : ["Check my design", "Slogan ideas", "Something else"])]);
   }
   if ((t === "Start fresh" || t === "Add to my design") && st.template) {
     const chosen = TEMPLATES.find((x) => x.key === st.template);
     return done(
-      [act({ type: "template", key: chosen.key, fresh: t === "Start fresh" }), bot(`Done. ${chosen.says} Tap any text on the print area to change the words. Not what you wanted? Press Undo (↶).`), chips(["Check my design", "Something else"])],
+      [act({ type: "template", key: chosen.key, fresh: t === "Start fresh" }), bot(`Done. ${chosen.says} Tap any text on the print area to change the words. Not what you wanted? Press Undo (↶).`), chips(chosen.key === "team" ? [ADD_PLAYERS, "Check my design", "Something else"] : ["Check my design", "Something else"])],
       { template: null },
     );
   }
