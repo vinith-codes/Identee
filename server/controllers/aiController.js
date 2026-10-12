@@ -26,7 +26,7 @@ const DEFAULTS = {
 const LIMITS = { "ai.dailyPerUser": [1, 50], "ai.imagesPerRequest": [1, 4], "ai.monthlyCapInr": [0, 1000000], "ai.pricePerImageInr": [0, 100] };
 
 // Things the shop must not print: other people's brands, characters and faces.
-const NOT_ALLOWED = /\b(nike|adidas|puma|reebok|gucci|supreme|louis vuitton|marvel|disney|pokemon|pok[eé]mon|naruto|mickey|spider-?man|batman|superman|avengers|hello kitty|ipl|bcci|fifa|real madrid|barcelona|celebrit|actor|actress|cricketer|footballer|politician)\b/i;
+const NOT_ALLOWED = /\b(nike|adidas|puma|reebok|gucci|supreme|louis vuitton|coca.?cola|pepsi|apple logo|marvel|dc comics|disney|pixar|pokemon|pok[eé]mon|pikachu|naruto|goku|dragon ball|one piece|luffy|anime character|mickey|minnie|donald duck|spider.?man|bat.?man|super.?man|iron.?man|hulk|thor|captain america|avengers|deadpool|wolverine|joker|thanos|wonder woman|harry potter|star wars|darth vader|yoda|barbie|hello kitty|super mario|mario bros|sonic the hedgehog|minions?|shrek|doraemon|shin.?chan|chhota bheem|motu patlu|tom and jerry|ipl|bcci|csk|rcb|mumbai indians|fifa|real madrid|barcelona|manchester united|celebrit|actor|actress|cricketer|footballer|politician|film star|movie star)\b/i;
 
 const startOfDay = () => {
   const d = new Date();

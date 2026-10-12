@@ -28,7 +28,8 @@ const PRINT_FOR = {
   "Name and number": [["full-back", "centre-back"], "A name and number go on the back, with the number large in the middle."],
   "Down the side": [["vertical-front", "front-right-vertical", "vertical-back"], "Text running down the tee uses one of the tall, narrow areas."],
 };
-const NOT_ALLOWED = /logo of|nike|adidas|puma|marvel|disney|celebr|actor|actress|cricketer|footballer/i;
+// brands, famous characters and real people: the same list the server checks (server/controllers/aiController.js)
+const NOT_ALLOWED = /\b(nike|adidas|puma|reebok|gucci|supreme|louis vuitton|coca.?cola|pepsi|apple logo|marvel|dc comics|disney|pixar|pokemon|pok[eé]mon|pikachu|naruto|goku|dragon ball|one piece|luffy|anime character|mickey|minnie|donald duck|spider.?man|bat.?man|super.?man|iron.?man|hulk|thor|captain america|avengers|deadpool|wolverine|joker|thanos|wonder woman|harry potter|star wars|darth vader|yoda|barbie|hello kitty|super mario|mario bros|sonic the hedgehog|minions?|shrek|doraemon|shin.?chan|chhota bheem|motu patlu|tom and jerry|ipl|bcci|csk|rcb|mumbai indians|fifa|real madrid|barcelona|manchester united|celebrit|actor|actress|cricketer|footballer|politician|film star|movie star)\b/i;
 
 export const bot = (text) => ({ from: "bot", text });
 export const chips = (list) => ({ chips: list });

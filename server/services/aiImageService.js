@@ -145,7 +145,7 @@ export async function generateImage({ prompt, image, ratio = "1:1" }) {
     throw Object.assign(
       new Error(
         refused
-          ? "That description can’t be made into a design. Try describing it differently."
+          ? "The design maker refused that description. This usually means it involves a famous character, a brand or a real person, which can’t be printed. Try an original idea. You were not charged for it."
           : noBilling
             ? "The design maker is unavailable right now. Please try again later."
             : "The design maker had a problem. Please try again.",
