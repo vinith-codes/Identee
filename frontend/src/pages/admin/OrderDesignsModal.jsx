@@ -2,7 +2,7 @@
 // Shows the custom designs in one order (previews, colour, sizes × qty,
 // print areas with their real size) and downloads the 300-DPI print files
 // as a ZIP for the print team (made in this browser — studio/printFiles.js).
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import customizationService from "../../services/customizationService";
 import aiService from "../../services/aiService";
 import { imageUrl } from "../../utils/imageUrl";
@@ -13,11 +13,113 @@ const GOOD_DPI = 250; // close enough to 300 that enlarging adds nothing worth p
 const LOW_DPI = 150; // below this a picture may print blurry
 const full = (src) => (/^https?:\/\//.test(src) ? src : imageUrl(src));
 
+// The customer's original and the enlarged copy side by side, to check before printing that nothing
+// was changed. Both move together: zoom with the buttons or the mouse wheel, drag to look around.
+function ComparePictures({ original, enlarged, tee, onClose }) {
+  const [view, setView] = useState({ z: 1, x: 0, y: 0 }); // zoom, and how far the picture is moved (% of the pane)
+  const [px, setPx] = useState({}); // which -> pixel width of the file
+  const drag = useRef(null);
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key !== "Escape") return;
+      e.stopPropagation();
+      onClose();
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [onClose]);
+  const limit = (v, z) => {
+    const m = ((z - 1) / z) * 50; // how far it can move before an edge shows
+    return Math.max(-m, Math.min(m, v));
+  };
+  const zoomTo = (z) => setView((v) => ({ z, x: limit(v.x, z), y: limit(v.y, z) }));
+  const panes = [
+    ["original", "The customer’s original", original],
+    ["enlarged", "The enlarged copy (this one is printed)", enlarged],
+  ];
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Compare the original with the enlarged copy"
+      onClick={(e) => {
+        e.stopPropagation();
+        onClose();
+      }}
+      style={{ position: "fixed", inset: 0, zIndex: 1100, background: "rgba(20,17,16,.82)", display: "grid", placeItems: "center", padding: 16 }}
+    >
+      <div onClick={(e) => e.stopPropagation()} style={{ background: THEME.surface, borderRadius: 14, width: "min(1180px, 100%)", maxHeight: "94vh", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", borderBottom: `1px solid ${THEME.border}`, flexWrap: "wrap" }}>
+          <b style={{ fontSize: 15 }}>Compare before printing</b>
+          <span style={{ fontSize: 12.5, color: THEME.textMuted }}>Zoom in and drag — both pictures move together.</span>
+          <div style={{ marginLeft: "auto", display: "flex", gap: 6, alignItems: "center" }}>
+            {[1, 2, 4, 8].map((z) => (
+              <button
+                key={z}
+                type="button"
+                onClick={() => zoomTo(z)}
+                aria-pressed={view.z === z}
+                style={{ border: `1px solid ${view.z === z ? THEME.ink : THEME.border}`, background: view.z === z ? THEME.ink : "#fff", color: view.z === z ? "#fff" : THEME.text, borderRadius: 8, padding: "6px 11px", fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}
+              >
+                {z === 1 ? "Whole" : `${z}×`}
+              </button>
+            ))}
+            <button type="button" onClick={onClose} aria-label="Close" style={{ background: "none", border: "none", fontSize: 24, cursor: "pointer", color: THEME.textMuted, marginLeft: 6 }}>
+              ×
+            </button>
+          </div>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 2, background: THEME.border, minHeight: 0, overflow: "auto" }}>
+          {panes.map(([key, label, src]) => (
+            <div key={key} style={{ background: THEME.surface, minWidth: 0 }}>
+              <div style={{ padding: "8px 12px", fontSize: 12.5, fontWeight: 700, display: "flex", justifyContent: "space-between", gap: 8 }}>
+                <span>{label}</span>
+                <span style={{ color: THEME.textMuted, fontWeight: 600, fontVariantNumeric: "tabular-nums" }}>{px[key] ? `${px[key].toLocaleString("en-IN")} px wide` : ""}</span>
+              </div>
+              <div
+                onWheel={(e) => zoomTo(Math.max(1, Math.min(8, view.z * (e.deltaY < 0 ? 1.25 : 0.8))))}
+                onPointerDown={(e) => {
+                  e.currentTarget.setPointerCapture(e.pointerId);
+                  drag.current = { sx: e.clientX, sy: e.clientY, x: view.x, y: view.y, w: e.currentTarget.clientWidth, h: e.currentTarget.clientHeight };
+                }}
+                onPointerMove={(e) => {
+                  const d = drag.current;
+                  if (!d) return;
+                  setView((v) => ({ z: v.z, x: limit(d.x + ((e.clientX - d.sx) / d.w / v.z) * 100, v.z), y: limit(d.y + ((e.clientY - d.sy) / d.h / v.z) * 100, v.z) }));
+                }}
+                onPointerUp={() => (drag.current = null)}
+                onPointerCancel={() => (drag.current = null)}
+                onDoubleClick={() => zoomTo(view.z > 1 ? 1 : 4)}
+                style={{ height: "min(62vh, 560px)", overflow: "hidden", background: tee || THEME.surface2, cursor: view.z > 1 ? "grab" : "zoom-in", touchAction: "none", userSelect: "none" }}
+              >
+                <img
+                  src={src}
+                  alt={label}
+                  draggable={false}
+                  onLoad={(e) => {
+                    const w = e.currentTarget.naturalWidth;
+                    setPx((p) => ({ ...p, [key]: w }));
+                  }}
+                  style={{ width: "100%", height: "100%", objectFit: "contain", transform: `scale(${view.z}) translate(${view.x}%, ${view.y}%)`, transformOrigin: "center", imageRendering: view.z >= 4 ? "pixelated" : "auto", pointerEvents: "none" }}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+        <p style={{ margin: 0, padding: "10px 16px", fontSize: 12.5, color: THEME.textMuted, borderTop: `1px solid ${THEME.border}` }}>
+          Look at faces, small lettering and thin lines. If anything changed, close this and press “Print the original instead”. Shown on the tee’s colour.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 // The pictures in one ordered design, each with how sharp it will print (dots per inch at its real print
 // size) and a button to have a large copy made for printing. One row per picture.
 function PrintPictures({ design, price, onChanged }) {
   const [sizes, setSizes] = useState({}); // src -> pixel width of the file
   const [busy, setBusy] = useState(null); // index being enlarged
+  const [compare, setCompare] = useState(null); // index of the picture being compared with its original
   const [error, setError] = useState("");
   const rows = design.elements.map((el, index) => ({ el, index })).filter(({ el }) => el.type === "image" && el.src);
   if (!rows.length) return null;
@@ -79,12 +181,9 @@ function PrintPictures({ design, price, onChanged }) {
                 {el.printSrc && <span style={{ color: "#24522F" }}> · enlarged ✓</span>}
               </div>
               {el.printSrc && (
-                <div style={{ fontSize: 12.5, color: THEME.textMuted }}>
-                  Compare before printing:{" "}
-                  <a href={full(el.src)} target="_blank" rel="noreferrer" style={{ color: THEME.goldDeep, fontWeight: 700 }}>the customer’s original</a>
-                  {" · "}
-                  <a href={full(el.printSrc)} target="_blank" rel="noreferrer" style={{ color: THEME.goldDeep, fontWeight: 700 }}>the enlarged copy</a>
-                </div>
+                <button type="button" onClick={() => setCompare(index)} style={{ marginTop: 4, background: THEME.goldBg, border: `1px solid ${THEME.goldBorder}`, borderRadius: 8, padding: "5px 11px", fontSize: 12.5, fontWeight: 700, color: THEME.goldDeep, cursor: "pointer" }}>
+                  Compare with the original
+                </button>
               )}
             </div>
             {busy === index ? (
@@ -105,6 +204,9 @@ function PrintPictures({ design, price, onChanged }) {
         );
       })}
       {error && <p style={{ margin: "6px 0 0", color: THEME.danger, fontSize: 13, fontWeight: 600 }}>{error}</p>}
+      {compare != null && design.elements[compare]?.printSrc && (
+        <ComparePictures original={full(design.elements[compare].src)} enlarged={full(design.elements[compare].printSrc)} tee={design.colour.hex} onClose={() => setCompare(null)} />
+      )}
       <p style={{ margin: "6px 0 0", fontSize: 12, color: THEME.textMuted }}>
         300 DPI is ideal; 150 or more is usually fine on fabric. Enlarging has the picture redrawn about four times larger by the AI — always compare it with the original before printing.
       </p>
