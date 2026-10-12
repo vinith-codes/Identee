@@ -122,14 +122,14 @@ for dark tee colours (`dark` in `Boutique`), the arch dimmed to a glow, lamps ov
 **`feature-assistant-examples` — MERGED to `main` on 12 Oct 2026:** the assistant opens with a list of what it can do
 (`EXAMPLES` in `assistantScript.js`): tap-able examples that fill the message box or start the feature; "What can you do?" shows it again.
 
-**`feature-delete-garment` — built 12 Oct 2026 on top of `fix-admin-role-guards`, pushed, waiting for the user's "merge":** a garment
+**`feature-delete-garment` (built on `fix-admin-role-guards`) — MERGED to `main` on 12 Oct 2026:** a garment
 added by mistake can be deleted from Admin → Customizable → open it → last step (Publish) → "Delete this garment". Server rules
 (`deleteGarmentType`): not while it is live (unpublish first), not when any saved design uses it (it stays an unpublished draft);
 its colour photos (rows + stored files) are removed with it. 8 API checks passed on a throwaway DB; the button itself was not clicked.
 Same branch: the "Older pages" links on the Customizable list were removed (user's request). The old pages still exist at
 `/admin/garment-types` and `/admin/garment-photos` (unlinked); the old Garment types page has a one-click Delete with no confirmation.
 
-**`fix-admin-role-guards` — built 12 Oct 2026, pushed, waiting for the user's "merge":** making another person an admin already
+**`fix-admin-role-guards` — MERGED to `main` on 12 Oct 2026:** making another person an admin already
 existed (Admin → Customers → Edit → "Promote as Admin"; the person must have logged in to the site once so they have an account).
 Added rules in `server/controllers/userControler.js`: an admin can't remove their own admin access or delete their own account, an
 admin account can't be deleted until its admin access is removed, the last admin can't be removed; and a confirmation in the Edit
@@ -138,13 +138,13 @@ Same branch: **Admin → Customers was restyled** to the light admin look (`page
 name/email/phone, filters (Everyone / Have ordered / No orders yet / Admins & staff), a table with access badges, orders and join
 date; Delete is off for your own row and for admins. The old pie chart is gone. The Edit page (`AdminEditUserPage.jsx`) got
 readable colours and plain role labels. Checked on the dev site with the real data, read-only.
-**`fix-ai-refusal-message` — built 12 Oct 2026 (from `main`), pushed, waiting for the user's "merge":** the user asked for "Messi
+**`fix-ai-refusal-message` — MERGED to `main` on 12 Oct 2026:** the user asked for "Messi
 kicking a football" and Google's picture service refused it (server log: `400 Image generation blocked for unspecified reasons`).
 That is Google's own rule (real, named people / protected characters) — our site has no restrictions, and it cannot be switched off
 from our side. Changed: the customer's message now says what usually causes it and suggests describing the picture without the
 name (`aiImageService.js`); and the assistant no longer says "I've added a picture…" when the picture failed (`chatEdit`).
 Not tested with the real image AI (it would cost a request).
-**`feature-email-sender` — built 12 Oct 2026, pushed, waiting for the user's "merge":** login codes can be sent through any mail
+**`feature-email-sender` — MERGED to `main` on 12 Oct 2026 (does nothing until `EMAIL_HOST` is set):** login codes can be sent through any mail
 service: `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_USER`, `EMAIL_PASS`, `EMAIL_FROM` in `server/.env` (`services/otpSender.js`). Without
 `EMAIL_HOST` it still uses the Gmail account, as before. NOT tested with a real service yet (no account). Why codes land in spam
 today: they are sent from a personal Gmail address. Found (read-only DNS look-up): `identee.co.in` mail is on Zoho (MX), has an
