@@ -122,7 +122,7 @@ for dark tee colours (`dark` in `Boutique`), the arch dimmed to a glow, lamps ov
 **`feature-assistant-examples` — MERGED to `main` on 12 Oct 2026:** the assistant opens with a list of what it can do
 (`EXAMPLES` in `assistantScript.js`): tap-able examples that fill the message box or start the feature; "What can you do?" shows it again.
 
-**`fix-colour-on-reload` — built 12 Oct 2026, pushed, waiting for the user's "merge":** "Start designing" opens the room with
+**`fix-colour-on-reload` — MERGED to `main` on 12 Oct 2026:** "Start designing" opens the room with
 `?new=1&color=<slug>`; only `new` was removed from the address, so on a reload the leftover `color` won over the colour the
 customer had picked. Now `color` is removed too, and a design in progress keeps its own colour (the address colour only
 starts a NEW design). Checked on the dev site: start white → pick Red → step in → reload → still Red.
