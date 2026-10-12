@@ -102,6 +102,23 @@ reflections stay loaded (studio sets `scene.environmentIntensity = 0`) so materi
 a spotlight on the designed tee and one on each rack (`Spot` in `Room3D.jsx`), edge lights from behind that get stronger
 for dark tee colours (`dark` in `Boutique`), the arch dimmed to a glow, lamps over the racks.
 
+**Branches `feature-ai-designs` + `feature-assistant-panel` — MERGED to `main` on 12 Oct 2026** (details: `docs/AI_PLAN.md`):
+- **Real AI is live in the Design Room.** Key: `IDENTEE_GEMINI_API_KEY` in `server/.env` (Google Gemini, billing on; Google-side
+  spend cap Rs 400/month). One key serves pictures (`gemini-nano-banana-2.1`) and text (`gemini-flash-lite-latest`).
+- **Make a design** (`/api/ai/design`): describe -> style -> pictures, cut out on the server (sharp), Add to tee / Other area /
+  Change. **Photo to art**: upload a photo -> Cartoon / Sketch / Sticker / Watercolour / Pop art.
+- **AI slogans** (`/api/ai/slogans`), **edit by chat** and **one sentence for the whole tee** (`/api/ai/edit` + `studio/aiOps.js`):
+  the text AI returns checked ops (text, colour, shape, size, move, delete, add text, tee colour, a picture per area).
+- **The assistant has its own panel**: first screen offers Design it myself / Design with the Assistant; Assistant button in the
+  top bar; manual editing always one tap away.
+- **Admin -> Settings -> AI designs**: on/off, requests per customer per day, pictures per request, monthly cap, cost per picture,
+  spend and latest requests. Keep the site's cap a little under Google's cap.
+- `AI_IMAGE_PROVIDER=mock` = free stand-in pictures for testing. Footer now carries the 3D model credit (CC BY 4.0).
+- **Decision to confirm with the client:** the user removed all subject restrictions (customers can ask for famous characters,
+  brands, real people); only Google's own rules and a rights line in Review remain. I advised against it.
+- Not yet tested with the real picture AI: photo to art, the whole-tee sentence, 'change it', styles other than Bold mascot.
+- `@imgly/background-removal-node` (AGPL) is still in `server/package.json` from earlier work; check whether anything uses it.
+
 **Next:** policy pages (Privacy, Returns & refunds, Shipping, Terms — required by Razorpay for live payments; need the
 client's rules), Payments / Sellers admin pages; go-live items (Brevo email, deployment,
 Razorpay live keys). Gotcha: the C: drive is nearly full — keep throwaway test databases on E:.
