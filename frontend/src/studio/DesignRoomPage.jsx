@@ -39,8 +39,8 @@ const ADD_TABS = [
   ["text", "Text", "M5 6V4h14v2M12 4v16M9 20h6"],
   ["upload", "Upload", "M12 16V4m0 0-4 4m4-4 4 4M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"],
   ["art", "Art", "M4 5h16v14H4zM8 13l3-3 5 5M15 9h.01"],
-  ["ai", "Assistant", "m12 3 1.8 4.7L18 9.5l-4.2 1.8L12 16l-1.8-4.7L6 9.5l4.2-1.8L12 3Z"],
 ];
+const ICON_AI = "m12 3 1.8 4.7L18 9.5l-4.2 1.8L12 16l-1.8-4.7L6 9.5l4.2-1.8L12 3Z";
 const ICON_AREAS = "M8 4 4 6.5 2 10l3 1.5V20h14v-8.5L22 10l-2-3.5L16 4a4 4 0 0 1-8 0Z";
 const ICON_ADD = "M12 5v14M5 12h14";
 const AREA_GROUPS = [
@@ -136,6 +136,9 @@ export default function DesignRoomPage() {
   const [selectedId, setSelectedId] = useState(null);
   // Step 1 (left): where to print. Step 2 (right, in the editor): what to add.
   const [addTab, setAddTab] = useState("text");
+  // The design assistant has its own panel (it works on the whole tee, not one print area). It takes
+  // the editor's place on the right; picking a print area or "Edit by hand" brings the editor back.
+  const [assist, setAssist] = useState(false);
   const [chat, setChat] = useState(firstMessages); // the assistant's conversation (kept while you switch tabs)
   const [chatState, setChatState] = useState(firstState);
   // the AI design maker: whether it is on, how many requests are left today, and where its designs sit on the tee
@@ -445,7 +448,19 @@ export default function DesignRoomPage() {
     setCamRequest({ view, n: nextReq() });
   };
   // phones' "Add" button: open an area's editor on its Add tabs
+  const pickAreaByHand = (key) => {
+    setAssist(false);
+    openArea(key);
+  };
+  const editByHand = () => {
+    setAssist(false);
+    if (active) return;
+    const first = positions.find((p) => usedKeys.includes(p.key));
+    if (first) openArea(first.key);
+    else ensureArea();
+  };
   const startAdding = () => {
+    setAssist(false);
     const pos = ensureArea();
     if (!pos) return;
     if (active !== pos.key) openArea(pos.key);
@@ -847,14 +862,20 @@ export default function DesignRoomPage() {
     if (a.type === "place") return placeAiDesign(a.url, a.areaKey);
     if (a.type === "login") return goToLogin();
     if (a.type === "text") return addText(a.text);
-    if (a.type === "tab") return setAddTab(a.tab);
+    if (a.type === "tab") {
+      // "Open the art library" / "Upload a picture": over to the manual tools
+      setAddTab(a.tab);
+      setAssist(false);
+      if (!active) ensureArea();
+      return setSelectedId(null);
+    }
     if (a.type === "template") return applyTemplate(a.key, a.fresh);
     if (a.type === "size") {
       setSize(a.value);
       return writeJSON(SIZE_KEY, a.value);
     }
     if (a.type === "area") {
-      openArea(a.key);
+      pickAreaByHand(a.key);
       return setSelectedId(null);
     }
     if (a.type === "review") return toReview(true);
@@ -877,7 +898,7 @@ export default function DesignRoomPage() {
       ackIssues.current = sig;
       openArea(issues[0].position);
       setSelectedId(null);
-      setAddTab("ai");
+      setAssist(true);
       setChat((m) => [...m.map((x) => (x.chips ? { ...x, done: true } : x)), ...checkMessages(issues, { beforeReview: true })]);
       return;
     }
@@ -1033,8 +1054,6 @@ export default function DesignRoomPage() {
   // state would rebuild its items mid-drag (that made dragging slow / jumpy).
   const activeEls = elements.filter((e) => e.position === active);
   const usedSides = new Set(elements.map((e) => e.side));
-  // the assistant tab takes the whole panel (the tee on the left shows the area)
-  const chatting = addTab === "ai" && !elements.some((e) => e.id === selectedId && e.position === active);
   // Fit the print area in the panel without squeezing the controls below it:
   // at most the panel width, and at most about a third of the screen height.
   const editorW = (() => {
@@ -1141,6 +1160,14 @@ export default function DesignRoomPage() {
           <small>{artTotal ? `incl. ₹${artTotal} art` : "per piece"}</small>
         </div>
         {step === "design" && (
+          <button type="button" className={`dr-aibtn${assist ? " on" : ""}`} aria-pressed={assist} onClick={() => setAssist((a) => !a)}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d={ICON_AI} />
+            </svg>
+            Assistant
+          </button>
+        )}
+        {step === "design" && (
           <button type="button" className="dr-cta dr-reviewbtn" onClick={toReview}>
             Review →
           </button>
@@ -1181,7 +1208,7 @@ export default function DesignRoomPage() {
                                 aria-label={`${p.label}, ${w} by ${h} cm${used ? ", has a design" : ""}${blockedBy.length ? `, blocked by ${blockedBy.map((b) => b.label).join(" and ")}` : ""}`}
                                 aria-disabled={blockedBy.length ? "true" : undefined}
                                 aria-pressed={active === p.key}
-                                onClick={() => openArea(p.key)}
+                                onClick={() => pickAreaByHand(p.key)}
                               >
                                 {/* one small tee per print area, with just that area's box */}
                                 <AreaThumb position={p} size={sizeNow} />
@@ -1210,7 +1237,7 @@ export default function DesignRoomPage() {
                 model={model}
                 colour={fabricHex}
                 areas={areas3D}
-                onPickArea={(k) => step === "design" && openArea(k)}
+                onPickArea={(k) => step === "design" && pickAreaByHand(k)}
                 camRequest={camRequest}
                 interactive={step === "design"}
                 still={!!active}
@@ -1246,7 +1273,7 @@ export default function DesignRoomPage() {
 
         {step === "design" && (
           <nav className="dr-tools" aria-label="Design steps">
-            <button type="button" className={`dr-toolbtn${areasOpen ? " on" : ""}`} aria-pressed={areasOpen} onClick={() => setAreasOpen((o) => !o)}>
+            <button type="button" className={`dr-toolbtn${areasOpen ? " on" : ""}`} aria-pressed={areasOpen} onClick={() => { setAssist(false); setAreasOpen((o) => !o); }}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <path d={ICON_AREAS} />
               </svg>
@@ -1258,10 +1285,35 @@ export default function DesignRoomPage() {
               </svg>
               Add text or picture
             </button>
+            <button type="button" className={`dr-toolbtn${assist ? " on" : ""}`} aria-pressed={assist} onClick={() => { setAreasOpen(false); setAssist((a) => !a); }}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d={ICON_AI} />
+              </svg>
+              Assistant
+            </button>
           </nav>
         )}
 
-        {step === "design" && activePos && (
+        {step === "design" && assist && (
+          <section className="dr-editor dr-assist" aria-label="Design assistant">
+            <header>
+              <div>
+                <div className="eyebrow">Design assistant</div>
+                <h2>Tell me what you want</h2>
+                <div className="sub">{activePos ? `Working on ${activePos.label}. You can still change anything by hand.` : "Describe your tee, or pick a starting point."}</div>
+              </div>
+              <button type="button" className="dr-x" aria-label="Close the assistant" onClick={() => setAssist(false)}>✕</button>
+            </header>
+            <Assistant messages={chat} setMessages={setChat} state={chatState} setState={setChatState} ctx={assistantCtx} onAct={assistantAct} onFix={applyFix} placed={aiOn} fabric={fabricHex} />
+            {elements.length > 0 && (
+              <button type="button" className="dr-handoff" onClick={editByHand}>
+                Not quite right? Edit it by hand →
+              </button>
+            )}
+          </section>
+        )}
+
+        {step === "design" && activePos && !assist && (
           <section className="dr-editor" aria-label={`Edit ${activePos.label}`}>
             <header>
               <div>
@@ -1273,7 +1325,6 @@ export default function DesignRoomPage() {
               </div>
               <button type="button" className="dr-x" aria-label="Close editor" onClick={() => goView(activePos.side)}>✕</button>
             </header>
-            {!chatting && (
             <div className="dr-flatwrap">
               <AreaEditor
                 elements={activeEls}
@@ -1291,13 +1342,10 @@ export default function DesignRoomPage() {
                 }}
               />
             </div>
-            )}
-            {!chatting && (
             <div className="dr-ruler" style={{ width: editorW }}>
               <span>0</span>
               <span>{areaPx(activePos).wCm} cm</span>
             </div>
-            )}
             {sel ? (
               <Controls
                 sel={sel}
@@ -1322,9 +1370,6 @@ export default function DesignRoomPage() {
                     </button>
                   ))}
                 </div>
-                {chatting ? (
-                  <Assistant messages={chat} setMessages={setChat} state={chatState} setState={setChatState} ctx={assistantCtx} onAct={assistantAct} onFix={applyFix} placed={aiOn} fabric={fabricHex} />
-                ) : (
                 <div className="dr-controls">
 
                 {addTab === "text" && (
@@ -1353,7 +1398,6 @@ export default function DesignRoomPage() {
                 {addTab === "art" && <ArtPanel categories={artCategories} designs={artDesigns} onOpen={(id) => dispatch(fetchArtDesigns(id))} onPick={pickArt} />}
 
                 </div>
-                )}
               </>
             )}
           </section>
@@ -1436,6 +1480,11 @@ export default function DesignRoomPage() {
               setEarlier(null);
               enterRoom();
             }}
+            onAssistant={() => {
+              setEarlier(null);
+              enterRoom();
+              setAssist(true);
+            }}
             credit={model?.credit}
             earlier={earlier}
             onContinue={continueEarlier}
@@ -1488,7 +1537,7 @@ export default function DesignRoomPage() {
 }
 
 /* ---------- pieces ---------- */
-function Fitting({ garment, colours, colour, onColour, sizes, size, onSize, onEnter, credit, earlier, onContinue }) {
+function Fitting({ garment, colours, colour, onColour, sizes, size, onSize, onEnter, onAssistant, credit, earlier, onContinue }) {
   return (
     <div className="dr-overlay">
       <div className="dr-fit">
@@ -1531,7 +1580,16 @@ function Fitting({ garment, colours, colour, onColour, sizes, size, onSize, onEn
             })}
           </div>
         </div>
-        <button type="button" className="dr-enter" onClick={onEnter}>Enter design room →</button>
+        <div className="dr-ways">
+          <button type="button" className="dr-enter" onClick={onEnter}>Design it myself →</button>
+          <button type="button" className="dr-enter alt" onClick={onAssistant}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d={ICON_AI} />
+            </svg>
+            Design with the Assistant
+          </button>
+        </div>
+        <p className="dr-waysnote">Either way, you can switch at any time and change everything by hand.</p>
         <div className="dr-fitfoot">
           {garment.basePrice > 0 && <span>From ₹{garment.basePrice}</span>}
           {credit && <a href={credit.href} target="_blank" rel="noopener noreferrer">{credit.text}</a>}

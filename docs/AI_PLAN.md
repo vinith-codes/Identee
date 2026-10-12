@@ -159,3 +159,12 @@ tee. Two more ops: `set_tee_colour` (a name from the garment's colours) and `mak
 picture with `count: 2`, puts the first result on that area and shows both in the chat. Each picture op uses one of the
 customer's daily requests (about Rs 7). Tested with the real text AI and mock pictures: "I want a tiger image on front
 side and back side use a tree image in black color t-shirt" -> Black tee, a picture on Centre Front and Full Back.
+
+## The assistant has its own panel (12 Oct 2026, branch `feature-assistant-panel`)
+
+Two ways to work, switchable at any time: **by hand** (Step 1 Where to print, Step 2 What to add: Text / Upload / Art) or
+**with the assistant**. `assist` state in `DesignRoomPage.jsx`: the assistant panel (`.dr-editor.dr-assist`) takes the
+editor's place on the right and works with no print area open. Ways in: "Design with the Assistant" on the first screen,
+the Assistant button in the top bar, the third button in the phone bar. Ways back to the manual tools: tapping a print
+area or the tee (`pickAreaByHand`), "Not quite right? Edit it by hand" (`editByHand`), or assistant chips that open the
+art library / upload / a print area. Everything the assistant places is an ordinary item, editable by hand.
