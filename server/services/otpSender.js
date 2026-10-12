@@ -24,8 +24,14 @@ export class OtpDeliveryError extends Error {
 let transporter;
 const getTransporter = () => {
   if (!transporter) {
+    // EMAIL_HOST set: any mail service (for example Brevo: smtp-relay.brevo.com, port 587).
+    // Not set: the Gmail account in EMAIL_USER, as before — fine for testing, but codes sent
+    // from a Gmail address often land in spam. For real customers, send from the shop's own
+    // domain through a mail service, with that service's DNS records added to the domain.
+    const host = process.env.EMAIL_HOST?.trim();
+    const port = Number(process.env.EMAIL_PORT) || 587;
     transporter = nodemailer.createTransport({
-      service: "gmail",
+      ...(host ? { host, port, secure: port === 465 } : { service: "gmail" }),
       auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
     });
   }
@@ -43,7 +49,7 @@ const sendEmailOtp = async (email, code) => {
 
   try {
     await getTransporter().sendMail({
-      from: `"IDENTEE" <${process.env.EMAIL_USER}>`,
+      from: `"IDENTEE" <${process.env.EMAIL_FROM?.trim() || process.env.EMAIL_USER}>`,
       to: email,
       subject: `${code} is your IDENTEE login code`,
       text: `Your IDENTEE login code is ${code}. It expires in 10 minutes. If you didn't request it, you can ignore this email.`,

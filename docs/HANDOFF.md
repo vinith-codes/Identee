@@ -122,6 +122,15 @@ for dark tee colours (`dark` in `Boutique`), the arch dimmed to a glow, lamps ov
 **`feature-assistant-examples` — MERGED to `main` on 12 Oct 2026:** the assistant opens with a list of what it can do
 (`EXAMPLES` in `assistantScript.js`): tap-able examples that fill the message box or start the feature; "What can you do?" shows it again.
 
+**`feature-email-sender` — built 12 Oct 2026, pushed, waiting for the user's "merge":** login codes can be sent through any mail
+service: `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_USER`, `EMAIL_PASS`, `EMAIL_FROM` in `server/.env` (`services/otpSender.js`). Without
+`EMAIL_HOST` it still uses the Gmail account, as before. NOT tested with a real service yet (no account). Why codes land in spam
+today: they are sent from a personal Gmail address. Found (read-only DNS look-up): `identee.co.in` mail is on Zoho (MX), has an
+SPF record and DMARC `p=quarantine` — so mail sent as `@identee.co.in` through Brevo MUST have Brevo's DKIM + SPF records added
+to the domain first, or it will be quarantined. Steps for the user/client: Brevo account → add domain → add the DNS records Brevo
+shows → SMTP key into `.env` → `EMAIL_FROM=no-reply@identee.co.in`. Only the login-code email uses this; the other mailers
+(`utils/mailSender.js`, contact, enquiry, review) still use their own Gmail settings and should be moved the same way.
+
 **`feature-area-cards-colour` — MERGED to `main` on 12 Oct 2026:** the small tees on the "Where to print"
 cards are drawn in the colour of the tee being designed (`AreaThumb` `fabric`); a dark tee gets a light box (`.dr-thumb.on-dark`).
 
