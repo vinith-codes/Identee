@@ -138,7 +138,8 @@ export default function DesignRoomPage() {
   const draft = fresh ? null : stored;
   const session = useMemo(() => (fresh ? null : readJSON(ROOM_KEY(type))), [type]); // eslint-disable-line react-hooks/exhaustive-deps
   const [step, setStep] = useState(draft?.elements?.length || session?.entered ? "design" : "fit");
-  const [colourSlug, setColourSlug] = useState(params.get("color") || draft?.colour || session?.colour || null);
+  // the colour in the address starts a NEW design; a design in progress keeps its own colour
+  const [colourSlug, setColourSlug] = useState((fresh && params.get("color")) || draft?.colour || session?.colour || params.get("color") || null);
   const [size, setSize] = useState(draft?.size || session?.size || readJSON(SIZE_KEY) || "M");
   const [elements, setElements] = useState(() => (Array.isArray(draft?.elements) ? draft.elements : []));
   const [positions, setPositions] = useState([]);
@@ -289,11 +290,14 @@ export default function DesignRoomPage() {
     writeJSON(ROOM_KEY(type), { entered: step !== "fit", colour: colour?.slug, size: sizeNow, assist, chat: chat.slice(-CHAT_KEPT), chatState, aiPlaced });
   }, [type, step, colour?.slug, sizeNow, assist, chat, chatState, aiPlaced]);
 
-  // drop ?new=1 from the address so a reload keeps the design in progress
+  // Drop ?new=1 and ?color= from the address so a reload keeps the design in progress. (The colour in
+  // the address is only where a new design starts; left there, a reload brought it back over the colour
+  // the customer had picked since.)
   useEffect(() => {
-    if (!fresh) return;
+    if (!fresh && !params.get("color")) return;
     const next = new URLSearchParams(params);
     next.delete("new");
+    next.delete("color");
     navigate(`${location.pathname}${next.toString() ? `?${next}` : ""}`, { replace: true });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
