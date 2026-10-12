@@ -27,7 +27,7 @@ import Assistant from "./Assistant";
 import { AFTER_AI_SLOGANS, AFTER_DESIGN_CHIPS, bot as botSays, checkMessages, chips as chipRow, firstMessages, firstState } from "./assistantScript";
 import aiService from "../services/aiService";
 import { applyAiOps, describeDesign } from "./aiOps";
-import { checkDesign, inksFor } from "./designCheck";
+import { checkDesign, inksFor, printSharpness } from "./designCheck";
 import { TEMPLATES } from "./designTemplates";
 import { FONTS, addStudioFonts } from "./fonts";
 import "./designRoom.css";
@@ -788,7 +788,7 @@ export default function DesignRoomPage() {
     setTwirlKey((k) => k + 1);
   };
   /* ---------- the design assistant ---------- */
-  const designIssues = () => checkDesign(elements, positions, { fabricHex, inkDefault, cmOf: (pos) => areaPx(pos) });
+  const designIssues = () => checkDesign(elements, positions, { fabricHex, inkDefault, cmOf: (pos) => areaPx(pos), canEnlarge: ai.available });
   // what the assistant knows about the tee right now
   const assistantCtx = () => ({
     areaLabel: activePos?.label || "the tee",
@@ -1669,6 +1669,7 @@ export default function DesignRoomPage() {
                 onRemoveBg={removeBg}
                 onFix={ai.available ? fixPicture : null}
                 onAddMore={() => setSelectedId(null)}
+                canEnlarge={ai.available}
                 teamTools={roles || teamAsked || players.length > 0}
                 onTeamTools={() => setTeamAsked(true)}
               />
@@ -1991,16 +1992,20 @@ function Fitting({ garment, colours, colour, onColour, sizes, size, onSize, onEn
   );
 }
 
-function Controls({ sel, areaCmW, areaRatio, onPatch, onDelete, onDuplicate, onLayer, onRemoveBg, onFix, onAddMore, teamTools, onTeamTools }) {
+function Controls({ sel, areaCmW, areaRatio, onPatch, onDelete, onDuplicate, onLayer, onRemoveBg, onFix, onAddMore, teamTools, onTeamTools, canEnlarge }) {
   const quality = () => {
     if (!sel?.pxW) return null;
     const printCm = ((sel.width || 0) / 100) * areaCmW;
-    const dpi = Math.round(sel.pxW / (printCm / 2.54));
+    // judged as it will be printed: the shop enlarges a low picture before printing (when the AI is on)
+    const sharp = printSharpness(sel.pxW, printCm, canEnlarge);
+    const dpi = Math.round(sharp.printed);
+    const enlarged = sharp.printed > sharp.now * 1.05 && sharp.now < 150;
     const cls = dpi >= 150 ? "good" : dpi >= 100 ? "ok" : "low";
     const word = { good: "Good", ok: "OK", low: "Low — may print blurry" }[cls];
     return (
       <div className="dr-quality">
-        Print quality: <b className={cls}>{word}</b> · {dpi} DPI at {printCm.toFixed(1)} cm wide
+        Print quality: <b className={cls}>{word}</b> · {printCm.toFixed(1)} cm wide
+        {enlarged && cls !== "low" ? " · we sharpen it before printing" : ` · ${dpi} DPI`}
       </div>
     );
   };

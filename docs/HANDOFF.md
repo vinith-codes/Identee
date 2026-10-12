@@ -132,6 +132,11 @@ wants 300 DPI). AI designs are made at the picture service's 1K size (~1,000 px)
   see-through picture keeps its own outline), is stored as near-lossless WebP in `identee/print-pictures`, and saved on the
   ordered design as `element.printSrc`. `DELETE` on the same address goes back to the original. Counted as 3 pictures of spend
   (`PRINT_COST_FACTOR`, kind `print` in AiUsage). The print files use `printSrc` when it exists (`printFiles.js`).
+- **Customer side (user's point: a "Low — may print blurry" note would make customers swap a good design):** the Design
+  Room now judges a picture as it WILL be printed — after the shop's enlargement (`printSharpness` in `designCheck.js`: ×4, up
+  to 4,096 px, only while the AI is on). The picture's settings say "Good · we sharpen it before printing"; the design check
+  only calls a picture blurry when it would still be under 100 DPI after enlarging. This is a promise the admin keeps by
+  pressing Enlarge for print on low pictures before printing.
 - **One paid test (user approved):** a 1,024 px AI design came back 4,096 × 4,096 in 35 s — same drawing and lettering, clean
   edges; after cut-out 2.5 MB as WebP (a PNG would be 15.9 MB). 4,096 px = 372 DPI at 28 cm, 274 DPI at 38 cm, ~200 DPI at 52 cm.
 - 8 API checks passed on a throwaway DB with the stand-in picture; the admin window was clicked through there too.

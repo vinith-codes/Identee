@@ -36,7 +36,20 @@ export const contrast = (a, b) => {
  * @returns [{ id, elId, position, kind, text, fixLabel, patch, measure }]
  *          patch is what the fix changes on the element; measure = re-measure the text after it
  */
-export function checkDesign(elements, positions, { fabricHex, inkDefault, cmOf }) {
+// How sharp a picture will print: dots per inch now, and after the shop has it enlarged for printing.
+// (Before printing, the admin can have a low picture redrawn about 4× larger, up to about 4,000 px —
+// see "Enlarge for print" in the order's print files. So a picture is only called blurry when it would
+// still be low AFTER that; otherwise customers swap a perfectly good design for no reason.)
+const ENLARGE_BY = 4;
+const ENLARGE_MAX_PX = 4096;
+export function printSharpness(pxW, printCm, canEnlarge = true) {
+  const inches = printCm / 2.54;
+  const now = pxW / inches;
+  const printed = canEnlarge ? Math.max(pxW, Math.min(pxW * ENLARGE_BY, ENLARGE_MAX_PX)) / inches : now;
+  return { now, printed };
+}
+
+export function checkDesign(elements, positions, { fabricHex, inkDefault, cmOf, canEnlarge = true }) {
   const issues = [];
   for (const el of elements) {
     const pos = positions.find((p) => p.key === el.position);
@@ -47,7 +60,7 @@ export function checkDesign(elements, positions, { fabricHex, inkDefault, cmOf }
 
     if (el.type === "image" && el.pxW) {
       const printCm = ((el.width || 0) / 100) * wCm;
-      const dpi = el.pxW / (printCm / 2.54);
+      const dpi = printSharpness(el.pxW, printCm, canEnlarge).printed; // as it will be printed
       if (dpi < MIN_DPI) {
         const k = dpi / GOOD_DPI; // shrink until it is sharp, around its centre
         const width = Math.max(6, (el.width || 0) * k);
