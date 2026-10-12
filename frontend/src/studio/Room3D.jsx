@@ -793,12 +793,17 @@ function Tee({ model, colour, areas, onPickArea, interactive, still, spotsRef, t
     if (!mesh.current || !e.face) return null;
     const p = mesh.current.worldToLocal(e.point.clone());
     const n = e.face.normal;
+    // Front or back: the side being looked at. (Not the fabric's own direction at that spot — on this
+    // model it is unreliable in places, and a tap on the front was read as the back.) Seen edge-on,
+    // it is the half of the tee the point is in.
+    const look = e.ray.direction.clone().transformDirection(new THREE.Matrix4().copy(mesh.current.matrixWorld).invert());
+    const onFront = look.z < -0.15 ? true : look.z > 0.15 ? false : p.z > 0;
     let best = null;
     for (const t of targets) {
       const sleeve = t.side === "left" || t.side === "right";
       const inside = sleeve
         ? Math.abs(n.x) > 0.45 && Math.abs(p.x - t.at.x) < 0.1 && Math.abs(p.z - t.at.z) <= t.w / 2 && Math.abs(p.y - t.at.y) <= t.h / 2
-        : (t.side === "front" ? n.z > 0.2 : n.z < -0.2) && Math.abs(p.x - t.at.x) <= t.w / 2 && Math.abs(p.y - t.at.y) <= t.h / 2;
+        : (t.side === "front") === onFront && Math.abs(p.x - t.at.x) <= t.w / 2 && Math.abs(p.y - t.at.y) <= t.h / 2;
       if (inside && (!best || t.rank < best.rank)) best = t;
     }
     return best && best.key !== activeKey ? best.key : null;
