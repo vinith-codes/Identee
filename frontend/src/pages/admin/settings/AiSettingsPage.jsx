@@ -10,8 +10,8 @@ import aiService from "../../../services/aiService";
 const FIELDS = [
   ["dailyPerUser", "Requests per customer per day", "How many times one customer can ask for designs in a day.", 1, 50, 1],
   ["imagesPerRequest", "Pictures per request", "How many options the customer sees each time (each one is paid for).", 1, 4, 1],
-  ["monthlyCapInr", "Monthly spending cap (₹)", "When this month's spend reaches it, the feature pauses until next month. 0 = no cap.", 0, 1000000, 100],
-  ["pricePerImageInr", "Cost of one picture (₹)", "Used only for the spending figures here. Update it if Google changes its price.", 0, 100, 0.1],
+  ["monthlyCapInr", "Monthly spending cap (₹)", "When this month's spend reaches it, the feature pauses until next month. Keep it a little below the spend cap set in Google AI Studio. 0 = no cap.", 0, 1000000, 50],
+  ["pricePerImageInr", "Cost of one picture (₹)", "Used only for the spending figures here. Include GST: Google’s spend page shows about ₹3.50 a picture.", 0, 100, 0.1],
 ];
 const WHY = {
   setup: "Not working yet: no AI key is set on the server (IDENTEE_GEMINI_API_KEY).",
@@ -61,6 +61,11 @@ export default function AiSettingsPage() {
 
   if (!form) return <p style={{ color: t.textMuted }}>{note || "Loading…"}</p>;
   const capLeft = form.monthlyCapInr > 0 ? Math.max(0, form.monthlyCapInr - data.month.cost) : null;
+  // what the numbers in the form add up to
+  const perRequest = Number(form.imagesPerRequest || 0) * Number(form.pricePerImageInr || 0);
+  const perChange = Number(form.pricePerImageInr || 0);
+  const requestsInCap = perRequest > 0 && Number(form.monthlyCapInr) > 0 ? Math.floor(Number(form.monthlyCapInr) / perRequest) : null;
+  const worstDay = Number(form.dailyPerUser || 0) * perRequest;
 
   return (
     <div style={{ display: "grid", gap: 18, maxWidth: 760 }}>
@@ -100,6 +105,13 @@ export default function AiSettingsPage() {
             <input type="number" style={input} min={min} max={max} step={step} value={form[key]} onChange={(e) => setForm({ ...form, [key]: e.target.value })} required />
           </label>
         ))}
+        <div style={{ background: t.surface2, border: `1px solid ${t.border}`, borderRadius: 10, padding: "12px 14px", fontSize: 13, display: "grid", gap: 4 }}>
+          <b>What this costs</b>
+          <span>One new design request: <b>{rupees(perRequest)}</b> ({form.imagesPerRequest} pictures × {rupees(form.pricePerImageInr)})</span>
+          <span>One “change it” request: <b>{rupees(perChange)}</b> (1 picture)</span>
+          <span>One customer using all {form.dailyPerUser} requests in a day: up to <b>{rupees(worstDay)}</b></span>
+          {requestsInCap !== null && <span>The monthly cap covers about <b>{requestsInCap}</b> new design requests</span>}
+        </div>
         <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
           <button type="submit" disabled={saving} style={{ padding: "10px 22px", border: 0, borderRadius: 999, background: t.ink, color: "#fff", fontWeight: 700, cursor: "pointer" }}>
             {saving ? "Saving…" : "Save"}
