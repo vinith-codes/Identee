@@ -144,6 +144,14 @@ That is Google's own rule (real, named people / protected characters) — our si
 from our side. Changed: the customer's message now says what usually causes it and suggests describing the picture without the
 name (`aiImageService.js`); and the assistant no longer says "I've added a picture…" when the picture failed (`chatEdit`).
 Not tested with the real image AI (it would cost a request).
+**`feature-email-sender` — built 12 Oct 2026, pushed, waiting for the user's "merge":** login codes can be sent through any mail
+service: `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_USER`, `EMAIL_PASS`, `EMAIL_FROM` in `server/.env` (`services/otpSender.js`). Without
+`EMAIL_HOST` it still uses the Gmail account, as before. NOT tested with a real service yet (no account). Why codes land in spam
+today: they are sent from a personal Gmail address. Found (read-only DNS look-up): `identee.co.in` mail is on Zoho (MX), has an
+SPF record and DMARC `p=quarantine` — so mail sent as `@identee.co.in` through Brevo MUST have Brevo's DKIM + SPF records added
+to the domain first, or it will be quarantined. Steps for the user/client: Brevo account → add domain → add the DNS records Brevo
+shows → SMTP key into `.env` → `EMAIL_FROM=no-reply@identee.co.in`. Only the login-code email uses this; the other mailers
+(`utils/mailSender.js`, contact, enquiry, review) still use their own Gmail settings and should be moved the same way.
 
 **`feature-area-cards-colour` — MERGED to `main` on 12 Oct 2026:** the small tees on the "Where to print"
 cards are drawn in the colour of the tee being designed (`AreaThumb` `fabric`); a dark tee gets a light box (`.dr-thumb.on-dark`).
@@ -295,6 +303,18 @@ Oversized-tee photo source + 48 generated images, `3D-models/` (CC BY originals,
 Brevo + domain email (OTP mails land in spam), HTTPS + deploy to the Quindl server, `TRUST_PROXY=1`, Razorpay webhook + live keys,
 run `scripts/migrateUserAuthIndexes.js`, old `server/uploads` → `scripts/migrateUploadsToCloudinary.js`, CC BY credit kept on the site,
 print-team start distances applied.
+
+**Deployment — the user decided on 12 Oct 2026 to do it LATER.** Plan agreed in words: a test link first (free hosting or the
+Quindl server — the user has not yet said whether Quindl has one), real launch after the client gives domain access, live keys and
+policy pages. Code to fix before any deployment (found by reading the code, NOT fixed yet):
+- `server/server.js` CORS list is hard-coded (two localhost addresses + an old `new-vyavarclient-3f1f.vercel.app`) — take the
+  site's address from a setting.
+- `server/controllers/contactController.js` sends Contact-page messages to a hard-coded outside address
+  (`paletteproductiondevelopers@gmail.com`), not to the shop — use the shop's address from store settings; check the enquiry and
+  review mailers for the same.
+- 34 frontend files fall back to `localhost` when `VITE_API_URL` is missing — build with the real address and verify.
+- Nothing may rely on the server's own disk (`server/uploads`) on hosts that restart — pictures must go to Cloudinary.
+- Write `docs/DEPLOYMENT.md` listing every `.env` setting.
 
 **Background remover (Design Room) at go-live:**
 - Host the AI model ourselves instead of fetching it from huggingface.co: copy `onnx-community/ormbg-ONNX` (`config.json`,
