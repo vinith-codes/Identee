@@ -122,7 +122,7 @@ for dark tee colours (`dark` in `Boutique`), the arch dimmed to a glow, lamps ov
 **`feature-assistant-examples` — MERGED to `main` on 12 Oct 2026:** the assistant opens with a list of what it can do
 (`EXAMPLES` in `assistantScript.js`): tap-able examples that fill the message box or start the feature; "What can you do?" shows it again.
 
-**`feature-print-enlarge` — built 12 Oct 2026, pushed, waiting for the user's "merge":** pictures at print quality (the user
+**`feature-print-enlarge` — MERGED to `main` on 13 Oct 2026:** pictures at print quality (the user
 wants 300 DPI). AI designs are made at the picture service's 1K size (~1,000 px): about 90 DPI on Centre Front, 70 on Full Back.
 - **Admin → Orders → Designs & print files** now lists each picture in an ordered design with its real DPI at print size
   (`PrintPictures` in `OrderDesignsModal.jsx`) and, when it is under 250 DPI, an **Enlarge for print** button.
