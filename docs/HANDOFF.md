@@ -122,6 +122,13 @@ for dark tee colours (`dark` in `Boutique`), the arch dimmed to a glow, lamps ov
 **`feature-assistant-examples` — MERGED to `main` on 12 Oct 2026:** the assistant opens with a list of what it can do
 (`EXAMPLES` in `assistantScript.js`): tap-able examples that fill the message box or start the feature; "What can you do?" shows it again.
 
+**`fix-ai-refusal-message` — built 12 Oct 2026 (from `main`), pushed, waiting for the user's "merge":** the user asked for "Messi
+kicking a football" and Google's picture service refused it (server log: `400 Image generation blocked for unspecified reasons`).
+That is Google's own rule (real, named people / protected characters) — our site has no restrictions, and it cannot be switched off
+from our side. Changed: the customer's message now says what usually causes it and suggests describing the picture without the
+name (`aiImageService.js`); and the assistant no longer says "I've added a picture…" when the picture failed (`chatEdit`).
+Not tested with the real image AI (it would cost a request).
+
 **`feature-area-cards-colour` — MERGED to `main` on 12 Oct 2026:** the small tees on the "Where to print"
 cards are drawn in the colour of the tee being designed (`AreaThumb` `fabric`); a dark tee gets a light box (`.dr-thumb.on-dark`).
 
