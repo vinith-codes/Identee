@@ -834,3 +834,6 @@
 .dr-stage[data-dark] .dr-starts button.ai { background: linear-gradient(135deg, #C9A24B, #EBCB7A); border-color: #EBCB7A; color: var(--ink); box-shadow: 0 12px 30px -12px rgba(235, 203, 122, .55); }
 .dr-stage[data-dark] .dr-starts button.ai svg { color: var(--ink); }
 .dr-stage[data-dark] .dr-starts button.ai small { color: #4A3A12; }
+
+/* the back arrow is a button inside the room (it steps back) and a link on the first screen */
+button.dr-back { padding: 0; font: inherit; font-weight: 700; cursor: pointer; }

@@ -122,6 +122,9 @@ for dark tee colours (`dark` in `Boutique`), the arch dimmed to a glow, lamps ov
 **`feature-assistant-examples` — MERGED to `main` on 12 Oct 2026:** the assistant opens with a list of what it can do
 (`EXAMPLES` in `assistantScript.js`): tap-able examples that fill the message box or start the feature; "What can you do?" shows it again.
 
+**`fix-back-arrow` — built 12 Oct 2026, pushed, waiting for the user's "merge":** the Design Room's top-left arrow goes back one
+step (Review → Design → colour & size → the garment list) instead of leaving the room at once; the design is kept (`stepBack`).
+
 **`feature-room-polish` — MERGED to `main` on 12 Oct 2026:** a livelier Design Room (all 7 ideas the user
 agreed to).
 - **Point at the tee:** the print area under the pointer glows on the 3D tee (`AreaGlow` in `Room3D.jsx`), a dark chip names it

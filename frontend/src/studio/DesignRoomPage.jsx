@@ -1148,6 +1148,16 @@ export default function DesignRoomPage() {
     setCamRequest({ view: "front", n: nextReq() });
   };
   // a team order is one tee per player; otherwise the sizes × quantities picked
+  // The top-left arrow: one step back, never straight out of the room (the design stays as it is).
+  const stepBack = () => {
+    if (step === "review") return backToDesign();
+    closeArea();
+    setAssist(false);
+    setAreasOpen(false);
+    setPickOpen(false);
+    setStep("fit");
+    setCamRequest(narrow ? { position: [0, 1.5, 8], ms: 900, n: nextReq() } : { ...SHOWCASE, ms: 900, n: nextReq() });
+  };
   const chosen = teamMode
     ? sizeCounts(teamPlayers)
     : Object.entries(qtys)
@@ -1242,7 +1252,12 @@ export default function DesignRoomPage() {
   return (
     <div className="dr-app" data-step={step} data-lit={lit ? "1" : undefined}>
       <header className="dr-top">
-        <Link to="/customizable" className="dr-back" aria-label="Back to customizable garments">←</Link>
+        {/* the arrow goes back one step: Review → Design → colour & size → the list of garments */}
+        {step === "fit" ? (
+          <Link to="/customizable" className="dr-back" aria-label="Back to customizable garments" title="Back to all garments">←</Link>
+        ) : (
+          <button type="button" className="dr-back" onClick={stepBack} aria-label={step === "review" ? "Back to the design" : "Back to colour and size"} title={step === "review" ? "Back to the design" : "Back to colour and size"}>←</button>
+        )}
         <span className="dr-brand">IDENTEE</span>
         {step === "design" ? (
           <div className="dr-pick">
