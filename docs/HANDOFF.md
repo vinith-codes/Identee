@@ -122,6 +122,11 @@ for dark tee colours (`dark` in `Boutique`), the arch dimmed to a glow, lamps ov
 **`feature-assistant-examples` — MERGED to `main` on 12 Oct 2026:** the assistant opens with a list of what it can do
 (`EXAMPLES` in `assistantScript.js`): tap-able examples that fill the message box or start the feature; "What can you do?" shows it again.
 
+**`feature-delete-garment` — built 12 Oct 2026 on top of `fix-admin-role-guards`, pushed, waiting for the user's "merge":** a garment
+added by mistake can be deleted from Admin → Customizable → open it → last step (Publish) → "Delete this garment". Server rules
+(`deleteGarmentType`): not while it is live (unpublish first), not when any saved design uses it (it stays an unpublished draft);
+its colour photos (rows + stored files) are removed with it. 8 API checks passed on a throwaway DB; the button itself was not clicked.
+
 **`fix-admin-role-guards` — built 12 Oct 2026, pushed, waiting for the user's "merge":** making another person an admin already
 existed (Admin → Customers → Edit → "Promote as Admin"; the person must have logged in to the site once so they have an account).
 Added rules in `server/controllers/userControler.js`: an admin can't remove their own admin access or delete their own account, an

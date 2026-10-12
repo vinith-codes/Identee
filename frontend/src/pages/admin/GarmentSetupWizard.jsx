@@ -6,7 +6,7 @@
 // soon as they're uploaded. The garment stays a draft (hidden from
 // customers) until it's published in step 6.
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link, useParams, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import axios from "axios";
 import garmentTypeService from "../../services/garmentTypeService";
 import garmentImageService from "../../services/garmentImageService";
@@ -443,6 +443,24 @@ function ColoursStep({ garment, save, saving, next }) {
 /* ---------------- Step 6: Publish ---------------- */
 
 function PublishStep({ garment, save, saving, steps, goStep }) {
+  const navigate = useNavigate();
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
+  // Deleting is for a garment added by mistake: it must be a draft and have no customer designs (the server checks).
+  const removeGarment = async () => {
+    if (!window.confirm(`Delete "${garment.label}" for good?
+
+Its colours, photos and print areas are removed. This cannot be undone.`)) return;
+    setDeleting(true);
+    setDeleteError("");
+    try {
+      await garmentTypeService.deleteGarmentType(garment._id);
+      navigate("/admin/customizable");
+    } catch (err) {
+      setDeleteError(errMsg(err, "Could not delete this garment."));
+      setDeleting(false);
+    }
+  };
   const blockers = [];
   if (!steps[0].done) blockers.push({ step: 1, text: "Choose at least one fabric" });
   if (!(garment.basePrice > 0)) blockers.push({ step: 1, text: "Set the starting price" });
@@ -515,6 +533,27 @@ function PublishStep({ garment, save, saving, steps, goStep }) {
           ? `Live — ${garment.label} appears under "Design your own" on the website.`
           : "Draft — customers can't see it yet. You can open it in the customizer after publishing."}
       </p>
+
+      <div style={{ marginTop: 28, paddingTop: 18, borderTop: "1px solid #EFE7D4" }}>
+        <b style={{ fontSize: 14 }}>Don’t need this garment?</b>
+        <p className="aw-help" style={{ marginTop: 4 }}>
+          {garment.isActive
+            ? "Unpublish it to hide it from customers. To delete it for good, unpublish it first."
+            : "A draft is already hidden from customers. Delete it only if it was added by mistake — its colours, photos and print areas are removed for good."}
+        </p>
+        {!garment.isActive && (
+          <button
+            type="button"
+            className="aw-btn light"
+            style={{ marginTop: 10, color: "#B42318", borderColor: "#E9B8B1" }}
+            disabled={deleting || saving}
+            onClick={removeGarment}
+          >
+            {deleting ? "Deleting…" : "Delete this garment"}
+          </button>
+        )}
+        {deleteError && <p style={{ margin: "10px 0 0", color: "#B42318", fontSize: 13.5, fontWeight: 600 }}>{deleteError}</p>}
+      </div>
     </div>
   );
 }

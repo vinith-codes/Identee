@@ -1,6 +1,8 @@
 import asyncHandler from "express-async-handler";
 import GarmentType from "../models/garmentTypeModel.js";
 import GarmentColorImage from "../models/garmentColorImageModel.js";
+import Customization from "../models/customizationModel.js";
+import { deleteStoredFile } from "../utils/imageStorage.js";
 import {
   CATALOG_BY_KEY,
   SIZES,
@@ -241,6 +243,25 @@ export const deleteGarmentType = asyncHandler(async (req, res) => {
     res.status(404);
     throw new Error("Garment type not found");
   }
+  // A garment is deleted for good, with its photos — so only when nothing depends on it:
+  // not while customers can see it, and not once anyone has saved or ordered a design on it
+  // (those designs and their print files need the garment). Such a garment is unpublished instead.
+  if (item.isActive) {
+    res.status(400);
+    throw new Error("This garment is live. Unpublish it first, then delete it.");
+  }
+  const designs = await Customization.countDocuments({ garmentType: item.key });
+  if (designs > 0) {
+    res.status(400);
+    throw new Error(
+      `${designs} saved design${designs === 1 ? " uses" : "s use"} this garment, so it can't be deleted. It is unpublished, so customers don't see it.`,
+    );
+  }
+  const photos = await GarmentColorImage.find({ garmentType: item.key });
+  for (const doc of photos) {
+    await Promise.all(["front", "back", "left", "right"].map((v) => deleteStoredFile(doc[v]?.imageUrl)));
+  }
+  await GarmentColorImage.deleteMany({ garmentType: item.key });
   await item.deleteOne();
-  res.json({ message: "Deleted" });
+  res.json({ message: "Deleted", photos: photos.length });
 });
