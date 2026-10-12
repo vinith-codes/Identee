@@ -1,25 +1,80 @@
-import { useEffect, useMemo } from "react";
+// pages/admin/AdminUserPage.jsx
+//
+// Admin → Customers: everyone with an account, what they are allowed to do
+// (admin, seller, delivery) and how many orders they placed. Search by name,
+// email or phone; open one to view, change their access, or delete them.
+import { useEffect, useMemo, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
-import {
-  PieChart,
-  Pie,
-  Cell,
-  Legend,
-  ResponsiveContainer,
-  Tooltip,
-} from "recharts";
-import { fetchUsers, removeUser } from "../../redux/slices/userManagementSlice";
 import { toast } from "react-toastify";
+import { fetchUsers, removeUser } from "../../redux/slices/userManagementSlice";
+import { AW } from "./garmentSetup/wizardStyles";
 
-const COLORS = ["#2563eb", "#10b981", "#f59e0b"]; // with orders, without orders, admin
+const FILTERS = [
+  ["all", "Everyone"],
+  ["ordered", "Have ordered"],
+  ["new", "No orders yet"],
+  ["team", "Admins & staff"],
+];
+
+const CSS = `
+  .cu-tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin-top: 22px; }
+  .cu-tile { padding: 18px 20px; }
+  .cu-tile span { display: block; font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #8A7A55; }
+  .cu-tile b { display: block; margin-top: 6px; font: 800 30px/1 'Inter', sans-serif; letter-spacing: -0.02em; color: #141110; font-variant-numeric: tabular-nums; }
+  .cu-tile small { display: block; margin-top: 6px; font-size: 12.5px; color: #6B6559; }
+  .cu-share { height: 6px; border-radius: 999px; background: #F0EADB; margin-top: 12px; overflow: hidden; }
+  .cu-share i { display: block; height: 100%; border-radius: 999px; background: #C9A24B; }
+  .cu-bar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 22px; }
+  .cu-search { flex: 1 1 260px; max-width: 380px; }
+  .cu-chips { display: flex; gap: 8px; flex-wrap: wrap; }
+  .cu-wrap { margin-top: 14px; overflow-x: auto; }
+  .cu-table { border-collapse: collapse; width: 100%; min-width: 760px; font-size: 14px; }
+  .cu-table th { text-align: left; padding: 14px 18px; font-size: 11.5px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: #8A7A55; border-bottom: 1px solid #EFE7D4; white-space: nowrap; }
+  .cu-table td { padding: 14px 18px; border-bottom: 1px solid #F3EDDD; vertical-align: middle; }
+  .cu-table tr:last-child td { border-bottom: 0; }
+  .cu-table tbody tr { transition: background-color .15s; }
+  .cu-table tbody tr:hover { background: #FDFAF2; }
+  .cu-who { display: flex; align-items: center; gap: 12px; min-width: 0; }
+  .cu-av { width: 40px; height: 40px; border-radius: 50%; flex: none; display: grid; place-items: center; background: #F4E7C4; color: #7A5B12; font: 700 15px 'Inter', sans-serif; object-fit: cover; }
+  .cu-name { font-weight: 700; color: #141110; }
+  .cu-sub { font-size: 12.5px; color: #6B6559; margin-top: 1px; overflow-wrap: anywhere; }
+  .cu-you { margin-left: 8px; font-size: 11px; font-weight: 800; color: #7A5B12; }
+  .cu-roles { display: flex; gap: 6px; flex-wrap: wrap; }
+  .cu-role { font-size: 11px; font-weight: 800; padding: 4px 10px; border-radius: 999px; letter-spacing: .03em; white-space: nowrap; }
+  .cu-role.admin { background: #141110; color: #F2D48A; }
+  .cu-role.seller { background: #E6EEF9; color: #23457A; }
+  .cu-role.delivery { background: #E3F2E8; color: #24522F; }
+  .cu-role.plain { background: #F3EEE2; color: #6B5A36; }
+  .cu-num { font-variant-numeric: tabular-nums; font-weight: 700; }
+  .cu-num.none { color: #A39C8C; font-weight: 500; }
+  .cu-acts { display: flex; gap: 6px; justify-content: flex-end; white-space: nowrap; }
+  .cu-act { border: 1px solid #D7CCB3; background: #fff; color: #141110; border-radius: 9px; padding: 7px 13px; font: 700 12.5px 'Inter', sans-serif; cursor: pointer; transition: border-color .15s, background-color .15s; }
+  .cu-act:hover:not(:disabled) { border-color: #141110; }
+  .cu-act.del { border-color: transparent; background: none; color: #B42318; }
+  .cu-act.del:hover:not(:disabled) { background: #FEECEA; }
+  .cu-act:disabled { opacity: .45; cursor: not-allowed; }
+  .cu-empty { padding: 44px 20px; text-align: center; color: #6B6559; }
+  .cu-count { margin: 12px 2px 0; font-size: 12.5px; color: #6B6559; }
+  @media (max-width: 900px) { .cu-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+`;
+
+const joined = (d) => (d ? new Date(d).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "—");
 
 const AdminUsersPage = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
-  const { users, loading, actionLoading } = useSelector(
-    (state) => state.userManagement,
-  );
+  const { users, loading, actionLoading, error } = useSelector((state) => state.userManagement);
+  const [query, setQuery] = useState("");
+  const [filter, setFilter] = useState("all");
+  // the admin looking at this page (their own row can't be deleted)
+  const myId = useMemo(() => {
+    try {
+      return JSON.parse(localStorage.getItem("userInfo") || "{}")._id || null;
+    } catch {
+      return null;
+    }
+  }, []);
 
   useEffect(() => {
     dispatch(fetchUsers());
@@ -27,167 +82,168 @@ const AdminUsersPage = () => {
 
   const stats = useMemo(() => {
     const total = users.length;
-    const admins = users.filter((u) => u.isAdmin).length;
-    const withOrders = users.filter((u) => (u.orderCount || 0) > 0).length;
-    const withoutOrders = total - withOrders;
-
-    return { total, admins, withOrders, withoutOrders };
+    const ordered = users.filter((u) => (u.orderCount || 0) > 0).length;
+    return {
+      total,
+      ordered,
+      fresh: total - ordered,
+      admins: users.filter((u) => u.isAdmin).length,
+      orders: users.reduce((n, u) => n + (u.orderCount || 0), 0),
+    };
   }, [users]);
 
-  const pieData = [
-    { name: "Users with Orders", value: stats.withOrders },
-    { name: "Users without Orders", value: stats.withoutOrders },
-    { name: "Admin Users", value: stats.admins },
-  ];
+  const shown = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return users
+      .filter((u) => {
+        if (filter === "ordered" && !(u.orderCount > 0)) return false;
+        if (filter === "new" && u.orderCount > 0) return false;
+        if (filter === "team" && !(u.isAdmin || u.isSeller || u.isDelivery)) return false;
+        return !q || [u.name, u.email, u.phone].some((v) => String(v || "").toLowerCase().includes(q));
+      })
+      .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+  }, [users, query, filter]);
 
-  const handleDelete = async (id, name) => {
-    if (!window.confirm(`Delete user "${name}"? This cannot be undone.`))
-      return;
+  const handleDelete = async (user) => {
+    const who = user.name || user.email || user.phone || "this person";
+    if (!window.confirm(`Delete ${who}'s account? This cannot be undone.`)) return;
     try {
-      await dispatch(removeUser(id)).unwrap();
-      toast.success("User deleted");
+      await dispatch(removeUser(user._id)).unwrap();
+      toast.success("Account deleted");
     } catch (err) {
-      toast.error(err || "Failed to delete user");
+      toast.error(err || "Could not delete the account");
     }
   };
 
-  const { error } = useSelector((state) => state.userManagement);
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center text-white">
-        Loading users...
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="min-h-screen flex items-center justify-center text-red-400">
-        Error loading users: {error}
-      </div>
-    );
-  }
-
   return (
-    <div className="min-h-screen p-6 text-white">
-      <h1 className="text-2xl font-semibold mb-6" style={{ color: "#141110" }}>Customers</h1>
+    <div style={{ ...AW.page, padding: "8px 4px 40px" }}>
+      <style>{AW.css + CSS}</style>
+      <h1 style={AW.h1}>Customers</h1>
+      <p style={AW.lead}>Everyone with an account. Open a person to see their orders or change what they are allowed to do.</p>
 
-      {/* Pie chart */}
-      <div className="bg-[#11141f] rounded-xl p-6 mb-6" style={{ height: 320 }}>
-        <ResponsiveContainer width="100%" height="100%">
-          <PieChart>
-            <Pie
-              data={pieData}
-              dataKey="value"
-              nameKey="name"
-              cx="50%"
-              cy="50%"
-              outerRadius={110}
-            >
-              {pieData.map((_, index) => (
-                <Cell key={index} fill={COLORS[index % COLORS.length]} />
+      {error ? (
+        <div className="aw-card cu-empty" style={{ marginTop: 22, color: "#B42318" }}>Couldn’t load the customers: {error}</div>
+      ) : loading && !users.length ? (
+        <div className="aw-card cu-empty" style={{ marginTop: 22 }}>Loading customers…</div>
+      ) : (
+        <>
+          <div className="cu-tiles">
+            <div className="aw-card cu-tile">
+              <span>Accounts</span>
+              <b>{stats.total}</b>
+              <small>{stats.orders} order{stats.orders === 1 ? "" : "s"} placed in all</small>
+            </div>
+            <div className="aw-card cu-tile">
+              <span>Have ordered</span>
+              <b>{stats.ordered}</b>
+              <div className="cu-share" aria-hidden="true">
+                <i style={{ width: `${stats.total ? (stats.ordered / stats.total) * 100 : 0}%` }} />
+              </div>
+            </div>
+            <div className="aw-card cu-tile">
+              <span>No orders yet</span>
+              <b>{stats.fresh}</b>
+              <small>Signed up, not bought</small>
+            </div>
+            <div className="aw-card cu-tile">
+              <span>Admins</span>
+              <b>{stats.admins}</b>
+              <small>Full access to this panel</small>
+            </div>
+          </div>
+
+          <div className="cu-bar">
+            <input
+              className="aw-inp cu-search"
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search by name, email or phone"
+              aria-label="Search customers"
+            />
+            <div className="cu-chips" role="group" aria-label="Show">
+              {FILTERS.map(([key, label]) => (
+                <button key={key} type="button" className={`aw-chip${filter === key ? " on" : ""}`} aria-pressed={filter === key} onClick={() => setFilter(key)}>
+                  {label}
+                </button>
               ))}
-            </Pie>
-            <Tooltip />
-            <Legend />
-          </PieChart>
-        </ResponsiveContainer>
-      </div>
+            </div>
+          </div>
 
-      {/* Stat cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <div className="bg-[#11141f] rounded-xl p-5">
-          <p className="text-sm text-gray-400">Total Users</p>
-          <p className="text-2xl font-bold">{stats.total}</p>
-        </div>
-        <div className="bg-[#11141f] rounded-xl p-5">
-          <p className="text-sm text-gray-400">Users with Orders</p>
-          <p className="text-2xl font-bold text-blue-400">{stats.withOrders}</p>
-        </div>
-        <div className="bg-[#11141f] rounded-xl p-5">
-          <p className="text-sm text-gray-400">Users without Orders</p>
-          <p className="text-2xl font-bold text-red-400">
-            {stats.withoutOrders}
-          </p>
-        </div>
-        <div className="bg-[#11141f] rounded-xl p-5">
-          <p className="text-sm text-gray-400">Admin Users</p>
-          <p className="text-2xl font-bold text-yellow-400">{stats.admins}</p>
-        </div>
-      </div>
-
-      {/* Table */}
-      <div className="bg-[#11141f] rounded-xl overflow-x-auto">
-        <table className="w-full text-left">
-          <thead>
-            <tr className="text-gray-400 text-sm border-b border-gray-700">
-              <th className="p-4">Profile</th>
-              <th className="p-4">Name</th>
-              <th className="p-4">Subscription</th>
-              <th className="p-4">Admin</th>
-              <th className="p-4">Seller</th>
-              <th className="p-4">Orders</th>
-              <th className="p-4">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {users.map((user) => (
-              <tr key={user._id} className="border-b border-gray-800">
-                <td className="p-4">
-                  <div className="w-9 h-9 rounded-full bg-purple-700 flex items-center justify-center font-bold">
-                    {user.name?.charAt(0).toUpperCase()}
-                  </div>
-                </td>
-                <td className="p-4">{user.name}</td>
-                <td className="p-4 text-gray-400">
-                  {user.isSubscribed ? "Subscribed" : "Not Subscribed"}
-                </td>
-                <td
-                  className={`p-4 font-semibold ${
-                    user.isAdmin ? "text-green-400" : "text-red-400"
-                  }`}
-                >
-                  {user.isAdmin ? "YES" : "NO"}
-                </td>
-                <td
-                  className={`p-4 font-semibold ${
-                    user.isSeller ? "text-green-400" : "text-red-400"
-                  }`}
-                >
-                  {user.isSeller ? "YES" : "NO"}
-                </td>
-                <td className="p-4">
-                  <span className="bg-purple-600 text-xs px-3 py-1 rounded-full">
-                    {user.orderCount || 0} Orders
-                  </span>
-                </td>
-                <td className="p-4 space-x-2">
-                  <button
-                    onClick={() => navigate(`/admin/users/${user._id}`)}
-                    className="bg-teal-500 text-xs px-3 py-1.5 rounded-md"
-                  >
-                    VIEW
-                  </button>
-                  <button
-                    onClick={() => navigate(`/admin/users/${user._id}/edit`)}
-                    className="bg-blue-600 text-xs px-3 py-1.5 rounded-md"
-                  >
-                    EDIT
-                  </button>
-                  <button
-                    disabled={actionLoading}
-                    onClick={() => handleDelete(user._id, user.name)}
-                    className="bg-red-600 text-xs px-3 py-1.5 rounded-md disabled:opacity-50"
-                  >
-                    DELETE
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+          <div className="aw-card cu-wrap">
+            {shown.length ? (
+              <table className="cu-table">
+                <thead>
+                  <tr>
+                    <th>Customer</th>
+                    <th>Access</th>
+                    <th>Orders</th>
+                    <th>Joined</th>
+                    <th aria-label="Actions" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {shown.map((user) => {
+                    const name = user.name || "No name yet";
+                    const me = user._id === myId;
+                    const staff = user.isAdmin || user.isSeller || user.isDelivery;
+                    return (
+                      <tr key={user._id}>
+                        <td>
+                          <div className="cu-who">
+                            <span className="cu-av" aria-hidden="true">{(user.name || user.email || "?").charAt(0).toUpperCase()}</span>
+                            <div style={{ minWidth: 0 }}>
+                              <div className="cu-name">
+                                {name}
+                                {me && <span className="cu-you">You</span>}
+                              </div>
+                              <div className="cu-sub">{user.email || user.phone || "No contact saved"}</div>
+                            </div>
+                          </div>
+                        </td>
+                        <td>
+                          <div className="cu-roles">
+                            {user.isAdmin && <span className="cu-role admin">Admin</span>}
+                            {user.isSeller && <span className="cu-role seller">Seller</span>}
+                            {user.isDelivery && <span className="cu-role delivery">Delivery</span>}
+                            {!staff && <span className="cu-role plain">Customer</span>}
+                          </div>
+                        </td>
+                        <td>
+                          <span className={`cu-num${user.orderCount ? "" : " none"}`}>{user.orderCount || 0}</span>
+                        </td>
+                        <td style={{ color: "#6B6559", whiteSpace: "nowrap" }}>{joined(user.createdAt)}</td>
+                        <td>
+                          <div className="cu-acts">
+                            <button type="button" className="cu-act" onClick={() => navigate(`/admin/users/${user._id}`)}>View</button>
+                            <button type="button" className="cu-act" onClick={() => navigate(`/admin/users/${user._id}/edit`)}>Edit access</button>
+                            <button
+                              type="button"
+                              className="cu-act del"
+                              disabled={actionLoading || me || user.isAdmin}
+                              title={me ? "You can’t delete your own account" : user.isAdmin ? "Remove their admin access first" : "Delete this account"}
+                              onClick={() => handleDelete(user)}
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            ) : (
+              <div className="cu-empty">{users.length ? "No one matches that search." : "No one has signed up yet."}</div>
+            )}
+          </div>
+          {shown.length > 0 && (
+            <p className="cu-count">
+              Showing {shown.length} of {users.length}
+            </p>
+          )}
+        </>
+      )}
     </div>
   );
 };

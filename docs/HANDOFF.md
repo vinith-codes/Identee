@@ -127,6 +127,10 @@ existed (Admin → Customers → Edit → "Promote as Admin"; the person must ha
 Added rules in `server/controllers/userControler.js`: an admin can't remove their own admin access or delete their own account, an
 admin account can't be deleted until its admin access is removed, the last admin can't be removed; and a confirmation in the Edit
 page before giving admin access. 9 API checks passed on a throwaway DB. The confirmation box itself was not clicked through.
+Same branch: **Admin → Customers was restyled** to the light admin look (`pages/admin/AdminUserPage.jsx`): four tiles, search by
+name/email/phone, filters (Everyone / Have ordered / No orders yet / Admins & staff), a table with access badges, orders and join
+date; Delete is off for your own row and for admins. The old pie chart is gone. The Edit page (`AdminEditUserPage.jsx`) got
+readable colours and plain role labels. Checked on the dev site with the real data, read-only.
 
 **`feature-area-cards-colour` — MERGED to `main` on 12 Oct 2026:** the small tees on the "Where to print"
 cards are drawn in the colour of the tee being designed (`AreaThumb` `fabric`); a dark tee gets a light box (`.dr-thumb.on-dark`).

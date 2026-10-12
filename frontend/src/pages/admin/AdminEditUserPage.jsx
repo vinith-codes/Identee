@@ -152,16 +152,16 @@ They will be able to see every order and customer, change products and prices, a
       <div style={{ maxWidth: 420, margin: "0 auto" }}>
         <h1
           style={{
-            fontFamily: "'Cormorant Garamond', serif",
             fontSize: 26,
-            fontWeight: 600,
+            fontWeight: 800,
+            letterSpacing: "-0.01em",
             color: ADMIN.text,
             borderBottom: `1px solid ${ADMIN.border}`,
             paddingBottom: 14,
             marginBottom: 26,
           }}
         >
-          Edit User
+          Edit access
         </h1>
 
         <form
