@@ -32,12 +32,14 @@ function boxOf(position, size) {
   return { x, y: MAIN_TOP[position.side] + (place.topCm || 0) * UNITS_PER_CM, w, h };
 }
 
-export default function AreaThumb({ position, size }) {
+// print: a small picture of what is on this area (a data URL); the drawing then
+// shows the tee in its own colour with that print in the box.
+export default function AreaThumb({ position, size, print, fabric }) {
   const b = boxOf(position, size);
   return (
-    <svg className="dr-thumb" viewBox="0 0 200 170" aria-hidden="true" focusable="false">
-      <path className="tee" d={position.side === "back" ? BACK : FRONT} />
-      <rect className="box" x={b.x} y={b.y} width={b.w} height={b.h} rx="2" />
+    <svg className={`dr-thumb${print ? " has-print" : ""}`} viewBox="0 0 200 170" aria-hidden="true" focusable="false">
+      <path className="tee" d={position.side === "back" ? BACK : FRONT} style={print && fabric ? { fill: fabric } : undefined} />
+      {print ? <image href={print} x={b.x} y={b.y} width={b.w} height={b.h} preserveAspectRatio="none" /> : <rect className="box" x={b.x} y={b.y} width={b.w} height={b.h} rx="2" />}
     </svg>
   );
 }

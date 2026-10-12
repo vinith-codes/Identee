@@ -122,9 +122,8 @@ for dark tee colours (`dark` in `Boutique`), the arch dimmed to a glow, lamps ov
 **`feature-assistant-examples` — MERGED to `main` on 12 Oct 2026:** the assistant opens with a list of what it can do
 (`EXAMPLES` in `assistantScript.js`): tap-able examples that fill the message box or start the feature; "What can you do?" shows it again.
 
-**`feature-room-polish` — BUILT 12 Oct 2026, pushed, waiting for the user's "merge":** a livelier Design Room (ideas 1–4 of 7
-the user agreed to; 5 quick-start cards on an empty tee, 6 tidier left panel with Front/Back/Sleeves tabs, 7 floating tool bar
-by the selected item are NOT built yet).
+**`feature-room-polish` — BUILT 12 Oct 2026, pushed, waiting for the user's "merge":** a livelier Design Room (all 7 ideas the user
+agreed to).
 - **Point at the tee:** the print area under the pointer glows on the 3D tee (`AreaGlow` in `Room3D.jsx`), a dark chip names it
   ("Centre Front · 28 × 32 cm · Tap to design here") and its card lights up in the list; a tap opens it. Where areas overlap
   the lowest `rank` wins (smaller area first, a side's main area favoured, tall thin strips give way) — `areaAt` in `Tee`.
@@ -135,6 +134,12 @@ by the selected item are NOT built yet).
 - **Feedback:** the tee leans a little towards the pointer; it gives a small pop and the plinth ring lights up when something is
   added (`popKey`) and the ring lights on a colour change (`PULSE`); cards and buttons lift on hover and press in; the cards
   arrive one after another. Motion is skipped for "reduce motion".
+- **Ways to start:** on an empty tee three cards sit under it — Add text, Upload a picture, Ask the Assistant (`.dr-starts`).
+- **"Where to print" panel:** Front / Back / Sleeves tabs (`areaTab`; a gold count shows how many areas on that side have a
+  design; the tab follows the area being edited or pointed at on the tee; choosing a tab turns the tee), two bigger cards per
+  row, and a used area's card shows the tee in its colour with the real design on it and a tick (`printThumb` in `konvaRender.js`).
+- **Quick tool bar** above the tee for the selected item: smaller, bigger, Centre, Copy, To front, Delete (`.dr-quickbar`,
+  `resizeSel` / `centreSel`). The full settings stay in the right panel.
 - Checked in the browser on a computer: hover/tap on the tee (Centre Front, Left Chest, Vertical Front), card hover turning
   the tee to the back, opening an area, adding text, Review and its four side pictures (clean). **Not checked:** phones,
   dragging speed with the new studio on a slow computer, the pop itself (too quick to catch in a screenshot).

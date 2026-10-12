@@ -18,7 +18,7 @@ import { fetchCart } from "../redux/slices/cartWishlistSlice";
 import { imageUrl } from "../utils/imageUrl";
 import Room3D from "./Room3D";
 import AreaEditor from "./AreaEditor";
-import { AreaRenderer, cachedImage, imageSrcs, loadImage, measureText, playerElements } from "./konvaRender";
+import { AreaRenderer, cachedImage, imageSrcs, loadImage, measureText, playerElements, printThumb } from "./konvaRender";
 import { MAX_PLAYERS, NAME_MAX, NUMBER_MAX, filled, hasRoles, parsePlayers, rolesIn, sizeCounts } from "./teamOrder";
 import { areaCm, blockersOf, clashesIn, modelForGarment, placeArea } from "./teeModel";
 import AreaThumb from "./AreaThumb";
@@ -49,6 +49,9 @@ const AREA_GROUPS = [
   ["Back", ["back"]],
   ["Sleeves", ["left", "right"]],
 ];
+const groupOfSide = (side) => AREA_GROUPS.find(([, sides]) => sides.includes(side))?.[0] || AREA_GROUPS[0][0];
+const ICON_TEXT = "M5 6h14M12 6v13M9 19h6";
+const ICON_UPLOAD = "M12 16V5m0 0-4 4m4-4 4 4M5 19h14";
 const SIDES = [["front", "Front"], ["back", "Back"], ["left", "Left"], ["right", "Right"]];
 const DRAFT_KEY = (type) => `identee:design:v3:${type}`;
 const SIZE_KEY = "identee:size";
@@ -179,6 +182,7 @@ export default function DesignRoomPage() {
   // the print area the pointer is on — on the 3D tee itself or on its card in the list (it glows on the tee)
   const [hoverKey, setHoverKey] = useState(null);
   const hoverCam = useRef({ side: null, timer: 0 });
+  const [areaTab, setAreaTab] = useState(AREA_GROUPS[0][0]); // "Where to print": Front / Back / Sleeves
   const [popKey, setPopKey] = useState(0); // goes up when something lands on the tee: the tee gives a small pop
   const [toast, setToast] = useState("");
   const [busy, setBusy] = useState("");
@@ -441,6 +445,12 @@ export default function DesignRoomPage() {
     },
     [positions, spots, usedSig],
   );
+  // small pictures of the areas that have a design, for their cards (made again only when a picture changes)
+  const thumbSig = usedKeys.map((k) => `${k}:${textures[k]?.version || 0}`).join();
+  const thumbs = useMemo(
+    () => Object.fromEntries((thumbSig ? thumbSig.split(",") : []).map((kv) => kv.split(":")[0]).map((k) => [k, printThumb(textures[k]?.canvas)])),
+    [thumbSig], // eslint-disable-line react-hooks/exhaustive-deps
+  );
   const hoverPos = step === "design" && hoverKey && hoverKey !== active ? positions.find((p) => p.key === hoverKey) : null;
   // Pointing at a card in the list: its area glows on the tee, and (when nothing is being edited) the tee turns to that side.
   const hoverCard = (p) => {
@@ -462,6 +472,7 @@ export default function DesignRoomPage() {
       return;
     }
     setActive(key);
+    setAreaTab(groupOfSide(pos.side));
     setHoverKey(null);
     clearTimeout(hoverCam.current.timer);
     hoverCam.current.side = null;
@@ -613,6 +624,19 @@ export default function DesignRoomPage() {
       setBusy("");
     }
   };
+  // the quick tool bar by the tee: bigger / smaller around the item's middle, and centre it left-to-right
+  const resizeSel = (f) => {
+    commit((prev) =>
+      prev.map((e) => {
+        if (e.id !== selectedId) return e;
+        if (e.type === "text") return textBox({ ...e, fontSizePct: Math.min(60, Math.max(2, e.fontSizePct * f)) }, positions.find((p) => p.key === e.position));
+        const width = Math.min(150, Math.max(4, e.width * f));
+        const height = (e.height * width) / e.width;
+        return { ...e, width, height, x: e.x + (e.width - width) / 2, y: e.y + (e.height - height) / 2 };
+      }),
+    );
+  };
+  const centreSel = () => commit((prev) => prev.map((e) => (e.id === selectedId ? { ...e, x: 50 - (e.width || 0) / 2 } : e)));
   const dupSel = () => {
     const el = elements.find((e) => e.id === selectedId);
     if (!el) return;
@@ -1312,13 +1336,34 @@ export default function DesignRoomPage() {
             <div className="dr-sidebody">
               {
                 <>
-                  <p className="dr-empty">Pick a spot. Each tee shows one print area at its real size for {sizeNow}.</p>
-                  {AREA_GROUPS.map(([title, sides]) => {
+                  <p className="dr-empty">Pick a spot here, or tap it on the tee. Each card shows the area at its real size for {sizeNow}.</p>
+                  <div className="dr-areatabs" role="tablist" aria-label="Side of the tee">
+                    {AREA_GROUPS.filter(([, sides]) => positions.some((p) => sides.includes(p.side))).map(([title, sides]) => {
+                      const count = positions.filter((p) => sides.includes(p.side) && usedKeys.includes(p.key)).length;
+                      return (
+                        <button
+                          key={title}
+                          type="button"
+                          role="tab"
+                          aria-selected={areaTab === title}
+                          className={areaTab === title ? "on" : ""}
+                          onClick={() => {
+                            setAreaTab(title);
+                            // nothing being edited: the tee turns to show that side
+                            if (!active && !narrow) setCamRequest({ view: sides[0], ms: 700, n: nextReq() });
+                          }}
+                        >
+                          {title}
+                          {count > 0 && <i aria-label={`${count} with a design`}>{count}</i>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {AREA_GROUPS.filter(([title]) => title === areaTab).map(([title, sides]) => {
                     const list = positions.filter((p) => sides.includes(p.side));
                     if (!list.length) return null;
                     return (
                       <div key={title}>
-                        <div className="eyebrow">{title}</div>
                         <div className="dr-cards">
                           {list.map((p) => {
                             const [w, h] = areaCm(p, sizeNow);
@@ -1339,8 +1384,9 @@ export default function DesignRoomPage() {
                                 aria-pressed={active === p.key}
                                 onClick={() => pickAreaByHand(p.key)}
                               >
-                                {/* one small tee per print area, with just that area's box */}
-                                <AreaThumb position={p} size={sizeNow} />
+                                {/* one small tee per print area, with just that area's box — or, once it has a design, that design */}
+                                <AreaThumb position={p} size={sizeNow} print={used ? thumbs[p.key] : null} fabric={fabricHex} />
+                                {used && <span className="tick" aria-hidden="true">✓</span>}
                                 <b>{p.label}</b>
                                 <span>{w}×{h} cm</span>
                               </button>
@@ -1373,7 +1419,11 @@ export default function DesignRoomPage() {
                 hotspots={step === "design" ? hotspots : undefined}
                 glowKey={step === "design" ? hoverKey : null}
                 activeKey={active}
-                onHoverArea={setHoverKey}
+                onHoverArea={(k) => {
+                  setHoverKey(k);
+                  const side = k && positions.find((p) => p.key === k)?.side;
+                  if (side) setAreaTab(groupOfSide(side)); // the list shows the side being pointed at
+                }}
                 popKey={popKey}
                 room={step === "review" ? "boutique" : "studio"}
                 spin={spin}
@@ -1397,6 +1447,37 @@ export default function DesignRoomPage() {
                 </div>
               ) : (
                 !active && <div className="dr-hint">Point at the tee and tap a spot to design there · drag to turn · scroll to zoom</div>
+              )}
+              {active && sel && !assist && (
+                <div className="dr-quickbar" role="toolbar" aria-label="Quick changes to the selected item">
+                  <button type="button" onClick={() => resizeSel(1 / 1.1)} aria-label="Smaller" title="Smaller"><span className="a-sm">A</span>−</button>
+                  <button type="button" onClick={() => resizeSel(1.1)} aria-label="Bigger" title="Bigger"><span className="a-lg">A</span>+</button>
+                  <span className="sep" />
+                  <button type="button" onClick={centreSel} title="Put it in the middle, left to right">Centre</button>
+                  <button type="button" onClick={dupSel} title="Make a copy">Copy</button>
+                  <button type="button" onClick={() => layerSel(1)} title="Bring in front of the other items">To front</button>
+                  <span className="sep" />
+                  <button type="button" className="del" onClick={removeSel} title="Remove this item">Delete</button>
+                </div>
+              )}
+              {!elements.length && !active && !assist && !areasOpen && (
+                <div className="dr-starts" role="group" aria-label="Ways to start">
+                  <button type="button" onClick={() => { startAdding(); setAddTab("text"); }}>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={ICON_TEXT} /></svg>
+                    <b>Add text</b>
+                    <small>A name, a slogan, a number</small>
+                  </button>
+                  <button type="button" onClick={() => { startAdding(); setAddTab("upload"); }}>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={ICON_UPLOAD} /></svg>
+                    <b>Upload a picture</b>
+                    <small>Your photo or logo</small>
+                  </button>
+                  <button type="button" className="ai" onClick={() => setAssist(true)}>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={ICON_AI} /></svg>
+                    <b>Ask the Assistant</b>
+                    <small>Describe it, I’ll design it</small>
+                  </button>
+                </div>
               )}
               <div className="dr-viewsw" role="group" aria-label="Look at side">
                 {SIDES.map(([k, label]) => (

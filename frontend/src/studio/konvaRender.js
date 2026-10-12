@@ -201,3 +201,18 @@ export function playerElements(elements, player, W, H) {
   }
   return out;
 }
+
+// A print area's picture (the 3D tee's texture) made small, for the card of an area that has a design.
+export function printThumb(canvas) {
+  if (!canvas?.width) return null;
+  const long = Math.max(canvas.width, canvas.height);
+  const c = document.createElement("canvas");
+  c.width = Math.max(8, Math.round((120 * canvas.width) / long));
+  c.height = Math.max(8, Math.round((120 * canvas.height) / long));
+  c.getContext("2d").drawImage(canvas, 0, 0, c.width, c.height);
+  try {
+    return c.toDataURL("image/png");
+  } catch {
+    return null; // a picture from another site cannot be copied; the card keeps its plain box
+  }
+}
