@@ -122,7 +122,12 @@ for dark tee colours (`dark` in `Boutique`), the arch dimmed to a glow, lamps ov
 **`feature-assistant-examples` — MERGED to `main` on 12 Oct 2026:** the assistant opens with a list of what it can do
 (`EXAMPLES` in `assistantScript.js`): tap-able examples that fill the message box or start the feature; "What can you do?" shows it again.
 
-**Branch `feature-ai-more` (pushed, awaiting "merge"):** Make it sharper / Recolour for this tee (picture settings) and the
+**Next big feature the user wants: the TEAM ORDER HELPER** — one design, a different name and number on each tee (today the
+Team jersey layout prints the same name/number on every tee; the workaround is one saved design per player). Touches: marking
+which texts are the name and the number, a player table in Review (name, number, size), cart + order storage per player,
+one print file per player, and the assistant accepting a pasted list ("Arun 7 L, Karthik 10 XL").
+
+**`feature-ai-more` — MERGED to `main` on 12 Oct 2026:** Make it sharper / Recolour for this tee (picture settings) and the
 text stylist ("Style it for me"). Sharper and recolour are untested with the real image AI. See `docs/AI_PLAN.md`.
 
 **Asked earlier, not built — making the AI easy to find OUTSIDE the assistant** (user: "how does the user know these AI features are here?").
