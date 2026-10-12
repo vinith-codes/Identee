@@ -150,3 +150,12 @@ library (12 occasions x 4 tones) still answers.
   -> Upload a photo / Use the picture on my tee -> style.
 - Tested: edit by chat on the real site with the real text AI (colour + curve, delete, add text, move to sleeve, a shop
   question). Photo to art only with the mock provider — **not yet with a real photo through Gemini**.
+
+## One sentence for the whole tee (12 Oct 2026)
+
+A typed message of 7+ words that mentions front / back / sleeve / chest / t-shirt goes to `planEdit` even on an empty
+tee. Two more ops: `set_tee_colour` (a name from the garment's colours) and `make_picture` (area, subject, style; at most
+3). `chatEdit` in `DesignRoomPage.jsx` changes the colour, applies the text ops, then asks `/api/ai/design` once per
+picture with `count: 2`, puts the first result on that area and shows both in the chat. Each picture op uses one of the
+customer's daily requests (about Rs 7). Tested with the real text AI and mock pictures: "I want a tiger image on front
+side and back side use a tree image in black color t-shirt" -> Black tee, a picture on Centre Front and Full Back.

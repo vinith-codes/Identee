@@ -135,7 +135,14 @@ export function replyTo(text, ctx, st, { tapped = false } = {}) {
   /* ----- edit the tee by chat (the text AI) -----
      "make the text gold", "move the logo to the back", "delete the tagline".
      Tapped choices never come here — only something the customer typed. */
-  if (ctx.ai.text && ctx.hasDesign && !tapped && t.split(/\s+/).length >= 2 && EDIT_WORDS.test(low) && !STARTS_NEW.test(low) && !/background|slogan|quote|tagline|caption|ideas?/.test(low)) {
+  const words = t.split(/\s+/).length;
+  const aboutWords = /background|slogan|quote|tagline|caption|ideas?/.test(low);
+  if (ctx.ai.text && ctx.hasDesign && !tapped && words >= 2 && EDIT_WORDS.test(low) && !STARTS_NEW.test(low) && !aboutWords) {
+    return done([act({ type: "edit", message: t })]);
+  }
+  // A whole request in one sentence — "a tiger on the front and a tree on the back, on a black t-shirt" —
+  // also goes to the text AI, which can set the tee colour and ask for a picture per print area.
+  if (ctx.ai.text && !tapped && words >= 7 && !aboutWords && /\b(front|back|sleeves?|chest|t-?shirt|tee)\b/.test(low)) {
     return done([act({ type: "edit", message: t })]);
   }
 

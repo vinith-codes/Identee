@@ -166,10 +166,11 @@ export function applyAiOps(ops, d) {
 }
 
 // A small description of the design for the text AI (no pictures, no positions in pixels).
-export function describeDesign({ elements, positions, active, selectedId, fonts, teeName, areaPx }) {
+export function describeDesign({ elements, positions, active, selectedId, fonts, teeName, teeColours = [], areaPx }) {
   const used = [...new Set(elements.map((e) => e.position))];
   return {
     tee: teeName,
+    teeColours,
     openArea: active || "",
     selectedId: selectedId || null,
     fonts,

@@ -44,7 +44,7 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
     const slow = out.find((o) => ["generate", "slogans", "edit"].includes(o.act?.type));
     if (slow) {
       // the AI: wait for the answer, then show what the page hands back
-      setThinking(slow.act.type === "edit" ? true : slow.act.type === "slogans" ? "Writing a few…" : slow.act.photoUrl ? "Redrawing your photo… this takes about 20 seconds." : slow.act.baseUrl ? "Changing your design… this takes about 20 seconds." : "Drawing your designs… this takes about 20 seconds.");
+      setThinking(slow.act.type === "edit" ? "Working on it… (a picture takes about 20 seconds)" : slow.act.type === "slogans" ? "Writing a few…" : slow.act.photoUrl ? "Redrawing your photo… this takes about 20 seconds." : slow.act.baseUrl ? "Changing your design… this takes about 20 seconds." : "Drawing your designs… this takes about 20 seconds.");
       Promise.resolve(onAct(slow.act)).then((made) => {
         setThinking(false);
         setMessages((m) => [...m, ...(made || []), ...reply]);

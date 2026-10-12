@@ -650,16 +650,64 @@ export default function DesignRoomPage() {
     try {
       const res = await aiService.edit({
         message: a.message,
-        design: describeDesign({ elements, positions, active, selectedId, fonts: FONTS, teeName: colour?.name || "", areaPx }),
+        design: describeDesign({ elements, positions, active, selectedId, fonts: FONTS, teeName: colour?.name || "", teeColours: colours.map((c) => c.name), areaPx }),
       });
-      const asked = Array.isArray(res.ops) ? res.ops.length : 0;
-      if (!asked) return [botSays(res.reply || "I’m not sure what to change. Tell me which item, and what to do with it.")];
-      const done = applyAiOps(res.ops, { elements, positions, active, fonts: FONTS, inkDefault, areaPx, textBox, makeId });
-      if (!done.changed) return [botSays("I couldn’t do that one. Tap the item on the print area and tell me again, or use its settings.")];
-      commit(() => done.elements);
-      if (done.focus && done.focus !== active) openArea(done.focus, { force: true });
+      const all = Array.isArray(res.ops) ? res.ops : [];
+      if (!all.length) return [botSays(res.reply || "I’m not sure what to change. Tell me which item, and what to do with it.")];
+
+      // 1. the tee's own colour
+      let tee = colour;
+      let changed = 0;
+      const colourOp = all.find((o) => o?.op === "set_tee_colour");
+      const wanted = colourOp && colours.find((c) => c.name.toLowerCase() === String(colourOp.colour || "").toLowerCase());
+      if (wanted && wanted.slug !== colour?.slug) {
+        changeColour(wanted.slug);
+        tee = wanted;
+        changed++;
+      }
+      // 2. changes to what is on the tee
+      const done = applyAiOps(all, { elements, positions, active, fonts: FONTS, inkDefault: lum(tee?.hex || fabricHex) < 0.55 ? "#FFFFFF" : "#141110", areaPx, textBox, makeId });
+      let els = done.elements;
+      changed += done.changed;
+      let focus = done.focus;
+      // 3. new pictures, one print area each (each one is a paid request to the image AI)
+      const extra = [];
+      const placed = {};
+      const pictures = all.filter((o) => o?.op === "make_picture" && typeof o.subject === "string" && o.subject.trim()).slice(0, 3);
+      if (pictures.length && !ai.available) extra.push(botSays("Pictures can’t be made right now. You can pick from the art library or upload your own."));
+      else if (pictures.length && !isLoggedIn()) extra.push(botSays("Log in and I’ll draw the pictures for you."), chipRow(["Log in"]));
+      else {
+        for (const pic of pictures) {
+          const pos = positions.find((p) => p.key === pic.area);
+          const used = [...new Set(els.map((e) => e.position))];
+          if (!pos || (!used.includes(pos.key) && blockersOf(pos.key, positions, used).length)) continue;
+          const { W, H } = areaPx(pos);
+          try {
+            const made = await aiService.design({ subject: pic.subject.slice(0, 200), style: ai.styles.includes(pic.style) ? pic.style : ai.styles[0], teeColour: tee?.name || "white", teeIsDark: lum(tee?.hex || fabricHex) < 0.55, ratio: W / H, count: 2 });
+            setAi((cur) => ({ ...cur, left: made.left }));
+            made.images.forEach((im) => {
+              aiCuts.current.set(im.url, { path: im.url, w: im.width, h: im.height });
+              loadImage(im.url).catch(() => {});
+            });
+            const first = made.images[0];
+            const el = aiElement(pos, { path: first.url, w: first.width, h: first.height }, els.length + 1);
+            els = [...els, el];
+            placed[pos.key] = { url: first.url, elId: el.id };
+            focus = focus || pos.key;
+            changed++;
+            extra.push(botSays(`For ${pos.label} I drew ${pic.subject}. The first one is on your tee; tap Add to tee on the other to swap.`), { designs: made.images.map((im) => im.url) });
+          } catch (err) {
+            extra.push(botSays(err.response?.data?.message || "The design maker had a problem. Please try again."));
+            break;
+          }
+        }
+      }
+      if (!changed && !extra.length) return [botSays("I couldn’t do that one. Tap the item on the print area and tell me again, or use its settings.")];
+      if (els !== elements) commit(() => els);
+      if (Object.keys(placed).length) setAiPlaced((cur) => ({ ...cur, ...placed }));
+      if (focus && focus !== active) openArea(focus, { force: true });
       setSelectedId(null);
-      return [botSays(`${res.reply || "Done."} Not right? Press Undo (↶).`)];
+      return [botSays(changed ? `${res.reply || "Done."} Not right? Press Undo (↶).` : res.reply || "Here’s what I could do."), ...extra];
     } catch (err) {
       return [botSays(err.response?.data?.message || "I couldn’t work that out just now. Please try again.")];
     }
@@ -714,6 +762,14 @@ export default function DesignRoomPage() {
       return [botSays(err.response?.data?.message || "I couldn’t think of any just now. Please try again."), chipRow(["Slogan ideas", "Something else"])];
     }
   };
+  // An AI design as an item on a print area: as large as the area allows, centred.
+  const aiElement = (pos, cut, zIndex) => {
+    const { W, H } = areaPx(pos);
+    const shape = cut.w / cut.h;
+    const width = shape > W / H ? 92 : (92 * shape * H) / W;
+    const height = (width * W) / (shape * H);
+    return { id: makeId(), type: "image", src: cut.path, position: pos.key, side: pos.side, rotation: 0, zIndex, x: 50 - width / 2, y: 50 - height / 2, width, height, pxW: cut.w };
+  };
   // Put an AI-made design on a print area (the open one unless areaKey is given): its plain
   // background is cleared, the cut-out is uploaded once, and it replaces the AI design already there.
   const placeAiDesign = async (url, areaKey) => {
@@ -737,12 +793,7 @@ export default function DesignRoomPage() {
         }
         aiCuts.current.set(url, cut);
       }
-      // as large as the area allows, centred
-      const { W, H } = areaPx(pos);
-      const shape = cut.w / cut.h;
-      const width = shape > W / H ? 92 : (92 * shape * H) / W;
-      const height = (width * W) / (shape * H);
-      const el = { id: makeId(), type: "image", src: cut.path, position: pos.key, side: pos.side, rotation: 0, zIndex: elements.length + 1, x: 50 - width / 2, y: 50 - height / 2, width, height, pxW: cut.w };
+      const el = aiElement(pos, cut, elements.length + 1);
       const old = aiPlaced[pos.key]?.elId;
       commit((prev) => [...prev.filter((e) => e.id !== old), el]);
       setAiPlaced((cur) => ({ ...cur, [pos.key]: { url, elId: el.id } }));

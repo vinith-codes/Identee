@@ -110,6 +110,7 @@ async function askJson(prompt, temperature = 0.3) {
  *
  * @param message  what the customer typed
  * @param design   { tee, openArea, selectedId, areas: [{ key, label, free }], fonts: [..],
+ *                   teeColours: [names], pictureStyles: [names],
  *                   items: [{ id, type, area, text?, font?, color?, sizeCm?, shape?, bold?, italic? }] }
  * @returns {Promise<{ reply: string, ops: object[] }>}
  */
@@ -126,6 +127,8 @@ export async function planEdit({ message, design }) {
     '- {"op":"duplicate","id":ID}',
     '- {"op":"add_text","area":AREA_KEY,"text":string,"color":"#RRGGBB" (optional),"fontFamily":font (optional),"shape":shape (optional),"placeY":"top"|"middle"|"bottom" (optional),"scale":number (optional: 0.5 = small line, 1 = normal heading, 2 = very large)}',
     "You know nothing about the shop's prices, delivery times, returns, offers or policies. If asked, say you can't answer that and point to the Contact page — never guess or invent one.",
+    '- {"op":"set_tee_colour","colour":NAME}  change the colour of the t-shirt itself (NAME must be one of teeColours)',
+    '- {"op":"make_picture","area":AREA_KEY,"subject":string,"style":STYLE}  draw a new picture for a print area. subject = a short description of the picture only (for example "a roaring tiger"); STYLE is one of pictureStyles (pick the one that suits, default the first). Use it when the customer asks for an image, picture, logo or drawing of something. One per area, at most 3. For "front" use the area whose key is centre-front, for "back" use full-back, unless they name another area. Only use areas with free:true.',
     "Rules: only use ids and area keys from the design below. \"it\" / \"this\" / \"the text\" means the selected item if there is one, else the only item of that kind, else the last item in the open area. If it is unclear which item is meant, change nothing and ask. Pick ink colours that show on the tee colour. For words like bigger/smaller use scale. Do not invent slogans unless asked to write or add text.",
     "The design: " + JSON.stringify(design),
     "The customer's message: " + JSON.stringify(String(message).slice(0, 400)),

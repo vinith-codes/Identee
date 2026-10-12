@@ -150,8 +150,10 @@ export const makeAiDesign = asyncHandler(async (req, res) => {
     jobs = [generateImage({ prompt: changeDesignPrompt(text), image, ratio: nearestRatio(req.body.ratio) })];
   } else {
     const style = AI_STYLES[req.body.style] ? req.body.style : "Bold mascot";
-    const teeColour = String(req.body.teeColour || "white").replace(/[^\w \-]/g, "").slice(0, 30) || "white";
-    const of = Math.min(4, Math.max(1, settings.imagesPerRequest));
+    const teeColour = teeName;
+    // count: fewer options than usual (used when one message asks for pictures on several areas)
+    const wanted = Number(req.body.count) > 0 ? Math.min(Number(req.body.count), settings.imagesPerRequest) : settings.imagesPerRequest;
+    const of = Math.min(4, Math.max(1, wanted));
     jobs = Array.from({ length: of }, (_, i) =>
       generateImage({ prompt: newDesignPrompt({ subject: text, style, teeColour, teeIsDark: Boolean(req.body.teeIsDark), variation: i + 1, of }), ratio: nearestRatio(req.body.ratio) }),
     );
@@ -225,6 +227,8 @@ export const makeEdit = asyncHandler(async (req, res) => {
     openArea: str(d.openArea, 40),
     selectedId: d.selectedId ? str(d.selectedId, 40) : null,
     fonts: (Array.isArray(d.fonts) ? d.fonts : []).slice(0, 20).map((f) => str(f, 40)),
+    teeColours: (Array.isArray(d.teeColours) ? d.teeColours : []).slice(0, 30).map((c) => str(c, 30)),
+    pictureStyles: Object.keys(AI_STYLES),
     areas: (Array.isArray(d.areas) ? d.areas : []).slice(0, 20).map((a) => ({ key: str(a.key, 40), label: str(a.label, 40), free: Boolean(a.free) })),
     items: (Array.isArray(d.items) ? d.items : []).slice(0, 30).map((it) => ({
       id: str(it.id, 40),
