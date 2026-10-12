@@ -126,6 +126,8 @@ for dark tee colours (`dark` in `Boutique`), the arch dimmed to a glow, lamps ov
 added by mistake can be deleted from Admin → Customizable → open it → last step (Publish) → "Delete this garment". Server rules
 (`deleteGarmentType`): not while it is live (unpublish first), not when any saved design uses it (it stays an unpublished draft);
 its colour photos (rows + stored files) are removed with it. 8 API checks passed on a throwaway DB; the button itself was not clicked.
+Same branch: the "Older pages" links on the Customizable list were removed (user's request). The old pages still exist at
+`/admin/garment-types` and `/admin/garment-photos` (unlinked); the old Garment types page has a one-click Delete with no confirmation.
 
 **`fix-admin-role-guards` — built 12 Oct 2026, pushed, waiting for the user's "merge":** making another person an admin already
 existed (Admin → Customers → Edit → "Promote as Admin"; the person must have logged in to the site once so they have an account).

@@ -123,10 +123,6 @@ export default function CustomizableListPage() {
         </div>
       )}
 
-      <p className="aw-help" style={{ marginTop: 28 }}>
-        Older pages (still work): <Link to="/admin/garment-types">Garment types</Link> ·{" "}
-        <Link to="/admin/garment-photos">Garment photos</Link>
-      </p>
     </div>
   );
 }
