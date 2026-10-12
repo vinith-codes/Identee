@@ -168,3 +168,13 @@ editor's place on the right and works with no print area open. Ways in: "Design 
 the Assistant button in the top bar, the third button in the phone bar. Ways back to the manual tools: tapping a print
 area or the tee (`pickAreaByHand`), "Not quite right? Edit it by hand" (`editByHand`), or assistant chips that open the
 art library / upload / a print area. Everything the assistant places is an ordinary item, editable by hand.
+
+## Sharper / recolour / stylist (12 Oct 2026, branch `feature-ai-more`)
+
+- **Make it sharper** and **Recolour for this tee**: two buttons in a picture's settings (not for library art). `POST
+  /api/ai/design` with `{ fixUrl, fixKind: "sharpen" | "recolour" }`; the image AI redraws the picture, the server cuts it
+  out, and it replaces the old one in the same place (`fixPicture` in `DesignRoomPage.jsx`). One daily request, usage kind
+  `fix`. **Not tested with the real image AI or in the browser** (needs a login and costs money).
+- **Stylist**: "Style it for me" (More help, and in the opening examples) -> Royal / Sporty / Cute / Minimal / Retro / Bold,
+  or any typed mood. It is the edit-by-chat planner with a style rule in its prompt: font, ink colour, shape, spacing and
+  outline for every text item. Tested on the real site: Royal -> Playfair Display.

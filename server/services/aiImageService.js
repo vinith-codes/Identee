@@ -82,6 +82,13 @@ export const photoArtPrompt = ({ style, teeColour, teeIsDark, variation, of }) =
     .filter(Boolean)
     .join(" ");
 
+// Fixing a picture that is already on the tee (the customer's upload or an AI design).
+export const FIX_KINDS = ["sharpen", "recolour"];
+export const fixPrompt = ({ kind, teeColour, teeIsDark }) =>
+  kind === "recolour"
+    ? `Recolour this design so it stands out clearly when printed on a ${teeColour} t-shirt. Keep exactly the same drawing, shapes, words and layout; change only the colours (for example dark lines become light on a dark t-shirt). The background must be flat pure ${teeIsDark ? "black" : "white"} and nothing else. Do not add a t-shirt, a frame or a watermark.`
+    : `Redraw this exact image as clean, sharp, high-resolution artwork ready for printing. Keep the same design, shapes, colours, words and layout exactly as they are; only remove blur, noise, pixel blocks and jagged edges. Spell any words exactly as in the image. The background must be flat pure ${teeIsDark ? "black" : "white"} and nothing else. Do not add a t-shirt, a frame or a watermark.`;
+
 // Picture shapes the AI offers; the closest to the print area is used.
 const RATIOS = { "1:1": 1, "4:5": 0.8, "5:4": 1.25, "3:4": 0.75, "4:3": 4 / 3, "2:3": 2 / 3, "3:2": 1.5, "9:16": 9 / 16, "16:9": 16 / 9 };
 export const nearestRatio = (wOverH) => {

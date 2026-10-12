@@ -524,6 +524,31 @@ export default function DesignRoomPage() {
   };
   // Remove the selected picture's background (in this browser — see removeBackground.js),
   // upload the cut-out and swap it in. Undo brings the original back.
+  // Make the selected picture sharper, or recolour it for this tee (the image AI redraws it;
+  // one of the customer's daily requests). The new picture takes the old one's place; Undo brings it back.
+  const fixPicture = async (kind) => {
+    const el = elements.find((e) => e.id === selectedId);
+    const pos = el && positions.find((p) => p.key === el.position);
+    if (!el || el.type !== "image" || !pos || busy) return;
+    if (!ai.available) return say("That isn’t available right now.");
+    if (!isLoggedIn()) return say("Log in to use this.");
+    setBusy(kind === "recolour" ? "Recolouring your picture… about 20 seconds" : "Redrawing your picture sharper… about 20 seconds");
+    try {
+      const { W, H } = areaPx(pos);
+      const res = await aiService.design({ fixUrl: el.src, fixKind: kind, teeColour: colour?.name || "white", teeIsDark: lum(fabricHex) < 0.55, ratio: W / H });
+      setAi((cur) => ({ ...cur, left: res.left }));
+      const im = res.images[0];
+      aiCuts.current.set(im.url, { path: im.url, w: im.width, h: im.height });
+      // same width and middle as before; the height follows the new picture's shape
+      const height = (el.width * W * im.height) / (im.width * H);
+      commit((prev) => prev.map((e) => (e.id === el.id ? { ...e, src: im.url, pxW: im.width, height, y: e.y + (e.height - height) / 2 } : e)));
+      say(`${kind === "recolour" ? "Recoloured" : "Redrawn sharper"}. Not right? Press Undo (↶). ${res.left} request${res.left === 1 ? "" : "s"} left today.`);
+    } catch (err) {
+      say(err.response?.data?.message || "That didn’t work. Please try again.");
+    } finally {
+      setBusy("");
+    }
+  };
   const removeBg = async () => {
     const el = elements.find((e) => e.id === selectedId);
     if (!el || el.type !== "image" || busy) return;
@@ -657,6 +682,7 @@ export default function DesignRoomPage() {
     issues: designIssues,
     inks: inksFor(fabricHex, INKS),
     ai: { ...ai, loggedIn: isLoggedIn() },
+    hasText: elements.some((e) => e.type === "text"),
     // an uploaded picture on the tee (not library art, not an AI design) — "photo to art" can use it
     photoOnTee: [...elements].reverse().find((e) => e.type === "image" && !e.artDesignId && !aiCuts.current.has(e.src))?.src || null,
   });
@@ -1356,6 +1382,7 @@ export default function DesignRoomPage() {
                 onDuplicate={dupSel}
                 onLayer={layerSel}
                 onRemoveBg={removeBg}
+                onFix={ai.available ? fixPicture : null}
                 onAddMore={() => setSelectedId(null)}
               />
             ) : (
@@ -1599,7 +1626,7 @@ function Fitting({ garment, colours, colour, onColour, sizes, size, onSize, onEn
   );
 }
 
-function Controls({ sel, areaCmW, areaRatio, onPatch, onDelete, onDuplicate, onLayer, onRemoveBg, onAddMore }) {
+function Controls({ sel, areaCmW, areaRatio, onPatch, onDelete, onDuplicate, onLayer, onRemoveBg, onFix, onAddMore }) {
   const quality = () => {
     if (!sel?.pxW) return null;
     const printCm = ((sel.width || 0) / 100) * areaCmW;
@@ -1758,6 +1785,18 @@ function Controls({ sel, areaCmW, areaRatio, onPatch, onDelete, onDuplicate, onL
                 <small>Free. Works in your browser; the first time takes a little longer.</small>
               </span>
             </button>
+          )}
+          {!sel.artDesignId && onFix && (
+            <div className="dr-two">
+              <button type="button" className="dr-add" onClick={() => onFix("sharpen")}>
+                Make it sharper
+                <small>Redraws a blurry picture</small>
+              </button>
+              <button type="button" className="dr-add" onClick={() => onFix("recolour")}>
+                Recolour for this tee
+                <small>So it shows on this colour</small>
+              </button>
+            </div>
           )}
           <label className="dr-field">
             Size

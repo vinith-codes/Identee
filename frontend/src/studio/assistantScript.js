@@ -21,7 +21,9 @@ import { TEMPLATES } from "./designTemplates";
 
 const MENU = ["Slogan ideas", "Start from a template", "Check my design", "More help"];
 const MORE_PHOTO = "Photo to art";
-const MORE = ["Colour help", "Where to print", "Size help", MORE_PHOTO, "Remove a background", "Make a design"];
+const MORE_STYLE = "Style it for me";
+const MOODS = ["Royal", "Sporty", "Cute", "Minimal", "Retro", "Bold"];
+const MORE = ["Colour help", "Where to print", "Size help", MORE_PHOTO, MORE_STYLE, "Remove a background", "Make a design"];
 const AFTER_SLOGANS = ["Show more", "Add a name or year", "Change tone", "Something else"];
 const PRINT_FOR = {
   "A small logo": [["left-chest", "right-chest", "left-sleeve"], "A small logo sits best on the chest or a sleeve."],
@@ -36,7 +38,7 @@ export const chips = (list) => ({ chips: list });
 const SUBJECT_IDEAS = ["A lion holding a cricket bat", "A mountain sunrise", "A cup of filter coffee", "A phoenix"];
 const AFTER_DESIGNS = ["Make more", "Something else"];
 // words that mean "change what is on my tee" (handled by the text AI, see studio/aiOps.js)
-const EDIT_WORDS = /\b(bigger|larger|smaller|tiny|huge|move|shift|delete|remove|erase|rotate|tilt|curve|curved|straight|vertical|bold|italic|underline|centre|center|align|resize|shrink|enlarge|increase|decrease|reduce|colou?r|font|outline|spacing|duplicate|copy|swap|rename|capitals?|uppercase|lowercase|change|make (it|the|this|that|my|them)|set (it|the|this)|put|add|write|insert|type|replace)\b/;
+const EDIT_WORDS = /\b(bigger|larger|smaller|tiny|huge|move|shift|delete|remove|erase|rotate|tilt|curve|curved|straight|vertical|bold|italic|underline|centre|center|align|resize|shrink|enlarge|increase|decrease|reduce|colou?r|font|outline|spacing|duplicate|copy|swap|rename|capitals?|uppercase|lowercase|change|restyle|style|look|make (it|the|this|that|my|them)|set (it|the|this)|put|add|write|insert|type|replace)\b/;
 const STARTS_NEW = /^(make|draw|generate|create|design|give)( me)? (a|an|some|new|another)\b/;
 const act = (a) => ({ act: a });
 // What the assistant can do, shown as soon as it opens (customers cannot guess what to type).
@@ -48,6 +50,7 @@ export const EXAMPLES = [
   { title: "Turn my photo into art", hint: "Cartoon, sketch, sticker and more", say: "Photo to art", needs: "pictures" },
   { title: "Write a slogan", say: "A slogan for my mother", fill: true },
   { title: "Change things by telling me", say: "Make the text gold, curved and a bit bigger", fill: true, needs: "text" },
+  { title: "Style my text for a mood", hint: "Royal, sporty, cute, minimal…", say: "Style it for me", needs: "text" },
   { title: "Start from a ready layout", hint: "Team jersey, birthday, couple tee…", say: "Start from a template" },
   { title: "Check my design before printing", hint: "Blurry pictures, tiny text, colours that won’t show", say: "Check my design" },
 ];
@@ -74,7 +77,8 @@ export function checkMessages(issues, { beforeReview = false } = {}) {
  * @param text  what the customer tapped or typed
  * @param ctx   { areaLabel, teeName, hasDesign, sizes, sizeNow, chart(size), areas: [{ key, label, free }], issues(), inks,
  *                ai: { available, reason, loggedIn, left, styles, photoStyles, text },   text = the text AI is on
- *                photoOnTee }   the address of an uploaded picture on the tee, if any
+ *                photoOnTee,    the address of an uploaded picture on the tee, if any
+ *                hasText }      there is at least one text item on the tee
  * @param st    conversation state (firstState())
  * @param opts  { tapped }  true when the customer tapped a choice instead of typing
  * @returns { out: messages, st: next state }
@@ -144,6 +148,17 @@ export function replyTo(text, ctx, st, { tapped = false } = {}) {
     if (!ai.loggedIn) return done([bot("I can redraw your photo as a cartoon, a sketch or a sticker. Log in first so it is kept for you."), chips(["Log in", "Something else"])]);
     if (ai.left === 0) return done([bot("You’ve used today’s design requests. They reset tomorrow."), chips(["Something else"])]);
     return done([bot("Send me a photo of a person, a pet or anything you like, and I’ll redraw it as art for your tee."), chips(["Upload a photo", ...(ctx.photoOnTee ? ["Use the picture on my tee"] : [])])]);
+  }
+
+  /* ----- the stylist: fonts, colours and shape chosen together for a mood (the text AI) ----- */
+  if (ctx.ai.text && (t === MORE_STYLE || MOODS.includes(t))) {
+    if (!ctx.hasText) return done([bot("Add some text first, then I can style it for you."), chips(["Slogan ideas", "Start from a template"])]);
+    if (t === MORE_STYLE) return done([bot("What mood should the text have? Pick one, or type your own (elegant, spooky, beach…)."), chips(MOODS)]);
+    return done([act({ type: "edit", message: `Restyle all the text on the tee to look ${t.toLowerCase()}` })]);
+  }
+  // sharper / recoloured pictures are done from the picture's own settings
+  if (/\b(blurry|blurred|pixelated|sharper|sharpen|clearer|low quality|recolou?r)\b/.test(low) && !tapped) {
+    return done([bot("Tap the picture on the print area, then press “Make it sharper” or “Recolour for this tee” in its settings.")]);
   }
 
   /* ----- edit the tee by chat (the text AI) -----

@@ -20,7 +20,7 @@ import { uploadFile } from "../utils/imageStorage.js";
 import { cutOutPlainBackground, onPlainBackground } from "../services/cutoutService.js";
 import { aiTextConfigured, planEdit, writeSlogans } from "../services/aiTextService.js";
 import sharp from "sharp";
-import { AI_STYLES, PHOTO_STYLES, aiImageConfigured, aiImageModel, changeDesignPrompt, generateImage, nearestRatio, newDesignPrompt, photoArtPrompt } from "../services/aiImageService.js";
+import { AI_STYLES, PHOTO_STYLES, aiImageConfigured, aiImageModel, changeDesignPrompt, generateImage, nearestRatio, newDesignPrompt, photoArtPrompt, FIX_KINDS, fixPrompt } from "../services/aiImageService.js";
 
 const CATEGORY = "ai";
 const DEFAULTS = {
@@ -117,7 +117,11 @@ export const makeAiDesign = asyncHandler(async (req, res) => {
 
   const changing = Boolean(req.body.baseUrl);
   const fromPhoto = !changing && Boolean(req.body.photoUrl);
-  const text = fromPhoto
+  // fixing a picture that is on the tee: make it sharper, or recolour it for this tee
+  const fixing = !changing && !fromPhoto && Boolean(req.body.fixUrl) && FIX_KINDS.includes(req.body.fixKind);
+  const text = fixing
+    ? (req.body.fixKind === "recolour" ? "Recolour a picture for the tee" : "Make a picture sharper")
+    : fromPhoto
     ? `Photo to art: ${PHOTO_STYLES[req.body.artStyle] ? req.body.artStyle : "Cartoon"}`
     : String((changing ? req.body.change : req.body.subject) || "").replace(/\s+/g, " ").trim().slice(0, 300);
   if (text.length < 3) {
@@ -126,7 +130,16 @@ export const makeAiDesign = asyncHandler(async (req, res) => {
   }
   let jobs;
   const teeName = String(req.body.teeColour || "white").replace(/[^\w \-]/g, "").slice(0, 30) || "white";
-  if (fromPhoto) {
+  if (fixing) {
+    if (!isOurUpload(req.body.fixUrl)) {
+      res.status(400);
+      throw new Error("Upload the picture here first.");
+    }
+    const stored = await fetchOurImage(req.body.fixUrl, req);
+    const dark = Boolean(req.body.teeIsDark);
+    const flat = await sharp(stored.data).rotate().resize(1536, 1536, { fit: "inside", withoutEnlargement: true }).flatten({ background: dark ? "#000000" : "#ffffff" }).jpeg({ quality: 92 }).toBuffer();
+    jobs = [generateImage({ prompt: fixPrompt({ kind: req.body.fixKind, teeColour: teeName, teeIsDark: dark }), image: { data: flat, mime: "image/jpeg" }, ratio: nearestRatio(req.body.ratio) })];
+  } else if (fromPhoto) {
     // a customer's own photo, redrawn as art (two options)
     if (!isOurUpload(req.body.photoUrl)) {
       res.status(400);
@@ -172,7 +185,7 @@ export const makeAiDesign = asyncHandler(async (req, res) => {
 
   await AiUsage.create({
     user: req.user._id,
-    kind: fromPhoto ? "photo" : changing ? "change" : "new",
+    kind: fixing ? "fix" : fromPhoto ? "photo" : changing ? "change" : "new",
     prompt: text,
     style: fromPhoto ? req.body.artStyle : changing ? undefined : req.body.style,
     images: made.length,
