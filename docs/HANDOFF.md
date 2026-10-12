@@ -143,7 +143,9 @@ name and number on each tee.
   assistant list → Review list → player preview on the tee → cart page → print ZIP (file per player looked right).
   **Not tested:** phone layout of the player list, the role buttons' look in the text settings, My designs "Add team to
   cart" button, the admin print window's table (its data was tested), Razorpay path.
-- Known limits: the saved preview pictures show the placeholder name/number, not a player's; one size per player row
+- Review opens on the first player's tee; the four side pictures (and so the saved previews) follow the player being looked at.
+  A warning shows in the list when it has names/numbers but no text on the tee is set to carry them.
+- Known limits: the saved preview pictures show one player only (the one last looked at); one size per player row
   (a player wanting two tees needs two rows).
 
 **`feature-ai-more` — MERGED to `main` on 12 Oct 2026:** Make it sharper / Recolour for this tee (picture settings) and the

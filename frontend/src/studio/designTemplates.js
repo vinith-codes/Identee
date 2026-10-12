@@ -16,8 +16,8 @@ export const TEMPLATES = [
     items: [
       { areas: ["left-chest"], text: "TEAM NAME", cm: 1.6, y: 50 },
       { areas: ["full-back", "centre-back"], text: "TEAM NAME", cm: 4, y: 12 },
-      { areas: ["full-back", "centre-back"], text: "PLAYER", cm: 2.6, y: 32, role: "name" },
-      { areas: ["full-back", "centre-back"], text: "07", cm: 20, y: 66, role: "number" },
+      { areas: ["full-back", "centre-back"], text: "PLAYER", cm: 5, y: 31, role: "name" },
+      { areas: ["full-back", "centre-back"], text: "07", cm: 20, y: 68, role: "number" },
     ],
   },
   {

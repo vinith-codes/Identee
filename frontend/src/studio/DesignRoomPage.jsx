@@ -700,6 +700,7 @@ export default function DesignRoomPage() {
     ai: { ...ai, loggedIn: isLoggedIn() },
     hasText: elements.some((e) => e.type === "text"),
     hasRoles: roles, // a text is marked as the player's name / number (team orders)
+    roles: rolesIn(elements), // { name, number }: which of the two the tee has a place for
     // an uploaded picture on the tee (not library art, not an AI design) — "photo to art" can use it
     photoOnTee: [...elements].reverse().find((e) => e.type === "image" && !e.artDesignId && !aiCuts.current.has(e.src))?.src || null,
   });
@@ -955,7 +956,8 @@ export default function DesignRoomPage() {
     setSpin(true);
     setSideShown(null);
     setQtys((q) => (Object.values(q).some((n) => n > 0) ? q : { [sizeNow]: 1 }));
-    setPreviewId(null);
+    // a team order opens on the first player's tee (their name and number, not the sample text)
+    setPreviewId(teamMode ? players.find(filled)?.id ?? null : null);
     // the reveal: the camera glides in while a folded tee rises, opens in the air and the prints appear
     const calm = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
     setCamRequest({ ...SHOWROOM, ...(calm ? {} : { from: [0, 1.9, 10.5], ms: 2600 }), n: nextReq() });
@@ -979,6 +981,31 @@ export default function DesignRoomPage() {
     for (const [v] of SIDES) out[v] = await cropMockup(api.snapshot(v));
     return out;
   };
+
+  // Review of a team order: the four side pictures follow the player being looked at
+  // (taken again a moment after the last change, so typing a name does not retake them per letter).
+  const previewSig = previewPlayer ? `${previewPlayer.id}|${previewPlayer.name}|${previewPlayer.number}` : "";
+  const firstSig = useRef(previewSig);
+  useEffect(() => {
+    if (step !== "review") {
+      firstSig.current = null; // the pictures taken on entering Review already show this player
+      return undefined;
+    }
+    if (firstSig.current === null) {
+      firstSig.current = previewSig;
+      return undefined;
+    }
+    if (firstSig.current === previewSig) return undefined;
+    firstSig.current = previewSig;
+    let alive = true;
+    const timer = setTimeout(() => {
+      captureMockups().then((m) => alive && m && setShots(SIDES.map(([v, label]) => ({ label, url: m[v] }))));
+    }, 600);
+    return () => {
+      alive = false;
+      clearTimeout(timer);
+    };
+  }, [step, previewSig]);
 
   // Save to My designs. Returns the saved design's id, or null.
   const saveDesign = async ({ name = designName, quiet = false } = {}) => {
@@ -1058,11 +1085,13 @@ export default function DesignRoomPage() {
   // Team order on / off. Turning it on starts the list with the name and number typed on the tee.
   const setTeamOn = (on) => {
     setTeam(on);
-    setPreviewId(null);
     if (on && !players.length) {
       const typed = (role) => (elements.find((e) => e.type === "text" && e.role === role)?.text || "").trim();
-      setPlayers([{ id: makeId(), name: typed("name").slice(0, NAME_MAX), number: typed("number").slice(0, NUMBER_MAX), size: sizeNow }]);
+      const first = { id: makeId(), name: typed("name").slice(0, NAME_MAX), number: typed("number").slice(0, NUMBER_MAX), size: sizeNow };
+      setPlayers([first]);
+      return setPreviewId(first.id);
     }
+    setPreviewId(on ? players.find(filled)?.id ?? null : null);
   };
   // Show one player's tee: their name and number go on the 3D tee, turned to the side they are printed on.
   const showPlayer = (id) => {
@@ -1649,8 +1678,8 @@ function TeamList({ players, setPlayers, sizes, sizeNow, roles, shownId, onShow 
         {players.map((p, i) => (
           <div key={p.id} className={`dr-prow${shownId === p.id ? " on" : ""}`} onFocus={() => onShow(p.id)} onClick={() => onShow(p.id)}>
             <span className="n">{i + 1}</span>
-            {roles.name && <input value={p.name} maxLength={NAME_MAX} placeholder="Name" aria-label={`Player ${i + 1} name`} onChange={(e) => patch(p.id, { name: e.target.value })} />}
-            {roles.number && <input className="num" value={p.number} maxLength={NUMBER_MAX} inputMode="numeric" placeholder="No." aria-label={`Player ${i + 1} number`} onChange={(e) => patch(p.id, { number: e.target.value.replace(/[^0-9]/g, "") })} />}
+            {(roles.name || p.name) && <input value={p.name} maxLength={NAME_MAX} placeholder="Name" aria-label={`Player ${i + 1} name`} onChange={(e) => patch(p.id, { name: e.target.value })} />}
+            {(roles.number || p.number) && <input className="num" value={p.number} maxLength={NUMBER_MAX} inputMode="numeric" placeholder="No." aria-label={`Player ${i + 1} number`} onChange={(e) => patch(p.id, { number: e.target.value.replace(/[^0-9]/g, "") })} />}
             <select value={p.size} aria-label={`Player ${i + 1} size`} onChange={(e) => patch(p.id, { size: e.target.value })}>
               {sizes.map((sz) => <option key={sz}>{sz}</option>)}
             </select>
@@ -1669,6 +1698,13 @@ function TeamList({ players, setPlayers, sizes, sizeNow, roles, shownId, onShow 
             {found.length ? `Add ${found.length} player${found.length === 1 ? "" : "s"}` : "Add players"}
           </button>
         </div>
+      )}
+      {/* a list with names (or numbers) but no text on the tee to carry them */}
+      {!roles.name && players.some((p) => p.name) && (
+        <p className="dr-qnote warn">The names are not printed yet: no text on the tee is set as the player’s name. Press “Edit design”, tap the name text and answer “Does this text change for each player?” with “Yes, the name”.</p>
+      )}
+      {!roles.number && players.some((p) => p.number) && (
+        <p className="dr-qnote warn">The numbers are not printed yet: no text on the tee is set as the player’s number. Press “Edit design”, tap the number text and choose “Yes, the number”.</p>
       )}
       <p className="dr-qnote">Tap a player to see their tee. A long name is made smaller so it fits the print area.</p>
       <p className="dr-qnote">Every size is printed at its own true size from the print guide.</p>

@@ -101,10 +101,13 @@ export function replyTo(text, ctx, st, { tapped = false } = {}) {
     if (!ctx.hasRoles) {
       return done([bot("That looks like a team list. First the tee needs a place for the name and the number: start with the Team jersey layout, then send me the list again."), chips(["Team jersey"])]);
     }
+    // the list has names (or numbers) but the tee has no text set to carry them
+    const lacks = [!ctx.roles?.name && "name", !ctx.roles?.number && "number"].filter(Boolean);
+    const missing = lacks.length && ctx.roles ? ` Note: no text on the tee is set as the player’s ${lacks[0]}, so the ${lacks[0]}s won’t be printed. Tap that text and answer “Does this text change for each player?” with Yes.` : "";
     const names = list.slice(0, 4).map((p) => `${playerLabel(p)} (${p.size})`).join(", ");
     return done([
       act({ type: "players", players: list }),
-      bot(`Done. ${list.length} players, one tee each: ${names}${list.length > 4 ? " and more" : ""}. In Review, tap a player to see their tee.`),
+      bot(`Done. ${list.length} players, one tee each: ${names}${list.length > 4 ? " and more" : ""}. In Review, tap a player to see their tee.${missing}`),
       chips(["Continue to review", "Check my design"]),
     ]);
   }
