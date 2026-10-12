@@ -119,6 +119,13 @@ for dark tee colours (`dark` in `Boutique`), the arch dimmed to a glow, lamps ov
 - Not yet tested with the real picture AI: photo to art, the whole-tee sentence, 'change it', styles other than Bold mascot.
 - `@imgly/background-removal-node` (AGPL) is still in `server/package.json` from earlier work; check whether anything uses it.
 
+**Asked last, not built yet — making the AI features easy to find** (user: "how does the user know these AI features are here?").
+Proposed, in order: (1) a Home-page section "Design with AI" with 3 examples and a button into the room with the assistant open;
+(2) an "AI" badge + one line on the Customizable card/page; (3) the assistant's first message lists what it can do with
+tap-able examples (make a design, photo to art, slogans, edit by chat, whole tee in a sentence); (4) hints inside the manual
+tools — under the Step 2 tabs "or ask the Assistant", and after an upload "Turn this into art" / "Remove background";
+(5) a one-time tip pointing at the Assistant button on the first visit. Wait for the user's go-ahead.
+
 **Next:** policy pages (Privacy, Returns & refunds, Shipping, Terms — required by Razorpay for live payments; need the
 client's rules), Payments / Sellers admin pages; go-live items (Brevo email, deployment,
 Razorpay live keys). Gotcha: the C: drive is nearly full — keep throwaway test databases on E:.
