@@ -127,19 +127,21 @@ export async function buildPrintPack(pack, onStep = () => {}) {
 
     // pictures (originals) and fonts must be ready before drawing
     onStep(done, total, `Loading pictures for “${title}”…`);
-    const srcs = imageSrcs(d.elements);
+    // a picture the admin had enlarged for printing is used in place of the small one the customer chose
+    const elements = d.elements.map((e) => (e.type === "image" && e.printSrc ? { ...e, src: e.printSrc } : e));
+    const srcs = imageSrcs(elements);
     const failed = [];
     await Promise.all(srcs.map((s) => loadImage(s, { full: true }).catch(() => failed.push(s))));
     if (failed.length) {
       throw new Error(`${failed.length} picture${failed.length === 1 ? "" : "s"} in “${title}” couldn't be loaded, so its print files would be wrong. Check the internet connection and try again.`);
     }
-    const missingFonts = await fontsReady(d.elements);
+    const missingFonts = await fontsReady(elements);
     if (missingFonts.length) {
       throw new Error(`The font${missingFonts.length === 1 ? "" : "s"} ${missingFonts.join(", ")} didn't load, so the text would print in the wrong font. Try again.`);
     }
 
     for (const area of d.areas) {
-      const els = d.elements.filter((e) => e.position === area.key).map((e, n) => ({ ...e, id: e.id ?? `${area.key}-${n}` }));
+      const els = elements.filter((e) => e.position === area.key).map((e, n) => ({ ...e, id: e.id ?? `${area.key}-${n}` }));
       for (const f of area.files) {
         const [w, h] = f.cm;
         // a player's own file: their name and number in place of the marked texts
@@ -163,7 +165,7 @@ export async function buildPrintPack(pack, onStep = () => {}) {
         }
       }
     }
-    const texts = d.elements.filter((e) => e.type === "text");
+    const texts = elements.filter((e) => e.type === "text");
     if (texts.length) sheet.push(`   Text: ${texts.map((e) => `${d.players?.length && e.role ? `[each player's ${e.role}]` : `“${e.text}”`} (${e.fontFamily}, ${e.color})`).join("; ")}`);
 
     // the customer's preview pictures, to check the print against

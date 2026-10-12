@@ -4,15 +4,136 @@
 // as a ZIP for the print team (made in this browser — studio/printFiles.js).
 import { useEffect, useState } from "react";
 import customizationService from "../../services/customizationService";
+import aiService from "../../services/aiService";
+import { imageUrl } from "../../utils/imageUrl";
 import { THEME, labelStyle } from "../../theme/theme";
 
 const SIDES = ["front", "back", "left", "right"];
+const GOOD_DPI = 250; // close enough to 300 that enlarging adds nothing worth paying for
+const LOW_DPI = 150; // below this a picture may print blurry
+const full = (src) => (/^https?:\/\//.test(src) ? src : imageUrl(src));
+
+// The pictures in one ordered design, each with how sharp it will print (dots per inch at its real print
+// size) and a button to have a large copy made for printing. One row per picture.
+function PrintPictures({ design, price, onChanged }) {
+  const [sizes, setSizes] = useState({}); // src -> pixel width of the file
+  const [busy, setBusy] = useState(null); // index being enlarged
+  const [error, setError] = useState("");
+  const rows = design.elements.map((el, index) => ({ el, index })).filter(({ el }) => el.type === "image" && el.src);
+  if (!rows.length) return null;
+
+  const enlarge = async (index) => {
+    setError("");
+    setBusy(index);
+    try {
+      const res = await aiService.printPicture({ designId: design._id, index });
+      onChanged(index, res.printSrc);
+    } catch (err) {
+      setError(err.response?.data?.message || "The picture could not be enlarged. Please try again.");
+    } finally {
+      setBusy(null);
+    }
+  };
+  const printOriginal = async (index) => {
+    setError("");
+    try {
+      await aiService.dropPrintPicture({ designId: design._id, index });
+      onChanged(index, null);
+    } catch (err) {
+      setError(err.response?.data?.message || "Could not switch back to the original.");
+    }
+  };
+
+  return (
+    <div style={{ marginTop: 14 }}>
+      <p style={{ ...labelStyle, margin: "0 0 6px" }}>Pictures · how sharp they will print</p>
+      {rows.map(({ el, index }) => {
+        const area = design.areas.find((a) => a.key === el.position);
+        // the largest size this area is printed at in this order
+        const cmWide = Math.max(0, ...(area?.files || []).map((f) => f.cm[0]));
+        const printCm = ((el.width || 0) / 100) * cmWide;
+        const shown = el.printSrc || el.src;
+        const px = sizes[shown];
+        const dpi = px && printCm ? Math.round(px / (printCm / 2.54)) : null;
+        const tone = dpi == null ? THEME.textMuted : dpi >= GOOD_DPI ? "#24522F" : dpi >= LOW_DPI ? "#7A5B12" : THEME.danger;
+        const word = dpi == null ? "measuring…" : dpi >= GOOD_DPI ? "sharp" : dpi >= LOW_DPI ? "acceptable" : "low, may print soft";
+        return (
+          <div key={index} style={{ display: "flex", gap: 12, alignItems: "center", padding: "8px 0", borderTop: `1px solid ${THEME.border}`, flexWrap: "wrap" }}>
+            <a href={full(shown)} target="_blank" rel="noreferrer" title="Open the picture that will be printed">
+              <img
+                src={full(shown)}
+                alt=""
+                loading="lazy"
+                onLoad={(e) => {
+                  const w = e.currentTarget.naturalWidth;
+                  setSizes((s) => (s[shown] === w ? s : { ...s, [shown]: w }));
+                }}
+                style={{ width: 56, height: 56, objectFit: "contain", borderRadius: 8, background: design.colour.hex || THEME.surface2, border: `1px solid ${THEME.border}` }}
+              />
+            </a>
+            <div style={{ flex: "1 1 220px", minWidth: 0, fontSize: 13 }}>
+              <b>{area?.label || el.position}</b>
+              <span style={{ color: THEME.textMuted }}> · {printCm ? `${printCm.toFixed(1)} cm wide` : "size unknown"}</span>
+              <div style={{ color: tone, fontWeight: 600, fontVariantNumeric: "tabular-nums" }}>
+                {dpi != null ? `${dpi} DPI — ${word}` : word}
+                {el.printSrc && <span style={{ color: "#24522F" }}> · enlarged ✓</span>}
+              </div>
+              {el.printSrc && (
+                <div style={{ fontSize: 12.5, color: THEME.textMuted }}>
+                  Compare before printing:{" "}
+                  <a href={full(el.src)} target="_blank" rel="noreferrer" style={{ color: THEME.goldDeep, fontWeight: 700 }}>the customer’s original</a>
+                  {" · "}
+                  <a href={full(el.printSrc)} target="_blank" rel="noreferrer" style={{ color: THEME.goldDeep, fontWeight: 700 }}>the enlarged copy</a>
+                </div>
+              )}
+            </div>
+            {busy === index ? (
+              <span style={{ fontSize: 13, color: THEME.textMuted }}>Enlarging… about half a minute</span>
+            ) : el.printSrc ? (
+              <button type="button" onClick={() => printOriginal(index)} disabled={busy != null} style={{ background: "none", border: `1px solid ${THEME.border}`, borderRadius: 9, padding: "7px 12px", fontSize: 12.5, fontWeight: 700, cursor: "pointer", color: THEME.text }}>
+                Print the original instead
+              </button>
+            ) : (
+              dpi != null &&
+              dpi < GOOD_DPI && (
+                <button type="button" onClick={() => enlarge(index)} disabled={busy != null} style={{ background: THEME.ink, color: "#fff", border: "none", borderRadius: 9, padding: "8px 14px", fontSize: 12.5, fontWeight: 700, cursor: busy != null ? "not-allowed" : "pointer", opacity: busy != null ? 0.5 : 1 }}>
+                  Enlarge for print{price ? ` · about ₹${price}` : ""}
+                </button>
+              )
+            )}
+          </div>
+        );
+      })}
+      {error && <p style={{ margin: "6px 0 0", color: THEME.danger, fontSize: 13, fontWeight: 600 }}>{error}</p>}
+      <p style={{ margin: "6px 0 0", fontSize: 12, color: THEME.textMuted }}>
+        300 DPI is ideal; 150 or more is usually fine on fabric. Enlarging has the picture redrawn about four times larger by the AI — always compare it with the original before printing.
+      </p>
+    </div>
+  );
+}
 
 export default function OrderDesignsModal({ orderId, onClose }) {
   const [pack, setPack] = useState(null);
   const [error, setError] = useState("");
   const [progress, setProgress] = useState(null); // { done, total, label }
   const [result, setResult] = useState(null); // { fileName, warnings }
+  const [printPrice, setPrintPrice] = useState(null); // what one "Enlarge for print" costs, about 3 normal AI pictures
+  useEffect(() => {
+    let alive = true;
+    aiService
+      .getAdmin()
+      .then((a) => alive && a?.configured && setPrintPrice(Math.round((a.settings?.pricePerImageInr || 0) * 3) || null))
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, []);
+  // a picture was enlarged (or switched back): show it, and the next download uses it
+  const pictureChanged = (designId, index, printSrc) =>
+    setPack((p) => ({
+      ...p,
+      designs: p.designs.map((d) => (d._id === designId ? { ...d, elements: d.elements.map((e, n) => (n === index ? { ...e, printSrc: printSrc || undefined } : e)) } : d)),
+    }));
 
   useEffect(() => {
     let alive = true;
@@ -142,6 +263,7 @@ export default function OrderDesignsModal({ orderId, onClose }) {
                 </table>
               </div>
             )}
+            {d.layoutVersion === 2 && <PrintPictures design={d} price={printPrice} onChanged={(index, src) => pictureChanged(d._id, index, src)} />}
           </section>
         ))}
         {pack?.designs.some((d) => d.missing) && <p style={{ color: THEME.danger, fontSize: 13 }}>A design in this order no longer exists.</p>}

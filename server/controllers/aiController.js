@@ -14,13 +14,16 @@
 // may refuse some requests. The Review step tells the customer that ordering
 // means they have the right to print the design.
 import asyncHandler from "express-async-handler";
+import mongoose from "mongoose";
 import Setting from "../models/settingModel.js";
 import AiUsage from "../models/aiUsageModel.js";
-import { uploadFile } from "../utils/imageStorage.js";
+import Customization from "../models/customizationModel.js";
+import GarmentType from "../models/garmentTypeModel.js";
+import { uploadFile, deleteStoredFile } from "../utils/imageStorage.js";
 import { cutOutPlainBackground, onPlainBackground } from "../services/cutoutService.js";
 import { aiTextConfigured, planEdit, writeSlogans } from "../services/aiTextService.js";
 import sharp from "sharp";
-import { AI_STYLES, PHOTO_STYLES, aiImageConfigured, aiImageModel, changeDesignPrompt, generateImage, nearestRatio, newDesignPrompt, photoArtPrompt, FIX_KINDS, fixPrompt } from "../services/aiImageService.js";
+import { AI_STYLES, PHOTO_STYLES, aiImageConfigured, aiImageModel, changeDesignPrompt, generateImage, nearestRatio, newDesignPrompt, photoArtPrompt, FIX_KINDS, fixPrompt, printPrompt, RATIO_VALUES } from "../services/aiImageService.js";
 
 const CATEGORY = "ai";
 const DEFAULTS = {
@@ -301,4 +304,119 @@ export const saveAiAdmin = asyncHandler(async (req, res) => {
     );
   }
   res.json({ settings: await readSettings() });
+});
+
+/* ---------- admin: a large copy of an ordered picture, for printing ---------- */
+// A design is chosen at the small size (fast, cheap). What is printed needs about 300 dots per inch, so
+// after the order the admin can have a picture enlarged to about 4,000 px. It costs about 3× a normal
+// picture, and only for tees that were sold. The admin compares it with the original before printing,
+// because an image AI redraws what it enlarges.
+const PRINT_COST_FACTOR = 3;
+const isDarkHex = (hex) => {
+  const m = /^#?([0-9a-f]{6})$/i.exec(String(hex || ""));
+  if (!m) return false;
+  const n = parseInt(m[1], 16);
+  return (0.2126 * ((n >> 16) & 255) + 0.7152 * ((n >> 8) & 255) + 0.0722 * (n & 255)) / 255 < 0.55;
+};
+async function orderedPicture(req) {
+  const { designId, index } = req.body;
+  if (!mongoose.isValidObjectId(designId)) throw Object.assign(new Error("Design not found"), { status: 404 });
+  const design = await Customization.findById(designId);
+  const el = design?.elements?.[Number(index)];
+  if (!design || !el || el.type !== "image" || !el.src) throw Object.assign(new Error("That picture is not in this design."), { status: 404 });
+  return { design, el };
+}
+
+// POST /api/ai/admin/print-picture  { designId, index }  ->  { printSrc, width, height, costInr }
+export const makePrintPicture = asyncHandler(async (req, res) => {
+  const settings = await readSettings();
+  if (!aiImageConfigured()) {
+    res.status(503);
+    throw new Error("The picture service is not set up.");
+  }
+  if (settings.monthlyCapInr > 0 && (await monthSpend()).cost >= settings.monthlyCapInr) {
+    res.status(503);
+    throw new Error("This month's AI budget is used up. Raise it in Settings → AI designs to enlarge more pictures.");
+  }
+  let found;
+  try {
+    found = await orderedPicture(req);
+  } catch (err) {
+    res.status(err.status || 500);
+    throw err;
+  }
+  const { design, el } = found;
+  if (!isOurUpload(el.src)) {
+    res.status(400);
+    throw new Error("This picture is not stored with us, so it can't be enlarged.");
+  }
+  const garment = await GarmentType.findOne({ key: design.garmentType }).lean();
+  const dark = isDarkHex(garment?.colors?.find((c) => c.slug === design.color)?.hex);
+  const stored = await fetchOurImage(el.src, req);
+  const meta = await sharp(stored.data).rotate().metadata();
+  const hasAlpha = Boolean(meta.hasAlpha) && !(await sharp(stored.data).stats()).isOpaque;
+  const aiCut = /\/ai-designs\//.test(el.src); // made by the design maker: it was cut out of a plain background
+  const bg = dark ? "#000000" : "#ffffff";
+
+  // The AI only makes a few picture shapes. The picture is put on a sheet of the nearest shape (never
+  // squeezed), enlarged, and the same part is cut back out — so it keeps its own shape exactly.
+  const shape = meta.width / meta.height;
+  const [ratio, r] = Object.entries(RATIO_VALUES).sort((a, b) => Math.abs(Math.log(a[1] / shape)) - Math.abs(Math.log(b[1] / shape)))[0];
+  const sheetW = r >= shape ? Math.round(meta.height * r) : meta.width;
+  const sheetH = r >= shape ? meta.height : Math.round(meta.width / r);
+  const small = await sharp(stored.data)
+    .rotate()
+    .flatten({ background: bg })
+    .resize(sheetW, sheetH, { fit: "contain", background: bg })
+    .resize(1536, 1536, { fit: "inside", withoutEnlargement: true })
+    .jpeg({ quality: 95 })
+    .toBuffer();
+
+  const out = await generateImage({ prompt: printPrompt({ dark, plain: hasAlpha }), image: { data: small, mime: "image/jpeg" }, ratio, size: "4K" });
+  const big = await sharp(out.buffer).metadata();
+  const keepW = Math.min(big.width, Math.round((big.width * meta.width) / sheetW));
+  const keepH = Math.min(big.height, Math.round((big.height * meta.height) / sheetH));
+  let picture = await sharp(out.buffer)
+    .extract({ left: Math.floor((big.width - keepW) / 2), top: Math.floor((big.height - keepH) / 2), width: keepW, height: keepH })
+    .png()
+    .toBuffer();
+
+  if (aiCut) {
+    // same as when the design was first made: clear the plain background it was drawn on
+    picture = (await cutOutPlainBackground(picture)).buffer;
+  } else if (hasAlpha) {
+    // the customer's own see-through picture: keep exactly its own outline (enlarged), so nothing inside it is cleared
+    const alpha = await sharp(stored.data).rotate().ensureAlpha().extractChannel("alpha").resize(keepW, keepH, { kernel: "lanczos3" }).toBuffer();
+    // (in two steps: asked for together, the old alpha is dropped AFTER the new one is joined, losing both)
+    const colour = await sharp(picture).removeAlpha().png().toBuffer();
+    picture = await sharp(colour).joinChannel(alpha).png().toBuffer();
+  }
+  // near-lossless WebP: a 4,000 px PNG can be larger than the picture store accepts
+  const webp = await sharp(picture).webp({ quality: 96, alphaQuality: 100, effort: 4 }).toBuffer();
+  const { url } = await uploadFile(webp, "image/webp", "print-pictures", "print.webp");
+
+  const old = el.printSrc;
+  el.printSrc = url;
+  await design.save();
+  if (old && old !== url) await deleteStoredFile(old).catch(() => {});
+  const costInr = Math.round(settings.pricePerImageInr * PRINT_COST_FACTOR * 100) / 100;
+  await AiUsage.create({ user: req.user._id, kind: "print", prompt: `Enlarge for print (design ${design._id}, picture ${Number(req.body.index) + 1})`, images: 1, costInr, model: aiImageModel() });
+  res.status(201).json({ printSrc: url, width: keepW, height: keepH, costInr });
+});
+
+// DELETE /api/ai/admin/print-picture  { designId, index }  — print the original again
+export const dropPrintPicture = asyncHandler(async (req, res) => {
+  let found;
+  try {
+    found = await orderedPicture(req);
+  } catch (err) {
+    res.status(err.status || 500);
+    throw err;
+  }
+  const { design, el } = found;
+  const old = el.printSrc;
+  el.printSrc = undefined;
+  await design.save();
+  if (old) await deleteStoredFile(old).catch(() => {});
+  res.json({ printSrc: null });
 });

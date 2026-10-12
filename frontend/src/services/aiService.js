@@ -30,4 +30,10 @@ const edit = async (body) => (await axios.post(`${API_URL}/edit`, body, { timeou
 const getAdmin = async () => (await axios.get(`${API_URL}/admin`, auth())).data;
 const saveAdmin = async (values) => (await axios.put(`${API_URL}/admin`, values, auth())).data;
 
-export default { status, design, slogans, edit, getAdmin, saveAdmin };
+// admin, order print files: a large copy of an ordered picture for printing ({ designId, index } = which picture)
+// -> { printSrc, width, height, costInr }. Takes about half a minute and costs about 3 normal pictures.
+const printPicture = async (body) => (await axios.post(`${API_URL}/admin/print-picture`, body, { ...auth(), timeout: 180000 })).data;
+// print the original again
+const dropPrintPicture = async (body) => (await axios.delete(`${API_URL}/admin/print-picture`, { ...auth(), data: body })).data;
+
+export default { status, design, slogans, edit, getAdmin, saveAdmin, printPicture, dropPrintPicture };

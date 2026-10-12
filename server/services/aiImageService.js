@@ -89,6 +89,20 @@ export const fixPrompt = ({ kind, teeColour, teeIsDark }) =>
     ? `Recolour this design so it stands out clearly when printed on a ${teeColour} t-shirt. Keep exactly the same drawing, shapes, words and layout; change only the colours (for example dark lines become light on a dark t-shirt). The background must be flat pure ${teeIsDark ? "black" : "white"} and nothing else. Do not add a t-shirt, a frame or a watermark.`
     : `Redraw this exact image as clean, sharp, high-resolution artwork ready for printing. Keep the same design, shapes, colours, words and layout exactly as they are; only remove blur, noise, pixel blocks and jagged edges. Spell any words exactly as in the image. The background must be flat pure ${teeIsDark ? "black" : "white"} and nothing else. Do not add a t-shirt, a frame or a watermark.`;
 
+// Enlarging a picture for printing: more pixels and clean edges, nothing else changed.
+// (An image AI redraws what it enlarges, so the wording is all about what must stay the same.)
+export const printPrompt = ({ dark, plain }) =>
+  [
+    "Task: high-fidelity print upscaling only. Not restoration, not stylisation.",
+    "Keep completely unchanged: all colours, tone and contrast; every object, subject, pose and the composition exactly as positioned; all text, lettering, letter spacing and weight exactly as shown; any grain or texture; the picture's shape.",
+    "Enhance only: increase resolution and sharpness so fine details and edges are crisp with no pixelation; remove only compression blocks and jagged pixel edges.",
+    plain ? `The background must stay flat pure ${dark ? "black" : "white"} and nothing else.` : "",
+    "Strict negatives: no style change, no colour change, no re-lighting, no new objects, no change to faces or subjects, no redrawn or changed text, no cropping, no watermark, no frame, no t-shirt.",
+  ]
+    .filter(Boolean)
+    .join(" ");
+export const RATIO_VALUES = { "1:1": 1, "4:5": 0.8, "5:4": 1.25, "3:4": 0.75, "4:3": 4 / 3, "2:3": 2 / 3, "3:2": 1.5, "9:16": 9 / 16, "16:9": 16 / 9 };
+
 // Picture shapes the AI offers; the closest to the print area is used.
 const RATIOS = { "1:1": 1, "4:5": 0.8, "5:4": 1.25, "3:4": 0.75, "4:3": 4 / 3, "2:3": 2 / 3, "3:2": 1.5, "9:16": 9 / 16, "16:9": 16 / 9 };
 export const nearestRatio = (wOverH) => {
@@ -135,9 +149,10 @@ function findImage(node, depth = 0) {
  * @param prompt  the full instruction
  * @param image   optional { data: Buffer, mime } — a picture to change
  * @param ratio   e.g. "1:1"
+ * @param size    "1K" (about 1,000 px, for choosing a design) or "4K" (about 4,000 px, for printing; costs about 3× as much)
  * @returns { buffer, mime }
  */
-export async function generateImage({ prompt, image, ratio = "1:1" }) {
+export async function generateImage({ prompt, image, ratio = "1:1", size = "1K" }) {
   if (mock()) return { buffer: mockPng(prompt + (image ? "changed" : "")), mime: "image/png" };
   const key = apiKey();
   if (!key) throw Object.assign(new Error("The design maker is not set up yet."), { status: 503 });
@@ -152,7 +167,7 @@ export async function generateImage({ prompt, image, ratio = "1:1" }) {
     res = await fetch(ENDPOINT, {
       method: "POST",
       headers: { "x-goog-api-key": key, "Content-Type": "application/json" },
-      body: JSON.stringify({ model: aiImageModel(), input, response_format: { type: "image", mime_type: "image/jpeg", aspect_ratio: ratio, image_size: "1K" } }),
+      body: JSON.stringify({ model: aiImageModel(), input, response_format: { type: "image", mime_type: "image/jpeg", aspect_ratio: ratio, image_size: size === "4K" ? "4K" : "1K" } }),
       signal: ctrl.signal,
     });
   } catch (err) {

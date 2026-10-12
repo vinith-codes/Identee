@@ -20,6 +20,9 @@ const elementSchema = new mongoose.Schema(
 
     // image elements
     src: { type: String }, // Cloudinary URL (or legacy uploads/ path)
+    // A large copy of the picture for printing (about 4,000 px), made by the admin from an order's
+    // print-files window ("Enlarge for print"). The print files use it in place of src.
+    printSrc: { type: String },
     artDesignId: { type: mongoose.Schema.Types.ObjectId, ref: "ArtDesign" },
 
     // text elements

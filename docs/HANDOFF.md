@@ -122,6 +122,23 @@ for dark tee colours (`dark` in `Boutique`), the arch dimmed to a glow, lamps ov
 **`feature-assistant-examples` — MERGED to `main` on 12 Oct 2026:** the assistant opens with a list of what it can do
 (`EXAMPLES` in `assistantScript.js`): tap-able examples that fill the message box or start the feature; "What can you do?" shows it again.
 
+**`feature-print-enlarge` — built 12 Oct 2026, pushed, waiting for the user's "merge":** pictures at print quality (the user
+wants 300 DPI). AI designs are made at the picture service's 1K size (~1,000 px): about 90 DPI on Centre Front, 70 on Full Back.
+- **Admin → Orders → Designs & print files** now lists each picture in an ordered design with its real DPI at print size
+  (`PrintPictures` in `OrderDesignsModal.jsx`) and, when it is under 250 DPI, an **Enlarge for print** button.
+- `POST /api/ai/admin/print-picture { designId, index }` (`makePrintPicture` in `aiController.js`): the picture goes to the
+  picture service at its **4K** size (`generateImage({ size: "4K" })`, `printPrompt`), is put on a sheet of the nearest allowed
+  shape and cut back so it keeps its own shape, gets its background cleared (AI designs: `cutOutPlainBackground`; a customer's
+  see-through picture keeps its own outline), is stored as near-lossless WebP in `identee/print-pictures`, and saved on the
+  ordered design as `element.printSrc`. `DELETE` on the same address goes back to the original. Counted as 3 pictures of spend
+  (`PRINT_COST_FACTOR`, kind `print` in AiUsage). The print files use `printSrc` when it exists (`printFiles.js`).
+- **One paid test (user approved):** a 1,024 px AI design came back 4,096 × 4,096 in 35 s — same drawing and lettering, clean
+  edges; after cut-out 2.5 MB as WebP (a PNG would be 15.9 MB). 4,096 px = 372 DPI at 28 cm, 274 DPI at 38 cm, ~200 DPI at 52 cm.
+- 8 API checks passed on a throwaway DB with the stand-in picture; the admin window was clicked through there too.
+- **NOT tested:** the whole flow with the real picture service and Cloudinary (it would write to the shared DB and cost ~₹11);
+  a customer's photo or see-through logo with the real service; the exact price of a 4K picture (check Google's spend page —
+  the ×3 is an estimate from the tokens used). Ask the print team whether 200–275 DPI is fine for the largest areas.
+
 **`fix-colour-on-reload` — MERGED to `main` on 12 Oct 2026:** "Start designing" opens the room with
 `?new=1&color=<slug>`; only `new` was removed from the address, so on a reload the leftover `color` won over the colour the
 customer had picked. Now `color` is removed too, and a design in progress keeps its own colour (the address colour only
