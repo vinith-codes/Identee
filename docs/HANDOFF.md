@@ -140,6 +140,14 @@ agreed to).
   row, and a used area's card shows the tee in its colour with the real design on it and a tick (`printThumb` in `konvaRender.js`).
 - **Quick tool bar** above the tee for the selected item: smaller, bigger, Centre, Copy, To front, Delete (`.dr-quickbar`,
   `resizeSel` / `centreSel`). The full settings stay in the right panel.
+- **Bolder pass (same branch):** the first screen is a shop window — card on the left, the tee turning on its stand beside
+  it and changing colour live (`showcase`; the 3D picture is slid right with CSS `.dr-stage[data-fit] .dr-room`, the camera
+  pushes in). Stepping in: the tee does one full turn (`twirlKey`, also on a colour change in the room), panels glide in.
+  On a computer the room is three rounded cards on a soft ground (panel · stage · panel) with a gold hairline under the top
+  bar; prints fade in when first placed; the main buttons have a slow sheen; the start cards moved above the tee.
+- **Fixed on the way:** the tee model has an outer and an inner fabric layer — a tap on the front reached a BACK print's inner
+  layer and opened Full Back. Prints now use the outer layer only (`keepFacing` for flat areas), react only from their own side,
+  and a tap ends on the tee. Front/back for picking goes by the viewing side, not the fabric's direction.
 - Checked in the browser on a computer: hover/tap on the tee (Centre Front, Left Chest, Vertical Front), card hover turning
   the tee to the back, opening an area, adding text, Review and its four side pictures (clean). **Not checked:** phones,
   dragging speed with the new studio on a slow computer, the pop itself (too quick to catch in a screenshot).

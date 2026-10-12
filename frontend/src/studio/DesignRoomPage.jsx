@@ -166,7 +166,13 @@ export default function DesignRoomPage() {
   const [live, setLive] = useState(null); // { key, elements } while dragging
   const [textures, setTextures] = useState({}); // key -> { canvas, version }
   // returning to a saved design starts at the front view; new visits fly in after the fitting step
-  const [camRequest, setCamRequest] = useState(() => (draft?.elements?.length ? { view: "front", ms: 1600, n: nextReq() } : null));
+  // The first screen is a shop window: the card sits on the left and the tee turns on its stand to the right of it
+  // (the 3D picture itself is slid to the right in designRoom.css, and slides back on stepping in).
+  const SHOWCASE = { position: [0, 0.4, 5.2], ms: 1600 }; // a slow push-in as the page opens
+  const [camRequest, setCamRequest] = useState(() =>
+    draft?.elements?.length ? { view: "front", ms: 1600, n: nextReq() } : typeof window !== "undefined" && window.innerWidth >= 900 ? { ...SHOWCASE, n: nextReq() } : null,
+  );
+  const [twirlKey, setTwirlKey] = useState(0); // goes up to make the tee do one full turn
   const [shots, setShots] = useState(null);
   const [spin, setSpin] = useState(true);
   const [lit, setLit] = useState(false); // Review: the dressing room has been drawn, so its lights can come up
@@ -652,6 +658,7 @@ export default function DesignRoomPage() {
   // change tee colour; warn when some text would be hard to see on it
   const changeColour = (slug) => {
     setColourSlug(slug);
+    if (slug !== colour?.slug && step === "design" && !active) setTwirlKey((k) => k + 1); // the tee turns once in its new colour
     const hex = colours.find((c) => c.slug === slug)?.hex;
     const faint = elements.filter((e) => e.type === "text" && Math.abs(lum(e.color) - lum(hex)) < 0.25);
     if (faint.length) say(`${faint.length === 1 ? "One text" : `${faint.length} texts`} may be hard to see on ${colours.find((c) => c.slug === slug)?.name}. Pick a different ink colour for ${faint.length === 1 ? "it" : "them"}.`);
@@ -735,6 +742,7 @@ export default function DesignRoomPage() {
     writeJSON(SIZE_KEY, sizeNow);
     setStep("design");
     setCamRequest({ view: "front", ms: 1800, n: nextReq() });
+    setTwirlKey((k) => k + 1);
   };
   /* ---------- the design assistant ---------- */
   const designIssues = () => checkDesign(elements, positions, { fabricHex, inkDefault, cmOf: (pos) => areaPx(pos) });
@@ -1323,7 +1331,7 @@ export default function DesignRoomPage() {
         )}
       </header>
 
-      <main className="dr-stage" data-editing={step === "design" && active ? "1" : undefined}>
+      <main className="dr-stage" data-editing={step === "design" && active ? "1" : undefined} data-fit={step === "fit" ? "1" : undefined}>
         {step === "design" && (
           <aside className={`dr-side${areasOpen ? " open" : ""}`} aria-label="Where to print" onMouseLeave={() => { hoverCam.current.side = null; }}>
             <header>
@@ -1425,6 +1433,8 @@ export default function DesignRoomPage() {
                   if (side) setAreaTab(groupOfSide(side)); // the list shows the side being pointed at
                 }}
                 popKey={popKey}
+                showcase={step === "fit"}
+                twirlKey={twirlKey}
                 room={step === "review" ? "boutique" : "studio"}
                 spin={spin}
                 face={sideShown}
@@ -1841,7 +1851,7 @@ function TeamList({ players, setPlayers, sizes, sizeNow, roles, shownId, onShow 
 
 function Fitting({ garment, colours, colour, onColour, sizes, size, onSize, onEnter, onAssistant, credit, earlier, onContinue }) {
   return (
-    <div className="dr-overlay">
+    <div className="dr-overlay fit">
       <div className="dr-fit">
         {earlier && (
           <div className="dr-resume">

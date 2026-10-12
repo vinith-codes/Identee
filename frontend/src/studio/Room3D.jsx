@@ -737,8 +737,10 @@ function AreaGlow({ probe, spot }) {
 function Decal({ probe, spot, canvas, version, areaKey, onPick, interactive, order }) {
   const texRef = useRef(null);
   const matRef = useRef(null);
-  useFrame(() => {
-    if (matRef.current) matRef.current.opacity = printShown(order);
+  const age = useRef(0); // seconds this print has been on the tee: it fades in when first placed
+  useFrame((_, dt) => {
+    age.current += Math.min(dt, 0.05);
+    if (matRef.current) matRef.current.opacity = printShown(order) * Math.min(1, age.current / 0.4);
   });
   const geometry = spot || null;
   const built = useMemo(() => pressOn(probe, geometry), [geometry, probe]);
@@ -773,8 +775,10 @@ function Decal({ probe, spot, canvas, version, areaKey, onPick, interactive, ord
   );
 }
 
-function Tee({ model, colour, areas, onPickArea, interactive, still, spotsRef, turntable, spin, face, spinSpeed, unfoldKey, onLit, hotspots, glowKey, activeKey, onHoverArea, popKey }) {
+function Tee({ model, colour, areas, onPickArea, interactive, still, spotsRef, turntable, spin, face, spinSpeed, unfoldKey, onLit, hotspots, glowKey, activeKey, onHoverArea, popKey, showcase, twirlKey }) {
   const { geo, probe, map, normalMap } = useTeeGeometry(model.url);
+  // a full turn that eases out: on stepping into the room and when the tee's colour is changed there
+  const twirl = useRef({ key: twirlKey, t: 9, from: 0 });
   const group = useRef();
   const mesh = useRef();
   const mat = useRef();
@@ -900,8 +904,28 @@ function Tee({ model, colour, areas, onPickArea, interactive, still, spotsRef, t
       g.rotation.y += speed.current * Math.min(dt, 0.05);
     } else {
       speed.current = 0;
-      // design room: the tee sways a little and leans towards the pointer, so it feels alive
-      towards(turntable ? FACE[face] ?? 0 : (Math.sin(t / 3.2) * 0.06 + state.pointer.x * 0.1) * k, turntable ? 0.07 : 0.1);
+      const tw = twirl.current;
+      if (tw.key !== twirlKey) {
+        tw.key = twirlKey;
+        if (!still && !turntable) {
+          tw.t = 0;
+          tw.from = Math.atan2(Math.sin(g.rotation.y), Math.cos(g.rotation.y)); // where it is now, as an angle near zero
+        }
+      }
+      const TWIRL = 1.25;
+      if (!turntable && showcase) {
+        // first screen: the tee turns slowly on its stand, like in a shop window
+        g.rotation.y += 0.45 * Math.min(dt, 0.05);
+      } else if (!turntable && tw.t < TWIRL) {
+        tw.t += Math.min(dt, 0.05);
+        const x = Math.min(1, tw.t / TWIRL);
+        const ease = 1 - Math.pow(1 - x, 4);
+        g.rotation.y = tw.from + (Math.PI * 2 - tw.from) * ease; // ends facing the front
+        if (x >= 1) g.rotation.y = 0;
+      } else {
+        // design room: the tee sways a little and leans towards the pointer, so it feels alive
+        towards(turntable ? FACE[face] ?? 0 : (Math.sin(t / 3.2) * 0.06 + state.pointer.x * 0.1) * k, turntable ? 0.07 : 0.1);
+      }
     }
   });
 
@@ -1139,7 +1163,7 @@ function CameraRig({ request, getSpot, apiRef, wakeKey, room }) {
   return null;
 }
 
-const Room3D = forwardRef(function Room3D({ model, colour, areas, onPickArea, camRequest, interactive = true, still = false, room = "studio", spin = false, face = null, spinSpeed = 1.6, unfoldKey = 0, onLit, hotspots, glowKey = null, activeKey = null, onHoverArea, popKey = 0 }, ref) {
+const Room3D = forwardRef(function Room3D({ model, colour, areas, onPickArea, camRequest, interactive = true, still = false, room = "studio", spin = false, face = null, spinSpeed = 1.6, unfoldKey = 0, onLit, hotspots, glowKey = null, activeKey = null, onHoverArea, popKey = 0, showcase = false, twirlKey = 0 }, ref) {
   const boutique = room === "boutique";
   const spotsRef = useRef(() => null);
   return (
@@ -1155,7 +1179,7 @@ const Room3D = forwardRef(function Room3D({ model, colour, areas, onPickArea, ca
       <Studio visible={!boutique} />
       <Suspense fallback={null}>
         <Boutique visible={boutique} model={model} colour={colour} />
-        <Tee model={model} colour={colour} areas={areas} onPickArea={onPickArea} interactive={interactive} still={still} spotsRef={spotsRef} turntable={boutique} spin={spin} face={face} spinSpeed={spinSpeed} unfoldKey={unfoldKey} onLit={onLit} hotspots={hotspots} glowKey={glowKey} activeKey={activeKey} onHoverArea={onHoverArea} popKey={popKey} />
+        <Tee model={model} colour={colour} areas={areas} onPickArea={onPickArea} interactive={interactive} still={still} spotsRef={spotsRef} turntable={boutique} spin={spin} face={face} spinSpeed={spinSpeed} unfoldKey={unfoldKey} onLit={onLit} hotspots={hotspots} glowKey={glowKey} activeKey={activeKey} onHoverArea={onHoverArea} popKey={popKey} showcase={showcase} twirlKey={twirlKey} />
       </Suspense>
       <OrbitControls
         makeDefault
@@ -1171,7 +1195,7 @@ const Room3D = forwardRef(function Room3D({ model, colour, areas, onPickArea, ca
         minAzimuthAngle={boutique ? -0.5 : -Infinity}
         maxAzimuthAngle={boutique ? 0.5 : Infinity}
       />
-      <CameraRig request={camRequest} getSpot={(k) => spotsRef.current(k)} apiRef={ref} room={room} wakeKey={`${colour}|${still}|${interactive}|${glowKey}|${popKey}|${areas.map((a) => `${a.key}:${a.version}`).join(",")}`} />
+      <CameraRig request={camRequest} getSpot={(k) => spotsRef.current(k)} apiRef={ref} room={room} wakeKey={`${colour}|${still}|${interactive}|${glowKey}|${popKey}|${twirlKey}|${areas.map((a) => `${a.key}:${a.version}`).join(",")}`} />
     </Canvas>
   );
 });
