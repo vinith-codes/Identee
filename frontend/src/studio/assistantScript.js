@@ -35,7 +35,9 @@ const SUBJECT_IDEAS = ["A lion holding a cricket bat", "A mountain sunrise", "A 
 const AFTER_DESIGNS = ["Make more", "Something else"];
 const act = (a) => ({ act: a });
 export const firstMessages = () => [bot("Hi. Tell me what you have in mind, or pick a starting point."), chips(MENU)];
-export const firstState = () => ({ occasion: null, tone: null, shown: 0, wait: null, template: null, subject: null, lastDesign: null, changeUrl: null });
+export const firstState = () => ({ occasion: null, tone: null, shown: 0, wait: null, template: null, subject: null, lastDesign: null, changeUrl: null, ask: null, said: [] });
+// after slogans the AI wrote
+export const AFTER_AI_SLOGANS = ["Show more", "Change tone", "Something else"];
 export const AFTER_DESIGN_CHIPS = AFTER_DESIGNS;
 
 const showSlogans = (st, ctx, lead) => [bot(lead || `${st.tone} lines for a ${st.occasion.toLowerCase()} tee. Tap one to put it on ${ctx.areaLabel}.`), { slogans: slogansFor(st.occasion, st.tone, st.shown) }, chips(AFTER_SLOGANS)];
@@ -53,7 +55,7 @@ export function checkMessages(issues, { beforeReview = false } = {}) {
 /**
  * @param text  what the customer tapped or typed
  * @param ctx   { areaLabel, teeName, hasDesign, sizes, sizeNow, chart(size), areas: [{ key, label, free }], issues(), inks,
- *                ai: { available, reason, loggedIn, left, styles } }
+ *                ai: { available, reason, loggedIn, left, styles, text } }   text = slogans can be written to order
  * @param st    conversation state (firstState())
  * @returns { out: messages, st: next state }
  */
@@ -94,6 +96,21 @@ export function replyTo(text, ctx, st) {
   }
   if (t === "Make more" && st.lastDesign) return done([act({ type: "generate", ...st.lastDesign })]);
   if (t === "Log in") return done([act({ type: "login" })]);
+
+  /* ----- slogans written to order (the text AI) -----
+     When it is available the customer can ask for a slogan about anything, in
+     their own words. The page asks the server (act "slogans") and remembers
+     the lines shown (st.said) so "Show more" brings new ones. If it is not
+     available, the built-in library further down answers instead. */
+  if (ctx.ai.text) {
+    const menuWord = MENU.includes(t) || MORE.includes(t) || t === "Something else";
+    const ask = (about, tone, fresh) => done([act({ type: "slogans", ask: about, tone, avoid: fresh ? [] : st.said })], { ask: about, tone: tone || null, ...(fresh ? { said: [] } : {}) });
+    if (wait === "sloganTopic" && !menuWord) return ask(t, null, true);
+    if (t === "Show more" && st.ask) return ask(st.ask, st.tone, false);
+    if (t === "Change tone" && st.ask) return done([bot("Which tone?"), chips(TONES)], { wait: "sloganTone" });
+    if (wait === "sloganTone" && TONES.includes(t)) return ask(st.ask, t, false);
+    if (t === MENU[0]) return done([bot("What is it about? Say it in your own words, or pick one."), chips(["My mother", "Our cricket team", "A birthday", "A college farewell", "A family trip"])], { wait: "sloganTopic" });
+  }
 
   /* ----- things the page does ----- */
   const useSize = /^use size (\S+)$/i.exec(t);
@@ -165,6 +182,9 @@ export function replyTo(text, ctx, st) {
   if (t === "Show more" && st.occasion) return done(showSlogans({ ...st, shown: st.shown + 3 }, ctx, "Three more:"), { shown: st.shown + 3 });
   if (t === "Add a name or year" && st.occasion) return done([bot("Type the name, team name or year to put in the line.")], { wait: "name" });
   if (t === "Change tone" && st.occasion) return done([bot("Which tone?"), chips(TONES)], { tone: null });
+  if (ctx.ai.text && /slogan|quote|tagline|caption|\bline\b|\bwords\b|\bsaying\b/.test(low) && t.split(/\s+/).length >= 3) {
+    return done([act({ type: "slogans", ask: t, avoid: [] })], { ask: t, tone: toneIn(low), said: [] });
+  }
   const occasion = SLOGANS[t] ? t : occasionIn(low);
   const tone = TONES.includes(t) ? t : toneIn(low);
   const asksSlogan = t === MENU[0] || /slogan|quote|tagline|caption|line\b|words|write|text/.test(low);

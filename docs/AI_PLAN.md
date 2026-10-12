@@ -126,3 +126,12 @@ printed and sold, so famous characters, brands and real people's faces are a cop
 the shop. What remains: the image AI's own rules (it may still refuse), and a line in the Review step — "By ordering,
 you confirm you have the right to print everything in this design." Whether the client (Quindl) has agreed to this is
 not recorded; raise it before go-live, and consider a tick-box and a line in the Terms page.
+
+## AI slogans built (12 Oct 2026)
+
+`POST /api/ai/slogans` (`services/aiTextService.js`): Gemini text model (`gemini-flash-lite-latest`, or `AI_TEXT_MODEL`)
+with the same key as the image maker — no Anthropic key needed. No login; 20 a minute per address; costs a fraction of a
+paisa, so it is not counted against the picture limits or logged. In the assistant, when `status.text` is true: any typed
+request for words ("a slogan about my mother") or the Slogan ideas chip goes to the AI; Show more avoids lines already
+shown (`st.said`); Change tone re-asks. Answers in the customer's language (Tanglish tested). Without a key the built-in
+library (12 occasions x 4 tones) still answers.

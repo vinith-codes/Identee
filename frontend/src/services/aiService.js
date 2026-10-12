@@ -20,8 +20,11 @@ const status = async () => (await axios.get(`${API_URL}/status`, auth())).data;
 // -> { images: [url], left }
 const design = async (body) => (await axios.post(`${API_URL}/design`, body, { ...auth(), timeout: 120000 })).data;
 
+// Slogans written to order: { ask, tone?, avoid? } -> { slogans: [..] }
+const slogans = async (body) => (await axios.post(`${API_URL}/slogans`, body, { timeout: 30000 })).data;
+
 // admin
 const getAdmin = async () => (await axios.get(`${API_URL}/admin`, auth())).data;
 const saveAdmin = async (values) => (await axios.put(`${API_URL}/admin`, values, auth())).data;
 
-export default { status, design, getAdmin, saveAdmin };
+export default { status, design, slogans, getAdmin, saveAdmin };

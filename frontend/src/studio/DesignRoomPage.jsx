@@ -23,7 +23,7 @@ import { areaCm, blockersOf, clashesIn, modelForGarment, placeArea } from "./tee
 import AreaThumb from "./AreaThumb";
 import Rolling from "./Rolling";
 import Assistant from "./Assistant";
-import { AFTER_DESIGN_CHIPS, bot as botSays, checkMessages, chips as chipRow, firstMessages, firstState } from "./assistantScript";
+import { AFTER_AI_SLOGANS, AFTER_DESIGN_CHIPS, bot as botSays, checkMessages, chips as chipRow, firstMessages, firstState } from "./assistantScript";
 import aiService from "../services/aiService";
 import { checkDesign, inksFor } from "./designCheck";
 import { TEMPLATES } from "./designTemplates";
@@ -666,6 +666,16 @@ export default function DesignRoomPage() {
       return [botSays(err.response?.data?.message || "The design maker had a problem. Please try again."), chipRow(["Make a design", "Something else"])];
     }
   };
+  // Slogans written to order. If the AI cannot be reached, say so and offer the built-in ones.
+  const writeSlogans = async (a) => {
+    try {
+      const res = await aiService.slogans({ ask: a.ask, tone: a.tone || undefined, avoid: a.avoid || [] });
+      setChatState((st) => ({ ...st, said: [...(st.said || []), ...res.slogans].slice(-30) }));
+      return [botSays(`Here you go. Tap one to put it on ${activePos?.label || "your tee"}, or ask me for something different.`), { slogans: res.slogans }, chipRow(AFTER_AI_SLOGANS)];
+    } catch (err) {
+      return [botSays(err.response?.data?.message || "I couldn’t think of any just now. Please try again."), chipRow(["Slogan ideas", "Something else"])];
+    }
+  };
   // Put an AI-made design on a print area (the open one unless areaKey is given): its plain
   // background is cleared, the cut-out is uploaded once, and it replaces the AI design already there.
   const placeAiDesign = async (url, areaKey) => {
@@ -742,6 +752,7 @@ export default function DesignRoomPage() {
   };
   const assistantAct = (a) => {
     if (a.type === "generate") return generateDesigns(a);
+    if (a.type === "slogans") return writeSlogans(a);
     if (a.type === "place") return placeAiDesign(a.url, a.areaKey);
     if (a.type === "login") return goToLogin();
     if (a.type === "text") return addText(a.text);

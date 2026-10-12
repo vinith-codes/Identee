@@ -18,6 +18,7 @@ import Setting from "../models/settingModel.js";
 import AiUsage from "../models/aiUsageModel.js";
 import { uploadFile } from "../utils/imageStorage.js";
 import { cutOutPlainBackground, onPlainBackground } from "../services/cutoutService.js";
+import { aiTextConfigured, writeSlogans } from "../services/aiTextService.js";
 import { AI_STYLES, aiImageConfigured, aiImageModel, changeDesignPrompt, generateImage, nearestRatio, newDesignPrompt } from "../services/aiImageService.js";
 
 const CATEGORY = "ai";
@@ -72,7 +73,8 @@ export const getAiStatus = asyncHandler(async (req, res) => {
   const settings = await readSettings();
   const reason = await whyOff(settings);
   const left = req.user ? Math.max(0, settings.dailyPerUser - (await usedToday(req.user._id))) : null;
-  res.json({ available: !reason, reason, styles: Object.keys(AI_STYLES), dailyPerUser: settings.dailyPerUser, left });
+  // text: the assistant can write slogans to order (same key; switched off together with the design maker)
+  res.json({ available: !reason, reason, text: aiTextConfigured() && settings.enabled, styles: Object.keys(AI_STYLES), dailyPerUser: settings.dailyPerUser, left });
 });
 
 // Only pictures this feature made may be sent back to be changed.
@@ -151,6 +153,30 @@ export const makeAiDesign = asyncHandler(async (req, res) => {
     model: aiImageModel(),
   });
   res.status(201).json({ images: stored.map((s, i) => ({ url: s.url, width: cut[i].width, height: cut[i].height })), left: Math.max(0, settings.dailyPerUser - used - 1) });
+});
+
+// POST /api/ai/slogans  (no login needed; limited per address in the route)
+// { ask, tone?, avoid?: [lines already shown] } -> { slogans: [..] }
+// Costs a fraction of a paisa, so it is not counted against the picture limits.
+export const makeSlogans = asyncHandler(async (req, res) => {
+  const settings = await readSettings();
+  if (!settings.enabled || !aiTextConfigured()) {
+    res.status(503);
+    throw new Error("Slogans to order are not available right now.");
+  }
+  const ask = String(req.body.ask || "").replace(/\s+/g, " ").trim().slice(0, 200);
+  if (ask.length < 2) {
+    res.status(400);
+    throw new Error("Tell me what the slogan is about.");
+  }
+  const tone = ["Funny", "Bold", "Emotional", "Simple"].includes(req.body.tone) ? req.body.tone : undefined;
+  const avoid = Array.isArray(req.body.avoid) ? req.body.avoid.map((x) => String(x).slice(0, 80)).slice(-20) : [];
+  try {
+    res.json({ slogans: await writeSlogans({ ask, tone, avoid }) });
+  } catch {
+    res.status(502);
+    throw new Error("I couldn’t think of any just now. Please try again.");
+  }
 });
 
 // GET /api/ai/admin  (admin or seller): the settings and this month's use
