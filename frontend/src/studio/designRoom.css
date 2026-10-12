@@ -600,3 +600,10 @@
   .dr-toolbtn { font-size: 12px; padding: 11px 4px; gap: 5px; }
   .dr-editor.dr-assist { height: 72%; }
 }
+
+/* assistant: what it can do, as tap-able examples */
+.dr-examples { display: grid; gap: 6px; }
+.dr-example { display: grid; gap: 2px; text-align: left; border: 1px solid var(--line); background: #fff; border-radius: 14px; padding: 10px 12px; transition: border-color .15s, transform .15s; }
+.dr-example:hover { border-color: var(--gold); transform: translateY(-1px); }
+.dr-example b { font-size: 13px; font-weight: 700; }
+.dr-example span { font-size: 12px; color: var(--muted); }

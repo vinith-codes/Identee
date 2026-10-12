@@ -6,7 +6,7 @@
 // print-area / size help). The paid AI parts can replace those scripted
 // replies later (see docs/AI_PLAN.md).
 import { useEffect, useRef, useState } from "react";
-import { replyTo } from "./assistantScript";
+import { EXAMPLES, replyTo } from "./assistantScript";
 import { imageUrl } from "../utils/imageUrl";
 
 /**
@@ -26,6 +26,7 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
   const [thinking, setThinking] = useState(false); // false | true | a line of text to show while waiting
   const [pickFor, setPickFor] = useState(null); // the design whose "Other area" list is open
   const log = useRef(null);
+  const box = useRef(null);
   const timer = useRef(null);
 
   useEffect(() => {
@@ -107,6 +108,30 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
               </div>
             );
           }
+          if (m.examples) {
+            // only what works right now: picture features need the image AI, chat editing needs the text AI
+            const c = ctx();
+            const list = EXAMPLES.filter((e) => (e.needs === "pictures" ? c.ai.available : e.needs === "text" ? c.ai.text : true));
+            return (
+              <div key={i} className="dr-examples">
+                {list.map((e) => (
+                  <button
+                    key={e.title}
+                    type="button"
+                    className="dr-example"
+                    onClick={() => {
+                      if (!e.fill) return say(e.say, true);
+                      setDraft(e.say);
+                      box.current?.focus();
+                    }}
+                  >
+                    <b>{e.title}</b>
+                    <span>{e.fill ? `“${e.say}”` : e.hint}</span>
+                  </button>
+                ))}
+              </div>
+            );
+          }
           if (m.designs) {
             const areas = ctx().areas.filter((a) => a.free);
             return (
@@ -154,7 +179,7 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
           setDraft("");
         }}
       >
-        <input value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="A funny line for my cricket team" aria-label="Message the design assistant" maxLength={400} autoComplete="off" />
+        <input ref={box} value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="Try: a tiger on the front, a tree on the back" aria-label="Message the design assistant" maxLength={400} autoComplete="off" />
         <button type="submit">Send</button>
       </form>
     </div>

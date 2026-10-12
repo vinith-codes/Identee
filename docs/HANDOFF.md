@@ -119,7 +119,10 @@ for dark tee colours (`dark` in `Boutique`), the arch dimmed to a glow, lamps ov
 - Not yet tested with the real picture AI: photo to art, the whole-tee sentence, 'change it', styles other than Bold mascot.
 - `@imgly/background-removal-node` (AGPL) is still in `server/package.json` from earlier work; check whether anything uses it.
 
-**Asked last, not built yet — making the AI features easy to find** (user: "how does the user know these AI features are here?").
+**Built on `feature-assistant-examples` (pushed, awaiting "merge"):** the assistant opens with a list of what it can do
+(`EXAMPLES` in `assistantScript.js`): tap-able examples that fill the message box or start the feature; "What can you do?" shows it again.
+
+**Asked earlier, not built — making the AI easy to find OUTSIDE the assistant** (user: "how does the user know these AI features are here?").
 Proposed, in order: (1) a Home-page section "Design with AI" with 3 examples and a button into the room with the assistant open;
 (2) an "AI" badge + one line on the Customizable card/page; (3) the assistant's first message lists what it can do with
 tap-able examples (make a design, photo to art, slogans, edit by chat, whole tee in a sentence); (4) hints inside the manual

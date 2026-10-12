@@ -11,6 +11,7 @@
 //   { issues: [...] }              design-check findings, each with a fix
 //   { inks: [hex] }                ink colours to try
 //   { designs: [url] }             pictures the image AI made, each with "Add to tee"
+//   { examples: true }             the list of things the assistant can do (EXAMPLES)
 //   { act: { type, ... } }         something for the page to do (not shown)
 //
 // "Make a design" is the one paid part: the page asks the server, which asks
@@ -38,7 +39,20 @@ const AFTER_DESIGNS = ["Make more", "Something else"];
 const EDIT_WORDS = /\b(bigger|larger|smaller|tiny|huge|move|shift|delete|remove|erase|rotate|tilt|curve|curved|straight|vertical|bold|italic|underline|centre|center|align|resize|shrink|enlarge|increase|decrease|reduce|colou?r|font|outline|spacing|duplicate|copy|swap|rename|capitals?|uppercase|lowercase|change|make (it|the|this|that|my|them)|set (it|the|this)|put|add|write|insert|type|replace)\b/;
 const STARTS_NEW = /^(make|draw|generate|create|design|give)( me)? (a|an|some|new|another)\b/;
 const act = (a) => ({ act: a });
-export const firstMessages = () => [bot("Hi. Tell me what you have in mind, or pick a starting point."), chips(MENU)];
+// What the assistant can do, shown as soon as it opens (customers cannot guess what to type).
+// fill: the example is put in the message box so they can see how to ask, change it and send.
+// Without fill, tapping it starts that feature straight away.
+export const EXAMPLES = [
+  { title: "Design the whole tee in one sentence", say: "A tiger on the front and a tree on the back, on a black t-shirt", fill: true, needs: "pictures" },
+  { title: "Draw a picture for me", say: "Draw a lion holding a cricket bat", fill: true, needs: "pictures" },
+  { title: "Turn my photo into art", hint: "Cartoon, sketch, sticker and more", say: "Photo to art", needs: "pictures" },
+  { title: "Write a slogan", say: "A slogan for my mother", fill: true },
+  { title: "Change things by telling me", say: "Make the text gold, curved and a bit bigger", fill: true, needs: "text" },
+  { title: "Start from a ready layout", hint: "Team jersey, birthday, couple tee…", say: "Start from a template" },
+  { title: "Check my design before printing", hint: "Blurry pictures, tiny text, colours that won’t show", say: "Check my design" },
+];
+const HELLO = "Hi. I can design your tee with you. Tap one to try it, or type what you want in your own words.";
+export const firstMessages = () => [bot(HELLO), { examples: true }, chips(["More help"])];
 export const firstState = () => ({ occasion: null, tone: null, shown: 0, wait: null, template: null, subject: null, lastDesign: null, changeUrl: null, ask: null, said: [], photoUrl: null });
 // after slogans the AI wrote
 export const AFTER_AI_SLOGANS = ["Show more", "Change tone", "Something else"];
@@ -180,7 +194,8 @@ export function replyTo(text, ctx, st, { tapped = false } = {}) {
   }
 
   /* ----- small helpers ----- */
-  if (t === MENU[3] || t === "Something else") return done([bot("What do you need?"), chips([...MENU.slice(0, 3), ...MORE])]);
+  if (t === "What can you do?" || /what can you do|how (do|can) (i|you)|help me|what.*(features|options)/.test(low)) return done([bot("Here’s what I can do. Tap one to try it."), { examples: true }, chips(["More help"])]);
+  if (t === MENU[3] || t === "Something else") return done([bot("What do you need?"), chips(["What can you do?", ...MENU.slice(0, 3), ...MORE])]);
   if (t === "Colour help" || /colou?r/.test(low)) {
     return done([bot(`On a ${ctx.teeName.toLowerCase()} tee these ink colours stand out best. Tap one to use it for the text on ${ctx.areaLabel}.`), { inks: ctx.inks }, chips(["Something else"])]);
   }
