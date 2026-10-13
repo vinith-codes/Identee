@@ -122,7 +122,7 @@ for dark tee colours (`dark` in `Boutique`), the arch dimmed to a glow, lamps ov
 **`feature-assistant-examples` — MERGED to `main` on 12 Oct 2026:** the assistant opens with a list of what it can do
 (`EXAMPLES` in `assistantScript.js`): tap-able examples that fill the message box or start the feature; "What can you do?" shows it again.
 
-**`feature-print-placement` — built 13 Oct 2026, pushed, waiting for the user's "merge":** the print pack now tells the print team
+**`feature-print-placement` — MERGED to `main` on 13 Oct 2026:** the print pack now tells the print team
 where things go (user: "if the image starts from the centre of Centre Front, how do they know?").
 - ORDER-SHEET.txt opens with "HOW TO PLACE A PRINT": each PNG is the WHOLE print area with the artwork already in place — line up
   the file's edges, never crop and centre the artwork. Per area: "where on the tee" (`whereOnGarment` in `printFiles.js`, from each
