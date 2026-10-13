@@ -48,7 +48,7 @@ const act = (a) => ({ act: a });
 // fill: the example is put in the message box so they can see how to ask, change it and send.
 // Without fill, tapping it starts that feature straight away.
 export const EXAMPLES = [
-  { title: "Design the whole tee in one sentence", say: "A tiger on the front and a tree on the back, on a black t-shirt", fill: true, needs: "pictures" },
+  { title: "Design the whole tee in one sentence", hint: "Up to three pictures at once: front, back, a sleeve", say: "A tiger on the front and a tree on the back, on a black t-shirt", fill: true, needs: "pictures" },
   { title: "Draw a picture for me", say: "Draw a lion holding a cricket bat", fill: true, needs: "pictures" },
   { title: "Turn my photo into art", hint: "Cartoon, sketch, sticker and more", say: "Photo to art", needs: "pictures" },
   { title: "Turn words into lettering art", say: "Hand lettering that says “Work smarter not harder”", fill: true, needs: "pictures" },

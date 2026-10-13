@@ -122,6 +122,13 @@ for dark tee colours (`dark` in `Boutique`), the arch dimmed to a glow, lamps ov
 **`feature-assistant-examples` — MERGED to `main` on 12 Oct 2026:** the assistant opens with a list of what it can do
 (`EXAMPLES` in `assistantScript.js`): tap-able examples that fill the message box or start the feature; "What can you do?" shows it again.
 
+**`fix-three-pictures-limit` — built 13 Oct 2026, pushed, waiting for the user's "merge":** one message can ask for pictures on
+several areas ("lion on front, tiger on back, zebra on left sleeve"); the page draws at most THREE (`MAX_PICTURES` in `chatEdit`).
+A fourth used to be dropped silently. Now the planner lists every picture asked for, the page draws three and says which were
+left out and to ask again; the example in the Assistant's list says "Up to three pictures at once". Checked with the text service:
+the three-picture sentence plans lion/centre-front, tiger/full-back, zebra/left-sleeve; a four-picture sentence plans four (the
+eagle on the right sleeve is the one left out). NOT run with the real picture service (three drawings in a row, ~₹21).
+
 **`feature-lettering-art` — MERGED to `main` on 13 Oct 2026:** words as a
 picture. The user showed a brush-lettered slogan tee and wants customers to get that from a plain request ("make the text God is
 only belief as a image on the t-shirt front"). New picture style **Hand lettering** (`AI_STYLES` in `aiImageService.js`); the

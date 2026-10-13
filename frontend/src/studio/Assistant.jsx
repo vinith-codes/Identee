@@ -127,6 +127,7 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
                   >
                     <b>{e.title}</b>
                     <span>{e.fill ? `“${e.say}”` : e.hint}</span>
+                    {e.fill && e.hint && <span>{e.hint}</span>}
                   </button>
                 ))}
               </div>

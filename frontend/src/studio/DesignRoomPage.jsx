@@ -887,7 +887,12 @@ export default function DesignRoomPage() {
       const extra = [];
       let pictureFailed = false;
       const placed = {};
-      const pictures = all.filter((o) => o?.op === "make_picture" && typeof o.subject === "string" && o.subject.trim()).slice(0, 3);
+      // at most three pictures from one message (each is a paid request and takes about 20 seconds);
+      // the customer is told about any that were left out, so nothing is dropped without a word
+      const MAX_PICTURES = 3;
+      const asked = all.filter((o) => o?.op === "make_picture" && typeof o.subject === "string" && o.subject.trim());
+      const pictures = asked.slice(0, MAX_PICTURES);
+      const leftOut = asked.slice(MAX_PICTURES);
       if (pictures.length && !ai.available) extra.push(botSays("Pictures can’t be made right now. You can pick from the art library or upload your own."));
       else if (pictures.length && !isLoggedIn()) extra.push(botSays("Log in and I’ll draw the pictures for you."), chipRow(["Log in"]));
       else {
@@ -917,6 +922,10 @@ export default function DesignRoomPage() {
           }
         }
       }
+      if (leftOut.length && ai.available && isLoggedIn()) {
+        const names = leftOut.map((o) => `${o.subject.trim()}${positions.find((p) => p.key === o.area) ? ` on ${positions.find((p) => p.key === o.area).label}` : ""}`).join(", ");
+        extra.push(botSays(`I can draw up to three pictures from one message, so I left out: ${names}. Ask me for ${leftOut.length === 1 ? "it" : "them"} in your next message and I’ll add ${leftOut.length === 1 ? "it" : "them"}.`));
+      }
       if (!changed && !extra.length) return [botSays("I couldn’t do that one. Tap the item on the print area and tell me again, or use its settings.")];
       if (els !== elements) commit(() => els);
       if (Object.keys(placed).length) setAiPlaced((cur) => ({ ...cur, ...placed }));
@@ -926,6 +935,8 @@ export default function DesignRoomPage() {
       // could not be made, that reply would be untrue, so only what really happened is said.
       if (!changed) return extra;
       if (pictureFailed) return [botSays("I’ve done the rest of what you asked. The picture is the part that didn’t work:"), ...extra];
+      // (the text AI's own reply lists every picture asked for, also the ones left out — so it is not used here)
+      if (leftOut.length) return [botSays("I’ve drawn the first three. Not right? Press Undo (↶)."), ...extra];
       return [botSays(`${res.reply || "Done."} Not right? Press Undo (↶).`), ...extra];
     } catch (err) {
       return [botSays(err.response?.data?.message || "I couldn’t work that out just now. Please try again.")];
