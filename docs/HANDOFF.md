@@ -122,7 +122,7 @@ for dark tee colours (`dark` in `Boutique`), the arch dimmed to a glow, lamps ov
 **`feature-assistant-examples` — MERGED to `main` on 12 Oct 2026:** the assistant opens with a list of what it can do
 (`EXAMPLES` in `assistantScript.js`): tap-able examples that fill the message box or start the feature; "What can you do?" shows it again.
 
-**`feature-lettering-art` — built 13 Oct 2026 on top of `feature-art-filters`, pushed, waiting for the user's "merge":** words as a
+**`feature-lettering-art` — MERGED to `main` on 13 Oct 2026:** words as a
 picture. The user showed a brush-lettered slogan tee and wants customers to get that from a plain request ("make the text God is
 only belief as a image on the t-shirt front"). New picture style **Hand lettering** (`AI_STYLES` in `aiImageService.js`); the
 Assistant spots such requests ("as an image / picture", "typography", "lettering", "a design that says …") and sends the words
@@ -131,7 +131,7 @@ adds real text. New example in the Assistant's list. One paid run of the user's 
 AiUsage because it was run from a script): both spelled correctly, brush lettering with splatters, backgrounds removed.
 Not checked: the flow on screen in the Assistant; placing on the area named in the request (the customer taps Add to tee).
 
-**`feature-art-filters` — built 13 Oct 2026 on top of `fix-team-name-link-old-designs`, pushed, waiting for the user's "merge":**
+**`feature-art-filters` — MERGED to `main` on 13 Oct 2026:**
 Google's picture service refuses some photos (the user's photo of a film star: `400 Request blocked for an unspecified policy
 reason`). Our own art filters now cover that — no AI service, free, about a second: `server/services/artFilterService.js` makes
 **Sketch, Stencil, Poster and Pop art** from any photo (sharp + plain pixel loops). Sketch and Stencil are ink on a see-through
@@ -147,7 +147,7 @@ the empty space trimmed (`subjectMask`); a busy background is kept whole; a see-
   use `.extractChannel(0)`.
 - Told the user to tell the client: printing a film star's face on tees for sale can bring a legal complaint (personality rights).
 
-**`fix-team-name-link-old-designs` — built 13 Oct 2026, pushed, waiting for the user's "merge":** the user typed a team name on
+**`fix-team-name-link-old-designs` — MERGED to `main` on 13 Oct 2026:** the user typed a team name on
 the chest and the back did not follow — their jersey was placed before the link existed (a reload keeps the old design). Now any
 design works: when a text is changed and the SAME words are on another print area (not a player name/number), they are linked
 from that change on (`syncLinked`). A linked text's settings have a switch that stays visible: **Change everywhere / Only this one**
