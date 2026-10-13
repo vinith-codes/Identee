@@ -122,7 +122,7 @@ for dark tee colours (`dark` in `Boutique`), the arch dimmed to a glow, lamps ov
 **`feature-assistant-examples` — MERGED to `main` on 12 Oct 2026:** the assistant opens with a list of what it can do
 (`EXAMPLES` in `assistantScript.js`): tap-able examples that fill the message box or start the feature; "What can you do?" shows it again.
 
-**`fix-three-pictures-limit` — built 13 Oct 2026, pushed, waiting for the user's "merge":** one message can ask for pictures on
+**`fix-three-pictures-limit` — MERGED to `main` on 13 Oct 2026:** one message can ask for pictures on
 several areas ("lion on front, tiger on back, zebra on left sleeve"); the page draws at most THREE (`MAX_PICTURES` in `chatEdit`).
 A fourth used to be dropped silently. Now the planner lists every picture asked for, the page draws three and says which were
 left out and to ask again; the example in the Assistant's list says "Up to three pictures at once". Checked with the text service:
