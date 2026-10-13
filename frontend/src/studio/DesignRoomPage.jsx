@@ -614,7 +614,10 @@ export default function DesignRoomPage() {
   // and look, and is made smaller if the new words would not fit its print area.
   const syncLinked = (prev, next) => {
     const before = new Map(prev.map((e) => [e.id, e]));
-    let changed = next.find((e) => e.type === "text" && before.has(e.id) && before.get(e.id).text !== e.text);
+    let changed =
+      next.find((e) => e.type === "text" && before.has(e.id) && before.get(e.id).text !== e.text) ||
+      // switched back from "Only this one" to "Change everywhere": the other places take its words straight away
+      next.find((e) => e.type === "text" && e.link === "team" && before.get(e.id)?.link === "solo");
     if (!changed || changed.link === "solo") return next;
     if (!changed.link) {
       // A design from before texts were linked (or texts the customer added by hand): the same words in two
@@ -2077,12 +2080,23 @@ function Controls({ sel, areaCmW, areaRatio, onPatch, onDelete, onDuplicate, onL
               placeholder="Your text"
               onChange={(e) => onPatch({ text: e.target.value || " " }, { measure: true })}
             />
-            <small>{sel.link === "team" ? "These words are on the tee more than once. Changing them here changes them everywhere." : "Press Enter for a new line."}</small>
+            <small>Press Enter for a new line.</small>
           </label>
-          {sel.link === "team" && (
-            <button type="button" className="dr-teamlink" style={{ marginTop: -6 }} onClick={() => onPatch({ link: "solo" })}>
-              Change only this one →
-            </button>
+          {(sel.link === "team" || sel.link === "solo") && (
+            // These words are on the tee more than once (a team name on the chest and on the back). The
+            // choice stays here: it can be switched either way at any time.
+            <div className="dr-field">
+              These words are on the tee more than once. When I change them:
+              <div className="dr-seg" role="group" aria-label="When I change these words">
+                <button type="button" className={sel.link === "team" ? "on" : ""} aria-pressed={sel.link === "team"} onClick={() => onPatch({ link: "team" })}>
+                  Change everywhere
+                </button>
+                <button type="button" className={sel.link === "solo" ? "on" : ""} aria-pressed={sel.link === "solo"} onClick={() => onPatch({ link: "solo" })}>
+                  Only this one
+                </button>
+              </div>
+              <small>{sel.link === "team" ? "The other places follow what you type here." : "This one changes alone. The other places keep their words."}</small>
+            </div>
           )}
           {teamTools && (
           <div className="dr-field">

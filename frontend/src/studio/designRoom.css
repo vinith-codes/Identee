@@ -857,3 +857,8 @@ button.dr-back { padding: 0; font: inherit; font-weight: 700; cursor: pointer; }
   .dr-areatabs i { min-width: 14px; height: 14px; font-size: 9.5px; padding: 0 3px; }
   .dr-sidebody { padding-inline: 10px; }
 }
+
+/* narrower screens: the quick tool bar sits under the undo buttons, so it never covers them */
+@media (max-width: 1279px) and (min-width: 761px) {
+  .dr-quickbar { top: 58px; max-width: calc(100% - 28px); }
+}

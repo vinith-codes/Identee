@@ -125,7 +125,8 @@ for dark tee colours (`dark` in `Boutique`), the arch dimmed to a glow, lamps ov
 **`fix-team-name-link-old-designs` — built 13 Oct 2026, pushed, waiting for the user's "merge":** the user typed a team name on
 the chest and the back did not follow — their jersey was placed before the link existed (a reload keeps the old design). Now any
 design works: when a text is changed and the SAME words are on another print area (not a player name/number), they are linked
-from that change on (`syncLinked`). A linked text's settings have "Change only this one" (`link: "solo"`, local only).
+from that change on (`syncLinked`). A linked text's settings have a switch that stays visible: **Change everywhere / Only this one**
+(`link` = `"team"` | `"solo"`, both saved); switching back to "everywhere" gives the other places this text's words at once.
 Second case (the user's actual one: chest already said "Chennai Strikers", back still "TEAM NAME"): a text that still shows a
 layout's sample words in the layout's own area follows the name typed in the layout's other area (uses `TEMPLATES` items with `link`).
 Checked on the dev site with an old-style jersey: typing on the chest changed the back; "Change only this one" then changed one.

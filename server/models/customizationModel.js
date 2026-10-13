@@ -52,7 +52,7 @@ const elementSchema = new mongoose.Schema(
     role: { type: String, enum: ["name", "number"] },
     // Texts that always say the same thing (the team name on the chest and on the back):
     // changing one in the Design Room changes the others with the same link.
-    link: { type: String, enum: ["team"] },
+    link: { type: String, enum: ["team", "solo"] }, // solo = was linked, now changed on its own (can be switched back)
 
     // placement
     x: { type: Number, required: true },
