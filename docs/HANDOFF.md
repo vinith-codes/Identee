@@ -122,6 +122,22 @@ for dark tee colours (`dark` in `Boutique`), the arch dimmed to a glow, lamps ov
 **`feature-assistant-examples` — MERGED to `main` on 12 Oct 2026:** the assistant opens with a list of what it can do
 (`EXAMPLES` in `assistantScript.js`): tap-able examples that fill the message box or start the feature; "What can you do?" shows it again.
 
+**`feature-art-filters` — built 13 Oct 2026 on top of `fix-team-name-link-old-designs`, pushed, waiting for the user's "merge":**
+Google's picture service refuses some photos (the user's photo of a film star: `400 Request blocked for an unspecified policy
+reason`). Our own art filters now cover that — no AI service, free, about a second: `server/services/artFilterService.js` makes
+**Sketch, Stencil, Poster and Pop art** from any photo (sharp + plain pixel loops). Sketch and Stencil are ink on a see-through
+background (dark ink for a light tee, light ink for a dark tee). A photo on a plain background has the background removed and
+the empty space trimmed (`subjectMask`); a busy background is kept whole; a see-through PNG keeps its own outline.
+- `POST /api/ai/design` with `{ photoUrl, artStyle: "Art filters (free)" }` returns the four (not counted, no cost, works with the
+  AI off); and when the picture service refuses a photo-to-art request (422) the same four come back by themselves with
+  `{ filtered: true, refused: true }`. The Assistant offers "Art filters (free)" beside the AI styles and explains a refusal.
+- Checked: the filter path through the server on a throwaway DB (5 checks), and the filters on three real pictures (the user's
+  star photo — small, dark, plain background; a bike on a busy street; a see-through illustration), for light and dark tees.
+- NOT checked: the refusal fallback with the real picture service (the code path is the 422 branch in `makeAiDesign`), and the
+  Assistant flow on screen. Gotcha fixed on the way: sharp returns THREE channels after `blur()` on a one-channel raw picture —
+  use `.extractChannel(0)`.
+- Told the user to tell the client: printing a film star's face on tees for sale can bring a legal complaint (personality rights).
+
 **`fix-team-name-link-old-designs` — built 13 Oct 2026, pushed, waiting for the user's "merge":** the user typed a team name on
 the chest and the back did not follow — their jersey was placed before the link existed (a reload keeps the old design). Now any
 design works: when a text is changed and the SAME words are on another print area (not a player name/number), they are linked

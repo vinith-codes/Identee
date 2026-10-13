@@ -953,7 +953,7 @@ export default function DesignRoomPage() {
         a.photoUrl ? { photoUrl: a.photoUrl, artStyle: a.artStyle, teeColour: colour?.name || "white", teeIsDark: lum(fabricHex) < 0.55, ratio: W / H } :
         a.baseUrl ? { baseUrl: a.baseUrl, change: a.change, teeIsDark: lum(fabricHex) < 0.55, ratio: W / H } : { subject: a.subject, style: a.style, teeColour: colour?.name || "white", teeIsDark: lum(fabricHex) < 0.55, ratio: W / H },
       );
-      setAi((cur) => ({ ...cur, left: res.left }));
+      if (res.left != null) setAi((cur) => ({ ...cur, left: res.left }));
       // the pictures arrive already cut out of their background; remember their size and start
       // loading them, so "Add to tee" has nothing left to wait for
       res.images.forEach((im) => {
@@ -961,7 +961,20 @@ export default function DesignRoomPage() {
         loadImage(im.url).catch(() => {});
       });
       const n = res.images.length;
-      const left = `${res.left} request${res.left === 1 ? "" : "s"} left today.`;
+      const left = res.left == null ? "" : `${res.left} request${res.left === 1 ? "" : "s"} left today.`;
+      if (res.filtered) {
+        // art from our own filters (free): asked for, or because the picture service refused this photo
+        const names = res.images.map((im) => im.label).filter(Boolean).join(", ");
+        return [
+          botSays(
+            res.refused
+              ? `The AI wouldn’t redraw this photo (it refuses some photos, well-known faces among them). So I made ${n} art versions another way, free: ${names}. Add one to your tee.`
+              : `Here are ${n} art versions, free: ${names}. Add one to your tee.`,
+          ),
+          { designs: res.images.map((im) => im.url) },
+          chipRow(["Something else"]),
+        ];
+      }
       return [
         botSays(a.photoUrl ? `Here ${n === 1 ? "it is" : `are ${n} versions`} as ${String(a.artStyle || "art").toLowerCase()}. Add one to your tee, or ask me to change it. ${left}` : a.baseUrl ? `Here’s the changed design. ${left}` : `Here ${n === 1 ? "is one" : `are ${n}`}, made for ${activePos?.label || "your tee"} on a ${(colour?.name || "").toLowerCase()} tee. Add one, use another on a different area, or ask me to change one. ${left}`),
         { designs: res.images.map((im) => im.url) },

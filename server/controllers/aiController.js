@@ -23,6 +23,7 @@ import { uploadFile, deleteStoredFile } from "../utils/imageStorage.js";
 import { cutOutPlainBackground, onPlainBackground } from "../services/cutoutService.js";
 import { aiTextConfigured, planEdit, writeSlogans } from "../services/aiTextService.js";
 import sharp from "sharp";
+import { artFilters, FILTER_STYLE } from "../services/artFilterService.js";
 import { AI_STYLES, PHOTO_STYLES, aiImageConfigured, aiImageModel, changeDesignPrompt, generateImage, nearestRatio, newDesignPrompt, photoArtPrompt, FIX_KINDS, fixPrompt, printPrompt, RATIO_VALUES } from "../services/aiImageService.js";
 
 const CATEGORY = "ai";
@@ -78,7 +79,7 @@ export const getAiStatus = asyncHandler(async (req, res) => {
   const reason = await whyOff(settings);
   const left = req.user ? Math.max(0, settings.dailyPerUser - (await usedToday(req.user._id))) : null;
   // text: the assistant can write slogans to order (same key; switched off together with the design maker)
-  res.json({ available: !reason, reason, text: aiTextConfigured() && settings.enabled, styles: Object.keys(AI_STYLES), photoStyles: Object.keys(PHOTO_STYLES), dailyPerUser: settings.dailyPerUser, left });
+  res.json({ available: !reason, reason, text: aiTextConfigured() && settings.enabled, styles: Object.keys(AI_STYLES), photoStyles: [...Object.keys(PHOTO_STYLES), FILTER_STYLE], dailyPerUser: settings.dailyPerUser, left });
 });
 
 // Only pictures this feature made may be sent back to be changed.
@@ -101,11 +102,32 @@ async function fetchOurImage(url, req) {
   return { data: Buffer.from(await r.arrayBuffer()), mime: r.headers.get("content-type") || "image/png" };
 }
 
+// Art made by our own filters (services/artFilterService.js) — no AI service, no cost, not counted
+// against the daily requests. Used when the customer picks "Art filters (free)", and by itself when
+// the picture service refuses a photo (it refuses well-known faces, for one).
+async function sendFilterArt(req, res, { refused = false, left = null } = {}) {
+  if (!isOurUpload(req.body.photoUrl)) {
+    res.status(400);
+    throw new Error("Upload the photo here first.");
+  }
+  const photo = await fetchOurImage(req.body.photoUrl, req);
+  const made = await artFilters(photo.data, { dark: Boolean(req.body.teeIsDark) });
+  const stored = await Promise.all(made.map((m) => uploadFile(m.buffer, m.mime, "art-filters")));
+  res.status(201).json({
+    images: stored.map((s, i) => ({ url: s.url, width: made[i].width, height: made[i].height, label: made[i].name })),
+    filtered: true,
+    refused,
+    left,
+  });
+}
+
 // POST /api/ai/design  (login required)
 // New design: { subject, style, teeColour, teeIsDark, ratio }
 // Change one: { baseUrl, change, teeIsDark, ratio }
 // -> { images: [{ url, width, height }], left }   (each picture already cut out of its background)
 export const makeAiDesign = asyncHandler(async (req, res) => {
+  // the free filters work whether the AI is on or not
+  if (req.body.photoUrl && !req.body.baseUrl && req.body.artStyle === FILTER_STYLE) return sendFilterArt(req, res);
   const settings = await readSettings();
   const reason = await whyOff(settings);
   if (reason) {
@@ -179,6 +201,8 @@ export const makeAiDesign = asyncHandler(async (req, res) => {
   const made = results.filter((r) => r.status === "fulfilled").map((r) => r.value);
   if (!made.length) {
     const err = results[0].reason;
+    // the picture service refused the customer's photo: they still get art, made by our own filters
+    if (fromPhoto && err?.status === 422) return sendFilterArt(req, res, { refused: true, left: Math.max(0, settings.dailyPerUser - used) });
     res.status(err?.status || 502);
     throw new Error(err?.message || "The design maker had a problem. Please try again.");
   }
