@@ -122,7 +122,7 @@ for dark tee colours (`dark` in `Boutique`), the arch dimmed to a glow, lamps ov
 **`feature-assistant-examples` — MERGED to `main` on 12 Oct 2026:** the assistant opens with a list of what it can do
 (`EXAMPLES` in `assistantScript.js`): tap-able examples that fill the message box or start the feature; "What can you do?" shows it again.
 
-**`feature-team-name-link` — built 13 Oct 2026, pushed, waiting for the user's "merge":** on the Team jersey layout the team name
+**`feature-team-name-link` — MERGED to `main` on 13 Oct 2026:** on the Team jersey layout the team name
 is on the chest and on the back; they are now linked (`element.link = "team"`, set by the template). Changing the words of one
 changes the other (`syncLinked` in `DesignRoomPage.jsx`, used by typing and by chat edits); each keeps its own size and is made
 smaller only as far as a long name needs (`ownSizePct`), so a shorter name gets its size back. The text AI is told which text is
