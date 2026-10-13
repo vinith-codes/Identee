@@ -622,7 +622,20 @@ export default function DesignRoomPage() {
       // from the first change on. ("Change only this one" in the text's settings takes a text out again.)
       const words = (t) => String(t || "").replace(/\s+/g, " ").trim().toLowerCase();
       const old = words(before.get(changed.id).text);
-      const twins = changed.role || !old ? [] : prev.filter((e) => e.type === "text" && e.id !== changed.id && !e.role && !e.link && e.position !== changed.position && words(e.text) === old);
+      let twins = changed.role || !old ? [] : prev.filter((e) => e.type === "text" && e.id !== changed.id && !e.role && !e.link && e.position !== changed.position && words(e.text) === old);
+      if (!twins.length && !changed.role) {
+        // Or one of them was already changed and the other still shows the layout's sample words: the team
+        // name typed on the chest while the back still says "TEAM NAME" (and the other way round).
+        const samples = TEMPLATES.flatMap((t) => t.items.filter((i) => i.link));
+        const mine = samples.find((i) => i.areas.includes(changed.position));
+        twins = !mine
+          ? []
+          : prev.filter(
+              (e) =>
+                e.type === "text" && e.id !== changed.id && !e.role && !e.link && e.position !== changed.position &&
+                samples.some((i) => i.link === mine.link && i.areas.includes(e.position) && words(e.text) === words(i.text)),
+            );
+      }
       if (!twins.length) return next;
       const ids = new Set([changed.id, ...twins.map((e) => e.id)]);
       next = next.map((e) => (ids.has(e.id) ? { ...e, link: "team" } : e));
