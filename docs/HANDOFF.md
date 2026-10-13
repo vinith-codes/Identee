@@ -129,6 +129,10 @@ from that change on (`syncLinked`). A linked text's settings have a switch that 
 (`link` = `"team"` | `"solo"`, both saved); switching back to "everywhere" gives the other places this text's words at once.
 Second case (the user's actual one: chest already said "Chennai Strikers", back still "TEAM NAME"): a text that still shows a
 layout's sample words in the layout's own area follows the name typed in the layout's other area (uses `TEMPLATES` items with `link`).
+Same branch: the question "Does this text change for each player?" with its three buttons is GONE from the text settings (user:
+"not needed"). A per-player text shows one line ("Each player gets their own name here…" + "Make it the same on every tee");
+any other text has a quiet line at the bottom: "Ordering for a team? Use this text as each player's name or number." The
+`teamTools` / `teamAsked` switch was removed. `element.role` and everything behind it are unchanged.
 Checked on the dev site with an old-style jersey: typing on the chest changed the back; "Change only this one" then changed one.
 
 **`feature-team-name-link` — MERGED to `main` on 13 Oct 2026:** on the Team jersey layout the team name

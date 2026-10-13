@@ -193,9 +193,6 @@ export default function DesignRoomPage() {
   const [players, setPlayers] = useState(() => (Array.isArray(draft?.players) ? draft.players.map((p) => ({ id: makeId(), ...p })) : []));
   const [team, setTeam] = useState(() => Boolean(draft?.players?.length));
   const [previewId, setPreviewId] = useState(null); // Review: the player whose tee is shown
-  // The per-player setting of a text is only shown for a team design: one that already has a text set as the
-  // player's name or number (the Team jersey layout does that), or once the customer says they are ordering for a team.
-  const [teamAsked, setTeamAsked] = useState(false);
   // light studio (default) or the dark, evening one — the customer's switch in the top bar, remembered on this device
   const [darkRoom, setDarkRoom] = useState(() => readJSON(DARK_KEY) === true);
   const toggleDark = () => {
@@ -1089,7 +1086,6 @@ export default function DesignRoomPage() {
     if (a.type === "players") {
       // a pasted team list: one tee per player
       setPlayers(a.players.slice(0, MAX_PLAYERS).map((p) => ({ id: makeId(), ...p })));
-      setTeamAsked(true);
       return setTeam(true);
     }
     if (a.type === "ink") {
@@ -1724,8 +1720,6 @@ export default function DesignRoomPage() {
                 onFix={ai.available ? fixPicture : null}
                 onAddMore={() => setSelectedId(null)}
                 canEnlarge={ai.available}
-                teamTools={roles || teamAsked || players.length > 0}
-                onTeamTools={() => setTeamAsked(true)}
               />
             ) : (
               <>
@@ -1972,10 +1966,10 @@ function TeamList({ players, setPlayers, sizes, sizeNow, roles, shownId, onShow 
       )}
       {/* a list with names (or numbers) but no text on the tee to carry them */}
       {!roles.name && players.some((p) => p.name) && (
-        <p className="dr-qnote warn">The names are not printed yet: no text on the tee is set as the player’s name. Press “Edit design”, tap the name text and answer “Does this text change for each player?” with “Yes, the name”.</p>
+        <p className="dr-qnote warn">The names are not printed yet: no text on the tee is set as the player’s name. Press “Edit design”, tap the name text and, at the bottom of its settings, choose “Ordering for a team? … name”.</p>
       )}
       {!roles.number && players.some((p) => p.number) && (
-        <p className="dr-qnote warn">The numbers are not printed yet: no text on the tee is set as the player’s number. Press “Edit design”, tap the number text and choose “Yes, the number”.</p>
+        <p className="dr-qnote warn">The numbers are not printed yet: no text on the tee is set as the player’s number. Press “Edit design”, tap the number text and, at the bottom of its settings, choose “Ordering for a team? … number”.</p>
       )}
       <p className="dr-qnote">Tap a player to see their tee. A long name is made smaller so it fits the print area.</p>
       <p className="dr-qnote">Every size is printed at its own true size from the print guide.</p>
@@ -2046,7 +2040,7 @@ function Fitting({ garment, colours, colour, onColour, sizes, size, onSize, onEn
   );
 }
 
-function Controls({ sel, areaCmW, areaRatio, onPatch, onDelete, onDuplicate, onLayer, onRemoveBg, onFix, onAddMore, teamTools, onTeamTools, canEnlarge }) {
+function Controls({ sel, areaCmW, areaRatio, onPatch, onDelete, onDuplicate, onLayer, onRemoveBg, onFix, onAddMore, canEnlarge }) {
   const quality = () => {
     if (!sel?.pxW) return null;
     const printCm = ((sel.width || 0) / 100) * areaCmW;
@@ -2098,22 +2092,15 @@ function Controls({ sel, areaCmW, areaRatio, onPatch, onDelete, onDuplicate, onL
               <small>{sel.link === "team" ? "The other places follow what you type here." : "This one changes alone. The other places keep their words."}</small>
             </div>
           )}
-          {teamTools && (
-          <div className="dr-field">
-            Does this text change for each player?
-            <div className="dr-seg three" role="group" aria-label="Does this text change for each player?">
-              {[
-                [undefined, "No, same on all"],
-                ["name", "Yes, the name"],
-                ["number", "Yes, the number"],
-              ].map(([k, label]) => (
-                <button key={label} type="button" className={sel.role === k || (!k && !sel.role) ? "on" : ""} aria-pressed={sel.role === k || (!k && !sel.role)} onClick={() => onPatch({ role: k })}>
-                  {label}
-                </button>
-              ))}
+          {sel.role && (
+            // A text that is swapped for each player on a team order (the Team jersey layout sets this by itself).
+            // No question to answer: one line that says so, and a way back.
+            <div className="dr-teamnote">
+              <b>Each player gets their own {sel.role} here.</b> What you typed is only a sample; you add the players in Review.{" "}
+              <button type="button" className="dr-teamlink" onClick={() => onPatch({ role: undefined })}>
+                Make it the same on every tee
+              </button>
             </div>
-            <small>{sel.role ? `What you typed here is only a sample. Each player’s ${sel.role} is printed on their own tee; you add the players in Review.` : "Choose Yes if every player gets their own name or number here."}</small>
-          </div>
           )}
           <div className="dr-row">
             <label className="dr-field">
@@ -2304,10 +2291,13 @@ function Controls({ sel, areaCmW, areaRatio, onPatch, onDelete, onDuplicate, onL
           </div>
         </>
       )}
-      {sel?.type === "text" && !teamTools && (
-        <button type="button" className="dr-teamlink" onClick={onTeamTools}>
-          Ordering for a team? Give each player their own name or number →
-        </button>
+      {sel?.type === "text" && !sel.role && (
+        // for a team tee built without the layout: the one place a text can be made the player's name or number
+        <p className="dr-teamask">
+          Ordering for a team? Use this text as each player’s{" "}
+          <button type="button" className="dr-teamlink" onClick={() => onPatch({ role: "name" })}>name</button> or{" "}
+          <button type="button" className="dr-teamlink" onClick={() => onPatch({ role: "number" })}>number</button>.
+        </p>
       )}
     </div>
   );

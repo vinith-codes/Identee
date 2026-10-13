@@ -862,3 +862,9 @@ button.dr-back { padding: 0; font: inherit; font-weight: 700; cursor: pointer; }
 @media (max-width: 1279px) and (min-width: 761px) {
   .dr-quickbar { top: 58px; max-width: calc(100% - 28px); }
 }
+
+/* per-player texts: one line, no question */
+.dr-teamnote { font-size: 12.5px; line-height: 1.45; color: var(--ink-soft); background: var(--gold-soft); border: 1px solid #E9D9A8; border-radius: 10px; padding: 9px 11px; }
+.dr-teamnote b { color: var(--ink); }
+.dr-teamnote .dr-teamlink, .dr-teamask .dr-teamlink { padding: 0; display: inline; }
+.dr-teamask { margin: 0; font-size: 12px; color: var(--muted); }

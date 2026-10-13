@@ -103,7 +103,7 @@ export function replyTo(text, ctx, st, { tapped = false } = {}) {
     }
     // the list has names (or numbers) but the tee has no text set to carry them
     const lacks = [!ctx.roles?.name && "name", !ctx.roles?.number && "number"].filter(Boolean);
-    const missing = lacks.length && ctx.roles ? ` Note: no text on the tee is set as the player’s ${lacks[0]}, so the ${lacks[0]}s won’t be printed. Tap that text and answer “Does this text change for each player?” with Yes.` : "";
+    const missing = lacks.length && ctx.roles ? ` Note: no text on the tee is set as the player’s ${lacks[0]}, so the ${lacks[0]}s won’t be printed. Tap that text and use “Ordering for a team?” at the bottom of its settings.` : "";
     const names = list.slice(0, 4).map((p) => `${playerLabel(p)} (${p.size})`).join(", ");
     return done([
       act({ type: "players", players: list }),
@@ -113,7 +113,7 @@ export function replyTo(text, ctx, st, { tapped = false } = {}) {
   }
   if (t === TEAM_ORDER || t === ADD_PLAYERS || /team order|each player|per player|every player|different (name|number)/.test(low)) {
     if (!ctx.hasRoles) {
-      return done([bot("One design, with a different name and number on each tee. Start with the Team jersey layout (or tap a text and press “Ordering for a team?” at the bottom of its settings)."), chips(["Team jersey"])]);
+      return done([bot("One design, with a different name and number on each tee. Start with the Team jersey layout (or tap a text and use “Ordering for a team?” at the bottom of its settings)."), chips(["Team jersey"])]);
     }
     return done([bot("Send me your players as name, number and size, one per line or separated by commas, like this: Arun 7 L, Karthik 10 XL. Every player gets their own tee with the same design. You can also fill the list in Review.")]);
   }
