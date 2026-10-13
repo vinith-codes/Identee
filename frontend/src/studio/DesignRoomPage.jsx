@@ -614,8 +614,20 @@ export default function DesignRoomPage() {
   // and look, and is made smaller if the new words would not fit its print area.
   const syncLinked = (prev, next) => {
     const before = new Map(prev.map((e) => [e.id, e]));
-    const changed = next.find((e) => e.type === "text" && e.link && before.has(e.id) && before.get(e.id).text !== e.text);
-    if (!changed) return next;
+    let changed = next.find((e) => e.type === "text" && before.has(e.id) && before.get(e.id).text !== e.text);
+    if (!changed || changed.link === "solo") return next;
+    if (!changed.link) {
+      // A design from before texts were linked (or texts the customer added by hand): the same words in two
+      // different print areas are one name, like a team name on the chest and on the back. They are linked
+      // from the first change on. ("Change only this one" in the text's settings takes a text out again.)
+      const words = (t) => String(t || "").replace(/\s+/g, " ").trim().toLowerCase();
+      const old = words(before.get(changed.id).text);
+      const twins = changed.role || !old ? [] : prev.filter((e) => e.type === "text" && e.id !== changed.id && !e.role && !e.link && e.position !== changed.position && words(e.text) === old);
+      if (!twins.length) return next;
+      const ids = new Set([changed.id, ...twins.map((e) => e.id)]);
+      next = next.map((e) => (ids.has(e.id) ? { ...e, link: "team" } : e));
+      changed = next.find((e) => e.id === changed.id);
+    }
     return next.map((e) => {
       if (e.type !== "text" || e.link !== changed.link) return e;
       const pos = positions.find((p) => p.key === e.position);
@@ -2052,8 +2064,13 @@ function Controls({ sel, areaCmW, areaRatio, onPatch, onDelete, onDuplicate, onL
               placeholder="Your text"
               onChange={(e) => onPatch({ text: e.target.value || " " }, { measure: true })}
             />
-            <small>{sel.link === "team" ? "This is the team name. Changing it here changes it everywhere on the tee." : "Press Enter for a new line."}</small>
+            <small>{sel.link === "team" ? "These words are on the tee more than once. Changing them here changes them everywhere." : "Press Enter for a new line."}</small>
           </label>
+          {sel.link === "team" && (
+            <button type="button" className="dr-teamlink" style={{ marginTop: -6 }} onClick={() => onPatch({ link: "solo" })}>
+              Change only this one →
+            </button>
+          )}
           {teamTools && (
           <div className="dr-field">
             Does this text change for each player?
