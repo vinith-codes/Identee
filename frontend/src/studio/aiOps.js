@@ -179,7 +179,7 @@ export function describeDesign({ elements, positions, active, selectedId, fonts,
       const pos = positions.find((p) => p.key === e.position);
       const { wCm, hCm } = pos ? areaPx(pos) : { wCm: 0, hCm: 0 };
       return e.type === "text"
-        ? { id: e.id, type: "text", area: e.position, text: e.text, font: e.fontFamily, color: e.color, sizeCm: Math.round(((e.fontSizePct || 0) / 100) * hCm * 10) / 10, shape: turned(e) ? "vertical" : e.effect === "arc-up" ? "curved-up" : e.effect === "arc-down" ? "curved-down" : "straight", bold: !!e.bold, italic: !!e.italic }
+        ? { id: e.id, type: "text", ...(e.link === "team" ? { is: "team name" } : e.role === "name" ? { is: "player name" } : e.role === "number" ? { is: "player number" } : {}), area: e.position, text: e.text, font: e.fontFamily, color: e.color, sizeCm: Math.round(((e.fontSizePct || 0) / 100) * hCm * 10) / 10, shape: turned(e) ? "vertical" : e.effect === "arc-up" ? "curved-up" : e.effect === "arc-down" ? "curved-down" : "straight", bold: !!e.bold, italic: !!e.italic }
         : { id: e.id, type: "picture", area: e.position, widthCm: Math.round(((e.width || 0) / 100) * wCm * 10) / 10 };
     }),
   };

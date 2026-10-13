@@ -5,6 +5,7 @@
 // free), the placeholder words, the letter size in cm and where its middle
 // sits (y, % down the area). The customer then changes the words.
 // role: this text is the player's name / number on a team order (studio/teamOrder.js).
+// link: texts with the same link always say the same thing — change one and the others follow.
 
 const YEAR = new Date().getFullYear();
 
@@ -14,8 +15,8 @@ export const TEMPLATES = [
     label: "Team jersey",
     says: "A small team name on the chest, and the team name, player name and number on the back. Ordering for a team? In Review every player gets their own name and number.",
     items: [
-      { areas: ["left-chest"], text: "TEAM NAME", cm: 1.6, y: 50 },
-      { areas: ["full-back", "centre-back"], text: "TEAM NAME", cm: 4, y: 12 },
+      { areas: ["left-chest"], text: "TEAM NAME", cm: 1.6, y: 50, link: "team" },
+      { areas: ["full-back", "centre-back"], text: "TEAM NAME", cm: 4, y: 12, link: "team" },
       { areas: ["full-back", "centre-back"], text: "PLAYER", cm: 5, y: 31, role: "name" },
       { areas: ["full-back", "centre-back"], text: "07", cm: 20, y: 68, role: "number" },
     ],

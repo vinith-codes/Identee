@@ -77,6 +77,7 @@ const cleanElement = (positionByKey) => (el, i) => {
       strokeColor: HEX.test(el.strokeColor) ? el.strokeColor : undefined,
       note: el.note ? String(el.note).slice(0, 300) : undefined,
       role: ["name", "number"].includes(el.role) ? el.role : undefined,
+      link: el.link === "team" ? "team" : undefined,
     };
   }
 

@@ -249,6 +249,7 @@ export const makeEdit = asyncHandler(async (req, res) => {
     items: (Array.isArray(d.items) ? d.items : []).slice(0, 30).map((it) => ({
       id: str(it.id, 40),
       type: it.type === "text" ? "text" : "picture",
+      ...(["team name", "player name", "player number"].includes(it.is) ? { is: it.is } : {}),
       area: str(it.area, 40),
       ...(it.type === "text" ? { text: str(it.text, 200), font: str(it.font, 40), color: str(it.color, 9), sizeCm: Number(it.sizeCm) || 0, shape: str(it.shape, 12), bold: Boolean(it.bold), italic: Boolean(it.italic) } : { widthCm: Number(it.widthCm) || 0 }),
     })),

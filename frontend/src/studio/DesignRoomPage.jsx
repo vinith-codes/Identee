@@ -609,13 +609,36 @@ export default function DesignRoomPage() {
     const w = h < heightPct ? (widthPct * h) / heightPct : widthPct;
     addElement(pos, { type: "image", src, x: 50 - w / 2, y: 50 - h / 2, width: w, height: h, ...extra });
   };
+  // Linked texts (the team name on the chest and on the back) always say the same thing: when the words of
+  // one were changed, the others with the same link get the new words too — each keeps its own size, place
+  // and look, and is made smaller if the new words would not fit its print area.
+  const syncLinked = (prev, next) => {
+    const before = new Map(prev.map((e) => [e.id, e]));
+    const changed = next.find((e) => e.type === "text" && e.link && before.has(e.id) && before.get(e.id).text !== e.text);
+    if (!changed) return next;
+    return next.map((e) => {
+      if (e.type !== "text" || e.link !== changed.link) return e;
+      const pos = positions.find((p) => p.key === e.position);
+      if (!pos) return { ...e, text: changed.text };
+      // Each starts from the size it was given (ownSizePct) and is made smaller only as far as the new words
+      // need — so a long team name stays inside the small chest area, and a shorter one gets its size back.
+      // The one being typed in is fitted the same way.
+      const own = e.ownSizePct || e.fontSizePct;
+      let el = textBox({ ...e, text: changed.text, fontSizePct: own, ownSizePct: own }, pos);
+      if (Math.abs(el.rotation || 0) !== 90 && el.width > 92) el = textBox({ ...el, fontSizePct: (own * 92) / el.width }, pos);
+      return el;
+    });
+  };
   const updateSel = (patch, { measure = false } = {}) => {
     commit((prev) =>
-      prev.map((e) => {
-        if (e.id !== selectedId) return e;
-        const next = { ...e, ...patch };
-        return measure && next.type === "text" ? textBox(next, positions.find((p) => p.key === e.position)) : next;
-      }),
+      syncLinked(
+        prev,
+        prev.map((e) => {
+          if (e.id !== selectedId) return e;
+          const next = { ...e, ...patch, ...(patch.fontSizePct !== undefined ? { ownSizePct: patch.fontSizePct } : {}) };
+          return measure && next.type === "text" ? textBox(next, positions.find((p) => p.key === e.position)) : next;
+        }),
+      ),
     );
   };
   const removeSel = () => {
@@ -674,7 +697,10 @@ export default function DesignRoomPage() {
     commit((prev) =>
       prev.map((e) => {
         if (e.id !== selectedId) return e;
-        if (e.type === "text") return textBox({ ...e, fontSizePct: Math.min(60, Math.max(2, e.fontSizePct * f)) }, positions.find((p) => p.key === e.position));
+        if (e.type === "text") {
+          const fontSizePct = Math.min(60, Math.max(2, e.fontSizePct * f));
+          return textBox({ ...e, fontSizePct, ownSizePct: fontSizePct }, positions.find((p) => p.key === e.position));
+        }
         const width = Math.min(150, Math.max(4, e.width * f));
         const height = (e.height * width) / e.width;
         return { ...e, width, height, x: e.x + (e.width - width) / 2, y: e.y + (e.height - height) / 2 };
@@ -829,7 +855,7 @@ export default function DesignRoomPage() {
       }
       // 2. changes to what is on the tee
       const done = applyAiOps(all, { elements, positions, active, fonts: FONTS, inkDefault: lum(tee?.hex || fabricHex) < 0.55 ? "#FFFFFF" : "#141110", areaPx, textBox, makeId });
-      let els = done.elements;
+      let els = syncLinked(elements, done.elements); // a team name changed by chat changes everywhere too
       changed += done.changed;
       let focus = done.focus;
       // 3. new pictures, one print area each (each one is a paid request to the image AI)
@@ -992,7 +1018,7 @@ export default function DesignRoomPage() {
       const pos = item.areas.map((k) => positions.find((p) => p.key === k)).find((p) => p && (taken.includes(p.key) || !blockersOf(p.key, positions, taken).length));
       if (!pos) continue;
       const { hCm } = areaPx(pos);
-      const start = { type: "text", text: item.text, fontFamily: item.font || "Anton", fontSizePct: Math.min(60, (item.cm / hCm) * 100), color: inkDefault, align: "center", effect: "straight", x: 50, y: item.y, width: 0, height: 0, ...(item.role ? { role: item.role } : {}) };
+      const start = { type: "text", text: item.text, fontFamily: item.font || "Anton", fontSizePct: Math.min(60, (item.cm / hCm) * 100), color: inkDefault, align: "center", effect: "straight", x: 50, y: item.y, width: 0, height: 0, ...(item.role ? { role: item.role } : {}), ...(item.link ? { link: item.link } : {}) };
       let el = textBox(start, pos);
       if (el.width > 90) el = textBox({ ...el, fontSizePct: (el.fontSizePct * 90) / el.width }, pos);
       added.push({ id: makeId(), position: pos.key, side: pos.side, rotation: 0, zIndex: base.length + added.length + 1, ...el });
@@ -1481,7 +1507,7 @@ export default function DesignRoomPage() {
                       </div>
                     );
                   })}
-                  <p className="dr-empty">Gold box = has a design. Faded = covered by another design.</p>
+                  <p className="dr-empty">A tick = has a design. Faded = covered by another design.</p>
                 </>
               }
 
@@ -2026,7 +2052,7 @@ function Controls({ sel, areaCmW, areaRatio, onPatch, onDelete, onDuplicate, onL
               placeholder="Your text"
               onChange={(e) => onPatch({ text: e.target.value || " " }, { measure: true })}
             />
-            <small>Press Enter for a new line.</small>
+            <small>{sel.link === "team" ? "This is the team name. Changing it here changes it everywhere on the tee." : "Press Enter for a new line."}</small>
           </label>
           {teamTools && (
           <div className="dr-field">

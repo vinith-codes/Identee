@@ -50,6 +50,9 @@ const elementSchema = new mongoose.Schema(
     note: { type: String, maxlength: 300 },
     // Team orders: this text is replaced on each tee by that player's name / number
     role: { type: String, enum: ["name", "number"] },
+    // Texts that always say the same thing (the team name on the chest and on the back):
+    // changing one in the Design Room changes the others with the same link.
+    link: { type: String, enum: ["team"] },
 
     // placement
     x: { type: Number, required: true },
