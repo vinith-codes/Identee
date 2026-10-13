@@ -122,6 +122,15 @@ for dark tee colours (`dark` in `Boutique`), the arch dimmed to a glow, lamps ov
 **`feature-assistant-examples` — MERGED to `main` on 12 Oct 2026:** the assistant opens with a list of what it can do
 (`EXAMPLES` in `assistantScript.js`): tap-able examples that fill the message box or start the feature; "What can you do?" shows it again.
 
+**`feature-lettering-art` — built 13 Oct 2026 on top of `feature-art-filters`, pushed, waiting for the user's "merge":** words as a
+picture. The user showed a brush-lettered slogan tee and wants customers to get that from a plain request ("make the text God is
+only belief as a image on the t-shirt front"). New picture style **Hand lettering** (`AI_STYLES` in `aiImageService.js`); the
+Assistant spots such requests ("as an image / picture", "typography", "lettering", "a design that says …") and sends the words
+straight to that style, without asking for a style (`asPicture` block in `assistantScript.js`). "add/write text that says …" still
+adds real text. New example in the Assistant's list. One paid run of the user's exact prompt (2 pictures, ~₹7, not recorded in
+AiUsage because it was run from a script): both spelled correctly, brush lettering with splatters, backgrounds removed.
+Not checked: the flow on screen in the Assistant; placing on the area named in the request (the customer taps Add to tee).
+
 **`feature-art-filters` — built 13 Oct 2026 on top of `fix-team-name-link-old-designs`, pushed, waiting for the user's "merge":**
 Google's picture service refuses some photos (the user's photo of a film star: `400 Request blocked for an unspecified policy
 reason`). Our own art filters now cover that — no AI service, free, about a second: `server/services/artFilterService.js` makes

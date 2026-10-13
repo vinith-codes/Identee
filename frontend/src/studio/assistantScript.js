@@ -51,6 +51,7 @@ export const EXAMPLES = [
   { title: "Design the whole tee in one sentence", say: "A tiger on the front and a tree on the back, on a black t-shirt", fill: true, needs: "pictures" },
   { title: "Draw a picture for me", say: "Draw a lion holding a cricket bat", fill: true, needs: "pictures" },
   { title: "Turn my photo into art", hint: "Cartoon, sketch, sticker and more", say: "Photo to art", needs: "pictures" },
+  { title: "Turn words into lettering art", say: "Hand lettering that says “Work smarter not harder”", fill: true, needs: "pictures" },
   { title: "Write a slogan", say: "A slogan for my mother", fill: true },
   { title: "Change things by telling me", say: "Make the text gold, curved and a bit bigger", fill: true, needs: "text" },
   { title: "Style my text for a mood", hint: "Royal, sporty, cute, minimal…", say: "Style it for me", needs: "text" },
@@ -176,6 +177,31 @@ export function replyTo(text, ctx, st, { tapped = false } = {}) {
     if (!ai.loggedIn) return done([bot("I can redraw your photo as a cartoon, a sketch or a sticker. Log in first so it is kept for you."), chips(["Log in", "Something else"])]);
     if (ai.left === 0) return done([bot("You’ve used today’s design requests. They reset tomorrow."), chips(["Something else"])]);
     return done([bot("Send me a photo of a person, a pet or anything you like, and I’ll redraw it as art for your tee."), chips(["Upload a photo", ...(ctx.photoOnTee ? ["Use the picture on my tee"] : [])])]);
+  }
+
+  /* ----- words as a picture: a slogan or quote drawn as hand lettering (the image AI) -----
+     "God is my only belief as an image", "typography that says …", "a quote design: …".
+     Not for "add text that says …" — that is real text on the tee, handled further down. */
+  const LETTERING = "Hand lettering";
+  const asPicture = /\b(typography|lettering|hand.?lettered|calligraphy|word ?art|text art|quote (design|art|image|picture|poster))\b|\b(as|into|in) (an? )?(image|picture|design|art|artwork|poster)\b|\b(design|image|picture|art|poster|badge)( with (the )?(words|text|quote))? (that|which) (says?|reads?)\b/.test(low);
+  if (asPicture && !tapped && !/^(add|write|put|type|insert)\b/.test(low) && (ctx.ai.styles || []).includes(LETTERING)) {
+    const ai = ctx.ai;
+    if (!ai.available) return done([bot("Drawing words as art is not available right now. You can add them as text and style them: tap “Add text”, then ask me to “Style it for me”."), chips(["Something else"])]);
+    if (!ai.loggedIn) return done([bot("I can draw those words as lettering art. Log in first so your designs are kept for you."), chips(["Log in", "Something else"])]);
+    if (ai.left === 0) return done([bot("You’ve used today’s design requests. They reset tomorrow. Until then you can add the words as text and style them."), chips(["Something else"])]);
+    // the words: what is in quotation marks, else the sentence without the asking part
+    const quoted = /[“"‘']([^”"’']{2,160})[”"’']/.exec(t);
+    const said = (quoted ? quoted[1] : t)
+      .replace(/^(please )?(i (want|need|would like)|can you|could you|make|draw|create|generate|give me|design|write)( me)?( an?| the)?\s+/i, "")
+      .replace(/\b(as|into|in) (an? )?(image|picture|design|art|artwork|poster)\b.*$/i, "")
+      .replace(/^(an? |the )?((hand.?lettered|brush|bold|retro|elegant|simple) )*(typography|lettering|calligraphy|word ?art|text art|quote|design|image|picture|art|poster|badge)( design| art| image| picture| poster)?( with (the )?(words|text|quote))?( (that|which) (says?|reads?))?[:,]?\s*/i, "")
+      .replace(/^(the )?(text|words?|quote|slogan|line|saying|phrase)[:,]?\s+/i, "")
+      .replace(/\s+/g, " ")
+      .trim();
+    if (said.length < 2) return done([bot("Which words should I draw? Type them, for example: “Work smarter not harder” as an image.")]);
+    // anything else they asked for (a crown, rays, colours) stays in the request as written
+    const job = { subject: quoted ? `${t.replace(quoted[0], "").replace(/\s+/g, " ").trim()} — the words to letter, spelled exactly: “${said}”` : `the words “${said}”, spelled exactly`, style: LETTERING };
+    return done([act({ type: "generate", ...job })], { lastDesign: job });
   }
 
   /* ----- the stylist: fonts, colours and shape chosen together for a mood (the text AI) ----- */

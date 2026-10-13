@@ -61,6 +61,10 @@ export const AI_STYLES = {
   "Retro badge": "vintage round badge emblem with a retro screen-print look and a limited palette",
   Cartoon: "friendly cartoon illustration with clean outlines and flat colours",
   Watercolour: "soft watercolour painting with loose, flowing edges",
+  // words as the whole design: a slogan or a quote drawn as lettering (the Assistant picks this by itself
+  // when the customer asks for words "as an image", "typography", "a design that says …")
+  "Hand lettering":
+    "expressive hand-lettered typography where the words are the whole design: brush or marker lettering stacked in short lines, mixing letter sizes and lettering styles (a flowing script with rough bold capitals), a few ink splatters or small flourishes, one or two ink colours, no picture unless the subject asks for one. Spell every word exactly as given and add no other words",
 };
 
 // "Photo to art": the styles a customer's own photo can be redrawn in.
