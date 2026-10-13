@@ -122,6 +122,18 @@ for dark tee colours (`dark` in `Boutique`), the arch dimmed to a glow, lamps ov
 **`feature-assistant-examples` — MERGED to `main` on 12 Oct 2026:** the assistant opens with a list of what it can do
 (`EXAMPLES` in `assistantScript.js`): tap-able examples that fill the message box or start the feature; "What can you do?" shows it again.
 
+**`feature-print-placement` — built 13 Oct 2026, pushed, waiting for the user's "merge":** the print pack now tells the print team
+where things go (user: "if the image starts from the centre of Centre Front, how do they know?").
+- ORDER-SHEET.txt opens with "HOW TO PLACE A PRINT": each PNG is the WHOLE print area with the artwork already in place — line up
+  the file's edges, never crop and centre the artwork. Per area: "where on the tee" (`whereOnGarment` in `printFiles.js`, from each
+  area's `place` + its side's main area, sent by `getOrderPrintPack` as `main` / `place` / `mainLabel`); per file: the artwork's
+  size and its distance from the area's left and top edges (`artworkBox`).
+- A `guide-<area>_<w>x<h>cm.jpg` per area and print size: the area on the tee's colour with the artwork, a cm ruler on the top
+  and left, centre lines, and the artwork's box with its distances — marked NOT FOR PRINTING (`placementGuide`).
+- Checked by building the pack for real order VF-2026-0024 in the browser (read-only): sheet text and the Centre Front guide.
+- The "where on the tee" distances are the estimates in `server/data/printPositions.js`; they become exact when the print team
+  sends its start lines (still an open request).
+
 **`fix-three-pictures-limit` — MERGED to `main` on 13 Oct 2026:** one message can ask for pictures on
 several areas ("lion on front, tiger on back, zebra on left sleeve"); the page draws at most THREE (`MAX_PICTURES` in `chatEdit`).
 A fourth used to be dropped silently. Now the planner lists every picture asked for, the page draws three and says which were

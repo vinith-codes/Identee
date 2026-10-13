@@ -436,6 +436,9 @@ export const getOrderPrintPack = async (req, res) => {
       const used = [...new Set(doc.elements.map((e) => e.position).filter(Boolean))];
       // team order: the players, numbered in the customer's order
       const players = (doc.players || []).map((p, n) => ({ n: n + 1, name: p.name, number: p.number, size: p.size }));
+      // where an area sits on the garment: its own placement rule, and the name of its side's main area
+      // (placements are given relative to that one — see data/printPositions.js)
+      const where = (a) => (a ? { main: !!a.main, place: a.place || null, mainLabel: catalog.find((c) => c.side === a.side && c.main)?.label || null } : {});
       const areas = used.map((key) => {
         const a = catalog.find((c) => c.key === key);
         const files = [];
@@ -444,7 +447,7 @@ export const getOrderPrintPack = async (req, res) => {
           for (const p of players) {
             files.push({ group: `player-${p.n}`, sizes: [p.size], cm: a.cmBySize[String(p.size).toUpperCase()] || a.cmBySize.L, player: p });
           }
-          return { key, label: a.label, side: a.side || null, files, perPlayer: true };
+          return { key, label: a.label, side: a.side || null, files, perPlayer: true, ...where(a) };
         }
         // one print file per print size among the ordered sizes (same cm → same file)
         for (const l of a ? lines : []) {
@@ -455,7 +458,7 @@ export const getOrderPrintPack = async (req, res) => {
             if (!f.sizes.includes(l.size)) f.sizes.push(l.size);
           } else files.push({ group: id, sizes: [l.size], cm });
         }
-        return { key, label: a?.label || key, side: a?.side || null, files };
+        return { key, label: a?.label || key, side: a?.side || null, files, ...where(a) };
       });
       return {
         _id: id,
