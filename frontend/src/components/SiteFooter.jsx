@@ -11,6 +11,7 @@ import { useDispatch, useSelector } from "react-redux";
 import { fetchCategories } from "../redux/slices/categorySlice";
 import { fetchPublicSettings } from "../redux/slices/publicSettingsSlice";
 import { TEE_MODELS } from "../studio/teeModel";
+import { POLICY_LINKS } from "../utils/policyLinks";
 
 const CSS = `
   .sf { background: #fff; color: #15130F; font-family: "Inter", "Helvetica Neue", Arial, sans-serif; border-top: 1px solid #E2DED3; }
@@ -39,6 +40,8 @@ const CSS = `
   .sf-credits a { color: inherit; text-decoration: underline; }
   .sf-credits a:hover { color: #141110; }
   .sf-bottom { border-top: 1px solid #E2DED3; padding-block: 18px; display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; font-size: 12.5px; color: #6F6A60; }
+  .sf-policies { display: flex; flex-wrap: wrap; gap: 6px 18px; }
+  .sf-policies a:hover { color: #15130F; text-decoration: underline; text-underline-offset: 3px; }
   .sf a:focus-visible { outline: 2px solid #B8912F; outline-offset: 3px; border-radius: 4px; }
   @media (max-width: 900px) { .sf-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
   @media (max-width: 520px) { .sf-grid { grid-template-columns: minmax(0, 1fr); gap: 28px; } }
@@ -172,6 +175,11 @@ export default function SiteFooter() {
         </div>
         <div className="sf-bottom">
           <span>© {new Date().getFullYear()} {storeName}. All rights reserved.</span>
+          <nav className="sf-policies" aria-label="Policies">
+            {POLICY_LINKS.map(([to, label]) => (
+              <Link key={to} to={to}>{label}</Link>
+            ))}
+          </nav>
           {s["general.storeDescription"] && <span>{s["general.storeDescription"]}</span>}
         </div>
         {/* Credits. The 3D tee is free to use under CC BY 4.0 only while its maker is named — keep this line. */}

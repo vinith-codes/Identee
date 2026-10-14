@@ -122,7 +122,7 @@ for dark tee colours (`dark` in `Boutique`), the arch dimmed to a glow, lamps ov
 **`feature-assistant-examples` — MERGED to `main` on 12 Oct 2026:** the assistant opens with a list of what it can do
 (`EXAMPLES` in `assistantScript.js`): tap-able examples that fill the message box or start the feature; "What can you do?" shows it again.
 
-**`feature-vertical-lettering` — NOT MERGED (waiting for the user's "merge"):** words as a picture on the tall, thin
+**`feature-vertical-lettering` — MERGED to `main` on 14 Oct 2026:** words as a picture on the tall, thin
 areas (Vertical Front, Front Right Vertical, Vertical Back), like a side print reading up the tee. The user's request
 "Hand lettering that says “Hardwork never fails” in vertical front" gave 4 tall 9:16 pictures with the words stacked —
 small in a 10 × 52 cm strip — and "in vertical front" was sent to Google as part of the subject.
@@ -135,6 +135,64 @@ small in a 10 × 52 cm strip — and "in vertical front" was sent to Google as p
   picture turned.
 - Checked: the Assistant's replies for 4 messages, and the turned placement drawn with konvaRender. NOT checked with a real
   picture from Google (costs ~₹14 for one request of 4 pictures) — needs the user's go-ahead.
+
+**`feature-policy-pages` — MERGED to `main` on 14 Oct 2026:** the four policy pages Razorpay checks
+before live payments: /terms, /privacy-policy, /refund-policy, /shipping-policy (`pages/PolicyPage.jsx`, one component;
+links in `utils/policyLinks.js`, shown in the footer's bottom row and as a side menu on each page). Business name, email,
+phone and address come from Admin → Settings → General. The rules were APPROVED by the client (14 Oct 2026, policy PDF: all 11 ticked OK) — all
+in `RULES` at the top of the file: printing 2–4 working days (team 5–7), delivery 3–7 after dispatch, report a
+misprint/damage within 3 days, ready-made size exchange within 7 days, refund 5–7 working days, custom orders
+cancellable until printing starts (usually 24 h). Not legal advice — the client / their CA should read them.
+
+**`fix-email-sender` — MERGED to `main` on 14 Oct 2026 (Zoho live: login code reached a Gmail inbox; SPF, DKIM, DMARC all live):** one email setup for everything the site sends
+(`server/utils/mailer.js`: `mailer()`, `fromAddress()`, `shopInbox()`). Before, only login codes could use EMAIL_HOST; order
+/ invoice, contact-form, enquiry and review emails were hard-wired to Gmail, and contact messages, enquiries and invoice
+copies went to previous developers' Gmails (contact: a hard-coded address; MAIL_TO / ADMIN_EMAIL in .env). Now they all
+go to the shop inbox from Admin → Settings → General (support, else store email = info@identee.co.in); contact messages
+have Reply-To = the customer; the enquiry auto-reply signs "The IDENTEE Team" (MAIL_FROM_NAME no longer used).
+The company has **Zoho Mail (info@identee.co.in)**. To switch: Zoho app password + SMTP on, SPF/DKIM verified (DMARC
+added) in the Zoho admin, then .env EMAIL_HOST=smtp.zoho.in (or .com), EMAIL_PORT=465, EMAIL_USER=EMAIL_FROM=
+info@identee.co.in, EMAIL_PASS=<app password>; restart. Checked (no mail sent): server starts, SMTP login OK, shop
+inbox = info@identee.co.in. `utils/mailSender.js` is old unused CommonJS code (not imported anywhere).
+
+**`print-start-lines` — MERGED to `main` on 14 Oct 2026:** the print team's start lines (their handwritten
+sheet, 14 Oct 2026): how far the print's top edge is below the collar, per size group S–M / L–XL / 2XL–3XL.
+- Full Front, Vertical Front, Front Right Vertical: 6 / 7 / 8 cm. Top Back, Centre Back, Vertical Back: 8 / 10 / 12 cm.
+- `collarCm` per area in `server/data/printPositions.js` (sent with the positions and in the print pack). The 3D tee places
+  these areas from the collar line (`anchors.*.neck` in `teeModel.js`); the print pack says "its top edge below the collar:
+  7 cm (sizes L, XL) — your start line".
+- Not on the sheet (still estimates): Centre Front, Left/Right Chest, Full Back, sleeves.
+- Print pack, "so the print team never wonders where": each file also gets "On the tee" lines (`artworkOnTee` in
+  `printFiles.js`) — where the ARTWORK lands on the garment: its top edge in cm below the collar per size (areas with a
+  start line) or below their usual start line (others), and its centre from the tee's centre line (wearer's left/right).
+  The same lines are printed on each guide-….jpg.
+- ORDER-SHEET.txt rewritten to be read in seconds (user: "they don't have time to read for each t-shirt"): a 4-line
+  header (TOP = from the collar, SIDE = from the centre line), then per design one block per SIZE (team order: per
+  PLAYER) with one line per print: PRINT · ARTWORK size · TOP · SIDE · FILE. "CHECK FIRST" lists problems; a * marks a
+  distance from the usual start line (explained under the design). `artworkSpot` / `downText` / `acrossText`;
+  `whereOnGarment` removed. Tested with a made-up normal order + team order in the browser.
+- TEE MAP pictures (`teeMap` in `printFiles.js`): per size (team order: per player) and side, `MAP-size-M-front.jpg` —
+  a tee sketch on the order's colour with the COLLAR and CENTRE LINE, each print area (dashed) with the artwork in place
+  and to scale (12 px/cm), a red TOP arrow (from the collar, or from "YOUR USUAL … START LINE*" drawn at the estimate in
+  `EST_START`, same as teeModel) and a blue SIDE arrow from the centre line. Sleeves: sheet only. Named on each block's
+  title line in ORDER-SHEET.
+- Only tee measurements now (user: "the print team should not get confused"): the guide-….jpg pictures (artwork inside the
+  print area) and the map's print-area boxes were removed; each map shows the artwork with its name and size, TOP from
+  the collar and SIDE from the centre line (centred = half the width each side). Sheet header = "HOW TO PRINT", 3 steps.
+- `docs/print-requests/collar_measure_question.png` (+ .svg): picture asking the print team whether "from the collar"
+  means the TOP edge of the collar (A) or the collar SEAM (B). ANSWER (14 Oct 2026): the collar SEAM (B). Sheet, map and code notes say "collar seam".
+- JOB CARDS (user: the sheet was "clumsy"; their zip of VF-2026-0026 was still the old main version): every print is
+  numbered (front, back, sleeves) and its file is named `1-Vertical-Front_2XL.png` (team: `_P01-Arun-7`). One
+  `JOB-CARD_size-2XL.jpg` (team: per player) per size: a black heading (order · size · qty), front and back tee drawings
+  with numbered prints and TOP / SIDE arrows (`teeMap`, now returns a canvas), and a table # · PRINT · ARTWORK · TOP ·
+  SIDE · FILE, then CHECK FIRST problems and * notes (`jobCard`). ORDER-SHEET.txt is now 5–6 lines per design (job
+  cards + file list). MAP-….jpg files gone.
+- Bug fixed: `artworkBox` measured turned items in % of a non-square area (VF-0026 Front Right Vertical said 1.7 × 54
+  cm; really 9.2 × 20 cm). It now works in cm. Checked by building the pack for VF-2026-0026 (read-only) in the browser.
+  Checked with a made-up order run through `buildPrintPack` in the browser (Full Front M/L/2XL + Left Chest): 17 / 18 /
+  19.4 cm below the collar, chest logo 8.2 cm to the wearer's left.
+- Effect: Top Back, Centre Back and Vertical Back now all start on the same line, so they overlap and only one of them
+  can be used at a time (before, Top Back + Centre Back could be used together).
 
 **`feature-print-placement` — MERGED to `main` on 13 Oct 2026:** the print pack now tells the print team
 where things go (user: "if the image starts from the centre of Centre Front, how do they know?").

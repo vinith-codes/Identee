@@ -438,7 +438,7 @@ export const getOrderPrintPack = async (req, res) => {
       const players = (doc.players || []).map((p, n) => ({ n: n + 1, name: p.name, number: p.number, size: p.size }));
       // where an area sits on the garment: its own placement rule, and the name of its side's main area
       // (placements are given relative to that one — see data/printPositions.js)
-      const where = (a) => (a ? { main: !!a.main, place: a.place || null, mainLabel: catalog.find((c) => c.side === a.side && c.main)?.label || null } : {});
+      const where = (a) => (a ? { main: !!a.main, place: a.place || null, collarCm: a.collarCm || null, mainLabel: catalog.find((c) => c.side === a.side && c.main)?.label || null } : {});
       const areas = used.map((key) => {
         const a = catalog.find((c) => c.key === key);
         const files = [];
