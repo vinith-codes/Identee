@@ -7,7 +7,8 @@
 // .env:
 //   XAI_API_KEY               the key from console.x.ai (the company's account)
 //   XAI_IMAGE_MODEL           optional, default grok-imagine-image-2.0
-//   XAI_PRICE_PER_IMAGE_INR   optional, what one art version costs in ₹ (photo in + art out), default 7
+//
+// What a Grok picture costs (for the spending figures) is set in Admin → Settings → AI designs.
 //
 // API: POST https://api.x.ai/v1/images/edits — JSON { model, prompt, image: { type: "image_url", url } };
 // the photo goes as a data URI. https://docs.x.ai/developers/model-capabilities/images/editing
@@ -17,10 +18,6 @@ const TIMEOUT_MS = 90_000;
 const key = () => process.env.XAI_API_KEY?.trim() || "";
 export const xaiConfigured = () => Boolean(key());
 export const xaiModel = () => process.env.XAI_IMAGE_MODEL?.trim() || "grok-imagine-image-2.0";
-export const xaiPricePerImageInr = () => {
-  const n = Number(process.env.XAI_PRICE_PER_IMAGE_INR);
-  return Number.isFinite(n) && n >= 0 ? n : 7;
-};
 
 /**
  * Restyle a photo with Grok.

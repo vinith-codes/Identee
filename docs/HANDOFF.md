@@ -143,6 +143,10 @@ Off unless `XAI_API_KEY` is in server/.env (company account at console.x.ai). Co
 out, ~$0.04 each; `XAI_PRICE_PER_IMAGE_INR`, default 7), counted in AiUsage with model = the Grok model, so it is in
 the monthly cap. Grok makes ONE version per request (user: cost). The user tested Grok in the grok.com app: it accepted a celebrity photo. NOT yet tested through the API
 (needs the key; one paid run ~₹7). Legal: the client accepts printing celebrity art (personality rights).
+- Admin → Settings → AI designs now shows Grok: a card with Connected / Not set up, this month's Grok spend,
+  requests and pictures (and Google's), the setting "Cost of one Grok picture (₹)" (`ai.grokPricePerImageInr`, default 6 —
+  xAI: $5 ≈ 71 pictures), and an AI column (Google / Grok) in Latest requests. `monthSpend()` splits by AiUsage.model
+  (^grok). XAI_PRICE_PER_IMAGE_INR is gone.
 
 **`feature-policy-pages` — MERGED to `main` on 14 Oct 2026:** the four policy pages Razorpay checks
 before live payments: /terms, /privacy-policy, /refund-policy, /shipping-policy (`pages/PolicyPage.jsx`, one component;

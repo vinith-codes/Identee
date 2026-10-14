@@ -1,8 +1,9 @@
 // Admin → Settings → AI designs
 //
 // Switch the Design Room's "Make a design" on or off, set its limits, and
-// see what it has cost this month. The AI key itself is not here: it lives
-// in the server's settings file (GEMINI_API_KEY) and is never shown.
+// see what it has cost this month — Google and Grok (xAI, used only for photos
+// Google refuses) separately. The AI keys are not here: they live in the
+// server's settings file (IDENTEE_GEMINI_API_KEY, XAI_API_KEY) and are never shown.
 import { useEffect, useState } from "react";
 import { THEME } from "../../../theme/theme";
 import aiService from "../../../services/aiService";
@@ -11,7 +12,8 @@ const FIELDS = [
   ["dailyPerUser", "Requests per customer per day", "How many times one customer can ask for designs in a day.", 1, 50, 1],
   ["imagesPerRequest", "Pictures per request", "How many options the customer sees each time (each one is paid for).", 1, 4, 1],
   ["monthlyCapInr", "Monthly spending cap (₹)", "When this month's spend reaches it, the feature pauses until next month. Keep it a little below the spend cap set in Google AI Studio. 0 = no cap.", 0, 1000000, 50],
-  ["pricePerImageInr", "Cost of one picture (₹)", "Used only for the spending figures here. Include GST: Google’s spend page shows about ₹3.50 a picture.", 0, 100, 0.1],
+  ["pricePerImageInr", "Cost of one Google picture (₹)", "Used only for the spending figures here. Include GST: Google’s spend page shows about ₹3.50 a picture.", 0, 100, 0.1],
+  ["grokPricePerImageInr", "Cost of one Grok picture (₹)", "Grok redraws a customer's photo only when Google refuses it (well-known people). $5 of xAI credit ≈ 71 pictures ≈ ₹6 each — check console.x.ai → Billing.", 0, 100, 0.1],
 ];
 const WHY = {
   setup: "Not working yet: no AI key is set on the server (IDENTEE_GEMINI_API_KEY).",
@@ -79,9 +81,36 @@ export default function AiSettingsPage() {
         <div style={help}>Image AI: {data.model}{data.configured ? "" : " · key missing"}</div>
       </div>
 
+      <div style={{ ...card, display: "grid", gap: 10 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap", alignItems: "baseline" }}>
+          <b style={{ fontSize: 14 }}>Grok — for photos Google refuses</b>
+          <span style={{ fontSize: 12, fontWeight: 700, padding: "3px 10px", borderRadius: 999, background: data.grok?.configured ? t.goldBg : t.surface2, border: `1px solid ${data.grok?.configured ? t.goldBorder : t.border}` }}>
+            {data.grok?.configured ? "Connected" : "Not set up"}
+          </span>
+        </div>
+        <div style={help}>
+          {data.grok?.configured
+            ? `When Google refuses a customer's photo (usually a well-known person), Grok (${data.grok.model}) redraws it — one picture per request.`
+            : "Not working yet: add XAI_API_KEY to the server's settings file (key from console.x.ai). Until then, refused photos get the free art filters."}
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 10 }}>
+          {[
+            ["Grok spend this month", rupees(data.month.grok?.cost)],
+            ["Grok requests", data.month.grok?.requests || 0],
+            ["Grok pictures", data.month.grok?.images || 0],
+            ["Google spend this month", rupees(data.month.google?.cost)],
+          ].map(([k, v]) => (
+            <div key={k} style={{ background: t.surface2, border: `1px solid ${t.border}`, borderRadius: 10, padding: "10px 12px" }}>
+              <div style={{ fontSize: 12, color: t.textMuted }}>{k}</div>
+              <div style={{ fontSize: 18, fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>{v}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 12 }}>
         {[
-          ["Spent this month", rupees(data.month.cost)],
+          ["Spent this month (all)", rupees(data.month.cost)],
           ["Left before the cap", capLeft === null ? "No cap" : rupees(capLeft)],
           ["Requests this month", data.month.requests],
           ["Pictures made", data.month.images],
@@ -109,6 +138,7 @@ export default function AiSettingsPage() {
           <b>What this costs</b>
           <span>One new design request: <b>{rupees(perRequest)}</b> ({form.imagesPerRequest} pictures × {rupees(form.pricePerImageInr)})</span>
           <span>One “change it” request: <b>{rupees(perChange)}</b> (1 picture)</span>
+          <span>One celebrity photo redrawn by Grok: <b>{rupees(form.grokPricePerImageInr)}</b> (1 picture)</span>
           <span>One customer using all {form.dailyPerUser} requests in a day: up to <b>{rupees(worstDay)}</b></span>
           {requestsInCap !== null && <span>The monthly cap covers about <b>{requestsInCap}</b> new design requests</span>}
         </div>
@@ -132,6 +162,7 @@ export default function AiSettingsPage() {
                   <th style={{ padding: "6px 8px 6px 0" }}>When</th>
                   <th style={{ padding: "6px 8px" }}>Customer</th>
                   <th style={{ padding: "6px 8px" }}>Asked for</th>
+                  <th style={{ padding: "6px 8px" }}>AI</th>
                   <th style={{ padding: "6px 0 6px 8px", textAlign: "right" }}>Pictures</th>
                   <th style={{ padding: "6px 0 6px 8px", textAlign: "right" }}>Cost</th>
                 </tr>
@@ -142,6 +173,7 @@ export default function AiSettingsPage() {
                     <td style={{ padding: "7px 8px 7px 0", whiteSpace: "nowrap" }}>{new Date(r.when).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}</td>
                     <td style={{ padding: "7px 8px" }}>{r.who}</td>
                     <td style={{ padding: "7px 8px" }}>{r.kind === "change" ? "Change: " : ""}{r.prompt}</td>
+                    <td style={{ padding: "7px 8px", whiteSpace: "nowrap", fontWeight: r.ai === "Grok" ? 700 : 400 }}>{r.ai || "Google"}</td>
                     <td style={{ padding: "7px 0 7px 8px", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{r.images}</td>
                     <td style={{ padding: "7px 0 7px 8px", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{rupees(r.costInr)}</td>
                   </tr>
