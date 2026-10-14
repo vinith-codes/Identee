@@ -21,8 +21,12 @@
 //   align: centre | wearer-left | wearer-right   (left/right = the wearer's)
 //   gapCm: distance from the centre line to the print's inner edge
 //   topCm: how far the print's top is below the main print's top
-// These are estimates until the print team sends exact start distances
-// (docs/print-requests/IDENTEE_Oversized_Measurement_Request.pdf).
+// `collarCm` (when given) is the print team's start line: how far the print's
+// top edge is below the collar, per garment size — from their sheet of
+// 14 Oct 2026 (groups S–M, L–XL, 2XL–3XL). It wins over topCm wherever a real
+// distance matters (the 3D tee, the print pack). Areas without it (Centre
+// Front, the chests, Full Back, sleeves) still use estimates; their topCm
+// values below are chosen so the measured areas sit right next to them.
 //
 // Served to the customizer by GET /api/customizations/print-positions.
 
@@ -39,21 +43,24 @@ const MIN_CM = 2;
 
 // The print team's sheet: [w, h] for S–M, L–XL, 2XL–3XL -> one entry per size.
 const sheet = (sm, lxl, big) => ({ XS: sm, S: sm, M: sm, L: lxl, XL: lxl, "2XL": big, "3XL": big });
+// Start lines below the collar (cm), same groups.
+const FRONT_START = sheet(6, 7, 8);
+const BACK_START = sheet(8, 10, 12);
 
 export const PRINT_AREA_CATALOG = [
   { key: "centre-front", label: "Centre Front", side: "front", main: true, cm: [28, 32], place: { align: "centre", topCm: 0 } },
   { key: "left-chest", label: "Left Chest", side: "front", cm: [12, 13], place: { align: "wearer-left", gapCm: 4, topCm: 0 } },
   { key: "right-chest", label: "Right Chest", side: "front", cm: [12, 13], place: { align: "wearer-right", gapCm: 4, topCm: 0 } },
-  { key: "full-front", label: "Full Front", side: "front", cm: [35, 52], bySize: sheet([35, 52], [35, 52], [37, 54]), place: { align: "centre", topCm: 0 } },
-  { key: "vertical-front", label: "Vertical Front", side: "front", cm: [10, 52], bySize: sheet([10, 52], [10, 52], [10, 54]), place: { align: "centre", topCm: 0 } },
-  { key: "front-right-vertical", label: "Front Right Vertical", side: "front", cm: [10, 52], bySize: sheet([10, 52], [10, 52], [10, 54]), place: { align: "wearer-right", gapCm: 8, topCm: 0 } },
+  { key: "full-front", label: "Full Front", side: "front", cm: [35, 52], bySize: sheet([35, 52], [35, 52], [37, 54]), collarCm: FRONT_START, place: { align: "centre", topCm: -2 } },
+  { key: "vertical-front", label: "Vertical Front", side: "front", cm: [10, 52], bySize: sheet([10, 52], [10, 52], [10, 54]), collarCm: FRONT_START, place: { align: "centre", topCm: -2 } },
+  { key: "front-right-vertical", label: "Front Right Vertical", side: "front", cm: [10, 52], bySize: sheet([10, 52], [10, 52], [10, 54]), collarCm: FRONT_START, place: { align: "wearer-right", gapCm: 8, topCm: -2 } },
   { key: "lower-left", label: "Lower Left", side: "front", cm: null, place: { align: "wearer-left", gapCm: 8, topCm: 38 } },
   { key: "lower-right", label: "Lower Right", side: "front", cm: null, place: { align: "wearer-right", gapCm: 8, topCm: 38 } },
   { key: "full-back", label: "Full Back", side: "back", main: true, cm: [38, 42], place: { align: "centre", topCm: 0 } },
-  { key: "top-back", label: "Top Back", side: "back", cm: [35, 10], bySize: sheet([35, 10], [35, 10], [37, 10]), place: { align: "centre", topCm: -6 } },
-  { key: "centre-back", label: "Centre Back", side: "back", cm: [35, 52], bySize: sheet([35, 52], [35, 52], [37, 54]), place: { align: "centre", topCm: 4 } },
+  { key: "top-back", label: "Top Back", side: "back", cm: [35, 10], bySize: sheet([35, 10], [35, 10], [37, 10]), collarCm: BACK_START, place: { align: "centre", topCm: 1 } },
+  { key: "centre-back", label: "Centre Back", side: "back", cm: [35, 52], bySize: sheet([35, 52], [35, 52], [37, 54]), collarCm: BACK_START, place: { align: "centre", topCm: 1 } },
   { key: "lower-back", label: "Lower Back", side: "back", cm: null, place: { align: "centre", topCm: 40 } },
-  { key: "vertical-back", label: "Vertical Back", side: "back", cm: [10, 51], bySize: sheet([10, 51], [10, 51], [10, 54]), place: { align: "centre", topCm: 0 } },
+  { key: "vertical-back", label: "Vertical Back", side: "back", cm: [10, 51], bySize: sheet([10, 51], [10, 51], [10, 54]), collarCm: BACK_START, place: { align: "centre", topCm: 1 } },
   { key: "left-sleeve", label: "Left Sleeve", side: "left", main: true, cm: [9, 10], place: { align: "centre", topCm: 0 } },
   { key: "right-sleeve", label: "Right Sleeve", side: "right", main: true, cm: [9, 10], place: { align: "centre", topCm: 0 } },
 ];
@@ -121,6 +128,7 @@ const toPosition = (area, sized) => ({
   side: area.side,
   main: !!area.main,
   place: area.place,
+  collarCm: area.collarCm || null,
   cmBySize: sized.cmBySize,
   exact: sized.exact,
   cm: groupsOf(sized.cmBySize),
@@ -201,6 +209,7 @@ export const catalogForGarment = (garment) => {
       side: area.side,
       main: !!area.main,
       place: area.place,
+      collarCm: area.collarCm || null,
       cm: sized ? groupsOf(sized.cmBySize) : null,
       cmBySize: sized ? sized.cmBySize : null,
       exact: sized ? sized.exact : false,

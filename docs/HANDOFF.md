@@ -122,6 +122,16 @@ for dark tee colours (`dark` in `Boutique`), the arch dimmed to a glow, lamps ov
 **`feature-assistant-examples` — MERGED to `main` on 12 Oct 2026:** the assistant opens with a list of what it can do
 (`EXAMPLES` in `assistantScript.js`): tap-able examples that fill the message box or start the feature; "What can you do?" shows it again.
 
+**`print-start-lines` — NOT MERGED (waiting for the user's "merge"):** the print team's start lines (their handwritten
+sheet, 14 Oct 2026): how far the print's top edge is below the collar, per size group S–M / L–XL / 2XL–3XL.
+- Full Front, Vertical Front, Front Right Vertical: 6 / 7 / 8 cm. Top Back, Centre Back, Vertical Back: 8 / 10 / 12 cm.
+- `collarCm` per area in `server/data/printPositions.js` (sent with the positions and in the print pack). The 3D tee places
+  these areas from the collar line (`anchors.*.neck` in `teeModel.js`); the print pack says "its top edge below the collar:
+  7 cm (sizes L, XL) — your start line".
+- Not on the sheet (still estimates): Centre Front, Left/Right Chest, Full Back, sleeves.
+- Effect: Top Back, Centre Back and Vertical Back now all start on the same line, so they overlap and only one of them
+  can be used at a time (before, Top Back + Centre Back could be used together).
+
 **`feature-print-placement` — MERGED to `main` on 13 Oct 2026:** the print pack now tells the print team
 where things go (user: "if the image starts from the centre of Centre Front, how do they know?").
 - ORDER-SHEET.txt opens with "HOW TO PLACE A PRINT": each PNG is the WHOLE print area with the artwork already in place — line up

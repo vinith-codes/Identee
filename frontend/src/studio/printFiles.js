@@ -95,13 +95,26 @@ function artworkBox(els) {
   return { x0: c(x0), y0: c(y0), x1: c(x1), y1: c(y1) };
 }
 
-// Where a print area sits on the garment, in the print team's words. The distances come from the
-// IDENTEE print guide and are estimates until the print team confirms their start lines.
+// Where a print area sits on the garment, in the print team's words. Areas with the print team's own
+// start line (collarCm, per size) are given from the collar; the rest from the IDENTEE print guide (estimates).
 function whereOnGarment(area) {
   const side = { front: "FRONT", back: "BACK", left: "LEFT SLEEVE (the wearer's left)", right: "RIGHT SLEEVE (the wearer's right)" }[area.side] || String(area.side || "").toUpperCase();
   if (area.side === "left" || area.side === "right") return `${side}: centred on the sleeve's outer face.`;
   if (area.main || !area.place) return `${side}: centred left to right. This is the main ${area.side} print area — its top edge is your standard ${area.side} print start line.`;
   const p = area.place;
+  if (area.collarCm) {
+    // the start line for each size ordered, sizes with the same distance together
+    const sizes = [...new Set(area.files.flatMap((f) => f.sizes.map((s) => String(s).toUpperCase())))];
+    const byCm = new Map();
+    for (const s of sizes) {
+      const cm = area.collarCm[s];
+      if (cm == null) continue;
+      byCm.set(cm, [...(byCm.get(cm) || []), s]);
+    }
+    const start = [...byCm].map(([cm, ss]) => `${fmtCm(cm)} cm (size${ss.length > 1 ? "s" : ""} ${ss.join(", ")})`).join("; ");
+    const across2 = p.align === "wearer-left" || p.align === "wearer-right" ? `on the wearer's ${p.align === "wearer-left" ? "LEFT" : "RIGHT"}, its inner edge ${fmtCm(p.gapCm || 0)} cm from the centre line` : "centred left to right";
+    if (start) return `${side}: ${across2}; its top edge below the collar: ${start} — your start line.`;
+  }
   const across =
     p.align === "wearer-left"
       ? `on the wearer's LEFT, its inner edge ${fmtCm(p.gapCm || 0)} cm from the centre line`
@@ -236,8 +249,8 @@ export async function buildPrintPack(pack, onStep = () => {}) {
     "  1. Each PNG is the WHOLE print area, see-through where nothing is printed. The artwork is already in its",
     "     place inside it. Line the file's edges up with the print area on the garment. Do NOT crop the artwork",
     "     and centre it by itself — that moves it away from where the customer put it.",
-    "  2. \"Where on the tee\" below says where each print area sits on the garment (from the IDENTEE print guide;",
-    "     treat the distances as estimates until your own start lines are confirmed).",
+    "  2. \"Where on the tee\" below says where each print area sits on the garment. Distances \"below the collar\"",
+    "     are your own start lines; the others come from the IDENTEE print guide (treat them as estimates).",
     "  3. \"Artwork\" gives the artwork's size and how far it starts from the left and top edges of the area, to check",
     "     the print with a ruler. Each area also has a guide-….jpg picture with a cm ruler (not for printing).",
     "  Left and right always mean the WEARER's left and right.",

@@ -15,11 +15,13 @@ export const TEE_MODELS = {
     credit: { text: "3D tee: “oversized_t-shirt” by ap-school, CC BY 4.0", href: "https://sketchfab.com/3d-models/oversized-t-shirt-e6f9b60f58404ccaa40e8e3bdb4edc95" },
     lengthCm: 72.4, // the model's pattern length (shoulder top → hem), ≈ size S/M
     // Where the MAIN print of each side starts (its top edge), raw metres.
-    // Front/back: below the neckline at the centre line (estimates until the
-    // print team confirms start distances). Sleeves: below the sleeve top.
+    // Front/back: below the neckline at the centre line (estimates — the print
+    // team's sheet doesn't cover the main areas). Sleeves: below the sleeve top.
+    // neck = the collar line at the centre: areas with the print team's
+    // start line (collarCm) are measured down from it.
     anchors: {
-      front: { top: 1.58 - 0.08 },
-      back: { top: 1.6096 - 0.07 },
+      front: { top: 1.58 - 0.08, neck: 1.58 },
+      back: { top: 1.6096 - 0.07, neck: 1.6096 },
       left: { top: 1.5286 - 0.05, lateral: 0.0314 }, // wearer's left sleeve (raw +x)
       right: { top: 1.5174 - 0.05, lateral: 0.0444 }, // wearer's right sleeve (raw −x)
     },
@@ -72,7 +74,8 @@ export function placeArea(model, position, size, sizeLengthCm) {
   const h = hCm / 100 / s;
   const anchor = model.anchors[position.side] || model.anchors.front;
   const place = position.place || { align: "centre", topCm: 0 };
-  const top = anchor.top - ((place.topCm || 0) / 100) / s;
+  const collar = position.collarCm?.[size];
+  const top = collar != null && anchor.neck != null ? anchor.neck - collar / 100 / s : anchor.top - ((place.topCm || 0) / 100) / s;
   if (position.side === "left" || position.side === "right") {
     return { side: position.side, lateral: anchor.lateral, top, w, h };
   }
