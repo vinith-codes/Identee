@@ -138,6 +138,14 @@ sheet, 14 Oct 2026): how far the print's top edge is below the collar, per size 
   PLAYER) with one line per print: PRINT · ARTWORK size · TOP · SIDE · FILE. "CHECK FIRST" lists problems; a * marks a
   distance from the usual start line (explained under the design). `artworkSpot` / `downText` / `acrossText`;
   `whereOnGarment` removed. Tested with a made-up normal order + team order in the browser.
+- TEE MAP pictures (`teeMap` in `printFiles.js`): per size (team order: per player) and side, `MAP-size-M-front.jpg` —
+  a tee sketch on the order's colour with the COLLAR and CENTRE LINE, each print area (dashed) with the artwork in place
+  and to scale (12 px/cm), a red TOP arrow (from the collar, or from "YOUR USUAL … START LINE*" drawn at the estimate in
+  `EST_START`, same as teeModel) and a blue SIDE arrow from the centre line. Sleeves: sheet only. Named on each block's
+  title line in ORDER-SHEET.
+- `docs/print-requests/collar_measure_question.png` (+ .svg): picture asking the print team whether "from the collar"
+  means the TOP edge of the collar (A) or the collar SEAM (B). Waiting for their answer; the map draws the collar line
+  at the seam until then.
   Checked with a made-up order run through `buildPrintPack` in the browser (Full Front M/L/2XL + Left Chest): 17 / 18 /
   19.4 cm below the collar, chest logo 8.2 cm to the wearer's left.
 - Effect: Top Back, Centre Back and Vertical Back now all start on the same line, so they overlap and only one of them
