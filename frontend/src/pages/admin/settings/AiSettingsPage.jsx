@@ -13,7 +13,7 @@ const FIELDS = [
   ["imagesPerRequest", "Pictures per request", "How many options the customer sees each time (each one is paid for).", 1, 4, 1],
   ["monthlyCapInr", "Monthly spending cap (₹)", "When this month's spend reaches it, the feature pauses until next month. Keep it a little below the spend cap set in Google AI Studio. 0 = no cap.", 0, 1000000, 50],
   ["pricePerImageInr", "Cost of one Google picture (₹)", "Used only for the spending figures here. Include GST: Google’s spend page shows about ₹3.50 a picture.", 0, 100, 0.1],
-  ["grokPricePerImageInr", "Cost of one Grok picture (₹)", "Grok redraws a customer's photo only when Google refuses it (well-known people). grok-imagine-image-2.0 costs about ₹7 a picture — check console.x.ai → Billing.", 0, 100, 0.1],
+  ["grokPricePerImageInr", "Cost of one Grok picture (₹)", "Grok redraws a customer's photo only when Google refuses it (well-known people). $5 of xAI credit ≈ 71 pictures ≈ ₹6 each — check console.x.ai → Billing.", 0, 100, 0.1],
 ];
 const WHY = {
   setup: "Not working yet: no AI key is set on the server (IDENTEE_GEMINI_API_KEY).",
