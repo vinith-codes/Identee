@@ -117,7 +117,9 @@ export const nearestRatio = (wOverH) => {
 // The full instruction for a new design. The plain background (white for
 // light tees, black for dark ones) is what lets the Design Room cut the
 // design out afterwards.
-export function newDesignPrompt({ subject, style, teeColour, teeIsDark, variation, of }) {
+// oneLine: for the tall, thin print areas (Vertical Front 10 × 52 cm …): the words go on one line, like a
+// banner, and the Design Room turns the picture on its side to run along the strip.
+export function newDesignPrompt({ subject, style, teeColour, teeIsDark, variation, of, oneLine = false }) {
   const bg = teeIsDark ? "black" : "white";
   return [
     `Artwork to be printed on a ${teeColour} t-shirt.`,
@@ -127,6 +129,7 @@ export function newDesignPrompt({ subject, style, teeColour, teeIsDark, variatio
     "Do not draw a t-shirt, a mockup, a person wearing it, a frame or a border. No watermark or signature.",
     `Use colours that stand out on a ${teeColour} t-shirt.`,
     "Only include words if the subject asks for them, spelled exactly as written.",
+    oneLine ? "Layout: ALL the words on ONE single straight line, reading left to right, like a long banner that fills the picture's width. Do not stack the words on several lines. Keep any decoration small and in line with the words." : "",
     of > 1 ? `This is option ${variation} of ${of}: make its composition clearly different from the other options.` : "",
   ]
     .filter(Boolean)

@@ -598,7 +598,20 @@ export default function DesignRoomPage() {
     }
     addElement(pos, el);
   };
+  // A wide picture on a tall, thin area (Vertical Front 10 × 52 cm …): turned on its side to run up the strip,
+  // reading from bottom to top, as long as the area allows (fill = % of the area). null = it stays upright.
+  const turnedFit = (pos, natW, natH, fill = 92) => {
+    const { W, H } = areaPx(pos);
+    const shape = natW / natH;
+    if (H / W < 2.5 || shape < 1.6) return null;
+    const len = Math.min((fill / 100) * H, (fill / 100) * W * shape); // px along the strip
+    const width = (len / W) * 100; // the unturned box, in % of the area (konvaRender turns it about its centre)
+    const height = (len / shape / H) * 100;
+    return { rotation: -90, width, height, x: 50 - width / 2, y: 50 - height / 2 };
+  };
   const addImage = (pos, src, natW, natH, extra = {}) => {
+    const turned = turnedFit(pos, natW, natH, 80);
+    if (turned) return addElement(pos, { type: "image", src, ...turned, ...extra });
     const { W, H } = areaPx(pos);
     const widthPct = 60;
     const heightPct = ((widthPct / 100) * W * (natH / natW) / H) * 100;
@@ -958,11 +971,17 @@ export default function DesignRoomPage() {
   };
   // Ask the image AI for designs (or for a change to one). Returns the chat messages to show.
   const generateDesigns = async (a) => {
-    const { W, H } = activePos ? areaPx(activePos) : { W: 1, H: 1 };
+    // the area named in the message ("… in vertical front") is opened and the design made for it
+    const named = a.areaKey ? positions.find((p) => p.key === a.areaKey) : null;
+    if (named && named.key !== active) pickAreaByHand(named.key);
+    const forPos = named || activePos;
+    const { W, H } = forPos ? areaPx(forPos) : { W: 1, H: 1 };
+    // lettering for a tall, thin area: one long line, turned on its side when it is put on the tee
+    const banner = !a.photoUrl && !a.baseUrl && a.style === "Hand lettering" && H / W >= 2.5;
     try {
       const res = await aiService.design(
         a.photoUrl ? { photoUrl: a.photoUrl, artStyle: a.artStyle, teeColour: colour?.name || "white", teeIsDark: lum(fabricHex) < 0.55, ratio: W / H } :
-        a.baseUrl ? { baseUrl: a.baseUrl, change: a.change, teeIsDark: lum(fabricHex) < 0.55, ratio: W / H } : { subject: a.subject, style: a.style, teeColour: colour?.name || "white", teeIsDark: lum(fabricHex) < 0.55, ratio: W / H },
+        a.baseUrl ? { baseUrl: a.baseUrl, change: a.change, teeIsDark: lum(fabricHex) < 0.55, ratio: W / H } : { subject: a.subject, style: a.style, teeColour: colour?.name || "white", teeIsDark: lum(fabricHex) < 0.55, ratio: banner ? H / W : W / H, ...(banner ? { banner: true } : {}) },
       );
       if (res.left != null) setAi((cur) => ({ ...cur, left: res.left }));
       // the pictures arrive already cut out of their background; remember their size and start
@@ -987,7 +1006,7 @@ export default function DesignRoomPage() {
         ];
       }
       return [
-        botSays(a.photoUrl ? `Here ${n === 1 ? "it is" : `are ${n} versions`} as ${String(a.artStyle || "art").toLowerCase()}. Add one to your tee, or ask me to change it. ${left}` : a.baseUrl ? `Here’s the changed design. ${left}` : `Here ${n === 1 ? "is one" : `are ${n}`}, made for ${activePos?.label || "your tee"} on a ${(colour?.name || "").toLowerCase()} tee. Add one, use another on a different area, or ask me to change one. ${left}`),
+        botSays(a.photoUrl ? `Here ${n === 1 ? "it is" : `are ${n} versions`} as ${String(a.artStyle || "art").toLowerCase()}. Add one to your tee, or ask me to change it. ${left}` : a.baseUrl ? `Here’s the changed design. ${left}` : `Here ${n === 1 ? "is one" : `are ${n}`}, made for ${forPos?.label || "your tee"}${banner ? " (they go on turned, running up the strip)" : ""} on a ${(colour?.name || "").toLowerCase()} tee. Add one, use another on a different area, or ask me to change one. ${left}`),
         { designs: res.images.map((im) => im.url) },
         chipRow(a.photoUrl ? ["Something else"] : AFTER_DESIGN_CHIPS),
       ];
@@ -1007,6 +1026,8 @@ export default function DesignRoomPage() {
   };
   // An AI design as an item on a print area: as large as the area allows, centred.
   const aiElement = (pos, cut, zIndex) => {
+    const turned = turnedFit(pos, cut.w, cut.h);
+    if (turned) return { id: makeId(), type: "image", src: cut.path, position: pos.key, side: pos.side, zIndex, ...turned, pxW: cut.w };
     const { W, H } = areaPx(pos);
     const shape = cut.w / cut.h;
     const width = shape > W / H ? 92 : (92 * shape * H) / W;
@@ -2064,6 +2085,14 @@ function Fitting({ garment, colours, colour, onColour, sizes, size, onSize, onEn
   );
 }
 
+// rotation + a quarter turn, snapped to the nearest quarter and kept between -180 and 180
+const quarterTurn = (rotation, by) => {
+  let r = Math.round(((rotation || 0) + by) / 90) * 90;
+  if (r > 180) r -= 360;
+  if (r <= -180) r += 360;
+  return r;
+};
+
 function Controls({ sel, areaCmW, areaRatio, onPatch, onDelete, onDuplicate, onLayer, onRemoveBg, onFix, onAddMore, canEnlarge }) {
   const quality = () => {
     if (!sel?.pxW) return null;
@@ -2290,6 +2319,11 @@ function Controls({ sel, areaCmW, areaRatio, onPatch, onDelete, onDuplicate, onL
             Rotate
             <input type="range" min="-180" max="180" value={sel.rotation || 0} onChange={(e) => onPatch({ rotation: +e.target.value })} />
           </label>
+          {/* a quarter turn per tap: the easy way to make text or a picture run up or down a tall area */}
+          <div className="dr-row">
+            <button type="button" className="dr-chip" title="Turn a quarter to the left — reads from bottom to top" onClick={() => onPatch({ rotation: quarterTurn(sel.rotation, -90) })}>↺ Turn</button>
+            <button type="button" className="dr-chip" title="Turn a quarter to the right — reads from top to bottom" onClick={() => onPatch({ rotation: quarterTurn(sel.rotation, 90) })}>↻ Turn</button>
+          </div>
           <div className="dr-row">
             {sel.type === "image" && (
               <button
@@ -2299,6 +2333,12 @@ function Controls({ sel, areaCmW, areaRatio, onPatch, onDelete, onDuplicate, onL
                 onClick={() => {
                   // picture's shape (width ÷ height) against the area's: fill the tighter direction
                   const shape = ((sel.width || 50) / (sel.height || 50)) * areaRatio;
+                  if (Math.abs((sel.rotation || 0) % 180) === 90) {
+                    // turned on its side: its width runs along the area's height
+                    const width = 100 * Math.min(1 / areaRatio, shape);
+                    const height = (width * areaRatio) / shape;
+                    return onPatch({ width, height, x: 50 - width / 2, y: 50 - height / 2 });
+                  }
                   const width = shape > areaRatio ? 100 : (100 * shape) / areaRatio;
                   const height = shape > areaRatio ? (100 * areaRatio) / shape : 100;
                   onPatch({ width, height, x: 50 - width / 2, y: 50 - height / 2, rotation: 0 });

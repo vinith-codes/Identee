@@ -154,6 +154,7 @@ export const makeAiDesign = asyncHandler(async (req, res) => {
     throw new Error(changing ? "Tell me what to change." : "Describe what the design should show.");
   }
   let jobs;
+  let banner = false;
   const teeName = String(req.body.teeColour || "white").replace(/[^\w \-]/g, "").slice(0, 30) || "white";
   if (fixing) {
     if (!isOurUpload(req.body.fixUrl)) {
@@ -192,9 +193,13 @@ export const makeAiDesign = asyncHandler(async (req, res) => {
     // count: fewer options than usual (used when one message asks for pictures on several areas)
     const wanted = Number(req.body.count) > 0 ? Math.min(Number(req.body.count), settings.imagesPerRequest) : settings.imagesPerRequest;
     const of = Math.min(4, Math.max(1, wanted));
-    jobs = Array.from({ length: of }, (_, i) =>
-      generateImage({ prompt: newDesignPrompt({ subject: text, style, teeColour, teeIsDark: Boolean(req.body.teeIsDark), variation: i + 1, of }), ratio: nearestRatio(req.body.ratio) }),
-    );
+    // lettering for a tall, thin area: one long line on the widest picture (21:9; 16:9 if the model won't do 21:9)
+    banner = Boolean(req.body.banner) && style === "Hand lettering";
+    jobs = Array.from({ length: of }, (_, i) => {
+      const prompt = newDesignPrompt({ subject: text, style, teeColour, teeIsDark: Boolean(req.body.teeIsDark), variation: i + 1, of, oneLine: banner });
+      if (!banner) return generateImage({ prompt, ratio: nearestRatio(req.body.ratio) });
+      return generateImage({ prompt, ratio: "21:9" }).catch((err) => (err?.status === 400 ? generateImage({ prompt, ratio: "16:9" }) : Promise.reject(err)));
+    });
   }
 
   const results = await Promise.allSettled(jobs);
@@ -207,7 +212,21 @@ export const makeAiDesign = asyncHandler(async (req, res) => {
     throw new Error(err?.message || "The design maker had a problem. Please try again.");
   }
   // cut each design out of its plain background here, so "Add to tee" is instant in the Design Room
-  const cut = await Promise.all(made.map((m) => cutOutPlainBackground(m.buffer).catch(() => ({ buffer: m.buffer, mime: m.mime, width: 1024, height: 1024, cut: false }))));
+  let cut = await Promise.all(made.map((m) => cutOutPlainBackground(m.buffer).catch(() => ({ buffer: m.buffer, mime: m.mime, width: 1024, height: 1024, cut: false }))));
+  // a one-line banner: drop the empty space around the words, so it runs the full length of the strip
+  if (banner) {
+    cut = await Promise.all(
+      cut.map(async (c) => {
+        if (!c.cut) return c;
+        try {
+          const t = await sharp(c.buffer).trim().png({ compressionLevel: 9 }).toBuffer({ resolveWithObject: true });
+          return { ...c, buffer: t.data, width: t.info.width, height: t.info.height };
+        } catch {
+          return c;
+        }
+      }),
+    );
+  }
   const stored = await Promise.all(cut.map((c) => uploadFile(c.buffer, c.mime, "ai-designs")));
 
   await AiUsage.create({

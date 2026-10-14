@@ -122,6 +122,20 @@ for dark tee colours (`dark` in `Boutique`), the arch dimmed to a glow, lamps ov
 **`feature-assistant-examples` — MERGED to `main` on 12 Oct 2026:** the assistant opens with a list of what it can do
 (`EXAMPLES` in `assistantScript.js`): tap-able examples that fill the message box or start the feature; "What can you do?" shows it again.
 
+**`feature-vertical-lettering` — NOT MERGED (waiting for the user's "merge"):** words as a picture on the tall, thin
+areas (Vertical Front, Front Right Vertical, Vertical Back), like a side print reading up the tee. The user's request
+"Hand lettering that says “Hardwork never fails” in vertical front" gave 4 tall 9:16 pictures with the words stacked —
+small in a 10 × 52 cm strip — and "in vertical front" was sent to Google as part of the subject.
+- assistantScript lettering: an area named in the message → `areaKey` on the generate act (opened by `generateDesigns`),
+  and the area's name is taken out of the subject.
+- Hand lettering on an area with H/W ≥ 2.5: `banner: true` → server asks for ONE line of words (`newDesignPrompt` oneLine)
+  on a 21:9 picture (16:9 if the model refuses 21:9) and trims the empty space after the cut-out (sharp `.trim()`).
+- `turnedFit`: a wide picture (≥ 1.6:1) put on such an area — AI design or upload — goes on turned −90° (reads bottom to
+  top), as long as the strip allows. Item settings: "↺ Turn" / "↻ Turn" (`quarterTurn`), and "Fill area" keeps a turned
+  picture turned.
+- Checked: the Assistant's replies for 4 messages, and the turned placement drawn with konvaRender. NOT checked with a real
+  picture from Google (costs ~₹14 for one request of 4 pictures) — needs the user's go-ahead.
+
 **`feature-print-placement` — MERGED to `main` on 13 Oct 2026:** the print pack now tells the print team
 where things go (user: "if the image starts from the centre of Centre Front, how do they know?").
 - ORDER-SHEET.txt opens with "HOW TO PLACE A PRINT": each PNG is the WHOLE print area with the artwork already in place — line up

@@ -191,7 +191,12 @@ export function replyTo(text, ctx, st, { tapped = false } = {}) {
     if (ai.left === 0) return done([bot("You’ve used today’s design requests. They reset tomorrow. Until then you can add the words as text and style them."), chips(["Something else"])]);
     // the words: what is in quotation marks, else the sentence without the asking part
     const quoted = /[“"‘']([^”"’']{2,160})[”"’']/.exec(t);
-    const said = (quoted ? quoted[1] : t)
+    // a print area named in the message ("… in vertical front"): the design is made for that area, and the
+    // area's name is not part of what to draw
+    const named = [...(ctx.areas || [])].sort((a, b) => b.label.length - a.label.length).find((a) => low.includes(a.label.toLowerCase()));
+    const label = named ? named.label.replace(/[.*+?^$(){}|[\]\\]/g, "\\$&") : "";
+    const unArea = (x) => (named ? x.replace(new RegExp(String.raw`\s*\b((on|in|at|for|to) )?(the )?` + label + String.raw`( area)?\b`, "i"), " ") : x);
+    const said = (quoted ? quoted[1] : unArea(t))
       .replace(/^(please )?(i (want|need|would like)|can you|could you|make|draw|create|generate|give me|design|write)( me)?( an?| the)?\s+/i, "")
       .replace(/\b(as|into|in) (an? )?(image|picture|design|art|artwork|poster)\b.*$/i, "")
       .replace(/^(an? |the )?((hand.?lettered|brush|bold|retro|elegant|simple) )*(typography|lettering|calligraphy|word ?art|text art|quote|design|image|picture|art|poster|badge)( design| art| image| picture| poster)?( with (the )?(words|text|quote))?( (that|which) (says?|reads?))?[:,]?\s*/i, "")
@@ -200,7 +205,7 @@ export function replyTo(text, ctx, st, { tapped = false } = {}) {
       .trim();
     if (said.length < 2) return done([bot("Which words should I draw? Type them, for example: “Work smarter not harder” as an image.")]);
     // anything else they asked for (a crown, rays, colours) stays in the request as written
-    const job = { subject: quoted ? `${t.replace(quoted[0], "").replace(/\s+/g, " ").trim()} — the words to letter, spelled exactly: “${said}”` : `the words “${said}”, spelled exactly`, style: LETTERING };
+    const job = { subject: quoted ? `${unArea(t.replace(quoted[0], "")).replace(/\s+/g, " ").trim()} — the words to letter, spelled exactly: “${said}”` : `the words “${said}”, spelled exactly`, style: LETTERING, ...(named ? { areaKey: named.key } : {}) };
     return done([act({ type: "generate", ...job })], { lastDesign: job });
   }
 
