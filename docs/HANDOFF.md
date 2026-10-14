@@ -136,6 +136,14 @@ small in a 10 × 52 cm strip — and "in vertical front" was sent to Google as p
 - Checked: the Assistant's replies for 4 messages, and the turned placement drawn with konvaRender. NOT checked with a real
   picture from Google (costs ~₹14 for one request of 4 pictures) — needs the user's go-ahead.
 
+**`feature-grok-photo-art` — NOT MERGED (waiting for the user's "merge"):** photo to art for well-known people. Google's
+picture service refuses them (422); now Grok (xAI, `grok-imagine-image-2.0`, POST /v1/images/edits with the photo as a
+data URI — `server/services/xaiImageService.js`) redraws the photo instead, and only if that fails too, our free filters.
+Off unless `XAI_API_KEY` is in server/.env (company account at console.x.ai). Cost per art version ~₹7 (photo in + art
+out, ~$0.04 each; `XAI_PRICE_PER_IMAGE_INR`, default 7), counted in AiUsage with model = the Grok model, so it is in
+the monthly cap. The user tested Grok in the grok.com app: it accepted a celebrity photo. NOT yet tested through the API
+(needs the key; one paid run ~₹14 for 2 versions). Legal: the client accepts printing celebrity art (personality rights).
+
 **`feature-policy-pages` — MERGED to `main` on 14 Oct 2026:** the four policy pages Razorpay checks
 before live payments: /terms, /privacy-policy, /refund-policy, /shipping-policy (`pages/PolicyPage.jsx`, one component;
 links in `utils/policyLinks.js`, shown in the footer's bottom row and as a side menu on each page). Business name, email,

@@ -24,6 +24,7 @@ import { cutOutPlainBackground, onPlainBackground } from "../services/cutoutServ
 import { aiTextConfigured, planEdit, writeSlogans } from "../services/aiTextService.js";
 import sharp from "sharp";
 import { artFilters, FILTER_STYLE } from "../services/artFilterService.js";
+import { xaiConfigured, xaiEditImage, xaiModel, xaiPricePerImageInr } from "../services/xaiImageService.js";
 import { AI_STYLES, PHOTO_STYLES, aiImageConfigured, aiImageModel, changeDesignPrompt, generateImage, nearestRatio, newDesignPrompt, photoArtPrompt, FIX_KINDS, fixPrompt, printPrompt, RATIO_VALUES } from "../services/aiImageService.js";
 
 const CATEGORY = "ai";
@@ -155,6 +156,7 @@ export const makeAiDesign = asyncHandler(async (req, res) => {
   }
   let jobs;
   let banner = false;
+  let photoJob = null; // photo to art: what Grok needs if Google refuses the photo
   const teeName = String(req.body.teeColour || "white").replace(/[^\w \-]/g, "").slice(0, 30) || "white";
   if (fixing) {
     if (!isOurUpload(req.body.fixUrl)) {
@@ -175,9 +177,9 @@ export const makeAiDesign = asyncHandler(async (req, res) => {
     const small = await sharp(photo.data).rotate().resize(1536, 1536, { fit: "inside", withoutEnlargement: true }).flatten({ background: "#ffffff" }).jpeg({ quality: 90 }).toBuffer();
     const style = PHOTO_STYLES[req.body.artStyle] ? req.body.artStyle : "Cartoon";
     const of = Math.min(2, Math.max(1, settings.imagesPerRequest));
-    jobs = Array.from({ length: of }, (_, i) =>
-      generateImage({ prompt: photoArtPrompt({ style, teeColour: teeName, teeIsDark: Boolean(req.body.teeIsDark), variation: i + 1, of }), image: { data: small, mime: "image/jpeg" }, ratio: nearestRatio(req.body.ratio) }),
-    );
+    const promptFor = (i) => photoArtPrompt({ style, teeColour: teeName, teeIsDark: Boolean(req.body.teeIsDark), variation: i + 1, of });
+    photoJob = { of, promptFor, image: { data: small, mime: "image/jpeg" } };
+    jobs = Array.from({ length: of }, (_, i) => generateImage({ prompt: promptFor(i), image: photoJob.image, ratio: nearestRatio(req.body.ratio) }));
   } else if (changing) {
     if (!isAiDesign(req.body.baseUrl)) {
       res.status(400);
@@ -203,7 +205,14 @@ export const makeAiDesign = asyncHandler(async (req, res) => {
   }
 
   const results = await Promise.allSettled(jobs);
-  const made = results.filter((r) => r.status === "fulfilled").map((r) => r.value);
+  let made = results.filter((r) => r.status === "fulfilled").map((r) => r.value);
+  let byGrok = false;
+  // Google refuses photos of well-known people: then Grok (xAI) redraws the photo, when it is set up
+  if (!made.length && photoJob && results[0].reason?.status === 422 && xaiConfigured()) {
+    const grok = await Promise.allSettled(Array.from({ length: photoJob.of }, (_, i) => xaiEditImage({ prompt: photoJob.promptFor(i), image: photoJob.image })));
+    made = grok.filter((r) => r.status === "fulfilled").map((r) => r.value);
+    byGrok = made.length > 0;
+  }
   if (!made.length) {
     const err = results[0].reason;
     // the picture service refused the customer's photo: they still get art, made by our own filters
@@ -235,8 +244,8 @@ export const makeAiDesign = asyncHandler(async (req, res) => {
     prompt: text,
     style: fromPhoto ? req.body.artStyle : changing ? undefined : req.body.style,
     images: made.length,
-    costInr: Math.round(made.length * settings.pricePerImageInr * 100) / 100,
-    model: aiImageModel(),
+    costInr: Math.round(made.length * (byGrok ? xaiPricePerImageInr() : settings.pricePerImageInr) * 100) / 100,
+    model: byGrok ? xaiModel() : aiImageModel(),
   });
   res.status(201).json({ images: stored.map((s, i) => ({ url: s.url, width: cut[i].width, height: cut[i].height })), left: Math.max(0, settings.dailyPerUser - used - 1) });
 });
