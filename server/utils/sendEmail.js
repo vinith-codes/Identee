@@ -1,12 +1,4 @@
-import nodemailer from "nodemailer";
-
-const transporter = nodemailer.createTransport({
-  service: "gmail",
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
-  },
-});
+import { mailer, fromAddress, shopInbox } from "./mailer.js";
 
 const sendEmail = async ({ email, status, order, invoice, attachments }) => {
   // Users who signed up with a mobile number have no email on file.
@@ -19,9 +11,9 @@ const sendEmail = async ({ email, status, order, invoice, attachments }) => {
   // order.orderItems.product (which isn't populated on this call path).
   if (status === "INVOICE") {
     const mailOptions = {
-      from: `"IDENTEE" <${process.env.EMAIL_USER}>`,
+      from: fromAddress(),
       to: email,
-      cc: process.env.ADMIN_EMAIL,
+      cc: await shopInbox(), // the shop keeps a copy
       subject: `Your IDENTEE Invoice ${invoice?.invoiceNumber || ""}`,
       html: `
         <div style="font-family:Arial, sans-serif; max-width:600px; margin:auto;">
@@ -41,7 +33,7 @@ const sendEmail = async ({ email, status, order, invoice, attachments }) => {
       attachments: attachments || [],
     };
 
-    await transporter.sendMail(mailOptions);
+    await mailer().sendMail(mailOptions);
     return;
   }
 
@@ -110,9 +102,9 @@ const sendEmail = async ({ email, status, order, invoice, attachments }) => {
   );
 
   const mailOptions = {
-    from: `"IDENTEE" <${process.env.EMAIL_USER}>`,
+    from: fromAddress(),
     to: email,
-    cc: process.env.ADMIN_EMAIL,
+    cc: await shopInbox(), // the shop keeps a copy
     subject,
     html: `
       <div style="font-family:Arial, sans-serif; max-width:600px; margin:auto;">
@@ -151,7 +143,7 @@ const sendEmail = async ({ email, status, order, invoice, attachments }) => {
     `,
   };
 
-  await transporter.sendMail(mailOptions);
+  await mailer().sendMail(mailOptions);
 };
 
 export default sendEmail;
