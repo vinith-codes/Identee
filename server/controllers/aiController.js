@@ -31,7 +31,7 @@ const CATEGORY = "ai";
 const DEFAULTS = {
   "ai.enabled": { value: true, type: "boolean", description: "Customers can make designs with AI" },
   "ai.dailyPerUser": { value: 5, type: "number", description: "Design requests one customer may make per day" },
-  "ai.imagesPerRequest": { value: 3, type: "number", description: "Pictures shown for each new design request" },
+  "ai.imagesPerRequest": { value: 1, type: "number", description: "Pictures shown for each new design request" },
   "ai.monthlyCapInr": { value: 2000, type: "number", description: "Monthly spending cap in rupees" },
   "ai.pricePerImageInr": { value: 2.9, type: "number", description: "What one picture costs, in rupees (for the spending figures)" },
 };
