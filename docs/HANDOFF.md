@@ -129,6 +129,12 @@ sheet, 14 Oct 2026): how far the print's top edge is below the collar, per size 
   these areas from the collar line (`anchors.*.neck` in `teeModel.js`); the print pack says "its top edge below the collar:
   7 cm (sizes L, XL) — your start line".
 - Not on the sheet (still estimates): Centre Front, Left/Right Chest, Full Back, sleeves.
+- Print pack, "so the print team never wonders where": each file also gets "On the tee" lines (`artworkOnTee` in
+  `printFiles.js`) — where the ARTWORK lands on the garment: its top edge in cm below the collar per size (areas with a
+  start line) or below their usual start line (others), and its centre from the tee's centre line (wearer's left/right).
+  The same lines are printed on each guide-….jpg; ORDER-SHEET's "HOW TO PLACE A PRINT" is now 5 steps.
+  Checked with a made-up order run through `buildPrintPack` in the browser (Full Front M/L/2XL + Left Chest): 17 / 18 /
+  19.4 cm below the collar, chest logo 8.2 cm to the wearer's left.
 - Effect: Top Back, Centre Back and Vertical Back now all start on the same line, so they overlap and only one of them
   can be used at a time (before, Top Back + Centre Back could be used together).
 
