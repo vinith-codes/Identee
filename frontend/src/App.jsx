@@ -65,6 +65,7 @@ import AdminReviewsPage from "./pages/admin/AdminReviewsPage";
 // ✅ NEW: Settings module
 import SettingsLayout from "./pages/admin/settings/SettingsLayout";
 import AboutUs from "./pages/AboutUs";
+import PolicyPage from "./pages/PolicyPage";
 import ContactUs from "./pages/ContactUs";
 
 const OrdersPage = () => (
@@ -250,6 +251,11 @@ export default function App() {
         <Route element={<CustomerLayout />}>
           <Route path="/" element={<Home />} />
           <Route path="/about-us" element={<AboutUs />} />
+          {/* the policy pages (Razorpay checks these before live payments) */}
+          <Route path="/terms" element={<PolicyPage />} />
+          <Route path="/privacy-policy" element={<PolicyPage />} />
+          <Route path="/refund-policy" element={<PolicyPage />} />
+          <Route path="/shipping-policy" element={<PolicyPage />} />
           <Route path="/contact-us" element={<ContactUs />} />
           <Route
             path="/category/:categoryName"
