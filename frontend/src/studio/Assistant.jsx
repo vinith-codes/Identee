@@ -66,10 +66,23 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
     setState({ ...state, wait: "aiChange", changeUrl: url });
     setMessages((m) => [...m.map((x) => (x.chips ? { ...x, done: true } : x)), { from: "bot", text: "What should I change? For example: make it angrier, remove the crown, add the team name under it." }]);
   };
+  // "Try another": the same request again — a new picture (it uses one of the customer's requests for today)
+  const tryAnother = (act) => {
+    if (thinking || !act) return;
+    setMessages((m) => [...m.map((x) => (x.chips ? { ...x, done: true } : x)), { from: "me", text: "Try another one" }]);
+    setThinking(act.photoUrl ? "Redrawing your photo… this takes about 20 seconds." : "Drawing another one… this takes about 20 seconds.");
+    Promise.resolve(onAct(act)).then((made) => {
+      setThinking(false);
+      setMessages((m) => [...m, ...(made || [])]);
+    });
+  };
   const fix = (i, issue) => {
     onFix(issue);
     setMessages((m) => m.map((x, n) => (n === i ? { ...x, issues: x.issues.map((y) => (y.id === issue.id ? { ...y, fixed: true } : y)) } : x)));
   };
+
+  // "Try another" sits under the newest pictures only
+  const lastDesigns = messages.reduce((last, m, i) => (m.designs ? i : last), -1);
 
   return (
     <div className="dr-chat">
@@ -156,6 +169,11 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
                     )}
                   </div>
                 ))}
+                {m.again && i === lastDesigns && (
+                  <button type="button" className="dr-mini dr-tryagain" disabled={!!thinking} onClick={() => tryAnother(m.again)}>
+                    ↻ Try another
+                  </button>
+                )}
               </div>
             );
           }

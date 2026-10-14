@@ -136,6 +136,12 @@ small in a 10 × 52 cm strip — and "in vertical front" was sent to Google as p
 - Checked: the Assistant's replies for 4 messages, and the turned placement drawn with konvaRender. NOT checked with a real
   picture from Google (costs ~₹14 for one request of 4 pictures) — needs the user's go-ahead.
 
+**`feature-try-another` — NOT MERGED (waiting for the user's "merge"):** AI pictures are now ONE per request (the user
+set Admin → AI designs → Pictures per request = 1, daily limit 5), so the newest AI picture in the Assistant gets a
+"↻ Try another" button (`tryAnother` in `Assistant.jsx`): it repeats the same request (`again` on the designs message,
+set in `generateDesigns`) and uses one more of the customer's daily requests. Wording for one picture: "Add it, try
+another, or ask me to change it." Checked the button's look with a stand-in message (no paid request).
+
 **`feature-policy-pages` — MERGED to `main` on 14 Oct 2026:** the four policy pages Razorpay checks
 before live payments: /terms, /privacy-policy, /refund-policy, /shipping-policy (`pages/PolicyPage.jsx`, one component;
 links in `utils/policyLinks.js`, shown in the footer's bottom row and as a side menu on each page). Business name, email,

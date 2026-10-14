@@ -1007,8 +1007,9 @@ export default function DesignRoomPage() {
         ];
       }
       return [
-        botSays(a.photoUrl ? `Here ${n === 1 ? "it is" : `are ${n} versions`} as ${String(a.artStyle || "art").toLowerCase()}. Add one to your tee, or ask me to change it. ${left}` : a.baseUrl ? `Here’s the changed design. ${left}` : `Here ${n === 1 ? "is one" : `are ${n}`}, made for ${forPos?.label || "your tee"}${banner ? " (they go on turned, running up the strip)" : ""} on a ${(colour?.name || "").toLowerCase()} tee. Add one, use another on a different area, or ask me to change one. ${left}`),
-        { designs: res.images.map((im) => im.url) },
+        botSays(a.photoUrl ? `Here ${n === 1 ? "it is" : `are ${n} versions`} as ${String(a.artStyle || "art").toLowerCase()}. ${n === 1 ? "Add it to your tee, try another, or ask me to change it." : "Add one to your tee, or ask me to change it."} ${left}` : a.baseUrl ? `Here’s the changed design. ${left}` : `Here ${n === 1 ? "is one" : `are ${n}`}, made for ${forPos?.label || "your tee"}${banner ? " (it goes on turned, running up the strip)" : ""} on a ${(colour?.name || "").toLowerCase()} tee. ${n === 1 ? "Add it, try another, or ask me to change it." : "Add one, use another on a different area, or ask me to change one."} ${left}`),
+        // again: the same request, for "Try another" (a new picture costs one more of today's requests)
+        { designs: res.images.map((im) => im.url), again: a },
         chipRow(a.photoUrl ? ["Something else"] : AFTER_DESIGN_CHIPS),
       ];
     } catch (err) {
