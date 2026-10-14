@@ -132,7 +132,12 @@ sheet, 14 Oct 2026): how far the print's top edge is below the collar, per size 
 - Print pack, "so the print team never wonders where": each file also gets "On the tee" lines (`artworkOnTee` in
   `printFiles.js`) — where the ARTWORK lands on the garment: its top edge in cm below the collar per size (areas with a
   start line) or below their usual start line (others), and its centre from the tee's centre line (wearer's left/right).
-  The same lines are printed on each guide-….jpg; ORDER-SHEET's "HOW TO PLACE A PRINT" is now 5 steps.
+  The same lines are printed on each guide-….jpg.
+- ORDER-SHEET.txt rewritten to be read in seconds (user: "they don't have time to read for each t-shirt"): a 4-line
+  header (TOP = from the collar, SIDE = from the centre line), then per design one block per SIZE (team order: per
+  PLAYER) with one line per print: PRINT · ARTWORK size · TOP · SIDE · FILE. "CHECK FIRST" lists problems; a * marks a
+  distance from the usual start line (explained under the design). `artworkSpot` / `downText` / `acrossText`;
+  `whereOnGarment` removed. Tested with a made-up normal order + team order in the browser.
   Checked with a made-up order run through `buildPrintPack` in the browser (Full Front M/L/2XL + Left Chest): 17 / 18 /
   19.4 cm below the collar, chest logo 8.2 cm to the wearer's left.
 - Effect: Top Back, Centre Back and Vertical Back now all start on the same line, so they overlap and only one of them

@@ -95,83 +95,47 @@ function artworkBox(els) {
   return { x0: c(x0), y0: c(y0), x1: c(x1), y1: c(y1) };
 }
 
-// Where a print area sits on the garment, in the print team's words. Areas with the print team's own
-// start line (collarCm, per size) are given from the collar; the rest from the IDENTEE print guide (estimates).
-function whereOnGarment(area) {
-  const side = { front: "FRONT", back: "BACK", left: "LEFT SLEEVE (the wearer's left)", right: "RIGHT SLEEVE (the wearer's right)" }[area.side] || String(area.side || "").toUpperCase();
-  if (area.side === "left" || area.side === "right") return `${side}: centred on the sleeve's outer face.`;
-  if (area.main || !area.place) return `${side}: centred left to right. This is the main ${area.side} print area — its top edge is your standard ${area.side} print start line.`;
-  const p = area.place;
-  if (area.collarCm) {
-    // the start line for each size ordered, sizes with the same distance together
-    const sizes = [...new Set(area.files.flatMap((f) => f.sizes.map((s) => String(s).toUpperCase())))];
-    const byCm = new Map();
-    for (const s of sizes) {
-      const cm = area.collarCm[s];
-      if (cm == null) continue;
-      byCm.set(cm, [...(byCm.get(cm) || []), s]);
-    }
-    const start = [...byCm].map(([cm, ss]) => `${fmtCm(cm)} cm (size${ss.length > 1 ? "s" : ""} ${ss.join(", ")})`).join("; ");
-    const across2 = p.align === "wearer-left" || p.align === "wearer-right" ? `on the wearer's ${p.align === "wearer-left" ? "LEFT" : "RIGHT"}, its inner edge ${fmtCm(p.gapCm || 0)} cm from the centre line` : "centred left to right";
-    if (start) return `${side}: ${across2}; its top edge below the collar: ${start} — your start line.`;
-  }
-  const across =
-    p.align === "wearer-left"
-      ? `on the wearer's LEFT, its inner edge ${fmtCm(p.gapCm || 0)} cm from the centre line`
-      : p.align === "wearer-right"
-        ? `on the wearer's RIGHT, its inner edge ${fmtCm(p.gapCm || 0)} cm from the centre line`
-        : "centred left to right";
-  const t = p.topCm || 0;
-  const main = area.mainLabel || `main ${area.side} area`;
-  const down = t === 0 ? `its top edge level with the top of ${main}` : t > 0 ? `its top edge ${fmtCm(t)} cm BELOW the top of ${main}` : `its top edge ${fmtCm(-t)} cm ABOVE the top of ${main}`;
-  return `${side}: ${across}; ${down}.`;
-}
-
-// Where the ARTWORK lands on the garment itself — what the print team can measure on the tee: its top edge
-// from the collar (when the area has the print team's start line) and its centre from the tee's centre line.
-// box = the artwork's box in % of the area; sizes = the garment sizes this file is for.
-function artworkOnTee(area, sizes, box, [w, h]) {
+// Where the ARTWORK lands on the garment for one size — what the print team measures on the tee.
+//   down:   its top edge in cm below the collar (fromCollar: the area has the print team's start line), else
+//           below the side's usual start line (the top of the main area) or, on a sleeve, the sleeve area's top
+//   across: its centre's distance from the tee's centre line, + = the wearer's left
+//           (sleeves: from the sleeve area's centre, as seen in the file)
+// box = the artwork's box in % of the area.
+function artworkSpot(area, size, box, [w, h]) {
   const left = (box.x0 / 100) * w;
   const top = (box.y0 / 100) * h;
   const aw = ((box.x1 - box.x0) / 100) * w;
+  const ah = ((box.y1 - box.y0) / 100) * h;
+  const mid = left + aw / 2;
   const sleeve = area.side === "left" || area.side === "right";
   const p = area.place || { align: "centre", topCm: 0 };
-  const out = [];
-  // down
-  if (area.collarCm) {
-    const byCm = new Map();
-    for (const s of sizes.map((x) => String(x).toUpperCase())) {
-      const c = area.collarCm[s];
-      if (c == null) continue;
-      const d = Math.round((c + top) * 10) / 10;
-      byCm.set(d, [...(byCm.get(d) || []), s]);
-    }
-    if (byCm.size) out.push(`Artwork top edge: ${[...byCm].map(([d, ss]) => `${fmtCm(d)} cm below the collar (size${ss.length > 1 ? "s" : ""} ${ss.join(", ")})`).join("; ")}.`);
-  }
-  if (!out.length) {
-    if (sleeve) out.push(`Artwork top edge: ${fmtCm(top)} cm below the top of the sleeve print area.`);
-    else {
-      const d = (area.main ? 0 : p.topCm || 0) + top;
-      const main = area.main ? area.label : area.mainLabel || `the main ${area.side} area`;
-      out.push(`Artwork top edge: ${fmtCm(Math.abs(d))} cm ${d >= 0 ? "below" : "above"} your usual ${area.side} print start line (the top of ${main} — no start line in cm from the collar yet).`);
-    }
-  }
-  // across
-  const mid = left + aw / 2;
-  if (sleeve) {
-    const off = mid - w / 2;
-    out.push(Math.abs(off) < 0.3 ? "Artwork centred on the sleeve print area." : `Artwork centre: ${fmtCm(Math.abs(off))} cm ${off > 0 ? "right" : "left"} of the sleeve print area's centre (as seen in the file).`);
-  } else {
-    // u = distance from the tee's centre line, + = the wearer's left. Front: the file's right is the wearer's left; back: the opposite.
+  const collar = sleeve ? null : area.collarCm?.[String(size).toUpperCase()];
+  const down = collar != null ? collar + top : sleeve || area.main ? top : (p.topCm || 0) + top;
+  let across;
+  if (sleeve) across = mid - w / 2;
+  else {
+    // front: the file's right is the wearer's left; back: the opposite
     const gap = p.gapCm || 0;
-    const u =
+    across =
       area.side === "back"
         ? (p.align === "wearer-left" ? gap + w : p.align === "wearer-right" ? -gap : w / 2) - mid
         : (p.align === "wearer-left" ? gap : p.align === "wearer-right" ? -(gap + w) : -w / 2) + mid;
-    out.push(Math.abs(u) < 0.3 ? "Artwork centred on the tee's centre line (left to right)." : `Artwork centre: ${fmtCm(Math.abs(u))} cm to the wearer's ${u > 0 ? "LEFT" : "RIGHT"} of the tee's centre line.`);
   }
-  return out;
+  const r = (n) => Math.round(n * 10) / 10;
+  return { down: r(down), fromCollar: collar != null, across: r(across), sleeve, side: area.side, aw: r(aw), ah: r(ah) };
 }
+
+// "17 cm below collar" — a * marks a distance that is not from the collar (explained under the design)
+const downText = (s) =>
+  s.fromCollar
+    ? `${fmtCm(s.down)} cm below collar`
+    : `${fmtCm(Math.abs(s.down))} cm ${s.down >= 0 ? "below" : "above"} ${s.sleeve ? "sleeve" : s.side} start*`;
+const acrossText = (s) =>
+  Math.abs(s.across) < 0.3
+    ? s.sleeve ? "centred on sleeve" : "centred"
+    : s.sleeve
+      ? `${fmtCm(Math.abs(s.across))} cm ${s.across > 0 ? "right" : "left"} of sleeve centre`
+      : `${fmtCm(Math.abs(s.across))} cm to wearer's ${s.across > 0 ? "LEFT" : "RIGHT"}`;
 
 // A picture for the print team that is NOT printed: the print area on the tee's colour with the artwork
 // in it, a cm ruler along the top and left, the centre lines, and the artwork's box with its distances.
@@ -259,7 +223,7 @@ async function placementGuide({ canvas, wCm, hCm, box, tee, title, onTee = [] })
     g.fillText(`Space left on the right: ${fmtCm(wCm - left - aw)} cm · at the bottom: ${fmtCm(hCm - top - ah)} cm.`, m.left, y + 46, W + m.right - 8);
     // where that is on the tee itself
     g.font = "bold 15px Arial";
-    onTee.forEach((line, n) => g.fillText(`ON THE TEE: ${line}`, m.left, y + 74 + n * 24, W + m.right - 8));
+    onTee.forEach((line, n) => g.fillText(`ON THE TEE · ${line}`, m.left, y + 74 + n * 24, W + m.right - 8));
   }
   return new Promise((resolve, reject) => c.toBlob((b) => (b ? b.arrayBuffer().then((a) => resolve(new Uint8Array(a)), reject) : reject(new Error("guide failed"))), "image/jpeg", 0.9));
 }
@@ -289,23 +253,15 @@ export async function buildPrintPack(pack, onStep = () => {}) {
 
   const total = designs.reduce((n, d) => n + d.areas.reduce((m, a) => m + a.files.length, 0), 0);
   let done = 0;
+  const line = "-".repeat(78);
   const sheet = [
-    `IDENTEE print files — order ${pack.order.number}`,
-    `Customer: ${pack.order.customer || "-"}   Placed: ${new Date(pack.order.createdAt).toLocaleString("en-IN")}`,
-    `All files: transparent PNG, ${PRINT_DPI} DPI, printed at 100% (the file's size in cm is the print size).`,
-    "",
-    "HOW TO PLACE A PRINT",
-    "  1. Each PNG is the WHOLE print area, see-through where nothing is printed. The artwork is already in its",
-    "     place inside it. Line the file's edges up with the print area on the garment. Do NOT crop the artwork",
-    "     and centre it by itself — that moves it away from where the customer put it.",
-    "  2. \"Where on the tee\" says where to put the FILE on the garment: its top edge below the collar (your own",
-    "     start line, per size) and left/right from the tee's centre line. Areas with no distance from the collar yet",
-    "     use your usual start line for that side.",
-    "  3. \"Artwork\" gives the artwork's size and how far it starts from the left and top edges of the file.",
-    "  4. \"On the tee\" says where the ARTWORK itself must land on the garment: its top edge from the collar and its",
-    "     centre from the tee's centre line. Measure this on the tee before pressing — if it matches, the print is right.",
-    "  5. Each area also has a guide-….jpg picture with a cm ruler and these numbers (not for printing).",
-    "  Left and right always mean the WEARER's left and right.",
+    `IDENTEE · ORDER ${pack.order.number} · ${pack.order.customer || "-"} · ${new Date(pack.order.createdAt).toLocaleDateString("en-IN")}`,
+    line,
+    "Print each file at 100% (300 DPI). Line up the file's edges — never crop the artwork.",
+    "Then check the artwork on the tee with a tape:",
+    "  TOP  = from the collar (at the centre) down to the artwork's top edge",
+    "  SIDE = artwork's centre from the tee's centre line (wearer's left / right)",
+    line,
     "",
   ];
 
@@ -313,23 +269,13 @@ export async function buildPrintPack(pack, onStep = () => {}) {
     const title = d.name || `Design ${i + 1}`;
     const folder = root.folder(`${String(i + 1).padStart(2, "0")}-${safe(title)}`);
     const pieces = d.lines.reduce((n, l) => n + l.qty, 0);
-    sheet.push(
-      `${i + 1}. ${title}`,
-      `   Garment: ${d.garment.label} · colour ${d.colour.name}${d.colour.hex ? ` (${d.colour.hex})` : ""}`,
-      `   Sizes:   ${d.lines.map((l) => `${l.size} × ${l.qty}`).join(", ")}  (${pieces} piece${pieces === 1 ? "" : "s"})`,
-    );
-    if (d.players?.length) {
-      sheet.push(`   TEAM ORDER — ${d.players.length} tees, each with its own name and number:`);
-      for (const p of d.players) sheet.push(`     ${String(p.n).padStart(2, "0")}.  ${(p.name || "-").padEnd(24)}  no. ${(p.number || "-").padEnd(4)}  size ${p.size}`);
-      if (!d.playersMatch) {
-        const msg = `“${title}”: the player list does not match the sizes ordered. Check with the customer before printing.`;
-        warnings.push(msg);
-        sheet.push(`   ! ${msg}`);
-      }
-    }
+    const checks = []; // problems to see before printing
+    const rows = []; // { size, player?, label, spot, file }
+    sheet.push(`DESIGN ${i + 1}: ${title}`, `${d.garment.label} · ${d.colour.name}${d.colour.hex ? ` (${d.colour.hex})` : ""} · ${pieces} tee${pieces === 1 ? "" : "s"}: ${d.lines.map((l) => `${l.size} × ${l.qty}`).join(", ")}`);
+    if (d.players?.length && !d.playersMatch) checks.push("The player list does not match the sizes ordered — ask the customer before printing.");
     if (d.layoutVersion !== 2) {
       warnings.push(`“${title}” was saved in an older format and can't be made into print files.`);
-      sheet.push("   ! Older design format — no print files. Ask the customer to re-make it.", "");
+      sheet.push("! Older design format — no print files. Ask the customer to re-make it.", "", "");
       continue;
     }
 
@@ -350,7 +296,6 @@ export async function buildPrintPack(pack, onStep = () => {}) {
 
     for (const area of d.areas) {
       const els = elements.filter((e) => e.position === area.key).map((e, n) => ({ ...e, id: e.id ?? `${area.key}-${n}` }));
-      if (area.files.length) sheet.push(`   ${area.label} — where on the tee: ${whereOnGarment(area)}`);
       const guided = new Set(); // one guide picture per print size of this area
       for (const f of area.files) {
         const [w, h] = f.cm;
@@ -361,20 +306,16 @@ export async function buildPrintPack(pack, onStep = () => {}) {
         onStep(done, total, `Drawing ${area.label} (${f.player ? playerLabel(f.player) : f.sizes.join(", ")}) for “${title}”…`);
         folder.file(name, await renderPrintFile(drawn, f.cm));
         done += 1;
-        sheet.push(`   ${area.label} — ${f.player ? `player ${playerLabel(f.player)}, size` : "sizes"} ${f.sizes.join(", ")}: ${fmtCm(w)} × ${fmtCm(h)} cm = ${cmToPx(w)} × ${cmToPx(h)} px  → ${name}`);
-        // where the artwork is inside this file, and a guide picture with a ruler (one per print size)
         const box = artworkBox(drawn);
-        if (box) {
-          const left = (box.x0 / 100) * w;
-          const top = (box.y0 / 100) * h;
-          const aw = ((box.x1 - box.x0) / 100) * w;
-          const ah = ((box.y1 - box.y0) / 100) * h;
-          sheet.push(`      Artwork: ${fmtCm(aw)} × ${fmtCm(ah)} cm, starting ${fmtCm(left)} cm from the left edge and ${fmtCm(top)} cm from the top edge of the area (space right ${fmtCm(w - left - aw)} cm, bottom ${fmtCm(h - top - ah)} cm).`);
-          for (const line of artworkOnTee(area, f.sizes, box, f.cm)) sheet.push(`      On the tee: ${line}`);
-        }
+        for (const size of f.sizes) rows.push({ size, player: f.player || null, label: area.label, spot: box ? artworkSpot(area, size, box, f.cm) : null, file: name });
+
+        // a guide picture with a ruler, one per print size
         const sizeKey = `${fmtCm(w)}x${fmtCm(h)}`;
         if (!guided.has(sizeKey)) {
           guided.add(sizeKey);
+          // every size printed from a file of this size, with where its artwork lands
+          const sizes = [...new Set(area.files.filter((x) => x.cm.join("x") === f.cm.join("x")).flatMap((x) => x.sizes))];
+          const onTee = box ? sizes.map((sz) => artworkSpot(area, sz, box, f.cm)).map((sp, n) => `Size ${sizes[n]}: top ${downText(sp)} · side ${acrossText(sp)}`) : [];
           const small = new AreaRenderer(Math.round(w * 40), Math.round(h * 40));
           try {
             const guide = await placementGuide({
@@ -383,8 +324,7 @@ export async function buildPrintPack(pack, onStep = () => {}) {
               hCm: h,
               box,
               tee: d.colour.hex,
-              // every size printed from a file of this size
-              onTee: box ? artworkOnTee(area, [...new Set(area.files.filter((x) => x.cm.join("x") === f.cm.join("x")).flatMap((x) => x.sizes))], box, f.cm) : [],
+              onTee,
               title: `${area.label} · ${fmtCm(w)} × ${fmtCm(h)} cm · size${f.sizes.length === 1 ? "" : "s"} ${f.sizes.join(", ")}${f.player ? ` (shown: ${playerLabel(f.player)})` : ""}`,
             });
             folder.file(`guide-${safe(area.label)}_${sizeKey}cm.jpg`, guide);
@@ -399,16 +339,34 @@ export async function buildPrintPack(pack, onStep = () => {}) {
         for (const e of els.filter((x) => x.type === "image")) {
           const img = cachedImage(e.src, true);
           const dpi = img ? Math.round(img.naturalWidth / ((((e.width || 0) / 100) * w) / 2.54)) : 0;
-          if (dpi && dpi < LOW_DPI) {
-            const msg = `“${title}” · ${area.label} (${f.sizes.join(", ")}): a picture is only ${dpi} DPI at its print size — it may look blurry.`;
-            warnings.push(msg);
-            sheet.push(`   ! ${msg}`);
-          }
+          if (dpi && dpi < LOW_DPI) checks.push(`${area.label} (${f.sizes.join(", ")}): a picture is only ${dpi} DPI at its print size — it may look blurry.`);
         }
       }
     }
+
+    if (checks.length) {
+      sheet.push("", "CHECK FIRST:", ...checks.map((c) => `  ! ${c}`));
+      checks.forEach((c) => warnings.push(`“${title}”: ${c}`));
+    }
+    // one block per size (team order: per player), one line per print
+    const printLine = (r) =>
+      `  ${r.label.padEnd(21)} ${(r.spot ? `${fmtCm(r.spot.aw)} × ${fmtCm(r.spot.ah)} cm` : "-").padEnd(15)} ${(r.spot ? downText(r.spot) : "-").padEnd(27)} ${(r.spot ? acrossText(r.spot) : "-").padEnd(24)} ${r.file}`;
+    const head = `  ${"PRINT".padEnd(21)} ${"ARTWORK".padEnd(15)} ${"TOP".padEnd(27)} ${"SIDE".padEnd(24)} FILE`;
+    const blocks = d.players?.length
+      ? d.players.map((p) => ({
+          title: `PLAYER ${String(p.n).padStart(2, "0")} · ${p.name || "-"} · no. ${p.number || "-"} · size ${p.size}`,
+          rows: rows.filter((r) => (r.player ? r.player.n === p.n : r.size === p.size)),
+        }))
+      : d.lines.map((l) => ({ title: `SIZE ${l.size} · ${l.qty} tee${l.qty === 1 ? "" : "s"}`, rows: rows.filter((r) => r.size === l.size) }));
+    for (const b of blocks) sheet.push("", b.title, head, ...b.rows.map(printLine));
+    // a * distance: what it is measured from
+    const starred = [...new Set(rows.filter((r) => r.spot && !r.spot.fromCollar).map((r) => (r.spot.sleeve ? "sleeve" : r.spot.side)))];
+    if (starred.length) {
+      const mains = Object.fromEntries(d.areas.filter((a) => a.mainLabel).map((a) => [a.side, a.mainLabel]));
+      sheet.push("", ...starred.map((side) => (side === "sleeve" ? "* sleeve start = the top of the sleeve print area (your usual sleeve position)." : `* ${side} start = your usual ${side} print start line (the top of ${mains[side] || `the main ${side} area`}).`)));
+    }
     const texts = elements.filter((e) => e.type === "text");
-    if (texts.length) sheet.push(`   Text: ${texts.map((e) => `${d.players?.length && e.role ? `[each player's ${e.role}]` : `“${e.text}”`} (${e.fontFamily}, ${e.color})`).join("; ")}`);
+    if (texts.length) sheet.push(`Text: ${texts.map((e) => `${d.players?.length && e.role ? `[each player's ${e.role}]` : `“${e.text}”`} (${e.fontFamily}${e.color ? `, ${e.color}` : ""})`).join("; ")}`);
 
     // the customer's preview pictures, to check the print against
     for (const side of ["front", "back", "left", "right"]) {
@@ -422,7 +380,7 @@ export async function buildPrintPack(pack, onStep = () => {}) {
         warnings.push(`Couldn't add the ${side} preview of “${title}”.`);
       }
     }
-    sheet.push("");
+    sheet.push("", line, "");
   }
 
   onStep(done, total, "Packing the ZIP…");
