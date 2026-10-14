@@ -125,10 +125,10 @@ function artworkSpot(area, size, box, [w, h]) {
   return { down: r(down), fromCollar: collar != null, across: r(across), sleeve, side: area.side, aw: r(aw), ah: r(ah) };
 }
 
-// "17 cm below collar" — a * marks a distance that is not from the collar (explained under the design)
+// "17 cm below collar seam" (the print team measures from the seam where the collar rib joins the body) — a * marks a distance that is not from the collar (explained under the design)
 const downText = (s) =>
   s.fromCollar
-    ? `${fmtCm(s.down)} cm below collar`
+    ? `${fmtCm(s.down)} cm below collar seam`
     : `${fmtCm(Math.abs(s.down))} cm ${s.down >= 0 ? "below" : "above"} ${s.sleeve ? "sleeve" : s.side} start*`;
 const acrossText = (s) =>
   Math.abs(s.across) < 0.3
@@ -198,7 +198,7 @@ async function teeMap({ title, side, prints, tee }) {
   g.fillText(title, 40, 50, 1120);
   g.font = "18px Arial";
   g.fillStyle = "#B42318";
-  g.fillText("TEE MAP — NOT FOR PRINTING. Measure from the COLLAR and the CENTRE LINE. Artwork and distances to scale; the tee is a sketch.", 40, 82, 1120);
+  g.fillText("TEE MAP — NOT FOR PRINTING. Measure from the COLLAR SEAM and the CENTRE LINE. Artwork and distances to scale; the tee is a sketch.", 40, 82, 1120);
 
   // the tee
   const half = 32 * S; // body half width
@@ -241,7 +241,7 @@ async function teeMap({ title, side, prints, tee }) {
   g.closePath();
   g.fill();
   g.stroke();
-  const collarY = top + drop + rib; // the collar at the centre
+  const collarY = top + drop + rib; // the collar seam at the centre (where the print team measures from)
   const ink = dark ? "#FFFFFF" : "#141110";
 
   // centre line
@@ -263,7 +263,7 @@ async function teeMap({ title, side, prints, tee }) {
   g.moveTo(cx - 120, collarY);
   g.lineTo(cx + 120, collarY);
   g.stroke();
-  pill(g, "COLLAR", cx - 190, collarY, { size: 16 });
+  pill(g, "COLLAR SEAM", cx - 210, collarY, { size: 16 });
 
   const starts = new Set();
   for (const pr of prints) {
@@ -321,7 +321,7 @@ async function teeMap({ title, side, prints, tee }) {
     g.fillStyle = "#B42318";
     g.lineWidth = 3;
     if (ay - fromY > 6) arrow(g, tx, fromY, tx, ay);
-    pill(g, `TOP ${downText(spot).replace(" cm below collar", " cm").replace(/ cm (below|above) .*$/, " cm*")}`, tx + 10, (fromY + ay) / 2, { left: true, size: 20 });
+    pill(g, `TOP ${downText(spot).replace(" cm below collar seam", " cm").replace(/ cm (below|above) .*$/, " cm*")}`, tx + 10, (fromY + ay) / 2, { left: true, size: 20 });
     // SIDE: from the centre line to the artwork's centre
     const my = ay + ah / 2;
     if (Math.abs(spot.across) >= 0.3) {
@@ -386,7 +386,7 @@ export async function buildPrintPack(pack, onStep = () => {}) {
     "HOW TO PRINT",
     "  1. Print each PNG at 100% (300 DPI) — it is the artwork at its real size (see-through parts don't print).",
     "  2. Place the artwork on the tee with a measuring tape:",
-    "       TOP  = from the collar (at the centre) down to the artwork's top edge",
+    "       TOP  = from the collar SEAM (where the collar joins the body, at the centre) down to the artwork's top edge",
     "       SIDE = from the tee's centre line (fold the tee in half) to the artwork",
     "  3. The MAP-….jpg picture of each size shows the same on a drawing of the tee.",
     line,

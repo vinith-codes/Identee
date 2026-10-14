@@ -17,7 +17,7 @@ export const TEE_MODELS = {
     // Where the MAIN print of each side starts (its top edge), raw metres.
     // Front/back: below the neckline at the centre line (estimates — the print
     // team's sheet doesn't cover the main areas). Sleeves: below the sleeve top.
-    // neck = the collar line at the centre: areas with the print team's
+    // neck = the collar line at the centre (the print team measures from the collar seam): areas with the print team's
     // start line (collarCm) are measured down from it.
     anchors: {
       front: { top: 1.58 - 0.08, neck: 1.58 },

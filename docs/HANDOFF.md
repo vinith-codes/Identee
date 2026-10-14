@@ -147,8 +147,7 @@ sheet, 14 Oct 2026): how far the print's top edge is below the collar, per size 
   print area) and the map's print-area boxes were removed; each map shows the artwork with its name and size, TOP from
   the collar and SIDE from the centre line (centred = half the width each side). Sheet header = "HOW TO PRINT", 3 steps.
 - `docs/print-requests/collar_measure_question.png` (+ .svg): picture asking the print team whether "from the collar"
-  means the TOP edge of the collar (A) or the collar SEAM (B). Waiting for their answer; the map draws the collar line
-  at the seam until then.
+  means the TOP edge of the collar (A) or the collar SEAM (B). ANSWER (14 Oct 2026): the collar SEAM (B). Sheet, map and code notes say "collar seam".
   Checked with a made-up order run through `buildPrintPack` in the browser (Full Front M/L/2XL + Left Chest): 17 / 18 /
   19.4 cm below the collar, chest logo 8.2 cm to the wearer's left.
 - Effect: Top Back, Centre Back and Vertical Back now all start on the same line, so they overlap and only one of them

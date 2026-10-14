@@ -22,7 +22,7 @@
 //   gapCm: distance from the centre line to the print's inner edge
 //   topCm: how far the print's top is below the main print's top
 // `collarCm` (when given) is the print team's start line: how far the print's
-// top edge is below the collar, per garment size — from their sheet of
+// top edge is below the collar SEAM (where the collar rib joins the body, at the centre — confirmed by the print team), per garment size — from their sheet of
 // 14 Oct 2026 (groups S–M, L–XL, 2XL–3XL). It wins over topCm wherever a real
 // distance matters (the 3D tee, the print pack). Areas without it (Centre
 // Front, the chests, Full Back, sleeves) still use estimates; their topCm
