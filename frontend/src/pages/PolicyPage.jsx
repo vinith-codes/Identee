@@ -133,7 +133,7 @@ const PAGES = {
           <li>to keep the site safe and stop misuse;</li>
           <li>to meet tax and legal requirements (for example, keeping invoices).</li>
         </ul>
-        <p>We do not sell your personal information.</p>
+        <p>We do not sell your personal information, and we do not send marketing messages — we only email you about your account and your orders.</p>
       </>],
       ["Who we share it with", <>
         <p>Only what each one needs to do its job:</p>
@@ -194,7 +194,7 @@ const PAGES = {
         </ul>
       </>],
       ["Ready-made products", <>
-        <p>Ready-made products can be <strong>exchanged for another size</strong> within <strong>{RULES.exchangeDays} of delivery</strong> if they are unused, unwashed and have their tags. Contact us first to arrange it.</p>
+        <p>Ready-made products can be <strong>exchanged for another size</strong> within <strong>{RULES.exchangeDays} of delivery</strong> if they are unused, unwashed and have their tags. Contact us first to arrange it. Ready-made products are exchanged, not refunded, and when the exchange isn’t because of our mistake, the courier cost is paid by the customer.</p>
       </>],
       ["How refunds are paid", <>
         <ul>

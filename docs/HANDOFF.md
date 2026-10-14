@@ -125,10 +125,11 @@ for dark tee colours (`dark` in `Boutique`), the arch dimmed to a glow, lamps ov
 **`feature-policy-pages` — NOT MERGED (waiting for the user's "merge"):** the four policy pages Razorpay checks
 before live payments: /terms, /privacy-policy, /refund-policy, /shipping-policy (`pages/PolicyPage.jsx`, one component;
 links in `utils/policyLinks.js`, shown in the footer's bottom row and as a side menu on each page). Business name, email,
-phone and address come from Admin → Settings → General. The rules are OUR FIRST DRAFT for the client to confirm — all
+phone and address come from Admin → Settings → General. The rules were APPROVED by the client (14 Oct 2026, policy PDF: all 11 ticked OK) — all
 in `RULES` at the top of the file: printing 2–4 working days (team 5–7), delivery 3–7 after dispatch, report a
 misprint/damage within 3 days, ready-made size exchange within 7 days, refund 5–7 working days, custom orders
 cancellable until printing starts (usually 24 h). Not legal advice — the client / their CA should read them.
+
 **`fix-email-sender` — MERGED to `main` on 14 Oct 2026 (Zoho live: login code reached a Gmail inbox; SPF, DKIM, DMARC all live):** one email setup for everything the site sends
 (`server/utils/mailer.js`: `mailer()`, `fromAddress()`, `shopInbox()`). Before, only login codes could use EMAIL_HOST; order
 / invoice, contact-form, enquiry and review emails were hard-wired to Gmail, and contact messages, enquiries and invoice
