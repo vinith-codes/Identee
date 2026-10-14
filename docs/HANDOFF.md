@@ -122,7 +122,7 @@ for dark tee colours (`dark` in `Boutique`), the arch dimmed to a glow, lamps ov
 **`feature-assistant-examples` — MERGED to `main` on 12 Oct 2026:** the assistant opens with a list of what it can do
 (`EXAMPLES` in `assistantScript.js`): tap-able examples that fill the message box or start the feature; "What can you do?" shows it again.
 
-**`feature-policy-pages` — NOT MERGED (waiting for the user's "merge"):** the four policy pages Razorpay checks
+**`feature-policy-pages` — MERGED to `main` on 14 Oct 2026:** the four policy pages Razorpay checks
 before live payments: /terms, /privacy-policy, /refund-policy, /shipping-policy (`pages/PolicyPage.jsx`, one component;
 links in `utils/policyLinks.js`, shown in the footer's bottom row and as a side menu on each page). Business name, email,
 phone and address come from Admin → Settings → General. The rules were APPROVED by the client (14 Oct 2026, policy PDF: all 11 ticked OK) — all
