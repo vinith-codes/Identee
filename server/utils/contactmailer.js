@@ -1,11 +1,4 @@
-import nodemailer from "nodemailer";
+// The contact form's mailer — the shared email setup (utils/mailer.js).
+import { mailer } from "./mailer.js";
 
-const transporter = nodemailer.createTransport({
-  service: "gmail",
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS, // Google App Password
-  },
-});
-
-export default transporter;
+export default mailer;

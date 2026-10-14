@@ -1,5 +1,6 @@
 import ContactMessage from "../models/ContactMessage.js";
-import transporter from "../utils/contactmailer.js";
+import mailer from "../utils/contactmailer.js";
+import { fromAddress, isEmail, shopInbox } from "../utils/mailer.js";
 import asyncHandler from "express-async-handler";
 
 const sendContactEmail = asyncHandler(async (req, res) => {
@@ -8,16 +9,21 @@ const sendContactEmail = asyncHandler(async (req, res) => {
   if (!email || !message) {
     return res.status(400).json({ message: "All fields are required" });
   }
+  if (!isEmail(email)) {
+    return res.status(400).json({ message: "Please enter a valid email address" });
+  }
 
   try {
     // 1. Save message in DB (optional but recommended)
     await ContactMessage.create({ email, message });
 
     // 2. Send email
-    await transporter.sendMail({
-      from: process.env.EMAIL_USER,
-      to: "paletteproductiondevelopers@gmail.com",
-      subject: "New Contact Request",
+    // to the shop's own email (Admin → Settings → General); pressing Reply answers the customer
+    await mailer().sendMail({
+      from: fromAddress("IDENTEE website"),
+      to: await shopInbox(),
+      replyTo: String(email).trim(),
+      subject: "New message from the IDENTEE contact page",
       text: `From: ${email}\n\nMessage:\n${message}`,
     });
 

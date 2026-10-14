@@ -129,6 +129,16 @@ phone and address come from Admin → Settings → General. The rules are OUR FI
 in `RULES` at the top of the file: printing 2–4 working days (team 5–7), delivery 3–7 after dispatch, report a
 misprint/damage within 3 days, ready-made size exchange within 7 days, refund 5–7 working days, custom orders
 cancellable until printing starts (usually 24 h). Not legal advice — the client / their CA should read them.
+**`fix-email-sender` — MERGED to `main` on 14 Oct 2026 (Zoho live: login code reached a Gmail inbox; SPF, DKIM, DMARC all live):** one email setup for everything the site sends
+(`server/utils/mailer.js`: `mailer()`, `fromAddress()`, `shopInbox()`). Before, only login codes could use EMAIL_HOST; order
+/ invoice, contact-form, enquiry and review emails were hard-wired to Gmail, and contact messages, enquiries and invoice
+copies went to previous developers' Gmails (contact: a hard-coded address; MAIL_TO / ADMIN_EMAIL in .env). Now they all
+go to the shop inbox from Admin → Settings → General (support, else store email = info@identee.co.in); contact messages
+have Reply-To = the customer; the enquiry auto-reply signs "The IDENTEE Team" (MAIL_FROM_NAME no longer used).
+The company has **Zoho Mail (info@identee.co.in)**. To switch: Zoho app password + SMTP on, SPF/DKIM verified (DMARC
+added) in the Zoho admin, then .env EMAIL_HOST=smtp.zoho.in (or .com), EMAIL_PORT=465, EMAIL_USER=EMAIL_FROM=
+info@identee.co.in, EMAIL_PASS=<app password>; restart. Checked (no mail sent): server starts, SMTP login OK, shop
+inbox = info@identee.co.in. `utils/mailSender.js` is old unused CommonJS code (not imported anywhere).
 
 **`print-start-lines` — MERGED to `main` on 14 Oct 2026:** the print team's start lines (their handwritten
 sheet, 14 Oct 2026): how far the print's top edge is below the collar, per size group S–M / L–XL / 2XL–3XL.

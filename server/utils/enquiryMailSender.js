@@ -4,16 +4,10 @@
 // Imported by controllers/enquiryController.js
 // ─────────────────────────────────────────────────────────────
 
-import nodemailer from "nodemailer";
+import { mailer, fromEmail } from "./mailer.js";
 
-// ── Transporter ───────────────────────────────────────────────
-const transporter = nodemailer.createTransport({
-  service: "gmail",
-  auth: {
-    user: process.env.EMAIL_USER, // your-gmail@gmail.com
-    pass: process.env.EMAIL_PASS, // Gmail App Password (not account password)
-  },
-});
+// ── Transporter: the shared email setup (utils/mailer.js) ─────
+const transporter = mailer();
 
 // Verify connection once on startup
 transporter.verify((err) => {
@@ -132,13 +126,13 @@ const autoReplyBody = (firstName, type, extraLine = "") => `
       Need help in the meantime?
     </p>
     <p style="margin:6px 0 0;color:#fbd983;font-size:14px;font-weight:600;">
-      ${process.env.EMAIL_USER}
+      ${fromEmail()}
     </p>
   </div>
   <p style="font-size:14px;color:#6b7280;margin:0;">
     Warm regards,<br/>
     <strong style="color:#09254a;">
-      ${process.env.MAIL_FROM_NAME || "The Store Team"}
+      The IDENTEE Team
     </strong>
   </p>`;
 

@@ -15,9 +15,9 @@ import {
   fieldRow,
   autoReplyBody,
 } from "../utils/enquiryMailSender.js";
+import { fromAddress, shopInbox } from "../utils/mailer.js";
 
-const SENDER = () =>
-  `"${process.env.MAIL_FROM_NAME || "Enquiry Form"}" <${process.env.MAIL_USER}>`;
+const SENDER = () => fromAddress("IDENTEE");
 
 // ── Helper: check express-validator result ────────────────────
 const checkValidation = (req, res) => {
@@ -84,7 +84,7 @@ const bulkEnquiry = async (req, res) => {
       // → store owner / admin
       transporter.sendMail({
         from: SENDER(),
-        to: process.env.MAIL_TO,
+        to: await shopInbox(),
         replyTo: email,
         subject: `📦 Bulk / Corporate Orders — ${firstName}`,
         html: emailWrapper("Bulk / Corporate Orders Enquiry", "#dba751", adminHtml),
@@ -149,7 +149,7 @@ const internationalEnquiry = async (req, res) => {
       // → store owner / admin
       transporter.sendMail({
         from: SENDER(),
-        to: process.env.MAIL_TO,
+        to: await shopInbox(),
         replyTo: email,
         subject: `🌐 International Purchase Enquiry — ${firstName}`,
         html: emailWrapper(
