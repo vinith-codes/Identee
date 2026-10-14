@@ -132,7 +132,7 @@ const downText = (s) =>
     : `${fmtCm(Math.abs(s.down))} cm ${s.down >= 0 ? "below" : "above"} ${s.sleeve ? "sleeve" : s.side} start*`;
 const acrossText = (s) =>
   Math.abs(s.across) < 0.3
-    ? s.sleeve ? "centred on sleeve" : "centred"
+    ? s.sleeve ? "centred on sleeve" : `centred · ${fmtCm(s.aw / 2)} cm each side`
     : s.sleeve
       ? `${fmtCm(Math.abs(s.across))} cm ${s.across > 0 ? "right" : "left"} of sleeve centre`
       : `${fmtCm(Math.abs(s.across))} cm to wearer's ${s.across > 0 ? "LEFT" : "RIGHT"}`;
@@ -424,7 +424,16 @@ async function teeMap({ title, side, prints, tee }) {
       // the label goes on the far side of the artwork, away from the centre line and the other prints
       const out = tx > cx;
       pill(g, `SIDE ${fmtCm(Math.abs(spot.across))} cm`, out ? ax + aw + 8 : ax - 8, my, { bg: "#1D4ED8", size: 20, left: out, right: !out });
-    } else pill(g, "CENTRED", tx, ay + ah + 20, { bg: "#1D4ED8", size: 16 });
+    } else {
+      // centred: half the artwork's width on each side of the centre line
+      g.strokeStyle = "#1D4ED8";
+      g.fillStyle = "#1D4ED8";
+      g.lineWidth = 2.5;
+      const by = ay + ah + 14;
+      arrow(g, tx, by, ax, by);
+      arrow(g, tx, by, ax + aw, by);
+      pill(g, `CENTRED · ${fmtCm(spot.aw / 2)} cm | ${fmtCm(spot.aw / 2)} cm`, tx, by + 26, { bg: "#1D4ED8", size: 18 });
+    }
   }
   // the wearer's left and right
   g.fillStyle = "#141110";
@@ -561,8 +570,8 @@ export async function buildPrintPack(pack, onStep = () => {}) {
     }
     // one block per size (team order: per player), one line per print
     const printLine = (r) =>
-      `  ${r.label.padEnd(21)} ${(r.spot ? `${fmtCm(r.spot.aw)} × ${fmtCm(r.spot.ah)} cm` : "-").padEnd(15)} ${(r.spot ? downText(r.spot) : "-").padEnd(27)} ${(r.spot ? acrossText(r.spot) : "-").padEnd(24)} ${r.file}`;
-    const head = `  ${"PRINT".padEnd(21)} ${"ARTWORK".padEnd(15)} ${"TOP".padEnd(27)} ${"SIDE".padEnd(24)} FILE`;
+      `  ${r.label.padEnd(21)} ${(r.spot ? `${fmtCm(r.spot.aw)} × ${fmtCm(r.spot.ah)} cm` : "-").padEnd(15)} ${(r.spot ? downText(r.spot) : "-").padEnd(27)} ${(r.spot ? acrossText(r.spot) : "-").padEnd(30)} ${r.file}`;
+    const head = `  ${"PRINT".padEnd(21)} ${"ARTWORK".padEnd(15)} ${"TOP".padEnd(27)} ${"SIDE".padEnd(30)} FILE`;
     const blocks = d.players?.length
       ? d.players.map((p) => ({
           title: `PLAYER ${String(p.n).padStart(2, "0")} · ${p.name || "-"} · no. ${p.number || "-"} · size ${p.size}`,
