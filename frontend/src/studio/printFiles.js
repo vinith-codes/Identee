@@ -137,97 +137,6 @@ const acrossText = (s) =>
       ? `${fmtCm(Math.abs(s.across))} cm ${s.across > 0 ? "right" : "left"} of sleeve centre`
       : `${fmtCm(Math.abs(s.across))} cm to wearer's ${s.across > 0 ? "LEFT" : "RIGHT"}`;
 
-// A picture for the print team that is NOT printed: the print area on the tee's colour with the artwork
-// in it, a cm ruler along the top and left, the centre lines, and the artwork's box with its distances.
-async function placementGuide({ canvas, wCm, hCm, box, tee, title, onTee = [] }) {
-  const s = Math.min(900 / wCm, 1000 / hCm); // px per cm
-  const W = Math.round(wCm * s);
-  const H = Math.round(hCm * s);
-  const m = { left: 78, top: 96, right: 40, bottom: 104 + onTee.length * 24 };
-  const c = document.createElement("canvas");
-  c.width = W + m.left + m.right;
-  c.height = H + m.top + m.bottom;
-  const g = c.getContext("2d");
-  g.fillStyle = "#FFFFFF";
-  g.fillRect(0, 0, c.width, c.height);
-  g.fillStyle = "#141110";
-  g.font = "bold 22px Arial";
-  g.fillText(title, m.left, 34);
-  g.font = "15px Arial";
-  g.fillStyle = "#B42318";
-  g.fillText("PLACEMENT GUIDE — NOT FOR PRINTING. The print file is this whole area; line up its edges, do not centre the artwork by itself.", m.left, 60, W + m.right - 8);
-  // the area on the tee's colour, with the artwork
-  g.fillStyle = tee || "#EEEEEE";
-  g.fillRect(m.left, m.top, W, H);
-  g.drawImage(canvas, m.left, m.top, W, H);
-  g.strokeStyle = "#141110";
-  g.lineWidth = 2;
-  g.setLineDash([10, 7]);
-  g.strokeRect(m.left, m.top, W, H);
-  // centre lines
-  g.strokeStyle = "rgba(20,17,16,.45)";
-  g.lineWidth = 1;
-  g.setLineDash([4, 6]);
-  g.beginPath();
-  g.moveTo(m.left + W / 2, m.top);
-  g.lineTo(m.left + W / 2, m.top + H);
-  g.moveTo(m.left, m.top + H / 2);
-  g.lineTo(m.left + W, m.top + H / 2);
-  g.stroke();
-  g.setLineDash([]);
-  // rulers: a tick every cm, a number every 5 cm
-  g.strokeStyle = "#141110";
-  g.fillStyle = "#141110";
-  g.font = "12px Arial";
-  g.textAlign = "center";
-  for (let cm = 0; cm <= wCm + 0.001; cm++) {
-    const x = m.left + cm * s;
-    const long = cm % 5 === 0;
-    g.beginPath();
-    g.moveTo(x, m.top - (long ? 12 : 6));
-    g.lineTo(x, m.top);
-    g.stroke();
-    if (long) g.fillText(String(cm), x, m.top - 16);
-  }
-  g.textAlign = "right";
-  for (let cm = 0; cm <= hCm + 0.001; cm++) {
-    const y = m.top + cm * s;
-    const long = cm % 5 === 0;
-    g.beginPath();
-    g.moveTo(m.left - (long ? 12 : 6), y);
-    g.lineTo(m.left, y);
-    g.stroke();
-    if (long) g.fillText(String(cm), m.left - 16, y + 4);
-  }
-  g.textAlign = "left";
-  g.fillText("cm", m.left - 60, m.top - 16);
-  // the artwork's box and its distances
-  if (box) {
-    const bx = m.left + (box.x0 / 100) * W;
-    const by = m.top + (box.y0 / 100) * H;
-    const bw = ((box.x1 - box.x0) / 100) * W;
-    const bh = ((box.y1 - box.y0) / 100) * H;
-    g.strokeStyle = "#D6006E";
-    g.lineWidth = 2;
-    g.strokeRect(bx, by, bw, bh);
-    const left = (box.x0 / 100) * wCm;
-    const top = (box.y0 / 100) * hCm;
-    const aw = ((box.x1 - box.x0) / 100) * wCm;
-    const ah = ((box.y1 - box.y0) / 100) * hCm;
-    g.fillStyle = "#141110";
-    g.font = "bold 16px Arial";
-    const y = m.top + H + 30;
-    g.fillText(`Artwork (pink box): ${fmtCm(aw)} × ${fmtCm(ah)} cm`, m.left, y);
-    g.font = "15px Arial";
-    g.fillText(`It starts ${fmtCm(left)} cm from the LEFT edge and ${fmtCm(top)} cm from the TOP edge of the area.`, m.left, y + 24, W + m.right - 8);
-    g.fillText(`Space left on the right: ${fmtCm(wCm - left - aw)} cm · at the bottom: ${fmtCm(hCm - top - ah)} cm.`, m.left, y + 46, W + m.right - 8);
-    // where that is on the tee itself
-    g.font = "bold 15px Arial";
-    onTee.forEach((line, n) => g.fillText(`ON THE TEE · ${line}`, m.left, y + 74 + n * 24, W + m.right - 8));
-  }
-  return new Promise((resolve, reject) => c.toBlob((b) => (b ? b.arrayBuffer().then((a) => resolve(new Uint8Array(a)), reject) : reject(new Error("guide failed"))), "image/jpeg", 0.9));
-}
-
 /* ---------- the tee map: every print of one side, on a sketch of the tee ---------- */
 // One picture per size (team order: per player) and side, NOT for printing: the tee with the collar and the
 // centre line, each print in its place with the artwork, and arrows with the same cm as the order sheet.
@@ -289,7 +198,7 @@ async function teeMap({ title, side, prints, tee }) {
   g.fillText(title, 40, 50, 1120);
   g.font = "18px Arial";
   g.fillStyle = "#B42318";
-  g.fillText("TEE MAP — NOT FOR PRINTING. Prints and distances are to scale; the tee outline is a sketch.", 40, 82, 1120);
+  g.fillText("TEE MAP — NOT FOR PRINTING. Measure from the COLLAR and the CENTRE LINE. Artwork and distances to scale; the tee is a sketch.", 40, 82, 1120);
 
   // the tee
   const half = 32 * S; // body half width
@@ -376,14 +285,6 @@ async function teeMap({ title, side, prints, tee }) {
     } finally {
       r.destroy();
     }
-    g.strokeStyle = dark ? "rgba(255,255,255,.6)" : "rgba(20,17,16,.5)";
-    g.lineWidth = 1.5;
-    g.setLineDash([6, 6]);
-    g.strokeRect(x0, y0, w * S, h * S);
-    g.setLineDash([]);
-    g.fillStyle = ink;
-    g.font = "bold 16px Arial";
-    g.fillText(`${area.label} (${fmtCm(w)} × ${fmtCm(h)} cm file)`, x0, y0 + h * S + 20, Math.max(w * S, 240));
     if (!box) continue;
     const spot = artworkSpot(area, size, box, pr.cm);
     const ax = x0 + (box.x0 / 100) * w * S;
@@ -393,6 +294,12 @@ async function teeMap({ title, side, prints, tee }) {
     g.strokeStyle = "#D6006E";
     g.lineWidth = 2.5;
     g.strokeRect(ax, ay, aw, ah);
+    // what it is: the print's name and the artwork's size, under it (under the CENTRED arrows when centred)
+    g.fillStyle = ink;
+    g.font = "bold 16px Arial";
+    g.textAlign = "center";
+    g.fillText(`${area.label} · artwork ${fmtCm(spot.aw)} × ${fmtCm(spot.ah)} cm`, ax + aw / 2, ay + ah + (Math.abs(spot.across) < 0.3 ? 76 : 24));
+    g.textAlign = "left";
     // TOP: from the collar (or the usual start line) down to the artwork's top edge
     const fromY = collarY + startCm * S;
     if (collar == null && !starts.has(startCm)) {
@@ -476,11 +383,12 @@ export async function buildPrintPack(pack, onStep = () => {}) {
   const sheet = [
     `IDENTEE · ORDER ${pack.order.number} · ${pack.order.customer || "-"} · ${new Date(pack.order.createdAt).toLocaleDateString("en-IN")}`,
     line,
-    "Print each file at 100% (300 DPI). Line up the file's edges — never crop the artwork.",
-    "Each size has a TEE MAP picture (MAP-….jpg) showing every print in its place with these numbers.",
-    "Then check the artwork on the tee with a tape:",
-    "  TOP  = from the collar (at the centre) down to the artwork's top edge",
-    "  SIDE = artwork's centre from the tee's centre line (wearer's left / right)",
+    "HOW TO PRINT",
+    "  1. Print each PNG at 100% (300 DPI) — it is the artwork at its real size (see-through parts don't print).",
+    "  2. Place the artwork on the tee with a measuring tape:",
+    "       TOP  = from the collar (at the centre) down to the artwork's top edge",
+    "       SIDE = from the tee's centre line (fold the tee in half) to the artwork",
+    "  3. The MAP-….jpg picture of each size shows the same on a drawing of the tee.",
     line,
     "",
   ];
@@ -516,7 +424,6 @@ export async function buildPrintPack(pack, onStep = () => {}) {
 
     for (const area of d.areas) {
       const els = elements.filter((e) => e.position === area.key).map((e, n) => ({ ...e, id: e.id ?? `${area.key}-${n}` }));
-      const guided = new Set(); // one guide picture per print size of this area
       for (const f of area.files) {
         const [w, h] = f.cm;
         // a player's own file: their name and number in place of the marked texts
@@ -528,32 +435,6 @@ export async function buildPrintPack(pack, onStep = () => {}) {
         done += 1;
         const box = artworkBox(drawn);
         for (const size of f.sizes) rows.push({ size, player: f.player || null, label: area.label, spot: box ? artworkSpot(area, size, box, f.cm) : null, file: name, area, cm: f.cm, box, drawn });
-
-        // a guide picture with a ruler, one per print size
-        const sizeKey = `${fmtCm(w)}x${fmtCm(h)}`;
-        if (!guided.has(sizeKey)) {
-          guided.add(sizeKey);
-          // every size printed from a file of this size, with where its artwork lands
-          const sizes = [...new Set(area.files.filter((x) => x.cm.join("x") === f.cm.join("x")).flatMap((x) => x.sizes))];
-          const onTee = box ? sizes.map((sz) => artworkSpot(area, sz, box, f.cm)).map((sp, n) => `Size ${sizes[n]}: top ${downText(sp)} · side ${acrossText(sp)}`) : [];
-          const small = new AreaRenderer(Math.round(w * 40), Math.round(h * 40));
-          try {
-            const guide = await placementGuide({
-              canvas: small.render(drawn, { full: true }),
-              wCm: w,
-              hCm: h,
-              box,
-              tee: d.colour.hex,
-              onTee,
-              title: `${area.label} · ${fmtCm(w)} × ${fmtCm(h)} cm · size${f.sizes.length === 1 ? "" : "s"} ${f.sizes.join(", ")}${f.player ? ` (shown: ${playerLabel(f.player)})` : ""}`,
-            });
-            folder.file(`guide-${safe(area.label)}_${sizeKey}cm.jpg`, guide);
-          } catch {
-            warnings.push(`Couldn't make the placement guide for ${area.label} of “${title}”.`);
-          } finally {
-            small.destroy();
-          }
-        }
 
         // picture sharpness at this print size
         for (const e of els.filter((x) => x.type === "image")) {

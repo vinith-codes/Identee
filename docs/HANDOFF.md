@@ -143,6 +143,9 @@ sheet, 14 Oct 2026): how far the print's top edge is below the collar, per size 
   and to scale (12 px/cm), a red TOP arrow (from the collar, or from "YOUR USUAL … START LINE*" drawn at the estimate in
   `EST_START`, same as teeModel) and a blue SIDE arrow from the centre line. Sleeves: sheet only. Named on each block's
   title line in ORDER-SHEET.
+- Only tee measurements now (user: "the print team should not get confused"): the guide-….jpg pictures (artwork inside the
+  print area) and the map's print-area boxes were removed; each map shows the artwork with its name and size, TOP from
+  the collar and SIDE from the centre line (centred = half the width each side). Sheet header = "HOW TO PRINT", 3 steps.
 - `docs/print-requests/collar_measure_question.png` (+ .svg): picture asking the print team whether "from the collar"
   means the TOP edge of the collar (A) or the collar SEAM (B). Waiting for their answer; the map draws the collar line
   at the seam until then.
