@@ -18,7 +18,8 @@ const status = async () => (await axios.get(`${API_URL}/status`, auth())).data;
 
 // New design: { subject, style, teeColour, teeIsDark, ratio } · change one: { baseUrl, change, ratio }
 // -> { images: [url], left }
-const design = async (body) => (await axios.post(`${API_URL}/design`, body, { ...auth(), timeout: 120000 })).data;
+// (a photo Google refuses goes on to Grok, so one request can take two turns — up to about 3 minutes in the worst case)
+const design = async (body) => (await axios.post(`${API_URL}/design`, body, { ...auth(), timeout: 200000 })).data;
 
 // Slogans written to order: { ask, tone?, avoid? } -> { slogans: [..] }
 const slogans = async (body) => (await axios.post(`${API_URL}/slogans`, body, { timeout: 30000 })).data;

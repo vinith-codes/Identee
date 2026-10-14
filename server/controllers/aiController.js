@@ -217,9 +217,10 @@ export const makeAiDesign = asyncHandler(async (req, res) => {
   const results = await Promise.allSettled(jobs);
   let made = results.filter((r) => r.status === "fulfilled").map((r) => r.value);
   let byGrok = false;
-  // Google refuses photos of well-known people: then Grok (xAI) redraws the photo, when it is set up.
-  // One version only — Grok costs about twice as much.
-  if (!made.length && photoJob && results[0].reason?.status === 422 && xaiConfigured()) {
+  // Google refuses photos of well-known people — with a safety error (422), or quietly, with no picture in the
+  // answer: then Grok (xAI) redraws the photo, when it is set up. One version only — Grok costs about twice as much.
+  const googleRefused = results[0].reason?.status === 422 || results[0].reason?.noImage === true;
+  if (!made.length && photoJob && googleRefused && xaiConfigured()) {
     try {
       made = [await xaiEditImage({ prompt: photoJob.promptFor(0).replace(/ This is option \d+ of \d+:[^.]*\./, ""), image: photoJob.image })];
       byGrok = true;
@@ -230,7 +231,7 @@ export const makeAiDesign = asyncHandler(async (req, res) => {
   if (!made.length) {
     const err = results[0].reason;
     // the picture service refused the customer's photo: they still get art, made by our own filters
-    if (fromPhoto && err?.status === 422) return sendFilterArt(req, res, { refused: true, left: Math.max(0, settings.dailyPerUser - used) });
+    if (fromPhoto && googleRefused) return sendFilterArt(req, res, { refused: true, left: Math.max(0, settings.dailyPerUser - used) });
     res.status(err?.status || 502);
     throw new Error(err?.message || "The design maker had a problem. Please try again.");
   }
