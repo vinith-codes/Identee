@@ -122,7 +122,7 @@ for dark tee colours (`dark` in `Boutique`), the arch dimmed to a glow, lamps ov
 **`feature-assistant-examples` — MERGED to `main` on 12 Oct 2026:** the assistant opens with a list of what it can do
 (`EXAMPLES` in `assistantScript.js`): tap-able examples that fill the message box or start the feature; "What can you do?" shows it again.
 
-**`fix-email-sender` — NOT MERGED (waiting for the user's "merge"):** one email setup for everything the site sends
+**`fix-email-sender` — MERGED to `main` on 14 Oct 2026 (Zoho live: login code reached a Gmail inbox; SPF, DKIM, DMARC all live):** one email setup for everything the site sends
 (`server/utils/mailer.js`: `mailer()`, `fromAddress()`, `shopInbox()`). Before, only login codes could use EMAIL_HOST; order
 / invoice, contact-form, enquiry and review emails were hard-wired to Gmail, and contact messages, enquiries and invoice
 copies went to previous developers' Gmails (contact: a hard-coded address; MAIL_TO / ADMIN_EMAIL in .env). Now they all
