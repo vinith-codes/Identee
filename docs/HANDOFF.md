@@ -144,7 +144,7 @@ out, ~$0.04 each; `XAI_PRICE_PER_IMAGE_INR`, default 7), counted in AiUsage with
 the monthly cap. Grok makes ONE version per request (user: cost). The user tested Grok in the grok.com app: it accepted a celebrity photo. NOT yet tested through the API
 (needs the key; one paid run ~₹7). Legal: the client accepts printing celebrity art (personality rights).
 - Admin → Settings → AI designs now shows Grok: a card with Connected / Not set up, this month's Grok spend,
-  requests and pictures (and Google's), the setting "Cost of one Grok picture (₹)" (`ai.grokPricePerImageInr`, default 6 —
+  requests and pictures (and Google's), the setting "Cost of one Grok picture (₹)" (`ai.grokPricePerImageInr`, default 7 for grok-imagine-image-2.0 —
   xAI: $5 ≈ 71 pictures), and an AI column (Google / Grok) in Latest requests. `monthSpend()` splits by AiUsage.model
   (^grok). XAI_PRICE_PER_IMAGE_INR is gone.
 

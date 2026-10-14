@@ -34,8 +34,8 @@ const DEFAULTS = {
   "ai.imagesPerRequest": { value: 1, type: "number", description: "Pictures shown for each new design request" },
   "ai.monthlyCapInr": { value: 2000, type: "number", description: "Monthly spending cap in rupees" },
   "ai.pricePerImageInr": { value: 2.9, type: "number", description: "What one picture costs, in rupees (for the spending figures)" },
-  // Grok (xAI) redraws photos Google refuses; $5 of credit ≈ 71 pictures
-  "ai.grokPricePerImageInr": { value: 6, type: "number", description: "What one Grok picture costs, in rupees (for the spending figures)" },
+  // Grok (xAI, grok-imagine-image-2.0) redraws photos Google refuses: about ₹7 a picture (photo in + art out)
+  "ai.grokPricePerImageInr": { value: 7, type: "number", description: "What one Grok picture costs, in rupees (for the spending figures)" },
 };
 const LIMITS = { "ai.dailyPerUser": [1, 50], "ai.imagesPerRequest": [1, 4], "ai.monthlyCapInr": [0, 1000000], "ai.pricePerImageInr": [0, 100], "ai.grokPricePerImageInr": [0, 100] };
 
