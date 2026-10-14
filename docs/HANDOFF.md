@@ -141,8 +141,8 @@ picture service refuses them (422); now Grok (xAI, `grok-imagine-image-2.0`, POS
 data URI — `server/services/xaiImageService.js`) redraws the photo instead, and only if that fails too, our free filters.
 Off unless `XAI_API_KEY` is in server/.env (company account at console.x.ai). Cost per art version ~₹7 (photo in + art
 out, ~$0.04 each; `XAI_PRICE_PER_IMAGE_INR`, default 7), counted in AiUsage with model = the Grok model, so it is in
-the monthly cap. The user tested Grok in the grok.com app: it accepted a celebrity photo. NOT yet tested through the API
-(needs the key; one paid run ~₹14 for 2 versions). Legal: the client accepts printing celebrity art (personality rights).
+the monthly cap. Grok makes ONE version per request (user: cost). The user tested Grok in the grok.com app: it accepted a celebrity photo. NOT yet tested through the API
+(needs the key; one paid run ~₹7). Legal: the client accepts printing celebrity art (personality rights).
 
 **`feature-policy-pages` — MERGED to `main` on 14 Oct 2026:** the four policy pages Razorpay checks
 before live payments: /terms, /privacy-policy, /refund-policy, /shipping-policy (`pages/PolicyPage.jsx`, one component;

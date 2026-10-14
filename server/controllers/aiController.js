@@ -207,11 +207,15 @@ export const makeAiDesign = asyncHandler(async (req, res) => {
   const results = await Promise.allSettled(jobs);
   let made = results.filter((r) => r.status === "fulfilled").map((r) => r.value);
   let byGrok = false;
-  // Google refuses photos of well-known people: then Grok (xAI) redraws the photo, when it is set up
+  // Google refuses photos of well-known people: then Grok (xAI) redraws the photo, when it is set up.
+  // One version only — Grok costs about twice as much.
   if (!made.length && photoJob && results[0].reason?.status === 422 && xaiConfigured()) {
-    const grok = await Promise.allSettled(Array.from({ length: photoJob.of }, (_, i) => xaiEditImage({ prompt: photoJob.promptFor(i), image: photoJob.image })));
-    made = grok.filter((r) => r.status === "fulfilled").map((r) => r.value);
-    byGrok = made.length > 0;
+    try {
+      made = [await xaiEditImage({ prompt: photoJob.promptFor(0).replace(/ This is option \d+ of \d+:[^.]*\./, ""), image: photoJob.image })];
+      byGrok = true;
+    } catch {
+      made = [];
+    }
   }
   if (!made.length) {
     const err = results[0].reason;
