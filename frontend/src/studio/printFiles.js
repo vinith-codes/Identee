@@ -70,19 +70,19 @@ export async function renderPrintFile(elements, [wCm, hCm]) {
 }
 
 /* ---------- where things go ---------- */
-// The artwork's outer box inside its print area, in % of the area (turned items are measured as turned).
-function artworkBox(els) {
+// The artwork's outer box inside its print area, in % of the area. Measured in cm (the area is rarely square),
+// so a turned item — text running up a Vertical Front — is measured as it really sits.
+function artworkBox(els, [wCm, hCm]) {
   let x0 = Infinity;
   let y0 = Infinity;
   let x1 = -Infinity;
   let y1 = -Infinity;
   for (const e of els) {
-    const w = e.width || 0;
-    const h = e.height || 0;
-    const cx = (e.x || 0) + w / 2;
-    const cy = (e.y || 0) + h / 2;
+    const w = ((e.width || 0) / 100) * wCm;
+    const h = ((e.height || 0) / 100) * hCm;
+    const cx = ((e.x || 0) / 100) * wCm + w / 2;
+    const cy = ((e.y || 0) / 100) * hCm + h / 2;
     const a = ((e.rotation || 0) * Math.PI) / 180;
-    // (a turned item's % sizes are of different lengths — the area is not square — but for a guide this is close enough)
     const hw = (Math.abs(w * Math.cos(a)) + Math.abs(h * Math.sin(a))) / 2;
     const hh = (Math.abs(w * Math.sin(a)) + Math.abs(h * Math.cos(a))) / 2;
     x0 = Math.min(x0, cx - hw);
@@ -92,7 +92,7 @@ function artworkBox(els) {
   }
   if (!Number.isFinite(x0)) return null;
   const c = (v) => Math.max(0, Math.min(100, v));
-  return { x0: c(x0), y0: c(y0), x1: c(x1), y1: c(y1) };
+  return { x0: c((x0 / wCm) * 100), y0: c((y0 / hCm) * 100), x1: c((x1 / wCm) * 100), y1: c((y1 / hCm) * 100) };
 }
 
 // Where the ARTWORK lands on the garment for one size — what the print team measures on the tee.
@@ -125,11 +125,7 @@ function artworkSpot(area, size, box, [w, h]) {
   return { down: r(down), fromCollar: collar != null, across: r(across), sleeve, side: area.side, aw: r(aw), ah: r(ah) };
 }
 
-// "17 cm below collar seam" (the print team measures from the seam where the collar rib joins the body) — a * marks a distance that is not from the collar (explained under the design)
-const downText = (s) =>
-  s.fromCollar
-    ? `${fmtCm(s.down)} cm below collar seam`
-    : `${fmtCm(Math.abs(s.down))} cm ${s.down >= 0 ? "below" : "above"} ${s.sleeve ? "sleeve" : s.side} start*`;
+// SIDE in words: "centred · 5 cm each side", "8.8 cm to wearer's LEFT"
 const acrossText = (s) =>
   Math.abs(s.across) < 0.3
     ? s.sleeve ? "centred on sleeve" : `centred · ${fmtCm(s.aw / 2)} cm each side`
@@ -137,11 +133,11 @@ const acrossText = (s) =>
       ? `${fmtCm(Math.abs(s.across))} cm ${s.across > 0 ? "right" : "left"} of sleeve centre`
       : `${fmtCm(Math.abs(s.across))} cm to wearer's ${s.across > 0 ? "LEFT" : "RIGHT"}`;
 
-/* ---------- the tee map: every print of one side, on a sketch of the tee ---------- */
-// One picture per size (team order: per player) and side, NOT for printing: the tee with the collar and the
-// centre line, each print in its place with the artwork, and arrows with the same cm as the order sheet.
-// Prints and distances are to scale; the tee's outline is a sketch.
-const MAP_PX = 12; // px per cm
+/* ---------- the job card: one page per size (team order: per player) ---------- */
+// What the print team reads: the order and the size at the top, the tee's front and back with every print
+// in its place (numbered ①②③, with the TOP and SIDE arrows), and a table with one line per print.
+// NOT for printing on the tee. Prints and distances are to scale; the tee's outline is a sketch.
+const MAP_PX = 12; // px per cm on the tee drawings
 const EST_START = { front: 8, back: 7 }; // the usual start line when an area has none from the collar (cm) — as in teeModel.js
 
 function arrow(g, x1, y1, x2, y2) {
@@ -175,30 +171,46 @@ function pill(g, text, x, y, { bg = "#B42318", fg = "#FFFFFF", size = 22, left =
   g.textAlign = "left";
   g.textBaseline = "alphabetic";
 }
+// the print's number in a round badge
+function badge(g, n, x, y, r = 19) {
+  g.fillStyle = "#141110";
+  g.strokeStyle = "#FFFFFF";
+  g.lineWidth = 3;
+  g.beginPath();
+  g.arc(x, y, r, 0, Math.PI * 2);
+  g.fill();
+  g.stroke();
+  g.fillStyle = "#FFFFFF";
+  g.font = `bold ${Math.round(r * 1.15)}px Arial`;
+  g.textAlign = "center";
+  g.textBaseline = "middle";
+  g.fillText(String(n), x, y + 1);
+  g.textAlign = "left";
+  g.textBaseline = "alphabetic";
+}
+const isDark = (hex) => {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex || "");
+  if (!m) return false;
+  const n = parseInt(m[1], 16);
+  return ((n >> 16) * 299 + ((n >> 8) & 255) * 587 + (n & 255) * 114) / 1000 < 110;
+};
 
-// prints: [{ area, size, cm: [w, h], box, drawn }] all on `side`
-async function teeMap({ title, side, prints, tee }) {
+// One side of the tee with its prints → a 1200 × 1060 canvas.
+// prints: [{ n, area, size, cm: [w, h], box, drawn }] all on `side`
+function teeMap({ side, prints, tee }) {
   const S = MAP_PX;
   const c = document.createElement("canvas");
   c.width = 1200;
-  c.height = 1130;
+  c.height = 1060;
   const g = c.getContext("2d");
   const cx = 600;
-  const top = 170; // where the shoulders meet the neck
-  const dark = (() => {
-    const m = /^#?([0-9a-f]{6})$/i.exec(tee || "");
-    if (!m) return false;
-    const n = parseInt(m[1], 16);
-    return ((n >> 16) * 299 + ((n >> 8) & 255) * 587 + (n & 255) * 114) / 1000 < 110;
-  })();
+  const top = 96; // where the shoulders meet the neck
+  const dark = isDark(tee);
   g.fillStyle = "#FFFFFF";
   g.fillRect(0, 0, c.width, c.height);
   g.fillStyle = "#141110";
-  g.font = "bold 30px Arial";
-  g.fillText(title, 40, 50, 1120);
-  g.font = "18px Arial";
-  g.fillStyle = "#B42318";
-  g.fillText("TEE MAP — NOT FOR PRINTING. Measure from the COLLAR SEAM and the CENTRE LINE. Artwork and distances to scale; the tee is a sketch.", 40, 82, 1120);
+  g.font = "bold 40px Arial";
+  g.fillText(side === "back" ? "BACK" : "FRONT", 30, 56);
 
   // the tee
   const half = 32 * S; // body half width
@@ -242,7 +254,6 @@ async function teeMap({ title, side, prints, tee }) {
   g.fill();
   g.stroke();
   const collarY = top + drop + rib; // the collar seam at the centre (where the print team measures from)
-  const ink = dark ? "#FFFFFF" : "#141110";
 
   // centre line
   g.strokeStyle = dark ? "rgba(255,255,255,.55)" : "rgba(20,17,16,.45)";
@@ -253,17 +264,17 @@ async function teeMap({ title, side, prints, tee }) {
   g.lineTo(cx, hem);
   g.stroke();
   g.setLineDash([]);
-  g.fillStyle = ink;
-  g.font = "bold 15px Arial";
+  g.fillStyle = dark ? "#FFFFFF" : "#141110";
+  g.font = "bold 16px Arial";
   g.fillText("CENTRE LINE", cx + 8, hem - 14);
-  // collar line
+  // collar seam
   g.strokeStyle = "#B42318";
   g.lineWidth = 3;
   g.beginPath();
   g.moveTo(cx - 120, collarY);
   g.lineTo(cx + 120, collarY);
   g.stroke();
-  pill(g, "COLLAR SEAM", cx - 210, collarY, { size: 16 });
+  pill(g, "COLLAR SEAM", cx - 215, collarY, { size: 17 });
 
   const starts = new Set();
   for (const pr of prints) {
@@ -271,7 +282,7 @@ async function teeMap({ title, side, prints, tee }) {
     const [w, h] = pr.cm;
     const p = area.place || { align: "centre", topCm: 0 };
     const collar = area.collarCm?.[String(size).toUpperCase()];
-    const startCm = collar != null ? 0 : EST_START[side] || 8; // the line its TOP is measured from, below the collar
+    const startCm = collar != null ? 0 : EST_START[side] || 8; // the line its TOP is measured from, below the collar seam
     const areaTop = collar != null ? collar : startCm + (area.main ? 0 : p.topCm || 0);
     const gap = p.gapCm || 0;
     // the viewer's left/right: the wearer's left is on the right of the front, on the left of the back
@@ -294,13 +305,7 @@ async function teeMap({ title, side, prints, tee }) {
     g.strokeStyle = "#D6006E";
     g.lineWidth = 2.5;
     g.strokeRect(ax, ay, aw, ah);
-    // what it is: the print's name and the artwork's size, under it (under the CENTRED arrows when centred)
-    g.fillStyle = ink;
-    g.font = "bold 16px Arial";
-    g.textAlign = "center";
-    g.fillText(`${area.label} · artwork ${fmtCm(spot.aw)} × ${fmtCm(spot.ah)} cm`, ax + aw / 2, ay + ah + (Math.abs(spot.across) < 0.3 ? 76 : 24));
-    g.textAlign = "left";
-    // TOP: from the collar (or the usual start line) down to the artwork's top edge
+    // TOP: from the collar seam (or the usual start line) down to the artwork's top edge
     const fromY = collarY + startCm * S;
     if (collar == null && !starts.has(startCm)) {
       starts.add(startCm);
@@ -313,45 +318,130 @@ async function teeMap({ title, side, prints, tee }) {
       g.stroke();
       g.setLineDash([]);
       g.fillStyle = "#B42318";
-      g.font = "bold 15px Arial";
-      g.fillText(`YOUR USUAL ${side.toUpperCase()} START LINE*`, cx - half + 14, fromY - 8);
+      g.font = "bold 16px Arial";
+      g.fillText(`YOUR USUAL ${side.toUpperCase()} START LINE*`, cx + half - 330, fromY - 8);
     }
     const tx = ax + aw / 2;
     g.strokeStyle = "#B42318";
     g.fillStyle = "#B42318";
     g.lineWidth = 3;
     if (ay - fromY > 6) arrow(g, tx, fromY, tx, ay);
-    pill(g, `TOP ${downText(spot).replace(" cm below collar seam", " cm").replace(/ cm (below|above) .*$/, " cm*")}`, tx + 10, (fromY + ay) / 2, { left: true, size: 20 });
+    pill(g, `TOP ${fmtCm(Math.abs(spot.down))} cm${spot.fromCollar ? "" : "*"}`, tx + 10, (fromY + ay) / 2, { left: true, size: 22 });
     // SIDE: from the centre line to the artwork's centre
     const my = ay + ah / 2;
+    g.strokeStyle = "#1D4ED8";
+    g.fillStyle = "#1D4ED8";
+    g.lineWidth = 2.5;
     if (Math.abs(spot.across) >= 0.3) {
-      g.strokeStyle = "#1D4ED8";
-      g.fillStyle = "#1D4ED8";
       arrow(g, cx, my, tx, my);
       // the label goes on the far side of the artwork, away from the centre line and the other prints
       const out = tx > cx;
-      pill(g, `SIDE ${fmtCm(Math.abs(spot.across))} cm`, out ? ax + aw + 8 : ax - 8, my, { bg: "#1D4ED8", size: 20, left: out, right: !out });
+      pill(g, `SIDE ${fmtCm(Math.abs(spot.across))} cm`, out ? ax + aw + 8 : ax - 8, my, { bg: "#1D4ED8", size: 22, left: out, right: !out });
     } else {
       // centred: half the artwork's width on each side of the centre line
-      g.strokeStyle = "#1D4ED8";
-      g.fillStyle = "#1D4ED8";
-      g.lineWidth = 2.5;
       const by = ay + ah + 14;
       arrow(g, tx, by, ax, by);
       arrow(g, tx, by, ax + aw, by);
-      pill(g, `CENTRED · ${fmtCm(spot.aw / 2)} cm | ${fmtCm(spot.aw / 2)} cm`, tx, by + 26, { bg: "#1D4ED8", size: 18 });
+      pill(g, `CENTRED · ${fmtCm(spot.aw / 2)} | ${fmtCm(spot.aw / 2)} cm`, tx, by + 28, { bg: "#1D4ED8", size: 20 });
     }
+    badge(g, pr.n, ax - 4, ay - 4);
   }
   // the wearer's left and right
   g.fillStyle = "#141110";
-  g.font = "bold 18px Arial";
-  const leftWord = side === "back" ? "WEARER'S LEFT" : "WEARER'S RIGHT";
-  const rightWord = side === "back" ? "WEARER'S RIGHT" : "WEARER'S LEFT";
-  g.fillText(`← ${leftWord}`, 40, hem + 40);
+  g.font = "bold 20px Arial";
+  g.fillText(`← ${side === "back" ? "WEARER'S LEFT" : "WEARER'S RIGHT"}`, 30, hem + 44);
   g.textAlign = "right";
-  g.fillText(`${rightWord} →`, 1160, hem + 40);
+  g.fillText(`${side === "back" ? "WEARER'S RIGHT" : "WEARER'S LEFT"} →`, 1170, hem + 44);
   g.textAlign = "left";
-  return new Promise((resolve, reject) => c.toBlob((b) => (b ? b.arrayBuffer().then((a) => resolve(new Uint8Array(a)), reject) : reject(new Error("map failed"))), "image/jpeg", 0.88));
+  return c;
+}
+
+// The whole job card → JPEG bytes.
+// rows: [{ n, label, file, spot, area, size, cm, box, drawn }]   checks / notes: lines of text
+async function jobCard({ heading, sub, rows, tee, checks = [], notes = [] }) {
+  const W = 2000;
+  const sides = ["front", "back"].filter((s) => rows.some((r) => r.area.side === s && r.box));
+  const mapW = 960;
+  const mapH = Math.round((1060 * mapW) / 1200);
+  const rowH = 54;
+  const mapsTop = 196;
+  const tableTop = mapsTop + (sides.length ? mapH + 30 : 0);
+  const H = tableTop + 70 + rows.length * rowH + 30 + (checks.length + notes.length) * 34 + 40;
+  const c = document.createElement("canvas");
+  c.width = W;
+  c.height = H;
+  const g = c.getContext("2d");
+  g.fillStyle = "#FFFFFF";
+  g.fillRect(0, 0, W, H);
+  // heading
+  g.fillStyle = "#141110";
+  g.fillRect(0, 0, W, 104);
+  g.fillStyle = "#FFFFFF";
+  g.font = "bold 46px Arial";
+  g.fillText(heading, 40, 68, W - 80);
+  g.fillStyle = "#141110";
+  g.font = "26px Arial";
+  g.fillText(sub, 40, 148, W - 80);
+  g.fillStyle = "#B42318";
+  g.font = "bold 22px Arial";
+  g.fillText("JOB CARD — NOT FOR PRINTING.   TOP = collar seam (centre) ↓ to the artwork's top edge.   SIDE = tee's centre line → artwork's centre.   Print each PNG at 100%.", 40, 184, W - 80);
+  // the tee: front and back side by side
+  sides.forEach((side, i) => {
+    const map = teeMap({ side, prints: rows.filter((r) => r.area.side === side && r.box), tee });
+    const x = sides.length === 1 ? (W - mapW) / 2 : 30 + i * (mapW + 20);
+    g.drawImage(map, x, mapsTop, mapW, mapH);
+    g.strokeStyle = "#E4DED5";
+    g.lineWidth = 2;
+    g.strokeRect(x, mapsTop, mapW, mapH);
+  });
+  // the table: one line per print
+  const cols = [
+    ["#", 40],
+    ["PRINT", 110],
+    ["ARTWORK", 480],
+    ["TOP (from collar seam)", 720],
+    ["SIDE (from centre line)", 1130],
+    ["FILE", 1520],
+  ];
+  g.fillStyle = "#F1ECE4";
+  g.fillRect(30, tableTop, W - 60, 56);
+  g.fillStyle = "#141110";
+  g.font = "bold 22px Arial";
+  cols.forEach(([t, x]) => g.fillText(t, x, tableTop + 36));
+  rows.forEach((r, i) => {
+    const y = tableTop + 56 + i * rowH;
+    if (i % 2) {
+      g.fillStyle = "#FAF8F4";
+      g.fillRect(30, y, W - 60, rowH);
+    }
+    badge(g, r.n, cols[0][1] + 18, y + rowH / 2, 18);
+    g.fillStyle = "#141110";
+    g.font = "bold 24px Arial";
+    g.fillText(r.label, cols[1][1], y + 35, 360);
+    g.font = "24px Arial";
+    const s = r.spot;
+    g.fillText(s ? `${fmtCm(s.aw)} × ${fmtCm(s.ah)} cm` : "-", cols[2][1], y + 35, 230);
+    g.fillText(s ? (s.sleeve ? `${fmtCm(s.down)} cm from sleeve top*` : `${fmtCm(Math.abs(s.down))} cm ${s.down >= 0 ? "below" : "above"}${s.fromCollar ? "" : ` ${s.side} start*`}`) : "-", cols[3][1], y + 35, 400);
+    g.fillText(s ? acrossText(s) : "-", cols[4][1], y + 35, 380);
+    g.font = "20px Arial";
+    g.fillStyle = "#5A524A";
+    g.fillText(r.file, cols[5][1], y + 35, W - cols[5][1] - 40);
+  });
+  // problems and notes
+  let y = tableTop + 56 + rows.length * rowH + 44;
+  g.font = "bold 24px Arial";
+  g.fillStyle = "#B42318";
+  for (const t of checks) {
+    g.fillText(`! ${t}`, 40, y, W - 80);
+    y += 34;
+  }
+  g.font = "22px Arial";
+  g.fillStyle = "#5A524A";
+  for (const t of notes) {
+    g.fillText(t, 40, y, W - 80);
+    y += 34;
+  }
+  return new Promise((resolve, reject) => c.toBlob((b) => (b ? b.arrayBuffer().then((a) => resolve(new Uint8Array(a)), reject) : reject(new Error("job card failed"))), "image/jpeg", 0.9));
 }
 
 /* ---------- names ---------- */
@@ -379,17 +469,12 @@ export async function buildPrintPack(pack, onStep = () => {}) {
 
   const total = designs.reduce((n, d) => n + d.areas.reduce((m, a) => m + a.files.length, 0), 0);
   let done = 0;
-  const line = "-".repeat(78);
+  const date = new Date(pack.order.createdAt).toLocaleDateString("en-IN");
   const sheet = [
-    `IDENTEE · ORDER ${pack.order.number} · ${pack.order.customer || "-"} · ${new Date(pack.order.createdAt).toLocaleDateString("en-IN")}`,
-    line,
-    "HOW TO PRINT",
-    "  1. Print each PNG at 100% (300 DPI) — it is the artwork at its real size (see-through parts don't print).",
-    "  2. Place the artwork on the tee with a measuring tape:",
-    "       TOP  = from the collar SEAM (where the collar joins the body, at the centre) down to the artwork's top edge",
-    "       SIDE = from the tee's centre line (fold the tee in half) to the artwork",
-    "  3. The MAP-….jpg picture of each size shows the same on a drawing of the tee.",
-    line,
+    `IDENTEE · ORDER ${pack.order.number} · ${pack.order.customer || "-"} · ${date}`,
+    "",
+    "Open the JOB-CARD picture of each size: it shows where every print goes, with the measurements.",
+    "Print each PNG at 100% (300 DPI). The number at the start of a file name is the print's number on the job card.",
     "",
   ];
 
@@ -398,12 +483,13 @@ export async function buildPrintPack(pack, onStep = () => {}) {
     const folder = root.folder(`${String(i + 1).padStart(2, "0")}-${safe(title)}`);
     const pieces = d.lines.reduce((n, l) => n + l.qty, 0);
     const checks = []; // problems to see before printing
-    const rows = []; // { size, player?, label, spot, file }
-    sheet.push(`DESIGN ${i + 1}: ${title}`, `${d.garment.label} · ${d.colour.name}${d.colour.hex ? ` (${d.colour.hex})` : ""} · ${pieces} tee${pieces === 1 ? "" : "s"}: ${d.lines.map((l) => `${l.size} × ${l.qty}`).join(", ")}`);
+    const rows = []; // { n, size, player?, label, spot, file, area, cm, box, drawn }
+    const colour = `${d.colour.name}${d.colour.hex ? ` (${d.colour.hex})` : ""}`;
+    sheet.push(`DESIGN ${i + 1}: ${title} · ${d.garment.label} · ${colour} · ${pieces} tee${pieces === 1 ? "" : "s"} (${d.lines.map((l) => `${l.size} × ${l.qty}`).join(", ")})`);
     if (d.players?.length && !d.playersMatch) checks.push("The player list does not match the sizes ordered — ask the customer before printing.");
     if (d.layoutVersion !== 2) {
       warnings.push(`“${title}” was saved in an older format and can't be made into print files.`);
-      sheet.push("! Older design format — no print files. Ask the customer to re-make it.", "", "");
+      sheet.push("  ! Older design format — no print files. Ask the customer to re-make it.", "");
       continue;
     }
 
@@ -422,69 +508,72 @@ export async function buildPrintPack(pack, onStep = () => {}) {
       throw new Error(`The font${missingFonts.length === 1 ? "" : "s"} ${missingFonts.join(", ")} didn't load, so the text would print in the wrong font. Try again.`);
     }
 
-    for (const area of d.areas) {
-      const els = elements.filter((e) => e.position === area.key).map((e, n) => ({ ...e, id: e.id ?? `${area.key}-${n}` }));
+    // every print gets a number: front first, then back, then the sleeves
+    const SIDE_ORDER = { front: 0, back: 1, left: 2, right: 3 };
+    const areas = [...d.areas].sort((a, b) => (SIDE_ORDER[a.side] ?? 9) - (SIDE_ORDER[b.side] ?? 9));
+    const files = [];
+    for (const [k, area] of areas.entries()) {
+      const n = k + 1;
+      const els = elements.filter((e) => e.position === area.key).map((e, m) => ({ ...e, id: e.id ?? `${area.key}-${m}` }));
       for (const f of area.files) {
         const [w, h] = f.cm;
         // a player's own file: their name and number in place of the marked texts
-        const who = f.player ? `${String(f.player.n).padStart(2, "0")}-${safe(playerLabel(f.player))}` : "";
+        const who = f.player ? `P${String(f.player.n).padStart(2, "0")}-${safe(playerLabel(f.player))}` : f.sizes.join("-");
         const drawn = f.player ? playerElements(els, f.player, cmToPx(w), cmToPx(h)) : els;
-        const name = `${safe(area.label)}_${who ? `${who}_` : ""}${f.sizes.join("-")}_${fmtCm(w)}x${fmtCm(h)}cm_${PRINT_DPI}dpi.png`;
+        const name = `${n}-${safe(area.label)}_${who}.png`;
         onStep(done, total, `Drawing ${area.label} (${f.player ? playerLabel(f.player) : f.sizes.join(", ")}) for “${title}”…`);
         folder.file(name, await renderPrintFile(drawn, f.cm));
+        files.push(name);
         done += 1;
-        const box = artworkBox(drawn);
-        for (const size of f.sizes) rows.push({ size, player: f.player || null, label: area.label, spot: box ? artworkSpot(area, size, box, f.cm) : null, file: name, area, cm: f.cm, box, drawn });
+        const box = artworkBox(drawn, f.cm);
+        for (const size of f.sizes) rows.push({ n, size, player: f.player || null, label: area.label, spot: box ? artworkSpot(area, size, box, f.cm) : null, file: name, area, cm: f.cm, box, drawn });
 
         // picture sharpness at this print size
         for (const e of els.filter((x) => x.type === "image")) {
           const img = cachedImage(e.src, true);
           const dpi = img ? Math.round(img.naturalWidth / ((((e.width || 0) / 100) * w) / 2.54)) : 0;
-          if (dpi && dpi < LOW_DPI) checks.push(`${area.label} (${f.sizes.join(", ")}): a picture is only ${dpi} DPI at its print size — it may look blurry.`);
+          if (dpi && dpi < LOW_DPI) checks.push(`${n} ${area.label} (${f.sizes.join(", ")}): a picture is only ${dpi} DPI at its print size — it may look blurry.`);
         }
       }
     }
+    checks.forEach((c) => warnings.push(`“${title}”: ${c}`));
 
-    if (checks.length) {
-      sheet.push("", "CHECK FIRST:", ...checks.map((c) => `  ! ${c}`));
-      checks.forEach((c) => warnings.push(`“${title}”: ${c}`));
-    }
-    // one block per size (team order: per player), one line per print
-    const printLine = (r) =>
-      `  ${r.label.padEnd(21)} ${(r.spot ? `${fmtCm(r.spot.aw)} × ${fmtCm(r.spot.ah)} cm` : "-").padEnd(15)} ${(r.spot ? downText(r.spot) : "-").padEnd(27)} ${(r.spot ? acrossText(r.spot) : "-").padEnd(30)} ${r.file}`;
-    const head = `  ${"PRINT".padEnd(21)} ${"ARTWORK".padEnd(15)} ${"TOP".padEnd(27)} ${"SIDE".padEnd(30)} FILE`;
+    // a * distance: what it is measured from
+    const mains = Object.fromEntries(d.areas.filter((a) => a.mainLabel).map((a) => [a.side, a.mainLabel]));
+    const notesFor = (rs) =>
+      [...new Set(rs.filter((r) => r.spot && !r.spot.fromCollar).map((r) => (r.spot.sleeve ? "sleeve" : r.spot.side)))].map((side) =>
+        side === "sleeve" ? "* Sleeves: measured from the top of the sleeve print area (your usual sleeve position)." : `* ${side === "front" ? "Front" : "Back"} start = your usual ${side} print start line (the top of ${mains[side] || `the main ${side} area`}) — no distance from the collar seam yet.`,
+      );
+    const texts = elements.filter((e) => e.type === "text");
+    const fonts = texts.length ? `Text: ${texts.map((e) => `${d.players?.length && e.role ? `[each player's ${e.role}]` : `“${e.text}”`} (${e.fontFamily}${e.color ? `, ${e.color}` : ""})`).join("; ")}` : "";
+
+    // one job card per size (team order: per player)
     const blocks = d.players?.length
       ? d.players.map((p) => ({
-          title: `PLAYER ${String(p.n).padStart(2, "0")} · ${p.name || "-"} · no. ${p.number || "-"} · size ${p.size}`,
+          heading: `ORDER ${pack.order.number}  ·  PLAYER ${String(p.n).padStart(2, "0")}: ${p.name || "-"} · no. ${p.number || "-"}  ·  SIZE ${p.size}`,
           key: `player-${String(p.n).padStart(2, "0")}-${safe(playerLabel(p))}`,
+          short: `player ${String(p.n).padStart(2, "0")} ${playerLabel(p)}, size ${p.size}`,
           rows: rows.filter((r) => (r.player ? r.player.n === p.n : r.size === p.size)),
         }))
-      : d.lines.map((l) => ({ title: `SIZE ${l.size} · ${l.qty} tee${l.qty === 1 ? "" : "s"}`, key: `size-${safe(l.size)}`, rows: rows.filter((r) => r.size === l.size) }));
+      : d.lines.map((l) => ({
+          heading: `ORDER ${pack.order.number}  ·  SIZE ${l.size}  ·  ${l.qty} TEE${l.qty === 1 ? "" : "S"}`,
+          key: `size-${safe(l.size)}`,
+          short: `size ${l.size} × ${l.qty}`,
+          rows: rows.filter((r) => r.size === l.size),
+        }));
     for (const b of blocks) {
-      // the tee maps of this block: one per side with prints (sleeves are on the sheet only)
-      const maps = [];
-      for (const side of ["front", "back"]) {
-        const prints = b.rows.filter((r) => r.area.side === side);
-        if (!prints.length) continue;
-        const file = `MAP-${b.key}-${side}.jpg`;
-        onStep(done, total, `Drawing the tee map (${b.title.split(" · ")[0]} ${side}) for “${title}”…`);
-        try {
-          folder.file(file, await teeMap({ title: `${b.title} · ${side.toUpperCase()} · ${title}`, side, prints, tee: d.colour.hex }));
-          maps.push(file);
-        } catch {
-          warnings.push(`Couldn't make the ${side} tee map for ${b.title} of “${title}”.`);
-        }
+      const file = `JOB-CARD_${b.key}.jpg`;
+      onStep(done, total, `Making the job card (${b.short}) for “${title}”…`);
+      try {
+        const bRows = [...b.rows].sort((x, y) => x.n - y.n);
+        folder.file(file, await jobCard({ heading: b.heading, sub: `${title} · ${d.garment.label} · ${colour} · ${pack.order.customer || ""} · ${date}`, rows: bRows, tee: d.colour.hex, checks, notes: [...notesFor(bRows), fonts].filter(Boolean) }));
+        sheet.push(`  ${file.padEnd(36)} → ${b.short}`);
+      } catch {
+        warnings.push(`Couldn't make the job card for ${b.short} of “${title}”.`);
       }
-      sheet.push("", `${b.title}${maps.length ? `   (picture: ${maps.join(", ")})` : ""}`, head, ...b.rows.map(printLine));
     }
-    // a * distance: what it is measured from
-    const starred = [...new Set(rows.filter((r) => r.spot && !r.spot.fromCollar).map((r) => (r.spot.sleeve ? "sleeve" : r.spot.side)))];
-    if (starred.length) {
-      const mains = Object.fromEntries(d.areas.filter((a) => a.mainLabel).map((a) => [a.side, a.mainLabel]));
-      sheet.push("", ...starred.map((side) => (side === "sleeve" ? "* sleeve start = the top of the sleeve print area (your usual sleeve position)." : `* ${side} start = your usual ${side} print start line (the top of ${mains[side] || `the main ${side} area`}).`)));
-    }
-    const texts = elements.filter((e) => e.type === "text");
-    if (texts.length) sheet.push(`Text: ${texts.map((e) => `${d.players?.length && e.role ? `[each player's ${e.role}]` : `“${e.text}”`} (${e.fontFamily}${e.color ? `, ${e.color}` : ""})`).join("; ")}`);
+    sheet.push(`  Print files: ${files.join(", ")}`);
+    if (checks.length) sheet.push(...checks.map((c) => `  ! ${c}`));
 
     // the customer's preview pictures, to check the print against
     for (const side of ["front", "back", "left", "right"]) {
@@ -498,7 +587,7 @@ export async function buildPrintPack(pack, onStep = () => {}) {
         warnings.push(`Couldn't add the ${side} preview of “${title}”.`);
       }
     }
-    sheet.push("", line, "");
+    sheet.push("");
   }
 
   onStep(done, total, "Packing the ZIP…");

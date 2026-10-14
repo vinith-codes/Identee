@@ -148,6 +148,14 @@ sheet, 14 Oct 2026): how far the print's top edge is below the collar, per size 
   the collar and SIDE from the centre line (centred = half the width each side). Sheet header = "HOW TO PRINT", 3 steps.
 - `docs/print-requests/collar_measure_question.png` (+ .svg): picture asking the print team whether "from the collar"
   means the TOP edge of the collar (A) or the collar SEAM (B). ANSWER (14 Oct 2026): the collar SEAM (B). Sheet, map and code notes say "collar seam".
+- JOB CARDS (user: the sheet was "clumsy"; their zip of VF-2026-0026 was still the old main version): every print is
+  numbered (front, back, sleeves) and its file is named `1-Vertical-Front_2XL.png` (team: `_P01-Arun-7`). One
+  `JOB-CARD_size-2XL.jpg` (team: per player) per size: a black heading (order · size · qty), front and back tee drawings
+  with numbered prints and TOP / SIDE arrows (`teeMap`, now returns a canvas), and a table # · PRINT · ARTWORK · TOP ·
+  SIDE · FILE, then CHECK FIRST problems and * notes (`jobCard`). ORDER-SHEET.txt is now 5–6 lines per design (job
+  cards + file list). MAP-….jpg files gone.
+- Bug fixed: `artworkBox` measured turned items in % of a non-square area (VF-0026 Front Right Vertical said 1.7 × 54
+  cm; really 9.2 × 20 cm). It now works in cm. Checked by building the pack for VF-2026-0026 (read-only) in the browser.
   Checked with a made-up order run through `buildPrintPack` in the browser (Full Front M/L/2XL + Left Chest): 17 / 18 /
   19.4 cm below the collar, chest logo 8.2 cm to the wearer's left.
 - Effect: Top Back, Centre Back and Vertical Back now all start on the same line, so they overlap and only one of them
