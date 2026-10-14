@@ -122,7 +122,7 @@ for dark tee colours (`dark` in `Boutique`), the arch dimmed to a glow, lamps ov
 **`feature-assistant-examples` — MERGED to `main` on 12 Oct 2026:** the assistant opens with a list of what it can do
 (`EXAMPLES` in `assistantScript.js`): tap-able examples that fill the message box or start the feature; "What can you do?" shows it again.
 
-**`print-start-lines` — NOT MERGED (waiting for the user's "merge"):** the print team's start lines (their handwritten
+**`print-start-lines` — MERGED to `main` on 14 Oct 2026:** the print team's start lines (their handwritten
 sheet, 14 Oct 2026): how far the print's top edge is below the collar, per size group S–M / L–XL / 2XL–3XL.
 - Full Front, Vertical Front, Front Right Vertical: 6 / 7 / 8 cm. Top Back, Centre Back, Vertical Back: 8 / 10 / 12 cm.
 - `collarCm` per area in `server/data/printPositions.js` (sent with the positions and in the print pack). The 3D tee places
