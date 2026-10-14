@@ -580,7 +580,7 @@ export default function DesignRoomPage() {
     const height = (m.h / H) * 100;
     return { ...el, width, height, x: cx - width / 2, y: cy - height / 2 };
   };
-  // opts: { effect: "arc-up", vertical: true (text runs down the area), small: true }
+  // opts: { effect: "arc-up", vertical: true (reads down the area) or "up" (reads up it), small: true }
   const addText = (text, opts = {}) => {
     const pos = ensureArea();
     if (!pos) return;
@@ -591,7 +591,8 @@ export default function DesignRoomPage() {
       const { W, H } = areaPx(pos);
       const lengthPctOfHeight = ((el.width / 100) * W / H) * 100;
       if (lengthPctOfHeight > 90) el = textBox({ ...el, fontSizePct: (el.fontSizePct * 90) / lengthPctOfHeight }, pos);
-      el = { ...el, rotation: 90, x: 50 - el.width / 2, y: 50 - el.height / 2 };
+      // "up": reads from bottom to top (turned left); otherwise from top to bottom (turned right)
+      el = { ...el, rotation: opts.vertical === "up" ? -90 : 90, x: 50 - el.width / 2, y: 50 - el.height / 2 };
     } else if (el.width > 90) {
       // long text: shrink so it fits inside the print area (90% wide)
       el = textBox({ ...el, fontSizePct: (el.fontSizePct * 90) / el.width }, pos);
@@ -1787,7 +1788,8 @@ export default function DesignRoomPage() {
                     <div className="dr-two">
                       <button type="button" className="dr-add" onClick={() => addText("YOUR TEXT", { effect: "arc-up" })}>Curved up</button>
                       <button type="button" className="dr-add" onClick={() => addText("YOUR TEXT", { effect: "arc-down" })}>Curved down</button>
-                      <button type="button" className="dr-add" onClick={() => addText("YOUR TEXT", { vertical: true })}>Vertical (runs down)</button>
+                      <button type="button" className="dr-add" onClick={() => addText("YOUR TEXT", { vertical: "up" })}>Vertical (reads up)</button>
+                      <button type="button" className="dr-add" onClick={() => addText("YOUR TEXT", { vertical: true })}>Vertical (reads down)</button>
                     </div>
                     <p className="dr-empty">Change the words, font, colour and size after adding.</p>
                   </>
