@@ -1,7 +1,8 @@
 # Builds the Regular-fit round-neck tee customizer images (12 colours x front/back/left/right)
 # to the IDENTEE Regular fit size chart (size M: chest 40" round = 20" flat, length 28").
 # Same method as build_oversized.py — only the size-M proportions differ.
-#   python build_regular.py <white_photo_front_back.png> <side_white.png> <outdir> <pylib>
+#   python build_regular.py <white_photo_front_back.png> <side_white.png> <outdir> <pylib> [--no-hanger]
+# (--no-hanger for a flat-lay photo, e.g. the kids tee: then the shirt's top rows are recoloured too)
 # Writes <colour>-<view>.jpg (800x1000) and calibration.json (pixels per inch
 # and the shirt outline per view, used to size print areas per garment size).
 import sys, json
@@ -10,6 +11,7 @@ import numpy as np
 from PIL import Image
 
 PHOTO, SIDE, OUT = sys.argv[1], sys.argv[2], sys.argv[3]
+HANGER = "--no-hanger" not in sys.argv[5:]
 CW, CH = 800, 1000
 BG = (241, 240, 236, 255)
 M_CHEST_IN, M_LENGTH_IN = 20, 28          # IDENTEE Regular fit, size M (from the PDF: chest 40" round, length 28")
@@ -79,7 +81,7 @@ calib = {"ppiAtSizeM": round(PPI, 3), "sizeM": {"chestIn": M_CHEST_IN, "lengthIn
          "canvas": [CW, CH], "views": {}}
 for view, box in (("front", (0, 0, W // 2, H)), ("back", (W // 2, 0, W, H))):
     canvas, info = place_photo_half(photo.crop(box))
-    views[view] = analyse(canvas)
+    views[view] = analyse(canvas, has_hanger=HANGER)
     calib["views"][view] = info
 side = Image.open(SIDE).convert("RGBA")
 views["right"] = analyse(side, has_hanger=False)

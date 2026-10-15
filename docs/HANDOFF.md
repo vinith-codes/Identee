@@ -171,8 +171,17 @@ texture (plain material).
 - Boys Round Neck (boys-round-neck) set up like the oversized tee (15 Oct, user's photo): 48 photos (12 colours × 4
   views) built by `server/scripts/garment-images/build_regular.py` to the Regular fit chart (the photo's tee was slimmer
   than the chart, so it is widened to 20" × 28" at M), 12 garmentcolorimages docs, sizeChart XS–3XL from the PDF + 4XL/5XL
-  continuing its steps (ESTIMATE), photoRuler 27.3/87.4. Still a coming-soon draft: not live until the print sizes for a
-  regular tee are confirmed (it would use the catalogue's oversized-based sizes).
+  continuing its steps (ESTIMATE), photoRuler 27.3/87.4. **LIVE since 15 Oct** (user's go-ahead), using the catalogue's
+  oversized-based print sizes until the print team gives regular-tee sizes.
+- Kids Round Neck (kids-round-neck): 48 photos from the user's kids front/back flat-lay photo (background removed,
+  `clean_small_photo.py`, then `build_regular.py … --no-hanger`), Cloudinary `identee/garments/kids-round-neck/`,
+  private copy in `identee-private-assets/kids-images/`. sizeChart 4-6 26/10.5/18, 7-8 28/11.5/19.5, 9-10 30/12.5/21,
+  11 31/13/21.5, 12 32/13.5/22.5, 13-14 34/14/24 (chest round / shoulder / length, inches — ESTIMATES, client to confirm).
+- Girls Round Neck (girls-round-neck): reuses the Boys Round Neck photos (same tee); sizeChart = the kids rows (4-6, 7-8,
+  9-10, 11-12, 13-14) + the regular adult chart XS–5XL.
+- Kids and Girls Round Neck are still **coming-soon drafts** — waiting for the print team's kids print sizes. Until
+  then `printPositions.js` gives each kids age size the S print size scaled by its chest (e.g. Centre Front 16×19 cm
+  at 4-6, Full Back 23×26 cm), and 4XL/5XL the 3XL size (before, both fell back to L). Checked in the room at 4-6.
 
 **`feature-policy-pages` — MERGED to `main` on 14 Oct 2026:** the four policy pages Razorpay checks
 before live payments: /terms, /privacy-policy, /refund-policy, /shipping-policy (`pages/PolicyPage.jsx`, one component;

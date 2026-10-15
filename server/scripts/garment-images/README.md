@@ -35,3 +35,8 @@ shoulders (not the hanger) and puts the shoulder at 27.3% and the hem at 87.4% o
 so the photo ruler is 27.3 / 87.4. Input: `identee-private-assets/source/white_regular_front_back.png` (the user's white
 front/back photo, background removed). Output (48 images) in `identee-private-assets/regular-images/`; uploaded to
 Cloudinary `identee/garments/boys-round-neck/`. The side views reuse the oversized side drawing (estimate).
+
+Kids round neck: same script on the kids flat-lay photo (no hanger). The photo is small, so first
+`clean_small_photo.py` (trim the grey rim, soften speckle, upscale), then
+`build_regular.py <clean.png> <side_white.png> <outdir> <pylib> --no-hanger`. Kids proportions (chest ≈ 0.71 × length)
+match the regular M, so the same canvas and photo ruler (27.3 / 87.4) work. Uploaded to `identee/garments/kids-round-neck/`.

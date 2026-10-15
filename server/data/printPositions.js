@@ -119,6 +119,22 @@ const sizesFor = (area, garment) => {
   return validCm(area.cm) ? { cmBySize: ruleSizes(area.cm), exact: false } : null;
 };
 
+// Sizes on the garment's own chart that the print team's sheet doesn't have yet. Kids' age sizes
+// ("4-6", "11") take the S size scaled by their chest against S (ESTIMATE until the print team gives
+// kids sizes), so a print is never wider than a child's tee; 4XL / 5XL take the 3XL size.
+const REGULAR_S_CHEST_IN = 38;
+const withChartSizes = (cmBySize, garment) => {
+  const chart = Array.isArray(garment?.sizeChart) ? garment.sizeChart : [];
+  const sChest = chart.find((r) => r.size === "S")?.chest || REGULAR_S_CHEST_IN;
+  const out = { ...cmBySize };
+  for (const row of chart) {
+    if (out[row.size] || !(row.chest > 0)) continue;
+    out[row.size] =
+      row.chest >= sChest ? cmBySize["3XL"] : cmBySize.S.map((v) => Math.max(MIN_CM, Math.round(v * (row.chest / sChest))));
+  }
+  return out;
+};
+
 // `cm` keeps the older three-group shape for code that still reads it.
 const groupsOf = (cmBySize) => ({ small: cmBySize.S, standard: cmBySize.L, large: cmBySize["2XL"] });
 
@@ -193,7 +209,7 @@ export const positionsForGarment = (garment) => {
     const sized = sizesFor(area, garment);
     if (area.main && sized) scales[area.side] = sized.cmBySize.L;
     const offered = configured ? !!overrideFor(garment, area.key)?.offered : DEFAULT_OFFERED.includes(area.key);
-    if (offered && sized) positions.push(toPosition(area, sized));
+    if (offered && sized) positions.push(toPosition(area, { ...sized, cmBySize: withChartSizes(sized.cmBySize, garment) }));
   }
   return { positions: withConflicts(positions), scales };
 };
