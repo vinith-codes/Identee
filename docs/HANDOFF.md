@@ -136,7 +136,7 @@ small in a 10 × 52 cm strip — and "in vertical front" was sent to Google as p
 - Checked: the Assistant's replies for 4 messages, and the turned placement drawn with konvaRender. NOT checked with a real
   picture from Google (costs ~₹14 for one request of 4 pictures) — needs the user's go-ahead.
 
-**`feature-photo-studio` (15 Oct, the boss's request — a highlighted feature):** the customer's photo, as ART or PRINT-READY.
+**`feature-photo-studio` — MERGED to `main` on 15 Oct 2026 (the boss's request — a highlighted feature):** the customer's photo, as ART or PRINT-READY.
 - `frontend/src/studio/PhotoStudio.jsx`: a panel in the editor's place (like the assistant): upload (or drop) a photo → "Turn it
   into art" (the image AI's photo styles Cartoon / Sketch / Sticker / Watercolour / Pop art — 1 request each, Google then Grok —
   or "Free instant looks" = our art filters) or "Keep it a photo — print-ready" (background removed in the browser, free; and

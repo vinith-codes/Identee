@@ -1662,15 +1662,7 @@ export default function DesignRoomPage() {
           <small>{artTotal ? `incl. ₹${artTotal} art` : "per piece"}</small>
         </div>
         {step === "design" && (
-          <button type="button" className={`dr-aibtn dr-photobtn${assist && aiTab === "photo" ? " on" : ""}`} aria-pressed={assist && aiTab === "photo"} onClick={() => toggleAiTab("photo")}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <path d={ICON_PHOTO} />
-            </svg>
-            Your photo
-          </button>
-        )}
-        {step === "design" && (
-          <button type="button" className={`dr-aibtn${assist && aiTab !== "photo" ? " on" : ""}`} aria-pressed={assist && aiTab !== "photo"} onClick={() => toggleAiTab(aiTab === "photo" ? "chat" : aiTab)}>
+          <button type="button" className={`dr-aibtn${assist ? " on" : ""}`} aria-pressed={assist} onClick={() => toggleAiTab(aiTab)}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <path d={ICON_AI} />
             </svg>
@@ -1877,7 +1869,7 @@ export default function DesignRoomPage() {
               </svg>
               Add text or picture
             </button>
-            <button type="button" className={`dr-toolbtn${assist ? " on" : ""}`} aria-pressed={assist} onClick={() => toggleAiTab(aiTab === "photo" ? "chat" : aiTab)}>
+            <button type="button" className={`dr-toolbtn${assist ? " on" : ""}`} aria-pressed={assist} onClick={() => toggleAiTab(aiTab)}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <path d={ICON_AI} />
               </svg>
