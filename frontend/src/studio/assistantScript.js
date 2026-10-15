@@ -55,7 +55,6 @@ const subjectAndArea = (t, areas) => {
 
 export const bot = (text) => ({ from: "bot", text });
 export const chips = (list) => ({ chips: list });
-const SUBJECT_IDEAS = ["A lion holding a cricket bat", "A mountain sunrise", "A cup of filter coffee", "A phoenix"];
 const AFTER_DESIGNS = ["Make more", "Something else"];
 // words that mean "change what is on my tee" (handled by the text AI, see studio/aiOps.js)
 const EDIT_WORDS = /\b(bigger|larger|smaller|tiny|huge|move|shift|delete|remove|erase|rotate|tilt|curve|curved|straight|vertical|bold|italic|underline|centre|center|align|resize|shrink|enlarge|increase|decrease|reduce|colou?r|font|outline|spacing|duplicate|copy|swap|rename|capitals?|uppercase|lowercase|change|restyle|style|look|make (it|the|this|that|my|them)|set (it|the|this)|put|add|write|insert|type|replace)\b/;
@@ -66,9 +65,9 @@ const act = (a) => ({ act: a });
 // Without fill, tapping it starts that feature straight away.
 export const EXAMPLES = [
   { title: "Design the whole tee in one sentence", hint: "Up to three pictures at once: front, back, a sleeve", say: "A tiger on the front and a tree on the back, on a black t-shirt", fill: true, needs: "pictures" },
-  { title: "Draw a picture for me", say: "Draw a lion holding a cricket bat", fill: true, needs: "pictures" },
-  { title: "Turn my photo into art", hint: "Cartoon, sketch, sticker and more", say: "Photo to art", needs: "pictures" },
-  { title: "Turn words into lettering art", say: "Hand lettering that says “Work smarter not harder”", fill: true, needs: "pictures" },
+  { title: "Draw a picture for me", say: "Draw a lion holding a cricket bat", fill: true, needs: "pictures", tab: "draw" },
+  { title: "Turn my photo into art", hint: "Cartoon, sketch, sticker and more", say: "Photo to art", needs: "pictures", tab: "photo" },
+  { title: "Turn words into lettering art", say: "Hand lettering that says “Work smarter not harder”", fill: true, needs: "pictures", tab: "draw", style: "Hand lettering" },
   { title: "Write a slogan", say: "A slogan for my mother", fill: true },
   { title: "Change things by telling me", say: "Make the text gold, curved and a bit bigger", fill: true, needs: "text" },
   { title: "Style my text for a mood", hint: "Royal, sporty, cute, minimal…", say: "Style it for me", needs: "text" },
@@ -319,9 +318,9 @@ export function replyTo(text, ctx, st, { tapped = false } = {}) {
     }
     if (!ai.loggedIn) return done([bot("I can draw a design from your description. Log in first so your designs are kept for you."), chips(["Log in", "Something else"])]);
     if (ai.left === 0) return done([bot("You’ve used today’s design requests. They reset tomorrow. Until then, try the art library or upload a picture."), chips(["Open the art library", "Upload a picture"])]);
-    // a full description typed straight away ("draw a lion holding a bat") skips the first question
-    if (t !== "Make a design" && t.split(/\s+/).length >= 4) return done([bot("Which style?"), chips(ai.styles)], { ...subjectAndArea(t, ctx.areas), wait: "aiStyle" });
-    return done([bot("What should it show? Describe it in a few words, or pick one to try."), chips(SUBJECT_IDEAS)], { wait: "aiSubject" });
+    // drawing has its own tab (Draw): it opens with what was typed ("draw a lion holding a bat") filled in
+    const said = t !== "Make a design" && t.split(/\s+/).length >= 3 ? subjectAndArea(t.replace(/^(please )?(can you |could you )?(draw|design|make|create|generate)( me)?( an?| the| some)?\s+/i, ""), ctx.areas) : { subject: "", areaKey: null };
+    return done([act({ type: "aiTab", tab: "draw", subject: said.subject, areaKey: said.areaKey })]);
   }
 
   /* ----- slogans ----- */

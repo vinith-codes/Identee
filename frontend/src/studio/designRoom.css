@@ -1003,3 +1003,25 @@ button.dr-back { padding: 0; font: inherit; font-weight: 700; cursor: pointer; }
 .ps-q.ok { background: #F3F0E4; color: #6B5A1F; }
 .ps-q.low { background: #FDF1EF; color: #9A2C1F; }
 .ps-on { font-size: 12.5px; font-weight: 700; color: #1F6B35; }
+
+/* ---- the AI panel: Chat · Draw · Photo tabs ---- */
+.dr-ai { display: flex; flex-direction: column; }
+.dr-aitabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 3px; margin: 0 20px 10px; padding: 3px; border: 1px solid var(--line); border-radius: 12px; background: #FBF9F4; flex-shrink: 0; }
+.dr-aitabs button { border: 0; background: none; border-radius: 9px; padding: 8px 6px; font-weight: 700; font-size: 13px; color: var(--muted); cursor: pointer; }
+.dr-aitabs button.on { background: #fff; color: var(--ink); box-shadow: 0 1px 0 var(--line), 0 4px 10px -8px rgba(20, 17, 16, .5); }
+.dr-aitabs button:hover:not(.on) { color: var(--ink); }
+.dr-aipane { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.dr-aipane[hidden] { display: none !important; }
+/* the Draw tab (DrawStudio.jsx) — same parts as the Photo Studio */
+.ds-text { width: 100%; box-sizing: border-box; border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; font: inherit; font-size: 14px; resize: vertical; background: #fff; color: var(--ink); }
+.ds-text:focus { outline: 2px solid var(--gold); outline-offset: 1px; }
+.ds-text.bad { border-color: #E0A19A; }
+.ds-missing { margin: -8px 0 0; font-size: 12.5px; color: #9A2C1F; }
+.ds-ideas { display: flex; flex-wrap: wrap; gap: 6px; margin-top: -4px; }
+.ds-ideas .dr-chip { font-size: 12px; }
+.ps-style.on { border-color: var(--gold); background: var(--gold-soft); box-shadow: 0 0 0 1px var(--gold) inset; }
+.ds-for { display: flex; align-items: center; gap: 10px; font-size: 13px; font-weight: 600; }
+.ds-for select { flex: 1; min-width: 0; border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; background: #fff; font: inherit; font-size: 13px; }
+.ds-go { width: 100%; padding: 13px 16px; font-size: 14px; }
+.ds-change { display: grid; gap: 6px; }
+.ds-change input { border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; font: inherit; font-size: 13px; }

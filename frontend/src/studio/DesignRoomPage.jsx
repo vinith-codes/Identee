@@ -29,6 +29,7 @@ import aiService from "../services/aiService";
 import { applyAiOps, areaFor, describeDesign } from "./aiOps";
 import WaitCard from "./WaitCard";
 import PhotoStudio from "./PhotoStudio";
+import DrawStudio from "./DrawStudio";
 import { checkDesign, inksFor, printSharpness } from "./designCheck";
 import { TEMPLATES } from "./designTemplates";
 import { FONTS, addStudioFonts } from "./fonts";
@@ -44,6 +45,7 @@ const ADD_TABS = [
   ["art", "Art", "M4 5h16v14H4zM8 13l3-3 5 5M15 9h.01"],
 ];
 const ICON_AI = "m12 3 1.8 4.7L18 9.5l-4.2 1.8L12 16l-1.8-4.7L6 9.5l4.2-1.8L12 3Z";
+const AI_TABS = [["chat", "Chat"], ["draw", "Draw"], ["photo", "Photo"]];
 const ICON_PHOTO = "M4 8h3l2-3h6l2 3h3v11H4zM12 16.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z";
 const ICON_AREAS = "M8 4 4 6.5 2 10l3 1.5V20h14v-8.5L22 10l-2-3.5L16 4a4 4 0 0 1-8 0Z";
 const ICON_ADD = "M12 5v14M5 12h14";
@@ -160,7 +162,8 @@ export default function DesignRoomPage() {
   const [assist, setAssist] = useState(() => Boolean(session?.assist));
   // the Photo Studio (PhotoStudio.jsx): the customer's photo as art, or print-ready. Its panel takes the
   // editor's place like the assistant's; its state stays while it is closed (results are still there)
-  const [photoOpen, setPhotoOpen] = useState(false);
+  const [aiTab, setAiTab] = useState("chat"); // the AI panel's tab: chat | draw | photo
+  const [drawSession, setDrawSession] = useState({}); // the Draw tab's state (DrawStudio.jsx)
   const [photoSession, setPhotoSession] = useState({});
   // the assistant made wide (about half the screen) with its Expand button — remembered on this device
   const [assistWide, setAssistWide] = useState(() => readJSON(ASSIST_WIDE_KEY) === true);
@@ -574,12 +577,10 @@ export default function DesignRoomPage() {
   // phones' "Add" button: open an area's editor on its Add tabs
   const pickAreaByHand = (key) => {
     setAssist(false);
-    setPhotoOpen(false);
     openArea(key);
   };
   const editByHand = () => {
     setAssist(false);
-    setPhotoOpen(false);
     if (active) return;
     const first = positions.find((p) => usedKeys.includes(p.key));
     if (first) openArea(first.key);
@@ -587,7 +588,6 @@ export default function DesignRoomPage() {
   };
   const startAdding = () => {
     setAssist(false);
-    setPhotoOpen(false);
     const pos = ensureArea();
     if (!pos) return;
     if (active !== pos.key) openArea(pos.key);
@@ -1126,11 +1126,14 @@ export default function DesignRoomPage() {
   /* ---------- the Photo Studio ---------- */
   // the print area its results go on: the open one, else the front's main area
   const photoTarget = activePos || positions.find((p) => p.side === "front" && p.main) || positions.find((p) => p.side === "front") || positions[0] || null;
-  const openPhotoStudio = () => {
-    setAssist(false);
+  // the AI panel on one of its tabs (from the top bar, the start cards, the assistant's examples)
+  const openAiTab = (tab) => {
+    setAiTab(tab);
+    setAssist(true);
     setAreasOpen(false);
-    setPhotoOpen(true);
   };
+  const toggleAiTab = (tab) => (assist && aiTab === tab ? setAssist(false) : openAiTab(tab));
+  const openPhotoStudio = () => openAiTab("photo");
   const aiFailed = (err, fallback) => new Error(err?.response?.data?.message || fallback);
   const studioUpload = async (file) => {
     const res = await dispatch(uploadDesignImage(file));
@@ -1195,6 +1198,41 @@ export default function DesignRoomPage() {
     }
     return { ...cur, enhanced, cut };
   };
+  // the Draw tab: the image AI draws a design for a print area, or changes one it made
+  const drawSize = (key) => {
+    const pos = positions.find((p) => p.key === key) || photoTarget;
+    return pos ? areaPx(pos) : { W: 1, H: 1 };
+  };
+  const keepAiDesigns = (res) => {
+    if (res.left != null) setAi((c) => ({ ...c, left: res.left }));
+    res.images.forEach((im) => {
+      aiCuts.current.set(im.url, { path: im.url, w: im.width, h: im.height });
+      loadImage(im.url).catch(() => {});
+    });
+    return res;
+  };
+  const drawDesign = async ({ subject, style, areaKey }) => {
+    const { W, H } = drawSize(areaKey);
+    // lettering: the words in quotes are drawn exactly as written; a tall, thin area gets one long line
+    const lettering = style === "Hand lettering";
+    const quoted = /[“"‘']([^”"’']{2,160})[”"’']/.exec(subject);
+    const asked = !lettering ? subject : quoted ? `${subject.replace(quoted[0], "").trim()} — the words to letter, spelled exactly: “${quoted[1]}”` : `the words “${subject}”, spelled exactly`;
+    const banner = lettering && H / W >= 2.5;
+    try {
+      return keepAiDesigns(await aiService.design({ subject: asked, style, teeColour: colour?.name || "white", teeIsDark: lum(fabricHex) < 0.55, ratio: banner ? H / W : W / H, ...(banner ? { banner: true } : {}) }));
+    } catch (err) {
+      throw aiFailed(err, "The design maker had a problem.");
+    }
+  };
+  const changeDrawing = async ({ baseUrl, change, areaKey }) => {
+    const { W, H } = drawSize(areaKey);
+    try {
+      return keepAiDesigns(await aiService.design({ baseUrl, change, teeIsDark: lum(fabricHex) < 0.55, ratio: W / H }));
+    } catch (err) {
+      throw aiFailed(err, "The design couldn’t be changed just now.");
+    }
+  };
+  const drawPlace = async (url, key) => Boolean(await placeAiDesign(url, key));
   const studioPlace = async (r) => {
     if (!photoTarget) return false;
     aiCuts.current.set(r.url, { path: r.url, w: r.w, h: r.h }); // already final: put on as it is
@@ -1237,6 +1275,11 @@ export default function DesignRoomPage() {
     if (a.type === "slogans") return writeSlogans(a);
     if (a.type === "edit") return chatEdit(a, progress);
     if (a.type === "photoPick") return openPhotoStudio();
+    if (a.type === "aiTab") {
+      // "Draw a picture for me", a drawing typed in the chat, "Turn my photo into art": over to that tab
+      if (a.tab === "draw") setDrawSession((d) => ({ ...d, view: "form", ...(a.subject ? { subject: a.subject } : {}), ...(a.style ? { style: a.style } : {}), ...(a.areaKey ? { areaKey: a.areaKey } : {}) }));
+      return openAiTab(a.tab);
+    }
     if (a.type === "place") return placeAiDesign(a.url, a.areaKey);
     if (a.type === "login") return goToLogin();
     if (a.type === "text") return addText(a.text);
@@ -1281,8 +1324,8 @@ export default function DesignRoomPage() {
       ackIssues.current = sig;
       openArea(issues[0].position);
       setSelectedId(null);
+      setAiTab("chat");
       setAssist(true);
-      setPhotoOpen(false);
       setChat((m) => [...m.map((x) => (x.chips ? { ...x, done: true } : x)), ...checkMessages(issues, { beforeReview: true })]);
       return;
     }
@@ -1619,7 +1662,7 @@ export default function DesignRoomPage() {
           <small>{artTotal ? `incl. ₹${artTotal} art` : "per piece"}</small>
         </div>
         {step === "design" && (
-          <button type="button" className={`dr-aibtn dr-photobtn${photoOpen ? " on" : ""}`} aria-pressed={photoOpen} onClick={() => (photoOpen ? setPhotoOpen(false) : openPhotoStudio())}>
+          <button type="button" className={`dr-aibtn dr-photobtn${assist && aiTab === "photo" ? " on" : ""}`} aria-pressed={assist && aiTab === "photo"} onClick={() => toggleAiTab("photo")}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <path d={ICON_PHOTO} />
             </svg>
@@ -1627,7 +1670,7 @@ export default function DesignRoomPage() {
           </button>
         )}
         {step === "design" && (
-          <button type="button" className={`dr-aibtn${assist ? " on" : ""}`} aria-pressed={assist} onClick={() => { setPhotoOpen(false); setAssist((a) => !a); }}>
+          <button type="button" className={`dr-aibtn${assist && aiTab !== "photo" ? " on" : ""}`} aria-pressed={assist && aiTab !== "photo"} onClick={() => toggleAiTab(aiTab === "photo" ? "chat" : aiTab)}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <path d={ICON_AI} />
             </svg>
@@ -1781,7 +1824,7 @@ export default function DesignRoomPage() {
                   <button type="button" className="del" onClick={removeSel} title="Remove this item">Delete</button>
                 </div>
               )}
-              {!elements.length && !active && !assist && !areasOpen && !photoOpen && (
+              {!elements.length && !active && !assist && !areasOpen && (
                 <div className="dr-starts" role="group" aria-label="Ways to start">
                   <button type="button" className="photo" onClick={openPhotoStudio}>
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={ICON_PHOTO} /></svg>
@@ -1798,7 +1841,7 @@ export default function DesignRoomPage() {
                     <b>Upload a picture</b>
                     <small>A logo or picture, as it is</small>
                   </button>
-                  <button type="button" className="ai" onClick={() => { setPhotoOpen(false); setAssist(true); }}>
+                  <button type="button" className="ai" onClick={() => openAiTab("chat")}>
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={ICON_AI} /></svg>
                     <b>Ask the Assistant</b>
                     <small>Describe it, I’ll design it</small>
@@ -1834,7 +1877,7 @@ export default function DesignRoomPage() {
               </svg>
               Add text or picture
             </button>
-            <button type="button" className={`dr-toolbtn${assist ? " on" : ""}`} aria-pressed={assist} onClick={() => { setAreasOpen(false); setPhotoOpen(false); setAssist((a) => !a); }}>
+            <button type="button" className={`dr-toolbtn${assist ? " on" : ""}`} aria-pressed={assist} onClick={() => toggleAiTab(aiTab === "photo" ? "chat" : aiTab)}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <path d={ICON_AI} />
               </svg>
@@ -1843,39 +1886,23 @@ export default function DesignRoomPage() {
           </nav>
         )}
 
-        {step === "design" && photoOpen && (
-          <section className="dr-editor dr-assist dr-photostudio" aria-label="Photo studio">
+        {step === "design" && assist && (
+          // The AI panel: Chat (the assistant), Draw (DrawStudio.jsx) and Photo (PhotoStudio.jsx). All three stay
+          // mounted, so a tab keeps its state (and a running request) while another is shown.
+          <section className={`dr-editor dr-assist dr-ai tab-${aiTab}`} data-wide={assistWide ? "1" : undefined} aria-label="AI design">
             <header>
               <div>
-                <div className="eyebrow">Photo studio</div>
-                <h2>Your photo, on your tee</h2>
-                <div className="sub">Turn it into art, or keep it a photo — print-ready.{photoTarget ? ` It goes on ${photoTarget.label}.` : ""}</div>
-              </div>
-              <button type="button" className="dr-x" aria-label="Close the photo studio" onClick={() => setPhotoOpen(false)}>✕</button>
-            </header>
-            <PhotoStudio
-              ai={{ ...ai, loggedIn: isLoggedIn() }}
-              target={photoTarget ? { label: photoTarget.label, cm: areaCm(photoTarget, sizeNow) } : { label: "your tee", cm: null }}
-              fabric={fabricHex}
-              session={photoSession}
-              setSession={setPhotoSession}
-              onLogin={goToLogin}
-              onUpload={studioUpload}
-              onArt={studioArt}
-              onPrintReady={studioPrintReady}
-              onPlace={studioPlace}
-              onClose={() => setPhotoOpen(false)}
-            />
-          </section>
-        )}
-
-        {step === "design" && assist && !photoOpen && (
-          <section className="dr-editor dr-assist" data-wide={assistWide ? "1" : undefined} aria-label="Design assistant">
-            <header>
-              <div>
-                <div className="eyebrow">Design assistant</div>
-                <h2>Tell me what you want</h2>
-                <div className="sub">{activePos ? `Working on ${activePos.label}. You can still change anything by hand.` : "Describe your tee, or pick a starting point."}</div>
+                <div className="eyebrow">AI design</div>
+                <h2>{aiTab === "draw" ? "Describe it, I’ll draw it" : aiTab === "photo" ? "Your photo, on your tee" : "Tell me what you want"}</h2>
+                <div className="sub">
+                  {aiTab === "draw"
+                    ? "The AI draws a design for your tee."
+                    : aiTab === "photo"
+                      ? `Turn it into art, or keep it a photo — print-ready.${photoTarget ? ` It goes on ${photoTarget.label}.` : ""}`
+                      : activePos
+                        ? `Working on ${activePos.label}. You can still change anything by hand.`
+                        : "Describe your tee, or pick a starting point."}
+                </div>
               </div>
               <div className="dr-assisthead">
                 {/* more room for the chat: about half the screen, and back */}
@@ -1892,19 +1919,58 @@ export default function DesignRoomPage() {
                   </svg>
                   <span>{assistWide ? "Narrower" : "Wider"}</span>
                 </button>
-                <button type="button" className="dr-x" aria-label="Close the assistant" onClick={() => setAssist(false)}>✕</button>
+                <button type="button" className="dr-x" aria-label="Close" onClick={() => setAssist(false)}>✕</button>
               </div>
             </header>
-            <Assistant messages={chat} setMessages={setChat} state={chatState} setState={setChatState} ctx={assistantCtx} onAct={assistantAct} onFix={applyFix} placed={aiOn} fabric={fabricHex} />
-            {elements.length > 0 && (
-              <button type="button" className="dr-handoff" onClick={editByHand}>
-                Not quite right? Edit it by hand →
-              </button>
-            )}
+            <div className="dr-aitabs" role="tablist" aria-label="AI design">
+              {AI_TABS.map(([k, label]) => (
+                <button key={k} type="button" role="tab" aria-selected={aiTab === k} className={aiTab === k ? "on" : ""} onClick={() => setAiTab(k)}>
+                  {label}
+                </button>
+              ))}
+            </div>
+            <div className="dr-aipane" hidden={aiTab !== "chat"}>
+              <Assistant messages={chat} setMessages={setChat} state={chatState} setState={setChatState} ctx={assistantCtx} onAct={assistantAct} onFix={applyFix} placed={aiOn} fabric={fabricHex} />
+              {elements.length > 0 && (
+                <button type="button" className="dr-handoff" onClick={editByHand}>
+                  Not quite right? Edit it by hand →
+                </button>
+              )}
+            </div>
+            <div className="dr-aipane" hidden={aiTab !== "draw"}>
+              <DrawStudio
+                ai={{ ...ai, loggedIn: isLoggedIn() }}
+                areas={positions.map((p) => ({ key: p.key, label: p.label, free: usedKeys.includes(p.key) || !blockersOf(p.key, positions, usedKeys).length }))}
+                targetKey={photoTarget?.key}
+                fabric={fabricHex}
+                session={drawSession}
+                setSession={setDrawSession}
+                onLogin={goToLogin}
+                onDraw={drawDesign}
+                onChange={changeDrawing}
+                onPlace={drawPlace}
+                onClose={() => setAssist(false)}
+              />
+            </div>
+            <div className="dr-aipane" hidden={aiTab !== "photo"}>
+              <PhotoStudio
+                ai={{ ...ai, loggedIn: isLoggedIn() }}
+                target={photoTarget ? { label: photoTarget.label, cm: areaCm(photoTarget, sizeNow) } : { label: "your tee", cm: null }}
+                fabric={fabricHex}
+                session={photoSession}
+                setSession={setPhotoSession}
+                onLogin={goToLogin}
+                onUpload={studioUpload}
+                onArt={studioArt}
+                onPrintReady={studioPrintReady}
+                onPlace={studioPlace}
+                onClose={() => setAssist(false)}
+              />
+            </div>
           </section>
         )}
 
-        {step === "design" && activePos && !assist && !photoOpen && (
+        {step === "design" && activePos && !assist && (
           <section className="dr-editor" aria-label={`Edit ${activePos.label}`}>
             <header>
               <div>
@@ -2098,7 +2164,7 @@ export default function DesignRoomPage() {
             onAssistant={() => {
               setEarlier(null);
               enterRoom();
-              setAssist(true);
+              openAiTab("chat");
             }}
             onPhoto={() => {
               setEarlier(null);

@@ -147,6 +147,12 @@ small in a 10 × 52 cm strip — and "in vertical front" was sent to Google as p
 - Entry points: first screen "Start with my photo" (gold), the room's first start card "Your photo", a top-bar "Your photo"
   button, the Upload tab, a home-page band (HomePhoto → /customize/<garment>?new=1&photo=1, which opens the studio) and a strip
   on /customizable.
+- AI panel with tabs (user: "make the assistant like this"): the assistant panel is now "AI design" with **Chat · Draw ·
+  Photo** (AI_TABS; all three stay mounted, `hidden` when not shown). Chat = the assistant. Draw = `DrawStudio.jsx`: describe
+  (idea chips), pick a style card (AI_STYLES), "Draw it for" a free area → results with Add to tee / Change it / Try another.
+  Lettering in Draw keeps quoted words exact (and a one-line banner for tall areas). Photo = the Photo Studio (no separate
+  panel any more). The assistant's "Draw a picture" / "lettering" examples and typed drawing requests open Draw (act
+  `aiTab`); "Photo to art" and every photo entry point open Photo; the top bar has "Your photo" and "Assistant".
 - Tested with the network faked (no login used, no AI cost): every step, a failure + Try again, print-ready with the real
   in-browser background removal. NOT yet tested with the real AI (needs a logged-in test and paid requests).
 

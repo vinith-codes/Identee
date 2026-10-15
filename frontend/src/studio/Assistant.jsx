@@ -174,6 +174,8 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
                     type="button"
                     className="dr-example"
                     onClick={() => {
+                      // drawing and photos have their own tabs (Draw, Photo) in the AI panel
+                      if (e.tab) return onAct({ type: "aiTab", tab: e.tab, style: e.style });
                       if (!e.fill) return say(e.say, true);
                       setDraft(e.say);
                       box.current?.focus();
