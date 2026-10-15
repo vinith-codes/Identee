@@ -168,6 +168,11 @@ mesh (UVs dropped — decals don't need them), measured it; then quantize → `p
 temporarily showing it for the oversized tee: front + back prints land right; the oversized tee's 9×10 cm sleeve print is wider
 than this slimmer sleeve's face and gets cut — fine once the regular tees get their own (smaller) sleeve sizes. No fabric
 texture (plain material).
+- Boys Round Neck (boys-round-neck) set up like the oversized tee (15 Oct, user's photo): 48 photos (12 colours × 4
+  views) built by `server/scripts/garment-images/build_regular.py` to the Regular fit chart (the photo's tee was slimmer
+  than the chart, so it is widened to 20" × 28" at M), 12 garmentcolorimages docs, sizeChart XS–3XL from the PDF + 4XL/5XL
+  continuing its steps (ESTIMATE), photoRuler 27.3/87.4. Still a coming-soon draft: not live until the print sizes for a
+  regular tee are confirmed (it would use the catalogue's oversized-based sizes).
 
 **`feature-policy-pages` — MERGED to `main` on 14 Oct 2026:** the four policy pages Razorpay checks
 before live payments: /terms, /privacy-policy, /refund-policy, /shipping-policy (`pages/PolicyPage.jsx`, one component;
