@@ -628,7 +628,8 @@ const printShown = (order) => {
 // Quantized glTF positions are small integers: copy to floats before moving them.
 function floatGeometry(src) {
   const geo = new THREE.BufferGeometry();
-  for (const name of ["position", "normal", "tangent", "uv"]) {
+  // color: baked shading some models carry (the collar crop top's collar shadow), multiplied with the garment colour
+  for (const name of ["position", "normal", "tangent", "uv", "color"]) {
     const at = src.getAttribute(name);
     if (!at) continue;
     const arr = new Float32Array(at.count * at.itemSize);
@@ -1016,7 +1017,7 @@ function Tee({ model, colour, areas, onPickArea, interactive, still, spotsRef, t
           if (key) onPickArea?.(key);
         }}
       >
-        <meshStandardMaterial ref={mat} color={colour} map={map} normalMap={normalMap} normalScale={[0.8, 0.8]} roughness={0.92} metalness={0} side={THREE.DoubleSide} onBeforeCompile={foldable} customProgramCacheKey={foldKey} />
+        <meshStandardMaterial ref={mat} color={colour} map={map} normalMap={normalMap} normalScale={[0.8, 0.8]} vertexColors={!!geo.getAttribute("color")} roughness={0.92} metalness={0} side={THREE.DoubleSide} onBeforeCompile={foldable} customProgramCacheKey={foldKey} />
         {areas.map((a, i) => (
           <Decal key={`${a.key}-${a.spotKey}`} order={i} areaKey={a.key} probe={probe} spot={a.spot} canvas={a.canvas} version={a.version} onPick={onPickArea} interactive={interactive} />
         ))}

@@ -186,6 +186,8 @@ texture (plain material).
     TEE_MODELS.collarCrop / oversizedCrop; `modelForGarment` checks "crop" first. New model option `hangHalfHeight`:
     a crop hangs from its shoulders at the full tee's height (Room3D `useTeeGeometry(model)`), else it floats up.
     Footer + ATTRIBUTION credit the polo's maker.
+    The collar is shown by baked shading (COLOR_0, multiplied with the garment colour): collar a touch darker, its outline
+    darker, a soft shadow on the body under it. Room3D keeps a model's `color` attribute and turns on vertexColors.
   - Collar crop: front prints start 1.5 cm below the V. Print sizes (garment overrides, M–XL): chests 10×10, Centre
     Front 22×20, Top Back 30×10. Chart M 34/14/20 (chest/shoulder/length, matched to the product photo's proportions),
     kids 10-12 / 12-13 / 13-14 + XS–5XL.
