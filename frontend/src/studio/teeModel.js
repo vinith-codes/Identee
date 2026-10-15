@@ -46,7 +46,7 @@ export const TEE_MODELS = {
 
 // Which 3D model a garment uses (null = no 3D model → flat studio).
 export const modelForGarment = (garment) => {
-  if (!garment) return null;
+  if (!garment) return null;
   if (garment.fit === "oversized" || /oversized/i.test(garment.category || "") || /oversized/i.test(garment.key || "")) {
     return TEE_MODELS.oversized;
   }
