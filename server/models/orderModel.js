@@ -107,6 +107,10 @@ const orderSchema = mongoose.Schema(
       default: "CREATED",
     },
     cancelledAt: { type: Date },
+    // order updates on WhatsApp (utils/orderWhatsapp.js): only when the customer ticked it at checkout
+    whatsapp: {
+      optIn: { type: Boolean, default: false },
+    },
     size: { type: String, required: false },
     paymentResult: {
       id: { type: String },

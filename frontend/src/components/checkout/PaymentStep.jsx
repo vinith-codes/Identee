@@ -80,11 +80,15 @@ export default function PaymentStep({ shippingAddress, coupon, onBack, buyNow })
   const [quoteError, setQuoteError] = useState("");
   const [method, setMethod] = useState("UPI");
   const [placing, setPlacing] = useState(false);
+  // order updates on WhatsApp to the delivery number (the customer can untick it)
+  const [whatsappUpdates, setWhatsappUpdates] = useState(true);
+  const waNumber = String(shippingAddress?.phoneNumber || "").replace(/\D/g, "");
 
   const checkout = {
     shippingAddress,
     couponCode: coupon?.code || null,
     buyNow: buyNow || undefined,
+    whatsappUpdates,
   };
 
   useEffect(() => {
@@ -440,6 +444,37 @@ export default function PaymentStep({ shippingAddress, coupon, onBack, buyNow })
               bold
             />
           </>
+        )}
+
+        {waNumber.length >= 10 && (
+          <label
+            style={{
+              display: "flex",
+              alignItems: "flex-start",
+              gap: 10,
+              marginTop: 16,
+              padding: "10px 12px",
+              border: `1px solid ${THEME.border}`,
+              borderRadius: 8,
+              fontSize: 13,
+              lineHeight: 1.45,
+              color: THEME.text,
+              cursor: "pointer",
+            }}
+          >
+            <input
+              type="checkbox"
+              checked={whatsappUpdates}
+              onChange={(e) => setWhatsappUpdates(e.target.checked)}
+              style={{ marginTop: 2, width: 16, height: 16, accentColor: "#25D366" }}
+            />
+            <span>
+              Send my order updates on <b>WhatsApp</b> to +91 {waNumber.slice(-10, -5)} {waNumber.slice(-5)}
+              <span style={{ display: "block", fontSize: 12, color: THEME.textMuted || THEME.muted }}>
+                Order placed, packed, out for delivery and delivered. You still get emails.
+              </span>
+            </span>
+          </label>
         )}
 
         <button

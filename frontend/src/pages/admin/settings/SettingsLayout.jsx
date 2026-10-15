@@ -3,6 +3,7 @@ import { THEME } from "../../../theme/theme";
 import GeneralSettingsPage from "./GeneralSettingsPage";
 import ProfileSettingsPage from "./ProfileSettingsPage";
 import AiSettingsPage from "./AiSettingsPage";
+import WhatsappSettingsPage from "./WhatsappSettingsPage";
 
 const ICONS = {
   profile: (
@@ -13,6 +14,11 @@ const ICONS = {
   ai: (
     <svg viewBox="0 0 20 20" fill="currentColor" width={17} height={17}>
       <path d="M10 1l2.2 5.6L18 8.8l-5.8 2.2L10 17l-2.2-6L2 8.8l5.8-2.2L10 1z" />
+    </svg>
+  ),
+  whatsapp: (
+    <svg viewBox="0 0 20 20" fill="currentColor" width={17} height={17}>
+      <path d="M10 2a8 8 0 00-6.9 12.04L2 18l4.06-1.07A8 8 0 1010 2zm0 1.6a6.4 6.4 0 11-3.3 11.88l-.24-.14-2.1.55.56-2.04-.16-.25A6.4 6.4 0 0110 3.6zm-2.6 3.1c-.17 0-.44.06-.67.31-.23.25-.88.86-.88 2.1s.9 2.44 1.03 2.6c.13.17 1.75 2.8 4.33 3.8 2.14.84 2.58.67 3.04.63.47-.04 1.5-.61 1.71-1.2.21-.6.21-1.1.15-1.2-.06-.11-.23-.17-.48-.3-.25-.12-1.5-.74-1.73-.82-.23-.09-.4-.13-.57.12-.17.25-.65.82-.8.99-.15.17-.29.19-.54.06-.25-.12-1.06-.39-2.01-1.24-.74-.66-1.24-1.48-1.39-1.73-.15-.25-.02-.38.11-.5.11-.11.25-.29.38-.44.12-.15.17-.25.25-.42.08-.17.04-.31-.02-.44-.06-.12-.55-1.37-.77-1.87-.2-.48-.4-.42-.56-.43h-.48z" />
     </svg>
   ),
   general: (
@@ -27,6 +33,7 @@ const ICONS = {
 const SECTIONS = [
   { key: "general", label: "Store Branding", desc: "Name, logo, contact, socials" },
   { key: "ai", label: "AI designs", desc: "On / off, limits, spending" },
+  { key: "whatsapp", label: "WhatsApp", desc: "Order updates to customers" },
   { key: "profile", label: "Profile", desc: "Name, email, photo" },
 ];
 
@@ -34,6 +41,7 @@ const PAGES = {
   general: GeneralSettingsPage,
   profile: ProfileSettingsPage,
   ai: AiSettingsPage,
+  whatsapp: WhatsappSettingsPage,
 };
 
 export default function SettingsLayout() {

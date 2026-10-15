@@ -5,6 +5,7 @@ import Order from "../models/orderModel.js";
 import BillingInvoice from "../models/billingInvoiceModel.js";
 import PendingCheckout from "../models/pendingCheckoutModel.js";
 import sendEmail from "../utils/sendEmail.js";
+import { notifyOrderWhatsapp } from "../utils/orderWhatsapp.js";
 import Razorpay from "razorpay";
 import crypto from "crypto";
 import Counter from "../models/counterModel.js";
@@ -198,6 +199,7 @@ const acceptOrder = asyncHandler(async (req, res) => {
       status: "OUT_FOR_DELIVERY",
       order,
     });
+    await notifyOrderWhatsapp(order, "OUT_FOR_DELIVERY");
 
     res.json({ message: "Order accepted" });
   } else {
@@ -253,6 +255,7 @@ const markOrderAsCompleted = asyncHandler(async (req, res) => {
       status: "DELIVERED",
       order,
     });
+    await notifyOrderWhatsapp(order, "DELIVERED");
 
     res.json({ message: "Order marked as completed" });
   } else {
@@ -787,6 +790,8 @@ const updateOrderStatus = asyncHandler(async (req, res) => {
       console.error("[order] status email failed:", e.message),
     );
   }
+  // WhatsApp also tells the customer when it is delivered or cancelled (never throws)
+  if (["PACKED", "OUT_FOR_DELIVERY", "DELIVERED", "CANCELLED"].includes(newStatus)) await notifyOrderWhatsapp(order, newStatus);
 
   res.json({
     message:

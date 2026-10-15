@@ -136,6 +136,19 @@ small in a 10 × 52 cm strip — and "in vertical front" was sent to Google as p
 - Checked: the Assistant's replies for 4 messages, and the turned placement drawn with konvaRender. NOT checked with a real
   picture from Google (costs ~₹14 for one request of 4 pictures) — needs the user's go-ahead.
 
+**`feature-whatsapp-orders` (15 Oct): order updates to customers on WhatsApp** — Meta WhatsApp Cloud API direct (the
+decision: no provider). OFF until server/.env has WHATSAPP_TOKEN (system user's permanent token) and WHATSAPP_PHONE_NUMBER_ID
+(optional WHATSAPP_API_VERSION v21.0, WHATSAPP_LANG en).
+- `services/whatsappService.js` (sendTemplate, toWhatsappNumber → 91XXXXXXXXXX, maskNumber), `utils/orderWhatsapp.js`
+  (ORDER_TEMPLATES: identee_order_placed / _packed / _shipped / _delivered / _cancelled — exact names and bodies to create in
+  WhatsApp Manager, category Utility, English; notifyOrderWhatsapp never throws), `models/whatsappLogModel.js` (every send).
+- Sent when: order placed (orderPlacement), PACKED / OUT_FOR_DELIVERY / DELIVERED / CANCELLED (admin status change, delivery
+  person accept / complete). Only if the customer kept "Send my order updates on WhatsApp" ticked at checkout (PaymentStep →
+  quote.whatsappUpdates → order.whatsapp.optIn; older orders get nothing) and Admin → Settings → WhatsApp is on (setting
+  whatsapp.enabled, default on). That admin page: status, switch, the templates, last messages, a test (hello_world).
+- Tested with Meta and the database stood in for (numbers, params, opt-in, off, bad number, Meta's refusal, no keys). NOT
+  tested with Meta yet (needs the portfolio rename, developer access, the number on the Cloud API and approved templates).
+
 **`feature-photo-studio` — MERGED to `main` on 15 Oct 2026 (the boss's request — a highlighted feature):** the customer's photo, as ART or PRINT-READY.
 - `frontend/src/studio/PhotoStudio.jsx`: a panel in the editor's place (like the assistant): upload (or drop) a photo → "Turn it
   into art" (the image AI's photo styles Cartoon / Sketch / Sticker / Watercolour / Pop art — 1 request each, Google then Grok —

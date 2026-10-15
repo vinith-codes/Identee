@@ -257,6 +257,8 @@ export const buildQuote = async (user, body = {}) => {
     source,
     lines,
     shippingAddress,
+    // the customer's choice at checkout: order updates on WhatsApp (ticked unless they untick it)
+    whatsappUpdates: body.whatsappUpdates !== false,
     coupon,
     pricing: {
       subtotal,

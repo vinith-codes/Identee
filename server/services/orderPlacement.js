@@ -6,6 +6,7 @@ import User from "../models/userModel.js";
 import Offer from "../models/OfferModel.js";
 import Counter from "../models/counterModel.js";
 import sendEmail from "../utils/sendEmail.js";
+import { notifyOrderWhatsapp } from "../utils/orderWhatsapp.js";
 import { takeStock, returnStock } from "./checkoutService.js";
 
 const nextOrderNumber = async () => {
@@ -54,6 +55,8 @@ export const placeOrder = async ({ userId, quote, paymentMethod, payment }) => {
         customization: l.customization || undefined,
       })),
       shippingAddress: quote.shippingAddress,
+      // older stored quotes have no choice: no WhatsApp for them
+      whatsapp: { optIn: quote.whatsappUpdates === true },
       paymentMethod,
       cgstPrice: quote.pricing.cgstAmount,
       sgstPrice: quote.pricing.sgstAmount,
@@ -109,6 +112,7 @@ export const placeOrder = async ({ userId, quote, paymentMethod, payment }) => {
   } catch (e) {
     console.error("[order] confirmation email failed:", e.message);
   }
+  await notifyOrderWhatsapp(order, "ORDERED"); // never throws
 
   return order;
 };
