@@ -136,7 +136,7 @@ small in a 10 × 52 cm strip — and "in vertical front" was sent to Google as p
 - Checked: the Assistant's replies for 4 messages, and the turned placement drawn with konvaRender. NOT checked with a real
   picture from Google (costs ~₹14 for one request of 4 pictures) — needs the user's go-ahead.
 
-**`feature-category-cards` — NOT MERGED (waiting for the user's "merge"):** "Design your own" (/customizable) now starts
+**`feature-category-cards` — MERGED to `main` on 15 Oct 2026 (merge commit f8b7a35, after bringing in main's shop-phone fix):** "Design your own" (/customizable) now starts
 with one card per customizable collection, numbered like the client's catalogue (01 Girls Wear · 02 Unisex & Kids Wear ·
 03 Boys Wear); a card opens /customizable?category=<slug> with that collection's garments, or "Coming soon". A category
 shows when isCustomizable + active and it has a live garment or comingSoon. Card picture = the category image (Admin →
@@ -158,7 +158,7 @@ oversized-tee's category set to "Boys Oversized" → Boys Wear. New catalogue ga
   wearing a black crop / a printed black oversized tee. The boys photo carried a seller code ("s-986469648") at the bottom —
   cropped off; it looks like another seller's listing photo, so the client should confirm they may use it.
 
-**3D regular round-neck tee (on `feature-category-cards`, not merged):** "Tshirt" by Tabbuso (Sketchfab, CC BY 4.0;
+**3D regular round-neck tee (merged with `feature-category-cards`):** "Tshirt" by Tabbuso (Sketchfab, CC BY 4.0;
 credit in the room and the footer, `public/models/ATTRIBUTION.txt`). Originals + licence + measurements in
 `identee-private-assets/3D-models/` (tabbuso_tshirt.zip, regular-tee-*). Pipeline: gltf-transform 4.1.1 join → weld → simplify
 0.18 → prune; then a small script baked the inch-unit node transforms into metres, turned it to face +z, wrote one plain-material
