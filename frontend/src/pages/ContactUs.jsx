@@ -343,12 +343,12 @@ export default function ContactUs() {
     publicSettings["general.storeEmail"] ||
     publicSettings["general.supportEmail"] ||
     "work@yourdesignstore.in";
-  const phone = publicSettings["general.phoneNumber"] || "+91 636 652 6449";
+  const phone = publicSettings["general.phoneNumber"];
   const whatsapp =
     publicSettings["general.whatsappNumber"] || "+91 994 590 0292";
   const address =
     publicSettings["general.businessAddress"] || "Coimbatore, Tamil Nadu";
-  const phoneDigits = phone.replace(/\D/g, "");
+  const phoneDigits = String(phone || "").replace(/\D/g, "");
   const whatsappDigits = whatsapp.replace(/\D/g, "");
   const mapQuery = encodeURIComponent(address);
   const storeName = publicSettings["general.storeName"] || "Identee";
@@ -461,12 +461,14 @@ export default function ContactUs() {
               value={email}
               href={`mailto:${email}`}
             />
-            <InfoRow
-              icon={<PhoneIcon />}
-              label="Phone"
-              value={phone}
-              href={`tel:+${phoneDigits}`}
-            />
+            {phone && (
+              <InfoRow
+                icon={<PhoneIcon />}
+                label="Phone"
+                value={phone}
+                href={`tel:+${phoneDigits.length === 10 ? `91${phoneDigits}` : phoneDigits}`}
+              />
+            )}
             <InfoRow
               icon={<WhatsAppIcon color={C.ink} />}
               label="WhatsApp"

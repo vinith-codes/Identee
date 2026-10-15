@@ -3,3 +3,26 @@ oversized-tee.glb
   by ap-school (https://sketchfab.com/ap-school), licensed under CC-BY-4.0
   (http://creativecommons.org/licenses/by/4.0/).
   Changes: meshes joined, simplified to ~60k triangles, textures resized (normal map 2048 WebP), quantized.
+
+regular-tee.glb
+  Based on "Tshirt" (https://sketchfab.com/3d-models/tshirt-5a21282b2e454d1696547148f617d3d0)
+  by Tabbuso (https://sketchfab.com/Tabbuso), licensed under CC-BY-4.0
+  (http://creativecommons.org/licenses/by/4.0/).
+  Changes: meshes joined, welded, simplified to ~67k triangles, converted to metres and turned to face front, plain material, quantized.
+
+oversized-crop.glb
+  oversized-tee.glb (above, by ap-school, CC-BY-4.0) cut to 2/3 of its length for the Oversized Crop.
+
+collar-crop-top.glb
+  Based on "T-shirt Polo Lengan Pendek" (https://sketchfab.com/3d-models/t-shirt-polo-lengan-pendek-74c33d16b31346f1a46a55c3ec8e8a78)
+  by Ikal.Ichwan (https://sketchfab.com/Ikal.Ichwan), licensed under CC-BY-4.0
+  (http://creativecommons.org/licenses/by/4.0/).
+  Changes: buttons, button strip, pocket, label and stitch lines removed; front slit opened into a V; body cropped;
+  converted to metres and turned to face front, one mesh, plain material, welded, quantized.
+
+coord-shorts.glb
+  Based on "Male Tshirt and Shorts - Plain Texture" (https://sketchfab.com/3d-models/male-tshirt-and-shorts-plain-texture-06b9009696a64e1f87b5400ddbab1cdd)
+  by kanesk06 (https://sketchfab.com/kanesk06), licensed under CC-BY-4.0
+  (http://creativecommons.org/licenses/by/4.0/).
+  Changes: only the shorts kept (mannequin and tee removed), converted to metres and turned to face front,
+  plain material, welded, quantized.

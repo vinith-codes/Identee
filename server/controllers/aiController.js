@@ -312,7 +312,7 @@ export const makeEdit = asyncHandler(async (req, res) => {
     fonts: (Array.isArray(d.fonts) ? d.fonts : []).slice(0, 20).map((f) => str(f, 40)),
     teeColours: (Array.isArray(d.teeColours) ? d.teeColours : []).slice(0, 30).map((c) => str(c, 30)),
     pictureStyles: Object.keys(AI_STYLES),
-    areas: (Array.isArray(d.areas) ? d.areas : []).slice(0, 20).map((a) => ({ key: str(a.key, 40), label: str(a.label, 40), free: Boolean(a.free) })),
+    areas: (Array.isArray(d.areas) ? d.areas : []).slice(0, 20).map((a) => ({ key: str(a.key, 40), label: str(a.label, 40), side: str(a.side, 10), free: Boolean(a.free) })),
     items: (Array.isArray(d.items) ? d.items : []).slice(0, 30).map((it) => ({
       id: str(it.id, 40),
       type: it.type === "text" ? "text" : "picture",

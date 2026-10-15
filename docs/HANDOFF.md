@@ -136,7 +136,7 @@ small in a 10 × 52 cm strip — and "in vertical front" was sent to Google as p
 - Checked: the Assistant's replies for 4 messages, and the turned placement drawn with konvaRender. NOT checked with a real
   picture from Google (costs ~₹14 for one request of 4 pictures) — needs the user's go-ahead.
 
-**`feature-grok-photo-art` — NOT MERGED (waiting for the user's "merge"):** photo to art for well-known people. Google's
+**`feature-grok-photo-art` — MERGED to `main` on 15 Oct 2026 (still off until XAI_API_KEY is set):** photo to art for well-known people. Google's
 picture service refuses them (422); now Grok (xAI, `grok-imagine-image-2.0`, POST /v1/images/edits with the photo as a
 data URI — `server/services/xaiImageService.js`) redraws the photo instead, and only if that fails too, our free filters.
 Off unless `XAI_API_KEY` is in server/.env (company account at console.x.ai). Cost per art version ~₹7 (photo in + art
@@ -148,6 +148,88 @@ the monthly cap. Grok makes ONE version per request (user: cost). The user teste
   xAI: $5 ≈ 71 pictures), and an AI column (Google / Grok) in Latest requests. `monthSpend()` splits by AiUsage.model
   (^grok). XAI_PRICE_PER_IMAGE_INR is gone.
 
+**`feature-category-cards` — MERGED to `main` on 15 Oct 2026 (merge commit f8b7a35, after bringing in main's shop-phone fix):** "Design your own" (/customizable) now starts
+with one card per customizable collection, numbered like the client's catalogue (01 Girls Wear · 02 Unisex & Kids Wear ·
+03 Boys Wear); a card opens /customizable?category=<slug> with that collection's garments, or "Coming soon". A category
+shows when isCustomizable + active and it has a live garment or comingSoon. Card picture = the category image (Admin →
+Categories, 4:5) else the first garment's photo else gold initials. The home page's "Design your own" buttons now open
+/customizable (they went straight to the oversized tee). DB (15 Oct, with the user's go-ahead): the 3 categories added and
+oversized-tee's category set to "Boys Oversized" → Boys Wear. New catalogue garments should get the oversized tee's 12 colours.
+- The catalogue's other 6 products are in the DB (15 Oct, user's go-ahead) as DRAFTS (isActive false) with comingSoon: true,
+  catalogueImage (photo cut from the client's catalogue PDF, Cloudinary identee/catalogue/…), catalogueCode, the oversized
+  tee's 12 colours, ₹899, fabric/GSM, fit, sizes (kids ages + XS–5XL as in the catalogue) and the print areas we already
+  have offered (no sizes yet): girls-crop-top-collar, girls-round-neck, girls-oversized-crop (Girls Wear), coord-set,
+  kids-round-neck (Unisex & Kids), boys-round-neck (Boys Wear). New model fields comingSoon / catalogueImage /
+  catalogueCode; GET /api/garment-types/coming-soon returns them (card details only); each collection shows them as
+  "Coming soon" cards. To finish one: Admin → Customizable wizard (photos per colour, size chart, print sizes), then
+  make it live. Blocked on: print sizes for kids sizes / 4XL–5XL and the new areas (corners, back small, yoke, shorts).
+- Card pictures: the user then sent a garment-on-a-hanger photo for each of the 6 (15 Oct); they replace the catalogue
+  cuts (Cloudinary identee/catalogue/*-hanger.jpg, 800×1000 4:5). The crop top's source was only 203×250 (soft); the girls'
+  round neck is pink and a back view — the user may send better ones later.
+- Collection pictures (category.image, Cloudinary identee/categories/girls-wear, unisex-kids-wear, boys-wear): photos the user sent of models
+  wearing a black crop / a printed black oversized tee. The boys photo carried a seller code ("s-986469648") at the bottom —
+  cropped off; it looks like another seller's listing photo, so the client should confirm they may use it.
+
+**3D regular round-neck tee (merged with `feature-category-cards`):** "Tshirt" by Tabbuso (Sketchfab, CC BY 4.0;
+credit in the room and the footer, `public/models/ATTRIBUTION.txt`). Originals + licence + measurements in
+`identee-private-assets/3D-models/` (tabbuso_tshirt.zip, regular-tee-*). Pipeline: gltf-transform 4.1.1 join → weld → simplify
+0.18 → prune; then a small script baked the inch-unit node transforms into metres, turned it to face +z, wrote one plain-material
+mesh (UVs dropped — decals don't need them), measured it; then quantize → `public/models/regular-tee.glb` (0.96 MB, 67k tris).
+`TEE_MODELS.regular` (lengthCm 62.6 ≈ size S, neck front 1.6328 / back 1.6802, sleeves centred on the short sleeves);
+`modelForGarment` uses it for round-neck / co-ord garments (boys-, girls-, kids-round-neck, coord-set). Checked in the room by
+temporarily showing it for the oversized tee: front + back prints land right; the oversized tee's 9×10 cm sleeve print is wider
+than this slimmer sleeve's face and gets cut — fine once the regular tees get their own (smaller) sleeve sizes. No fabric
+texture (plain material).
+- Boys Round Neck (boys-round-neck) set up like the oversized tee (15 Oct, user's photo): 48 photos (12 colours × 4
+  views) built by `server/scripts/garment-images/build_regular.py` to the Regular fit chart (the photo's tee was slimmer
+  than the chart, so it is widened to 20" × 28" at M), 12 garmentcolorimages docs, sizeChart XS–3XL from the PDF + 4XL/5XL
+  continuing its steps (ESTIMATE), photoRuler 27.3/87.4. **LIVE since 15 Oct** (user's go-ahead), using the catalogue's
+  oversized-based print sizes until the print team gives regular-tee sizes.
+- **AI features on every garment** (15 Oct): the assistant's "Where to print" only offers kinds of print the garment
+  has areas for (+ "On the shorts"); area names match without "Shorts –" ("left leg"); a short "draw … on the left leg"
+  makes the picture for that area (`subjectAndArea`); one-sentence requests also route on shorts/leg words. The text AI
+  gets each area's side and is told to use the biggest free area on a side the garment lacks (Full Back on the crop top
+  → Top Back); `aiOps.areaFor` does the same for add_text / move / make_picture, and says so when nothing is free.
+  Ready layouts say which parts were left out. Tested: "GOAL" on the right leg (co-ord), "PRIYA on the back" → Top Back (crop).
+- **Co-ord Set (T-Shirt + Shorts)** (coord-set) — LIVE since 15 Oct, ESTIMATED charts and leg print sizes:
+  - The room shows an OUTFIT: TEE_MODELS.coord = the regular tee + `bottom` (coord-shorts.glb, the shorts from
+    "Male Tshirt and Shorts" by kanesk06, CC BY 4.0; `build_shorts.py`). Room3D `Bottoms` renders the shorts inside the
+    tee's group (they turn, sway and are photographed with it; hidden during the reveal); `outfit: {scale, lift}` fits
+    both in the view. Shared `useTargets` / `areaUnder` for tapping on either piece; the camera finds prints on both.
+  - New print side **"shorts"** with areas `left-leg` / `right-leg` ("Shorts – Left/Right Leg", 10×10 cm at M,
+    25 cm below the waistband top — estimates). Only offered by a garment that turns them on (not in DEFAULT_OFFERED).
+    Allowed in customizationModel's side enum; Design Room tab "Shorts"; AreaThumb draws shorts; VIEWS/RAY/FACE.shorts.
+    Print pack: shorts rows last, "below shorts start*" with a footnote (25 cm below the waistband top, from the centre seam).
+  - Size chart rows can carry `waist` and `bottomLength` (inches, the shorts); spots on the shorts use bottomLength.
+    The Review sizes list shows them. Chart = round-neck charts + shorts waist/length estimates.
+  - Photos: Kids Round Neck tee photo (60%) above the recoloured shorts render, like the catalogue picture.
+  - The admin size save (garmentTypeController) now keeps kids' age sizes, 4XL/5XL, waist and bottomLength (it used to
+    keep only XS–3XL). The admin set-up wizard's own size list is still XS–3XL — saving sizes there would drop the others.
+- Kids Round Neck (kids-round-neck): 48 photos from the user's kids front/back flat-lay photo (background removed,
+  `clean_small_photo.py`, then `build_regular.py … --no-hanger`), Cloudinary `identee/garments/kids-round-neck/`,
+  private copy in `identee-private-assets/kids-images/`. sizeChart 4-6 26/10.5/18, 7-8 28/11.5/19.5, 9-10 30/12.5/21,
+  11 31/13/21.5, 12 32/13.5/22.5, 13-14 34/14/24 (chest round / shoulder / length, inches — ESTIMATES, client to confirm).
+- Girls Round Neck (girls-round-neck): reuses the Boys Round Neck photos (same tee); sizeChart = the kids rows (4-6, 7-8,
+  9-10, 11-12, 13-14) + the regular adult chart XS–5XL.
+- **Crop Top with Collar** (girls-crop-top-collar) and **Oversized Crop** (girls-oversized-crop) — LIVE since 15 Oct, ESTIMATED charts:
+  - 3D: `collar-crop-top.glb` = "T-shirt Polo Lengan Pendek" by Ikal.Ichwan (CC BY 4.0) with buttons, button strip and
+    pocket removed, the front slit opened into a V and the body cropped (`identee-private-assets/3D-models/build_crop_polo.py`);
+    `oversized-crop.glb` = the oversized tee cut to 2/3 of its length (`crop_oversized.mjs`, keeps its texture).
+    TEE_MODELS.collarCrop / oversizedCrop; `modelForGarment` checks "crop" first. New model option `hangHalfHeight`:
+    a crop hangs from its shoulders at the full tee's height (Room3D `useTeeGeometry(model)`), else it floats up.
+    Footer + ATTRIBUTION credit the polo's maker.
+    The collar is shown by baked shading (COLOR_0, multiplied with the garment colour): collar a touch darker, its outline
+    darker, a soft shadow on the body under it. Room3D keeps a model's `color` attribute and turns on vertexColors.
+  - Collar crop: front prints start 1.5 cm below the V. Print sizes (garment overrides, M–XL): chests 10×10, Centre
+    Front 22×20, Top Back 30×10. Chart M 34/14/20 (chest/shoulder/length, matched to the product photo's proportions),
+    kids 10-12 / 12-13 / 13-14 + XS–5XL.
+  - Oversized crop: Centre Front 28×26, Full Back 36×30, chests and Top Back as the tee. Chart M 46/23/20 (the tee's chest,
+    length 2/3), kids 4-6 … 13-14 + XS–5XL. The catalogue's Left/Right Corner and Back Small have no print size yet.
+  - Photos: 48 each (README "The crops"), ruler 30/70.
+- Kids and Girls Round Neck are **LIVE since 15 Oct** with ESTIMATED kids charts and print sizes (user: "give approximate
+  measurements, we'll change them when the client gives them"). Until the print team's kids sizes arrive, `printPositions.js` gives each kids age size the S print size scaled by its chest (e.g. Centre Front 16×19 cm
+  at 4-6, Full Back 23×26 cm), and 4XL/5XL the 3XL size (before, both fell back to L). Checked in the room at 4-6.
+
 **`feature-policy-pages` — MERGED to `main` on 14 Oct 2026:** the four policy pages Razorpay checks
 before live payments: /terms, /privacy-policy, /refund-policy, /shipping-policy (`pages/PolicyPage.jsx`, one component;
 links in `utils/policyLinks.js`, shown in the footer's bottom row and as a side menu on each page). Business name, email,
@@ -155,6 +237,13 @@ phone and address come from Admin → Settings → General. The rules were APPRO
 in `RULES` at the top of the file: printing 2–4 working days (team 5–7), delivery 3–7 after dispatch, report a
 misprint/damage within 3 days, ready-made size exchange within 7 days, refund 5–7 working days, custom orders
 cancellable until printing starts (usually 24 h). Not legal advice — the client / their CA should read them.
+
+**`fix-old-phone-number` — MERGED to `main` on 15 Oct 2026:** an old number
+(+91 636 652 6449) was hard-coded as a fallback and flashed in the header before settings loaded. Now the header
+(`Navbar.jsx`), Contact Us and the Design Room "Contact" button use only Admin → Settings → General → phone number
+(`general.phoneNumber`, now 8870008311) and show nothing until it loads. Phone links are built like the footer's
+(10 digits → `tel:+91…`); Contact Us had been linking `tel:+8870008311` (no 91). Checked in the browser: header, footer and
+Contact Us all show 8870008311 → `tel:+918870008311`.
 
 **`fix-email-sender` — MERGED to `main` on 14 Oct 2026 (Zoho live: login code reached a Gmail inbox; SPF, DKIM, DMARC all live):** one email setup for everything the site sends
 (`server/utils/mailer.js`: `mailer()`, `fromAddress()`, `shopInbox()`). Before, only login codes could use EMAIL_HOST; order

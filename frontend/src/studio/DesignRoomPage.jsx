@@ -26,7 +26,8 @@ import Rolling from "./Rolling";
 import Assistant from "./Assistant";
 import { AFTER_AI_SLOGANS, AFTER_DESIGN_CHIPS, bot as botSays, checkMessages, chips as chipRow, firstMessages, firstState } from "./assistantScript";
 import aiService from "../services/aiService";
-import { applyAiOps, describeDesign } from "./aiOps";
+import { applyAiOps, areaFor, describeDesign } from "./aiOps";
+import WaitCard from "./WaitCard";
 import { checkDesign, inksFor, printSharpness } from "./designCheck";
 import { TEMPLATES } from "./designTemplates";
 import { FONTS, addStudioFonts } from "./fonts";
@@ -48,6 +49,7 @@ const AREA_GROUPS = [
   ["Front", ["front"]],
   ["Back", ["back"]],
   ["Sleeves", ["left", "right"]],
+  ["Shorts", ["shorts"]], // the co-ord set's shorts (only shown for a garment that has shorts areas)
 ];
 const groupOfSide = (side) => AREA_GROUPS.find(([, sides]) => sides.includes(side))?.[0] || AREA_GROUPS[0][0];
 const ICON_TEXT = "M5 6h14M12 6v13M9 19h6";
@@ -246,6 +248,8 @@ export default function DesignRoomPage() {
   const sizeNow = sizes.includes(size) ? size : sizes.includes("M") ? "M" : sizes[0];
   const chartRow = garment?.sizeChart?.find((r) => r.size === sizeNow);
   const lengthCm = (chartRow?.length || 30) * 2.54;
+  // a co-ord set's shorts: their own length for this size (else the shorts model's own length)
+  const bottomLengthCm = chartRow?.bottomLength ? chartRow.bottomLength * 2.54 : model?.bottom?.lengthCm;
   const fabricHex = colour?.hex || "#1C1C1D";
   const inkDefault = lum(fabricHex) < 0.55 ? "#FFFFFF" : "#141110";
   const artTotal = elements.reduce((n, e) => n + (e.artPrice || 0), 0);
@@ -434,8 +438,15 @@ export default function DesignRoomPage() {
   // Where each print sits on the tee — only changes with the size, so the 3D
   // print shapes are built once, not on every drag frame.
   const spots = useMemo(
-    () => (model ? Object.fromEntries(positions.map((pos) => [pos.key, placeArea(model, pos, sizeNow, lengthCm)])) : {}),
-    [model, positions, sizeNow, lengthCm],
+    () =>
+      model
+        ? Object.fromEntries(
+            positions
+              .filter((pos) => pos.side !== "shorts" || model.bottom) // shorts areas need a model with shorts
+              .map((pos) => [pos.key, pos.side === "shorts" ? placeArea(model.bottom, pos, sizeNow, bottomLengthCm) : placeArea(model, pos, sizeNow, lengthCm)]),
+          )
+        : {},
+    [model, positions, sizeNow, lengthCm, bottomLengthCm],
   );
   const areas3D = useMemo(
     () =>
@@ -694,7 +705,7 @@ export default function DesignRoomPage() {
     if (!el || el.type !== "image" || !pos || busy) return;
     if (!ai.available) return say("That isn’t available right now.");
     if (!isLoggedIn()) return say("Log in to use this.");
-    setBusy(kind === "recolour" ? "Recolouring your picture… about 20 seconds" : "Redrawing your picture sharper… about 20 seconds");
+    setBusy({ label: kind === "recolour" ? "Recolouring your picture…" : "Redrawing your picture sharper…", expect: 25, hint: "Usually 20–40 seconds." });
     try {
       const { W, H } = areaPx(pos);
       const res = await aiService.design({ fixUrl: el.src, fixKind: kind, teeColour: colour?.name || "white", teeIsDark: lum(fabricHex) < 0.55, ratio: W / H });
@@ -862,7 +873,7 @@ export default function DesignRoomPage() {
     sizes,
     sizeNow,
     chart: (sz) => garment.sizeChart?.find((r) => r.size === sz),
-    areas: positions.map((p) => ({ key: p.key, label: p.label, free: usedKeys.includes(p.key) || !blockersOf(p.key, positions, usedKeys).length })),
+    areas: positions.map((p) => ({ key: p.key, label: p.label, side: p.side, free: usedKeys.includes(p.key) || !blockersOf(p.key, positions, usedKeys).length })),
     issues: designIssues,
     inks: inksFor(fabricHex, INKS),
     ai: { ...ai, loggedIn: isLoggedIn() },
@@ -873,7 +884,8 @@ export default function DesignRoomPage() {
     photoOnTee: [...elements].reverse().find((e) => e.type === "image" && !e.artDesignId && !aiCuts.current.has(e.src))?.src || null,
   });
   // Edit the tee by chat: the text AI suggests changes, aiOps checks and applies them (one Undo step).
-  const chatEdit = async (a) => {
+  // progress(now): tells the assistant's wait card what is happening now (drawing the pictures asked for)
+  const chatEdit = async (a, progress) => {
     try {
       const res = await aiService.edit({
         message: a.message,
@@ -910,10 +922,18 @@ export default function DesignRoomPage() {
       if (pictures.length && !ai.available) extra.push(botSays("Pictures can’t be made right now. You can pick from the art library or upload your own."));
       else if (pictures.length && !isLoggedIn()) extra.push(botSays("Log in and I’ll draw the pictures for you."), chipRow(["Log in"]));
       else {
+        if (pictures.length) {
+          // one after the other, about 20–40 seconds each
+          progress?.({ label: pictures.length > 1 ? `Drawing ${pictures.length} pictures…` : "Drawing your picture…", expect: 25 * pictures.length, hint: `Usually 20–40 seconds${pictures.length > 1 ? " for each" : ""}. You can look around the room meanwhile.` });
+        }
         for (const pic of pictures) {
-          const pos = positions.find((p) => p.key === pic.area);
           const used = [...new Set(els.map((e) => e.position))];
-          if (!pos || (!used.includes(pos.key) && blockersOf(pos.key, positions, used).length)) continue;
+          // that area, or the biggest free one on the same side (e.g. "the back" on a crop top with only Top Back)
+          const pos = areaFor(pic.area, positions, used);
+          if (!pos) {
+            extra.push(botSays(`There’s no free print area for ${pic.subject.slice(0, 80)} on this ${garment?.label || "garment"}. Remove a print, or ask for it somewhere else.`));
+            continue;
+          }
           const { W, H } = areaPx(pos);
           try {
             const made = await aiService.design({ subject: pic.subject.slice(0, 200), style: ai.styles.includes(pic.style) ? pic.style : ai.styles[0], teeColour: tee?.name || "white", teeIsDark: lum(tee?.hex || fabricHex) < 0.55, ratio: W / H, count: 2 });
@@ -1085,9 +1105,13 @@ export default function DesignRoomPage() {
     const base = fresh ? [] : elements;
     const taken = [...new Set(base.map((e) => e.position))];
     const added = [];
+    const skipped = []; // parts of the layout with no area on this garment (or covered)
     for (const item of tpl.items) {
       const pos = item.areas.map((k) => positions.find((p) => p.key === k)).find((p) => p && (taken.includes(p.key) || !blockersOf(p.key, positions, taken).length));
-      if (!pos) continue;
+      if (!pos) {
+        skipped.push(item.role ? `the player ${item.role}` : `“${item.text}”`);
+        continue;
+      }
       const { hCm } = areaPx(pos);
       const start = { type: "text", text: item.text, fontFamily: item.font || "Anton", fontSizePct: Math.min(60, (item.cm / hCm) * 100), color: inkDefault, align: "center", effect: "straight", x: 50, y: item.y, width: 0, height: 0, ...(item.role ? { role: item.role } : {}), ...(item.link ? { link: item.link } : {}) };
       let el = textBox(start, pos);
@@ -1095,19 +1119,20 @@ export default function DesignRoomPage() {
       added.push({ id: makeId(), position: pos.key, side: pos.side, rotation: 0, zIndex: base.length + added.length + 1, ...el });
       if (!taken.includes(pos.key)) taken.push(pos.key);
     }
-    if (!added.length) return say("This layout needs print areas that are covered by your current design.");
+    if (!added.length) return say("This layout needs print areas that this garment doesn’t have, or that are covered by your current design.");
     commit(() => [...base, ...added]);
     openArea(added[0].position, { force: true });
     setSelectedId(null);
+    if (skipped.length) say(`Left out ${[...new Set(skipped)].join(", ")}: this ${garment?.label || "garment"} has no free print area for ${skipped.length === 1 ? "it" : "them"}.`);
   };
   const applyFix = (issue) => {
     const pos = positions.find((p) => p.key === issue.position);
     commit((prev) => prev.map((e) => (e.id !== issue.elId ? e : issue.measure && pos ? textBox({ ...e, ...issue.patch }, pos) : { ...e, ...issue.patch })));
   };
-  const assistantAct = (a) => {
+  const assistantAct = (a, progress) => {
     if (a.type === "generate") return generateDesigns(a);
     if (a.type === "slogans") return writeSlogans(a);
-    if (a.type === "edit") return chatEdit(a);
+    if (a.type === "edit") return chatEdit(a, progress);
     if (a.type === "photoPick") return photoRef.current?.click();
     if (a.type === "place") return placeAiDesign(a.url, a.areaKey);
     if (a.type === "login") return goToLogin();
@@ -1856,7 +1881,11 @@ export default function DesignRoomPage() {
                   return (
                     <div key={sz} className={`dr-qrow${n ? " on" : ""}`}>
                       <b>{sz}</b>
-                      <small>{r ? `chest ${r.chest}″ · length ${r.length}″` : ""}</small>
+                      <small>
+                        {r ? `chest ${r.chest}″ · length ${r.length}″` : ""}
+                        {/* a co-ord set's shorts */}
+                        {r?.bottomLength ? ` · shorts: waist ${r.waist}″, length ${r.bottomLength}″` : ""}
+                      </small>
                       <div className="dr-stepper">
                         <button type="button" onClick={() => setQty(sz, n - 1)} disabled={!n} aria-label={`One less ${sz}`}>−</button>
                         <output key={n} aria-live="polite">{n}</output>
@@ -1940,7 +1969,12 @@ export default function DesignRoomPage() {
         )}
 
         {toast && <div className="dr-toast" role="status">{toast}{/log in/i.test(toast) && <button type="button" onClick={goToLogin}>Log in</button>}</div>}
-        {busy && <div className="dr-busy" role="status">{busy}</div>}
+        {/* busy: a line of text, or { label, expect, hint } for the AI (a card with a live seconds count) */}
+        {busy && (
+          <div className="dr-busy">
+            <WaitCard key={typeof busy === "string" ? busy : busy.label} {...(typeof busy === "string" ? { label: busy } : busy)} />
+          </div>
+        )}
       </main>
 
       {step === "review" && (

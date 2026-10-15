@@ -17,6 +17,31 @@ const turned = (el) => Math.abs((el.rotation || 0) % 180) === 90;
  * @param d    { elements, positions, active, fonts, inkDefault, areaPx(pos), textBox(el, pos), makeId() }
  * @returns { elements, changed, focus }  focus = a print area to open (something moved or was added there)
  */
+// Which side an area key belongs to — also for keys this garment doesn't have (the AI may name Full Back
+// on a crop top that only has Top Back).
+const sideOfKey = (key, positions) => {
+  const known = positions.find((p) => p.key === key);
+  if (known) return known.side;
+  const k = String(key || "");
+  if (/leg|shorts/.test(k)) return "shorts";
+  if (/sleeve/.test(k)) return k.startsWith("right") ? "right" : "left";
+  return /back/.test(k) ? "back" : "front";
+};
+
+/**
+ * The print area to use for an area key the AI chose: that area when this garment has it and it is free,
+ * else the biggest free area on the same side (front / back / a sleeve / the shorts), else null.
+ * @param used  area keys that already carry a print
+ */
+export function areaFor(key, positions, used) {
+  const free = (p) => used.includes(p.key) || !blockersOf(p.key, positions, used).length;
+  const asked = positions.find((p) => p.key === key);
+  if (asked && free(asked)) return asked;
+  const side = sideOfKey(key, positions);
+  const size = (p) => (p.cm?.standard ? p.cm.standard[0] * p.cm.standard[1] : 0);
+  return positions.filter((p) => p.side === side && free(p)).sort((a, b) => size(b) - size(a))[0] || null;
+}
+
 export function applyAiOps(ops, d) {
   let els = d.elements.map((e) => ({ ...e }));
   let changed = 0;
@@ -93,11 +118,12 @@ export function applyAiOps(ops, d) {
     if (op.op === "move") {
       const el = find(op.id);
       const from = el && posOf(el.position);
-      const to = posOf(op.area);
-      if (!el || !from || !to || to.key === from.key) continue;
+      if (!el || !from) continue;
       const others = els.filter((e) => e.id !== el.id);
       const used = [...new Set(others.map((e) => e.position))];
-      if (!used.includes(to.key) && blockersOf(to.key, d.positions, used).length) continue; // covered by another print
+      // that area, or the biggest free one on the same side (this garment may not have the one named)
+      const to = areaFor(op.area, d.positions, used);
+      if (!to || to.key === from.key) continue;
       // keep its real size (cm) in the new area, but never larger than the area
       const a = d.areaPx(from);
       const b = d.areaPx(to);
@@ -137,7 +163,8 @@ export function applyAiOps(ops, d) {
     }
 
     if (op.op === "add_text" && typeof op.text === "string" && op.text.trim()) {
-      const pos = posOf(op.area) || posOf(d.active);
+      const used = [...new Set(els.map((e) => e.position))];
+      const pos = (op.area && areaFor(op.area, d.positions, used)) || posOf(d.active);
       if (!pos || !free(pos.key)) continue;
       const count = els.filter((e) => e.position === pos.key).length;
       let el = {
@@ -174,7 +201,7 @@ export function describeDesign({ elements, positions, active, selectedId, fonts,
     openArea: active || "",
     selectedId: selectedId || null,
     fonts,
-    areas: positions.map((p) => ({ key: p.key, label: p.label, free: used.includes(p.key) || !blockersOf(p.key, positions, used).length })),
+    areas: positions.map((p) => ({ key: p.key, label: p.label, side: p.side, free: used.includes(p.key) || !blockersOf(p.key, positions, used).length })),
     items: elements.map((e) => {
       const pos = positions.find((p) => p.key === e.position);
       const { wCm, hCm } = pos ? areaPx(pos) : { wCm: 0, hCm: 0 };
