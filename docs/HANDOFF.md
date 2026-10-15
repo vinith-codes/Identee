@@ -179,8 +179,8 @@ texture (plain material).
   11 31/13/21.5, 12 32/13.5/22.5, 13-14 34/14/24 (chest round / shoulder / length, inches — ESTIMATES, client to confirm).
 - Girls Round Neck (girls-round-neck): reuses the Boys Round Neck photos (same tee); sizeChart = the kids rows (4-6, 7-8,
   9-10, 11-12, 13-14) + the regular adult chart XS–5XL.
-- Kids and Girls Round Neck are still **coming-soon drafts** — waiting for the print team's kids print sizes. Until
-  then `printPositions.js` gives each kids age size the S print size scaled by its chest (e.g. Centre Front 16×19 cm
+- Kids and Girls Round Neck are **LIVE since 15 Oct** with ESTIMATED kids charts and print sizes (user: "give approximate
+  measurements, we'll change them when the client gives them"). Until the print team's kids sizes arrive, `printPositions.js` gives each kids age size the S print size scaled by its chest (e.g. Centre Front 16×19 cm
   at 4-6, Full Back 23×26 cm), and 4XL/5XL the 3XL size (before, both fell back to L). Checked in the room at 4-6.
 
 **`feature-policy-pages` — MERGED to `main` on 14 Oct 2026:** the four policy pages Razorpay checks
