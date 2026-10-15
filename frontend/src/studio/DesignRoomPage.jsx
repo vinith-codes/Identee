@@ -899,7 +899,7 @@ export default function DesignRoomPage() {
         design: describeDesign({ elements, positions, active, selectedId, fonts: FONTS, teeName: colour?.name || "", teeColours: colours.map((c) => c.name), areaPx }),
       });
       const all = Array.isArray(res.ops) ? res.ops : [];
-      if (!all.length) return [botSays(res.reply || "I’m not sure what to change. Tell me which item, and what to do with it.")];
+      if (!all.length) return [botSays(res.reply || "I’m not sure what to change. Tell me which item, and what to do with it."), chipRow(["What can you do?", "Something else"])];
 
       // 1. the tee's own colour
       let tee = colour;
@@ -958,7 +958,11 @@ export default function DesignRoomPage() {
             extra.push(botSays(`For ${pos.label} I drew ${pic.subject}. The first one is on your tee; tap Add to tee on the other to swap.`), { designs: made.images.map((im) => im.url) });
           } catch (err) {
             pictureFailed = true;
-            extra.push(botSays(err.response?.data?.message || "The design maker had a problem. Please try again."));
+            extra.push(
+              botSays(err.response?.data?.message || "The design maker had a problem."),
+              // only this picture again (the rest of the message is already done)
+              { retry: { type: "generate", subject: pic.subject.slice(0, 200), style: ai.styles.includes(pic.style) ? pic.style : ai.styles[0], areaKey: pos.key } },
+            );
             break;
           }
         }
@@ -967,7 +971,7 @@ export default function DesignRoomPage() {
         const names = leftOut.map((o) => `${o.subject.trim()}${positions.find((p) => p.key === o.area) ? ` on ${positions.find((p) => p.key === o.area).label}` : ""}`).join(", ");
         extra.push(botSays(`I can draw up to three pictures from one message, so I left out: ${names}. Ask me for ${leftOut.length === 1 ? "it" : "them"} in your next message and I’ll add ${leftOut.length === 1 ? "it" : "them"}.`));
       }
-      if (!changed && !extra.length) return [botSays("I couldn’t do that one. Tap the item on the print area and tell me again, or use its settings.")];
+      if (!changed && !extra.length) return [botSays("I couldn’t do that one. Tap the item on the print area and tell me again, or use its settings."), chipRow(["What can you do?", "Something else"])];
       if (els !== elements) commit(() => els);
       if (Object.keys(placed).length) setAiPlaced((cur) => ({ ...cur, ...placed }));
       if (focus && focus !== active) openArea(focus, { force: true });
@@ -977,10 +981,10 @@ export default function DesignRoomPage() {
       if (!changed) return extra;
       if (pictureFailed) return [botSays("I’ve done the rest of what you asked. The picture is the part that didn’t work:"), ...extra];
       // (the text AI's own reply lists every picture asked for, also the ones left out — so it is not used here)
-      if (leftOut.length) return [botSays("I’ve drawn the first three. Not right? Press Undo (↶)."), ...extra];
-      return [botSays(`${res.reply || "Done."} Not right? Press Undo (↶).`), ...extra];
+      if (leftOut.length) return [botSays("I’ve drawn the first three. Not right? Press Undo (↶)."), ...extra, chipRow(["Check my design", "Something else"])];
+      return [botSays(`${res.reply || "Done."} Not right? Press Undo (↶).`), ...extra, ...(extra.some((x) => x.chips || x.retry) ? [] : [chipRow(["Check my design", "Something else"])])];
     } catch (err) {
-      return [botSays(err.response?.data?.message || "I couldn’t work that out just now. Please try again.")];
+      return [botSays(err.response?.data?.message || "I couldn’t work that out just now."), { failed: true }];
     }
   };
   // Photo to art: the customer picks a photo; it is uploaded, then the assistant asks for a style.
@@ -1040,7 +1044,7 @@ export default function DesignRoomPage() {
         chipRow(a.photoUrl ? ["Something else"] : AFTER_DESIGN_CHIPS),
       ];
     } catch (err) {
-      return [botSays(err.response?.data?.message || "The design maker had a problem. Please try again."), chipRow(["Make a design", "Something else"])];
+      return [botSays(err.response?.data?.message || "The design maker had a problem."), { failed: true }];
     }
   };
   // Slogans written to order. If the AI cannot be reached, say so and offer the built-in ones.
@@ -1050,7 +1054,7 @@ export default function DesignRoomPage() {
       setChatState((st) => ({ ...st, said: [...(st.said || []), ...res.slogans].slice(-30) }));
       return [botSays(`Here you go. Tap one to put it on ${activePos?.label || "your tee"}, or ask me for something different.`), { slogans: res.slogans }, chipRow(AFTER_AI_SLOGANS)];
     } catch (err) {
-      return [botSays(err.response?.data?.message || "I couldn’t think of any just now. Please try again."), chipRow(["Slogan ideas", "Something else"])];
+      return [botSays(err.response?.data?.message || "I couldn’t think of any just now."), { failed: true }];
     }
   };
   // An AI design as an item on a print area: as large as the area allows, centred.

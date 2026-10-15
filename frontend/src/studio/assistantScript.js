@@ -133,11 +133,11 @@ export function replyTo(text, ctx, st, { tapped = false } = {}) {
     if (!ctx.hasRoles) {
       return done([bot("One design, with a different name and number on each tee. Start with the Team jersey layout (or tap a text and use “Ordering for a team?” at the bottom of its settings)."), chips(["Team jersey"])]);
     }
-    return done([bot("Send me your players as name, number and size, one per line or separated by commas, like this: Arun 7 L, Karthik 10 XL. Every player gets their own tee with the same design. You can also fill the list in Review.")]);
+    return done([bot("Send me your players as name, number and size, one per line or separated by commas, like this: Arun 7 L, Karthik 10 XL. Every player gets their own tee with the same design. You can also fill the list in Review."), chips(["Continue to review", "Something else"])]);
   }
 
   /* ----- answers to a question the assistant just asked ----- */
-  if (wait === "name" && !MENU.includes(t) && !AFTER_SLOGANS.includes(t)) {
+  if (wait === "name" && !MENU.includes(t) && !AFTER_SLOGANS.includes(t) && t !== "Something else") {
     return done([bot(`With “${t}” in it:`), { slogans: personalLines(st.occasion, t) }, chips(AFTER_SLOGANS)]);
   }
   if (wait === "size" && ctx.sizes.includes(t.toUpperCase())) {
@@ -157,8 +157,9 @@ export function replyTo(text, ctx, st, { tapped = false } = {}) {
   if (wait === "aiSubject" && !offTopic) {
     return done([bot("Which style?"), chips(ctx.ai.styles)], { ...subjectAndArea(t, ctx.areas), wait: "aiStyle" });
   }
-  if (wait === "aiStyle" && ctx.ai.styles.includes(t)) {
-    const job = { subject: st.subject, style: t, ...(st.areaKey ? { areaKey: st.areaKey } : {}) };
+  const typedStyle = wait === "aiStyle" ? ctx.ai.styles.find((s) => s === t || low.includes(s.toLowerCase())) : null;
+  if (typedStyle) {
+    const job = { subject: st.subject, style: typedStyle, ...(st.areaKey ? { areaKey: st.areaKey } : {}) };
     return done([act({ type: "generate", ...job })], { lastDesign: job });
   }
   if (wait === "aiChange" && !offTopic && st.changeUrl) {
@@ -192,7 +193,7 @@ export function replyTo(text, ctx, st, { tapped = false } = {}) {
     const ai = ctx.ai;
     if (!ai.available) return done([bot("Turning photos into art is not available right now. You can still upload your photo as it is."), chips(["Upload a picture", "Something else"])]);
     if (!ai.loggedIn) return done([bot("I can redraw your photo as a cartoon, a sketch or a sticker. Log in first so it is kept for you."), chips(["Log in", "Something else"])]);
-    if (ai.left === 0) return done([bot("You’ve used today’s design requests. They reset tomorrow."), chips(["Something else"])]);
+    if (ai.left === 0) return done([bot("You’ve used today’s design requests. They reset tomorrow. Until then you can put your photo on the tee as it is."), chips(["Upload a picture", "Something else"])]);
     return done([bot("Send me a photo of a person, a pet or anything you like, and I’ll redraw it as art for your tee."), chips(["Upload a photo", ...(ctx.photoOnTee ? ["Use the picture on my tee"] : [])])]);
   }
 
@@ -205,7 +206,7 @@ export function replyTo(text, ctx, st, { tapped = false } = {}) {
     const ai = ctx.ai;
     if (!ai.available) return done([bot("Drawing words as art is not available right now. You can add them as text and style them: tap “Add text”, then ask me to “Style it for me”."), chips(["Something else"])]);
     if (!ai.loggedIn) return done([bot("I can draw those words as lettering art. Log in first so your designs are kept for you."), chips(["Log in", "Something else"])]);
-    if (ai.left === 0) return done([bot("You’ve used today’s design requests. They reset tomorrow. Until then you can add the words as text and style them."), chips(["Something else"])]);
+    if (ai.left === 0) return done([bot("You’ve used today’s design requests. They reset tomorrow. Until then you can add the words as text and style them."), chips([MORE_STYLE, "Slogan ideas", "Something else"])]);
     // the words: what is in quotation marks, else the sentence without the asking part
     const quoted = /[“"‘']([^”"’']{2,160})[”"’']/.exec(t);
     // a print area named in the message ("… in vertical front"): the design is made for that area, and the
@@ -221,7 +222,7 @@ export function replyTo(text, ctx, st, { tapped = false } = {}) {
       .replace(/^(the )?(text|words?|quote|slogan|line|saying|phrase)[:,]?\s+/i, "")
       .replace(/\s+/g, " ")
       .trim();
-    if (said.length < 2) return done([bot("Which words should I draw? Type them, for example: “Work smarter not harder” as an image.")]);
+    if (said.length < 2) return done([bot("Which words should I draw? Type them, for example: “Work smarter not harder” as an image."), chips(["Something else"])]);
     // anything else they asked for (a crown, rays, colours) stays in the request as written
     const job = { subject: quoted ? `${unArea(t.replace(quoted[0], "")).replace(/\s+/g, " ").trim()} — the words to letter, spelled exactly: “${said}”` : `the words “${said}”, spelled exactly`, style: LETTERING, ...(named ? { areaKey: named.key } : {}) };
     return done([act({ type: "generate", ...job })], { lastDesign: job });
@@ -235,7 +236,7 @@ export function replyTo(text, ctx, st, { tapped = false } = {}) {
   }
   // sharper / recoloured pictures are done from the picture's own settings
   if (/\b(blurry|blurred|pixelated|sharper|sharpen|clearer|low quality|recolou?r)\b/.test(low) && !tapped) {
-    return done([bot("Tap the picture on the print area, then press “Make it sharper” or “Recolour for this tee” in its settings.")]);
+    return done([bot("Tap the picture on the print area, then press “Make it sharper” or “Recolour for this tee” in its settings."), chips(["Something else"])]);
   }
 
   /* ----- edit the tee by chat (the text AI) -----
@@ -325,7 +326,7 @@ export function replyTo(text, ctx, st, { tapped = false } = {}) {
 
   /* ----- slogans ----- */
   if (t === "Show more" && st.occasion) return done(showSlogans({ ...st, shown: st.shown + 3 }, ctx, "Three more:"), { shown: st.shown + 3 });
-  if (t === "Add a name or year" && st.occasion) return done([bot("Type the name, team name or year to put in the line.")], { wait: "name" });
+  if (t === "Add a name or year" && st.occasion) return done([bot("Type the name, team name or year to put in the line."), chips(["Something else"])], { wait: "name" });
   if (t === "Change tone" && st.occasion) return done([bot("Which tone?"), chips(TONES)], { tone: null });
   if (ctx.ai.text && /slogan|quote|tagline|caption|\bline\b|\bwords\b|\bsaying\b/.test(low) && t.split(/\s+/).length >= 3) {
     return done([act({ type: "slogans", ask: t, avoid: [] })], { ask: t, tone: toneIn(low), said: [] });

@@ -10,6 +10,21 @@ import { EXAMPLES, replyTo } from "./assistantScript";
 import { imageUrl } from "../utils/imageUrl";
 import WaitCard from "./WaitCard";
 
+const PICTURE_HINT = "Usually 20–40 seconds. You can look around the room meanwhile.";
+// What the wait card says for an AI job: { label, expect (usual seconds), hint }
+const waitFor = (a) =>
+  a.type === "edit"
+    ? { label: "Working on it…", expect: 8, hint: "If you asked for pictures, each one takes about 20–40 seconds." }
+    : a.type === "slogans"
+      ? { label: "Writing a few…", expect: 6 }
+      : a.photoUrl
+        ? /free/i.test(a.artStyle || "")
+          ? { label: "Making your art…", expect: 5 }
+          : { label: "Redrawing your photo…", expect: 35, hint: PICTURE_HINT }
+        : a.baseUrl
+          ? { label: "Changing your design…", expect: 25, hint: PICTURE_HINT }
+          : { label: "Drawing your design…", expect: 25, hint: PICTURE_HINT };
+
 /**
  * The conversation (messages) and its state live in the page, so the chat is
  * still there after switching tabs.
@@ -36,46 +51,50 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
   }, [messages, thinking]);
   useEffect(() => () => clearTimeout(timer.current), []);
 
+  // The customer must never be stuck: every slow AI job ends (also when it fails), a failed one gets a
+  // "Try again" (the same request — nothing to type again), and while it runs the chat says so.
+  const run = (act, wait, after = []) => {
+    setThinking(wait);
+    // the page may say what it is doing now (a chat request that turned into drawing two pictures)
+    Promise.resolve()
+      .then(() => onAct(act, (now) => setThinking(now)))
+      .then((made) => made || [])
+      .catch(() => [{ from: "bot", text: "Something went wrong on my side." }, { failed: true }])
+      .then((made) => {
+        setThinking(false);
+        // { failed: true } from the page = this request can simply be tried again; { retry: act } = try that one
+        const out = made.map((x) => (x.failed ? { retry: act, wait } : x.retry && !x.wait ? { ...x, wait: waitFor(x.retry) } : x));
+        setMessages((m) => [...m, ...out, ...after]);
+      });
+  };
+  const retry = (i, m) => {
+    if (thinking) return;
+    setMessages((all) => [...all.map((x, n) => (n === i ? { ...x, done: true } : x.chips ? { ...x, done: true } : x)), { from: "me", text: "Try again" }]);
+    run(m.retry, m.wait);
+  };
+
   // tapped: the customer tapped a choice (typed messages may be sent to the text AI; taps never are)
   const say = (text, tapped = false) => {
-    if (thinking || !text) return;
+    if (thinking || !text) return false;
     // the chips just answered can't be tapped again
-    setMessages((m) => [...m.map((x) => (x.chips ? { ...x, done: true } : x)), { from: "me", text }]);
+    setMessages((m) => [...m.map((x) => (x.chips || x.retry ? { ...x, done: true } : x)), { from: "me", text }]);
     const { out, st } = replyTo(text, ctx(), state, { tapped });
     setState(st);
     const reply = out.filter((o) => !o.act);
     const slow = out.find((o) => ["generate", "slogans", "edit"].includes(o.act?.type));
     if (slow) {
       // the AI: wait for the answer, then show what the page hands back
-      const a = slow.act;
-      const PICTURE_HINT = "Usually 20–40 seconds. You can look around the room meanwhile.";
-      setThinking(
-        a.type === "edit"
-          ? { label: "Working on it…", expect: 8, hint: "If you asked for pictures, each one takes about 20–40 seconds." }
-          : a.type === "slogans"
-            ? { label: "Writing a few…", expect: 6 }
-            : a.photoUrl
-              ? /free/i.test(a.artStyle || "")
-                ? { label: "Making your art…", expect: 5 }
-                : { label: "Redrawing your photo…", expect: 35, hint: PICTURE_HINT }
-              : a.baseUrl
-                ? { label: "Changing your design…", expect: 25, hint: PICTURE_HINT }
-                : { label: "Drawing your design…", expect: 25, hint: PICTURE_HINT },
-      );
-      // the page may say what it is doing now (a chat request that turned into drawing two pictures)
-      Promise.resolve(onAct(slow.act, (now) => setThinking(now))).then((made) => {
-        setThinking(false);
-        setMessages((m) => [...m, ...(made || []), ...reply]);
-      });
-      return;
+      run(slow.act, waitFor(slow.act), reply);
+      return true;
     }
     out.filter((o) => o.act).forEach((o) => onAct(o.act));
-    if (!reply.length) return;
+    if (!reply.length) return true;
     setThinking(true);
     timer.current = setTimeout(() => {
       setThinking(false);
       setMessages((m) => [...m, ...reply]);
     }, 450);
+    return true;
   };
   // "Change" on a design: the next thing typed is the change to make
   const startChange = (url) => {
@@ -87,12 +106,7 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
   const tryAnother = (act) => {
     if (thinking || !act) return;
     setMessages((m) => [...m.map((x) => (x.chips ? { ...x, done: true } : x)), { from: "me", text: "Try another one" }]);
-    const hint = "Usually 20–40 seconds. You can look around the room meanwhile.";
-    setThinking(act.photoUrl ? { label: "Redrawing your photo…", expect: 35, hint } : { label: "Drawing another one…", expect: 25, hint });
-    Promise.resolve(onAct(act)).then((made) => {
-      setThinking(false);
-      setMessages((m) => [...m, ...(made || [])]);
-    });
+    run(act, act.photoUrl ? waitFor(act) : { ...waitFor(act), label: "Drawing another one…" });
   };
   const fix = (i, issue) => {
     onFix(issue);
@@ -110,8 +124,17 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
             return (
               <div key={i} className={`dr-chatchips${m.done ? " done" : ""}`}>
                 {m.chips.map((c) => (
-                  <button key={c} type="button" className="dr-chip" disabled={m.done} onClick={() => say(c, true)}>{c}</button>
+                  <button key={c} type="button" className="dr-chip" disabled={m.done || !!thinking} onClick={() => say(c, true)}>{c}</button>
                 ))}
+              </div>
+            );
+          }
+          if (m.retry) {
+            // a request that didn't work: the same one again, or something else
+            return (
+              <div key={i} className={`dr-chatchips${m.done ? " done" : ""}`}>
+                <button type="button" className="dr-chip dr-retry" disabled={m.done || !!thinking} onClick={() => retry(i, m)}>↻ Try again</button>
+                <button type="button" className="dr-chip" disabled={m.done || !!thinking} onClick={() => say("Something else", true)}>Something else</button>
               </div>
             );
           }
@@ -209,16 +232,20 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
         {thinking === true && <div className="dr-typing">Thinking…</div>}
         {thinking && thinking !== true && <WaitCard key={`${messages.length}-${thinking.label}`} {...thinking} />}
       </div>
+      {/* while the assistant works, the customer can type the next message; it is sent when it's done */}
+      {thinking && thinking !== true && <p className="dr-busynote">I’m still on your last request. You can type your next one; Send works again as soon as I’m done.</p>}
       <form
         className="dr-composer"
         onSubmit={(e) => {
           e.preventDefault();
-          say(draft.trim());
-          setDraft("");
+          // only cleared when it was sent (pressing Send while busy keeps what was typed)
+          if (say(draft.trim())) setDraft("");
         }}
       >
         <input ref={box} value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="Try: a tiger on the front, a tree on the back" aria-label="Message the design assistant" maxLength={400} autoComplete="off" />
-        <button type="submit">Send</button>
+        <button type="submit" disabled={!!thinking} aria-label={thinking ? "Wait — the assistant is still working" : "Send"}>
+          {thinking ? "Wait…" : "Send"}
+        </button>
       </form>
     </div>
   );

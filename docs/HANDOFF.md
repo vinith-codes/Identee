@@ -136,6 +136,13 @@ small in a 10 × 52 cm strip — and "in vertical front" was sent to Google as p
 - Checked: the Assistant's replies for 4 messages, and the turned placement drawn with konvaRender. NOT checked with a real
   picture from Google (costs ~₹14 for one request of 4 pictures) — needs the user's go-ahead.
 
+**`feature-assistant-no-dead-ends` (15 Oct):** the customer must never feel stuck in the assistant. One path for every slow AI job
+(`run` in Assistant.jsx) that always ends — also when the request throws — so the wait card can't stay forever. A failed
+request shows "↻ Try again" (the same request; the page returns `{ failed: true }`, or `{ retry: act }` for just the picture
+that failed inside a chat request) + "Something else". While busy: Send shows "Wait…" and is disabled, the typed text is
+kept (it used to be erased), a note says so, and reply buttons are disabled. Replies that ended with no next step now offer
+one (team list, words to draw, sharper/recolour, used-up requests, "not sure what to change", chat-edit results); a style typed in words ("cartoon please") counts; "Something else" while waiting for a name is no longer taken as the name.
+
 **`feature-wider-assistant` — MERGED to `main` on 15 Oct 2026:** the client asked for more space for the assistant. Its
 panel is 440 px (400 px on 761–1279 px screens) instead of the editor's 364 px, and a "Wider" button in its header makes it
 about half the screen (`data-wide`, clamp 480–780 px; remembered in localStorage `identee:assistWide`). Wide: examples in two
