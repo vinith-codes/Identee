@@ -52,6 +52,11 @@ const garmentTypeSchema = new mongoose.Schema(
     basePrice: { type: Number, required: true, default: 0 }, // 🆕 e.g. 599
     colors: { type: [colorSchema], default: [] },
     isActive: { type: Boolean, default: true }, // false = draft, hidden from customers
+    // A draft announced to customers: a "Coming soon" card in its collection, with a catalogue photo
+    // (it can't be designed on until it is finished and made live in Admin → Customizable).
+    comingSoon: { type: Boolean, default: false },
+    catalogueImage: { type: String, default: "" }, // the product's picture from the client's catalogue
+    catalogueCode: { type: String, default: "", trim: true }, // e.g. "ID-W01CROPS"
     description: { type: String, default: "", trim: true },
     fit: { type: String, enum: ["oversized", "regular"], default: "regular" },
     fabrics: { type: [fabricSchema], default: [] },

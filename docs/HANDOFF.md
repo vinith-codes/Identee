@@ -143,6 +143,14 @@ shows when isCustomizable + active and it has a live garment or comingSoon. Card
 Categories, 4:5) else the first garment's photo else gold initials. The home page's "Design your own" buttons now open
 /customizable (they went straight to the oversized tee). DB (15 Oct, with the user's go-ahead): the 3 categories added and
 oversized-tee's category set to "Boys Oversized" → Boys Wear. New catalogue garments should get the oversized tee's 12 colours.
+- The catalogue's other 6 products are in the DB (15 Oct, user's go-ahead) as DRAFTS (isActive false) with comingSoon: true,
+  catalogueImage (photo cut from the client's catalogue PDF, Cloudinary identee/catalogue/…), catalogueCode, the oversized
+  tee's 12 colours, ₹899, fabric/GSM, fit, sizes (kids ages + XS–5XL as in the catalogue) and the print areas we already
+  have offered (no sizes yet): girls-crop-top-collar, girls-round-neck, girls-oversized-crop (Girls Wear), coord-set,
+  kids-round-neck (Unisex & Kids), boys-round-neck (Boys Wear). New model fields comingSoon / catalogueImage /
+  catalogueCode; GET /api/garment-types/coming-soon returns them (card details only); each collection shows them as
+  "Coming soon" cards. To finish one: Admin → Customizable wizard (photos per colour, size chart, print sizes), then
+  make it live. Blocked on: print sizes for kids sizes / 4XL–5XL and the new areas (corners, back small, yoke, shorts).
 
 **`feature-policy-pages` — MERGED to `main` on 14 Oct 2026:** the four policy pages Razorpay checks
 before live payments: /terms, /privacy-policy, /refund-policy, /shipping-policy (`pages/PolicyPage.jsx`, one component;

@@ -5,9 +5,10 @@
 //                                          (Girls Wear · Unisex & Kids Wear · Boys Wear)
 //   2. /customizable?category=<slug>    — the garments of that category
 // A category shows when it is customizable and active (Admin → Storefront → Categories)
-// and either has a live garment or is marked "coming soon". Garments come from
-// Admin → Customizable; only live, sellable ones show.
-import { useEffect } from "react";
+// and has a live garment, a coming-soon garment, or is marked "coming soon". Garments come
+// from Admin → Customizable: live, sellable ones can be designed; drafts marked "coming soon"
+// show as cards with their catalogue photo (nothing to click into yet).
+import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { fetchCategories } from "../redux/slices/categorySlice";
@@ -17,6 +18,7 @@ import CustomizableGarments from "../components/CustomizableGarments";
 import ShopPageHeader from "../components/ShopPageHeader";
 import { categoryOfGarment, coverPhoto, isSellable } from "../utils/garments";
 import { imageUrl } from "../utils/imageUrl";
+import garmentTypeService from "../services/garmentTypeService";
 
 const CSS = `
   .cz-cats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 22px; }
@@ -37,6 +39,15 @@ const CSS = `
   .cz-back:hover { text-decoration: underline; text-underline-offset: 3px; }
   .cz-head { margin: 0 0 6px; font: 800 clamp(24px, 3vw, 30px)/1.1 "Bricolage Grotesque", "Helvetica Neue", Arial, sans-serif; color: #15130F; text-transform: uppercase; }
   .cz-sub { margin: 0 0 20px; color: #6B6559; font-size: 15px; }
+  .cz-soonlist { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 20px; margin-top: 8px; }
+  .cz-sooncard { border: 1px solid #EAE3CF; border-radius: 16px; overflow: hidden; background: #fff; display: flex; flex-direction: column; }
+  .cz-sooncard .cz-img { aspect-ratio: 4 / 5; background: #fff; }
+  .cz-sooncard img { object-fit: contain; }
+  .cz-soonbody { padding: 14px 16px 16px; display: grid; gap: 4px; }
+  .cz-soonbody b { font-size: 16px; color: #15130F; }
+  .cz-soonbody span { font-size: 13px; color: #6B6559; line-height: 1.45; }
+  .cz-soonbody em { font-style: normal; font-size: 12px; font-weight: 700; letter-spacing: .08em; color: #B8912F; text-transform: uppercase; }
+  .cz-subhead { margin: 28px 0 12px; font: 800 18px/1.2 "Bricolage Grotesque", "Helvetica Neue", Arial, sans-serif; color: #15130F; }
   .cz-empty { padding: 36px 24px; border: 1px dashed #D9CFB4; border-radius: 16px; background: #FBF7EE; text-align: center; color: #4A443B; }
   .cz-empty b { display: block; font-size: 17px; color: #15130F; margin-bottom: 6px; }
   @media (max-width: 900px) { .cz-cats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
@@ -50,11 +61,20 @@ export default function CustomizablePage() {
   const { items: categories } = useSelector((s) => s.categories);
   const { items: garments, isLoading } = useSelector((s) => s.garmentType);
   const { items: images, isLoading: imagesLoading } = useSelector((s) => s.garmentImage);
+  const [soon, setSoon] = useState([]); // drafts announced as "coming soon"
 
   useEffect(() => {
     dispatch(fetchCategories());
     dispatch(fetchGarmentTypes());
     dispatch(fetchAllGarmentImages());
+    let alive = true;
+    garmentTypeService
+      .getComingSoon()
+      .then((list) => alive && setSoon(Array.isArray(list) ? list : []))
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
   }, [dispatch]);
   // opening a collection (or going back) starts at the top of the page
   useEffect(() => {
@@ -73,17 +93,18 @@ export default function CustomizablePage() {
       comingSoon: !!c.comingSoon,
       order: c.displayOrder ?? 999,
       garments: sellable.filter((g) => categoryOfGarment(g, categories)?.slug === c.slug),
+      soon: soon.filter((g) => categoryOfGarment(g, categories)?.slug === c.slug),
     }))
-    .filter((g) => g.garments.length || g.comingSoon);
+    .filter((g) => g.garments.length || g.soon.length || g.comingSoon);
   // a live garment that isn't in any category still shows
   const loose = sellable.filter((g) => !categoryOfGarment(g, categories));
-  if (loose.length) groups.push({ key: "other", name: "More to customize", description: "", image: "", comingSoon: false, order: 999, garments: loose });
+  if (loose.length) groups.push({ key: "other", name: "More to customize", description: "", image: "", comingSoon: false, order: 999, garments: loose, soon: [] });
   groups.sort((a, b) => a.order - b.order || a.name.localeCompare(b.name));
 
   const loading = (isLoading || imagesLoading) && !groups.length;
   const open = only ? groups.find((g) => g.key === only) : null;
   // the card's picture: the category's own image (Admin → Categories), else a garment of it
-  const picture = (g) => g.image || (g.garments[0] && coverPhoto(g.garments[0], images)) || "";
+  const picture = (g) => g.image || (g.garments[0] && coverPhoto(g.garments[0], images)) || g.soon[0]?.catalogueImage || "";
 
   return (
     <div style={{ background: "#FFFFFF", minHeight: "70vh" }}>
@@ -105,17 +126,21 @@ export default function CustomizablePage() {
               {groups.map((g, i) => {
                 const pic = picture(g);
                 const count = g.garments.length;
+                const coming = g.soon.length;
                 return (
                   <Link key={g.key} to={`/customizable?category=${g.key}`} className="cz-cat">
                     <div className="cz-img">
-                      {pic ? <img src={imageUrl(pic, 600)} alt="" loading="lazy" /> : <div className="cz-ph" aria-hidden="true">{g.name.split(/\s+/).map((w) => w[0]).filter((ch) => /[a-z]/i.test(ch)).join("").slice(0, 3)}</div>}
+                      {pic ? <img src={imageUrl(pic, 600)} alt="" loading="lazy" style={pic === g.soon[0]?.catalogueImage ? { objectFit: "contain", background: "#fff" } : undefined} /> : <div className="cz-ph" aria-hidden="true">{g.name.split(/\s+/).map((w) => w[0]).filter((ch) => /[a-z]/i.test(ch)).join("").slice(0, 3)}</div>}
                       {!count && <span className="cz-soon">Coming soon</span>}
                     </div>
                     <div className="cz-body">
                       <span className="cz-num">{String(i + 1).padStart(2, "0")}</span>
                       <h2>{g.name}</h2>
                       {g.description && <p>{g.description}</p>}
-                      <span className="cz-go">{count ? `${count} ${count === 1 ? "product" : "products"} to design →` : "See what's coming →"}</span>
+                      <span className="cz-go">
+                        {count ? `${count} ${count === 1 ? "product" : "products"} to design` : coming ? `${coming} ${coming === 1 ? "product" : "products"} coming soon` : "See what's coming"}
+                        {count && coming ? ` · ${coming} coming soon` : ""} →
+                      </span>
                     </div>
                   </Link>
                 );
@@ -134,9 +159,28 @@ export default function CustomizablePage() {
               <section>
                 <h2 className="cz-head">{open.name}</h2>
                 {open.description && <p className="cz-sub">{open.description}</p>}
-                {open.garments.length ? (
-                  <CustomizableGarments garments={open.garments} images={images} />
-                ) : (
+                {open.garments.length > 0 && <CustomizableGarments garments={open.garments} images={images} />}
+                {open.soon.length > 0 && (
+                  <>
+                    {open.garments.length > 0 && <h3 className="cz-subhead">Coming soon</h3>}
+                    <div className="cz-soonlist">
+                      {open.soon.map((g) => (
+                        <article key={g.key} className="cz-sooncard">
+                          <div className="cz-img">
+                            {g.catalogueImage ? <img src={imageUrl(g.catalogueImage, 600)} alt={g.label} loading="lazy" /> : <div className="cz-ph" aria-hidden="true">{g.label[0]}</div>}
+                            <span className="cz-soon">Coming soon</span>
+                          </div>
+                          <div className="cz-soonbody">
+                            {g.catalogueCode && <em>{g.catalogueCode}</em>}
+                            <b>{g.label}</b>
+                            <span>{[(g.fabrics || []).map((f) => f.name).join(" · "), g.basePrice > 0 && `From ₹${g.basePrice}`].filter(Boolean).join(" · ")}</span>
+                          </div>
+                        </article>
+                      ))}
+                    </div>
+                  </>
+                )}
+                {!open.garments.length && !open.soon.length && (
                   <div className="cz-empty">
                     <b>Coming soon</b>
                     New designs for {open.name} are on the way. Meanwhile, browse our other collections.

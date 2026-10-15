@@ -26,6 +26,16 @@ export const getGarmentTypes = asyncHandler(async (req, res) => {
   res.json(items);
 });
 
+// GET /api/garment-types/coming-soon
+// Drafts announced as "Coming soon" — only what a card needs, never anything to design with.
+export const getComingSoonGarments = asyncHandler(async (req, res) => {
+  const items = await GarmentType.find({ isActive: false, comingSoon: true })
+    .select("key label category description catalogueImage catalogueCode basePrice sizes fabrics fit")
+    .sort({ createdAt: 1 })
+    .lean();
+  res.json(items.map((g) => ({ ...g, colourCount: undefined })));
+});
+
 // GET /api/garment-types/:key
 export const getGarmentTypeByKey = asyncHandler(async (req, res) => {
   const item = await GarmentType.findOne({
@@ -164,6 +174,7 @@ export const updateGarmentType = asyncHandler(async (req, res) => {
     item.photoRuler = { topPct: Math.round(top * 100) / 100, hemPct: Math.round(hem * 100) / 100 };
   }
   if (b.isActive !== undefined) item.isActive = !!b.isActive;
+  if (b.comingSoon !== undefined) item.comingSoon = !!b.comingSoon;
 
   await item.save();
   res.json(item);
