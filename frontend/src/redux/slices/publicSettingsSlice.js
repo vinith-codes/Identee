@@ -2,7 +2,7 @@ import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 import settingService from "../../services/settingService";
 
 const initialState = {
-  values: {}, // flat map, e.g. { "general.storeName": "IDENTEE", "general.phoneNumber": "+91 636 652 6449", ... }
+  values: {}, // flat map, e.g. { "general.storeName": "IDENTEE", "general.phoneNumber": "8870008311", ... }
   isLoaded: false, // true once the first fetch settles (success OR failure) — lets
   // components stop treating "not loaded yet" as "permanently empty"
 };
