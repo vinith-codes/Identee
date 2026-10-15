@@ -34,6 +34,23 @@ const PRINT_FOR = {
   "A team name": [["top-back", "full-back", "centre-front"], "A team name reads best across the top of the back, or large on the front."],
   "Name and number": [["full-back", "centre-back"], "A name and number go on the back, with the number large in the middle."],
   "Down the side": [["vertical-front", "front-right-vertical", "vertical-back"], "Text running down the tee uses one of the tall, narrow areas."],
+  "On the shorts": [["left-leg", "right-leg"], "A shorts print goes on the front of a leg, left or right."],
+};
+const escapeRe = (x) => x.replace(/[.*+?^$(){}|[\]\\]/g, "\\$&");
+// What the customer may call a print area: its name, and for the shorts' areas also without "Shorts –" ("left leg").
+const areaNames = (a) => [...new Set([a.label, a.label.replace(/^shorts\s*[–-]\s*/i, "")].map((n) => n.toLowerCase()))];
+// The print area named in a message, and the name used (the longest name wins: "vertical front" over "front").
+const namedArea = (areas, low) =>
+  (areas || [])
+    .flatMap((a) => areaNames(a).map((name) => ({ a, name })))
+    .sort((x, y) => y.name.length - x.name.length)
+    .find(({ name }) => new RegExp(String.raw`\b${escapeRe(name)}\b`).test(low)) || null;
+// "a tiger on the left leg": what to draw (without the area's name) and the area it is for
+const subjectAndArea = (t, areas) => {
+  const hit = namedArea(areas, t.toLowerCase());
+  if (!hit) return { subject: t, areaKey: null };
+  const subject = t.replace(new RegExp(String.raw`\s*\b((on|in|at|for|to) )?(the )?${escapeRe(hit.name)}( area)?\b`, "i"), " ").replace(/\s+/g, " ").trim();
+  return { subject: subject.length >= 2 ? subject : t, areaKey: hit.a.key };
 };
 
 export const bot = (text) => ({ from: "bot", text });
@@ -61,7 +78,7 @@ export const EXAMPLES = [
 ];
 const HELLO = "Hi. I can design your tee with you. Tap one to try it, or type what you want in your own words.";
 export const firstMessages = () => [bot(HELLO), { examples: true }, chips(["More help"])];
-export const firstState = () => ({ occasion: null, tone: null, shown: 0, wait: null, template: null, subject: null, lastDesign: null, changeUrl: null, ask: null, said: [], photoUrl: null });
+export const firstState = () => ({ occasion: null, tone: null, shown: 0, wait: null, template: null, subject: null, areaKey: null, lastDesign: null, changeUrl: null, ask: null, said: [], photoUrl: null });
 // after slogans the AI wrote
 export const AFTER_AI_SLOGANS = ["Show more", "Change tone", "Something else"];
 export const AFTER_DESIGN_CHIPS = AFTER_DESIGNS;
@@ -138,10 +155,10 @@ export function replyTo(text, ctx, st, { tapped = false } = {}) {
   /* ----- the design maker's questions ----- */
   const offTopic = MENU.includes(t) || MORE.includes(t) || t === "Something else";
   if (wait === "aiSubject" && !offTopic) {
-    return done([bot("Which style?"), chips(ctx.ai.styles)], { subject: t, wait: "aiStyle" });
+    return done([bot("Which style?"), chips(ctx.ai.styles)], { ...subjectAndArea(t, ctx.areas), wait: "aiStyle" });
   }
   if (wait === "aiStyle" && ctx.ai.styles.includes(t)) {
-    const job = { subject: st.subject, style: t };
+    const job = { subject: st.subject, style: t, ...(st.areaKey ? { areaKey: st.areaKey } : {}) };
     return done([act({ type: "generate", ...job })], { lastDesign: job });
   }
   if (wait === "aiChange" && !offTopic && st.changeUrl) {
@@ -193,8 +210,9 @@ export function replyTo(text, ctx, st, { tapped = false } = {}) {
     const quoted = /[“"‘']([^”"’']{2,160})[”"’']/.exec(t);
     // a print area named in the message ("… in vertical front"): the design is made for that area, and the
     // area's name is not part of what to draw
-    const named = [...(ctx.areas || [])].sort((a, b) => b.label.length - a.label.length).find((a) => low.includes(a.label.toLowerCase()));
-    const label = named ? named.label.replace(/[.*+?^$(){}|[\]\\]/g, "\\$&") : "";
+    const hit = namedArea(ctx.areas, low);
+    const named = hit?.a;
+    const label = hit ? escapeRe(hit.name) : "";
     const unArea = (x) => (named ? x.replace(new RegExp(String.raw`\s*\b((on|in|at|for|to) )?(the )?` + label + String.raw`( area)?\b`, "i"), " ") : x);
     const said = (quoted ? quoted[1] : unArea(t))
       .replace(/^(please )?(i (want|need|would like)|can you|could you|make|draw|create|generate|give me|design|write)( me)?( an?| the)?\s+/i, "")
@@ -230,7 +248,7 @@ export function replyTo(text, ctx, st, { tapped = false } = {}) {
   }
   // A whole request in one sentence — "a tiger on the front and a tree on the back, on a black t-shirt" —
   // also goes to the text AI, which can set the tee colour and ask for a picture per print area.
-  if (ctx.ai.text && !tapped && words >= 7 && !aboutWords && /\b(front|back|sleeves?|chest|t-?shirt|tee)\b/.test(low)) {
+  if (ctx.ai.text && !tapped && words >= 7 && !aboutWords && /\b(front|back|sleeves?|chest|t-?shirt|tee|shorts|legs?|co-?ord)\b/.test(low)) {
     return done([act({ type: "edit", message: t })]);
   }
 
@@ -240,7 +258,7 @@ export function replyTo(text, ctx, st, { tapped = false } = {}) {
     return done([act({ type: "size", value: useSize[1].toUpperCase() }), bot(`Done. The tee is now size ${useSize[1].toUpperCase()}, and every print area shows its true size for it.`), chips(MENU)]);
   }
   const openArea = /^open (.+)$/i.exec(t);
-  const areaToOpen = openArea && ctx.areas.find((a) => a.label.toLowerCase() === openArea[1].toLowerCase());
+  const areaToOpen = openArea && ctx.areas.find((a) => areaNames(a).includes(openArea[1].toLowerCase()));
   if (areaToOpen) return done([act({ type: "area", key: areaToOpen.key })]);
   if (t === "Open the art library") return done([act({ type: "tab", tab: "art" })]);
   if (t === "Upload a picture") return done([act({ type: "tab", tab: "upload" })]);
@@ -273,11 +291,15 @@ export function replyTo(text, ctx, st, { tapped = false } = {}) {
   if (t === "Colour help" || /colou?r/.test(low)) {
     return done([bot(`On a ${ctx.teeName.toLowerCase()} tee these ink colours stand out best. Tap one to use it for the text on ${ctx.areaLabel}.`), { inks: ctx.inks }, chips(["Something else"])]);
   }
-  if (t === "Where to print" || /where (should|do|can) i (print|put)|which (print )?area/.test(low)) return done([bot("What are you printing?"), chips(Object.keys(PRINT_FOR))]);
+  // only the kinds of print this garment has areas for (a crop top has no tall strips; only the co-ord set has shorts)
+  const hasAreaFor = (k) => PRINT_FOR[k][0].some((key) => ctx.areas.some((a) => a.key === key));
+  if (t === "Where to print" || /where (should|do|can) i (print|put)|which (print )?area/.test(low)) return done([bot("What are you printing?"), chips(Object.keys(PRINT_FOR).filter(hasAreaFor))]);
   if (PRINT_FOR[t]) {
     const [keys, why] = PRINT_FOR[t];
-    const open = keys.map((k) => ctx.areas.find((a) => a.key === k && a.free)).filter(Boolean);
-    return done([bot(open.length ? why : `${why} Those areas are covered by another print on your tee right now.`), chips([...open.map((a) => `Open ${a.label}`), "Something else"])]);
+    const has = keys.map((k) => ctx.areas.find((a) => a.key === k)).filter(Boolean);
+    const open = has.filter((a) => a.free);
+    const note = !has.length ? " This garment doesn’t have those areas." : !open.length ? " Those areas are covered by another print right now." : "";
+    return done([bot(`${why}${note}`), chips([...open.map((a) => `Open ${a.label}`), "Something else"])]);
   }
   if (t === "Size help" || /\bsize\b|which size|fit me/.test(low)) return done([bot("What size do you usually wear in regular tees?"), chips(ctx.sizes)], { wait: "size" });
   if (t === "Remove a background" || /background|cut ?out/.test(low)) {
@@ -297,7 +319,7 @@ export function replyTo(text, ctx, st, { tapped = false } = {}) {
     if (!ai.loggedIn) return done([bot("I can draw a design from your description. Log in first so your designs are kept for you."), chips(["Log in", "Something else"])]);
     if (ai.left === 0) return done([bot("You’ve used today’s design requests. They reset tomorrow. Until then, try the art library or upload a picture."), chips(["Open the art library", "Upload a picture"])]);
     // a full description typed straight away ("draw a lion holding a bat") skips the first question
-    if (t !== "Make a design" && t.split(/\s+/).length >= 4) return done([bot("Which style?"), chips(ai.styles)], { subject: t, wait: "aiStyle" });
+    if (t !== "Make a design" && t.split(/\s+/).length >= 4) return done([bot("Which style?"), chips(ai.styles)], { ...subjectAndArea(t, ctx.areas), wait: "aiStyle" });
     return done([bot("What should it show? Describe it in a few words, or pick one to try."), chips(SUBJECT_IDEAS)], { wait: "aiSubject" });
   }
 

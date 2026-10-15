@@ -14,6 +14,8 @@ const auth = () => {
 };
 
 const getGarmentTypes = async () => (await axios.get(API_URL)).data;
+// drafts announced as "Coming soon" (card details only)
+const getComingSoon = async () => (await axios.get(`${API_URL}/coming-soon`)).data;
 const createGarmentType = async (label, category, basePrice) =>
   (await axios.post(API_URL, { label, category, basePrice }, auth())).data;
 const updateGarmentBasePrice = async (id, basePrice) =>
@@ -37,6 +39,7 @@ const deleteGarmentType = async (id) =>
 
 export default {
   getGarmentTypes,
+  getComingSoon,
   updateGarmentBasePrice,
   createGarmentType,
   addColor,

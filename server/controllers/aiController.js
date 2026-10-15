@@ -24,17 +24,20 @@ import { cutOutPlainBackground, onPlainBackground } from "../services/cutoutServ
 import { aiTextConfigured, planEdit, writeSlogans } from "../services/aiTextService.js";
 import sharp from "sharp";
 import { artFilters, FILTER_STYLE } from "../services/artFilterService.js";
+import { xaiConfigured, xaiEditImage, xaiModel } from "../services/xaiImageService.js";
 import { AI_STYLES, PHOTO_STYLES, aiImageConfigured, aiImageModel, changeDesignPrompt, generateImage, nearestRatio, newDesignPrompt, photoArtPrompt, FIX_KINDS, fixPrompt, printPrompt, RATIO_VALUES } from "../services/aiImageService.js";
 
 const CATEGORY = "ai";
 const DEFAULTS = {
   "ai.enabled": { value: true, type: "boolean", description: "Customers can make designs with AI" },
   "ai.dailyPerUser": { value: 5, type: "number", description: "Design requests one customer may make per day" },
-  "ai.imagesPerRequest": { value: 3, type: "number", description: "Pictures shown for each new design request" },
+  "ai.imagesPerRequest": { value: 1, type: "number", description: "Pictures shown for each new design request" },
   "ai.monthlyCapInr": { value: 2000, type: "number", description: "Monthly spending cap in rupees" },
   "ai.pricePerImageInr": { value: 2.9, type: "number", description: "What one picture costs, in rupees (for the spending figures)" },
+  // Grok (xAI) redraws photos Google refuses; $5 of credit ≈ 71 pictures
+  "ai.grokPricePerImageInr": { value: 6, type: "number", description: "What one Grok picture costs, in rupees (for the spending figures)" },
 };
-const LIMITS = { "ai.dailyPerUser": [1, 50], "ai.imagesPerRequest": [1, 4], "ai.monthlyCapInr": [0, 1000000], "ai.pricePerImageInr": [0, 100] };
+const LIMITS = { "ai.dailyPerUser": [1, 50], "ai.imagesPerRequest": [1, 4], "ai.monthlyCapInr": [0, 1000000], "ai.pricePerImageInr": [0, 100], "ai.grokPricePerImageInr": [0, 100] };
 
 
 const startOfDay = () => {
@@ -58,11 +61,19 @@ async function readSettings() {
     imagesPerRequest: Number(get("ai.imagesPerRequest")),
     monthlyCapInr: Number(get("ai.monthlyCapInr")),
     pricePerImageInr: Number(get("ai.pricePerImageInr")),
+    grokPricePerImageInr: Number(get("ai.grokPricePerImageInr")),
   };
 }
+// This month's use, in total and for Grok alone (a Grok row's model starts with "grok").
 async function monthSpend() {
-  const [row] = await AiUsage.aggregate([{ $match: { createdAt: { $gte: startOfMonth() } } }, { $group: { _id: null, cost: { $sum: "$costInr" }, images: { $sum: "$images" }, requests: { $sum: 1 } } }]);
-  return { cost: row?.cost || 0, images: row?.images || 0, requests: row?.requests || 0 };
+  const rows = await AiUsage.aggregate([
+    { $match: { createdAt: { $gte: startOfMonth() } } },
+    { $group: { _id: { $regexMatch: { input: { $ifNull: ["$model", ""] }, regex: /^grok/ } }, cost: { $sum: "$costInr" }, images: { $sum: "$images" }, requests: { $sum: 1 } } },
+  ]);
+  const part = (r) => ({ cost: r?.cost || 0, images: r?.images || 0, requests: r?.requests || 0 });
+  const grok = part(rows.find((r) => r._id === true));
+  const google = part(rows.find((r) => r._id === false));
+  return { cost: grok.cost + google.cost, images: grok.images + google.images, requests: grok.requests + google.requests, grok, google };
 }
 // Why the feature is off (null = it is on).
 async function whyOff(settings) {
@@ -155,6 +166,7 @@ export const makeAiDesign = asyncHandler(async (req, res) => {
   }
   let jobs;
   let banner = false;
+  let photoJob = null; // photo to art: what Grok needs if Google refuses the photo
   const teeName = String(req.body.teeColour || "white").replace(/[^\w \-]/g, "").slice(0, 30) || "white";
   if (fixing) {
     if (!isOurUpload(req.body.fixUrl)) {
@@ -175,9 +187,9 @@ export const makeAiDesign = asyncHandler(async (req, res) => {
     const small = await sharp(photo.data).rotate().resize(1536, 1536, { fit: "inside", withoutEnlargement: true }).flatten({ background: "#ffffff" }).jpeg({ quality: 90 }).toBuffer();
     const style = PHOTO_STYLES[req.body.artStyle] ? req.body.artStyle : "Cartoon";
     const of = Math.min(2, Math.max(1, settings.imagesPerRequest));
-    jobs = Array.from({ length: of }, (_, i) =>
-      generateImage({ prompt: photoArtPrompt({ style, teeColour: teeName, teeIsDark: Boolean(req.body.teeIsDark), variation: i + 1, of }), image: { data: small, mime: "image/jpeg" }, ratio: nearestRatio(req.body.ratio) }),
-    );
+    const promptFor = (i) => photoArtPrompt({ style, teeColour: teeName, teeIsDark: Boolean(req.body.teeIsDark), variation: i + 1, of });
+    photoJob = { of, promptFor, image: { data: small, mime: "image/jpeg" } };
+    jobs = Array.from({ length: of }, (_, i) => generateImage({ prompt: promptFor(i), image: photoJob.image, ratio: nearestRatio(req.body.ratio) }));
   } else if (changing) {
     if (!isAiDesign(req.body.baseUrl)) {
       res.status(400);
@@ -203,11 +215,23 @@ export const makeAiDesign = asyncHandler(async (req, res) => {
   }
 
   const results = await Promise.allSettled(jobs);
-  const made = results.filter((r) => r.status === "fulfilled").map((r) => r.value);
+  let made = results.filter((r) => r.status === "fulfilled").map((r) => r.value);
+  let byGrok = false;
+  // Google refuses photos of well-known people — with a safety error (422), or quietly, with no picture in the
+  // answer: then Grok (xAI) redraws the photo, when it is set up. One version only — Grok costs about twice as much.
+  const googleRefused = results[0].reason?.status === 422 || results[0].reason?.noImage === true;
+  if (!made.length && photoJob && googleRefused && xaiConfigured()) {
+    try {
+      made = [await xaiEditImage({ prompt: photoJob.promptFor(0).replace(/ This is option \d+ of \d+:[^.]*\./, ""), image: photoJob.image })];
+      byGrok = true;
+    } catch {
+      made = [];
+    }
+  }
   if (!made.length) {
     const err = results[0].reason;
     // the picture service refused the customer's photo: they still get art, made by our own filters
-    if (fromPhoto && err?.status === 422) return sendFilterArt(req, res, { refused: true, left: Math.max(0, settings.dailyPerUser - used) });
+    if (fromPhoto && googleRefused) return sendFilterArt(req, res, { refused: true, left: Math.max(0, settings.dailyPerUser - used) });
     res.status(err?.status || 502);
     throw new Error(err?.message || "The design maker had a problem. Please try again.");
   }
@@ -235,8 +259,8 @@ export const makeAiDesign = asyncHandler(async (req, res) => {
     prompt: text,
     style: fromPhoto ? req.body.artStyle : changing ? undefined : req.body.style,
     images: made.length,
-    costInr: Math.round(made.length * settings.pricePerImageInr * 100) / 100,
-    model: aiImageModel(),
+    costInr: Math.round(made.length * (byGrok ? settings.grokPricePerImageInr : settings.pricePerImageInr) * 100) / 100,
+    model: byGrok ? xaiModel() : aiImageModel(),
   });
   res.status(201).json({ images: stored.map((s, i) => ({ url: s.url, width: cut[i].width, height: cut[i].height })), left: Math.max(0, settings.dailyPerUser - used - 1) });
 });
@@ -288,7 +312,7 @@ export const makeEdit = asyncHandler(async (req, res) => {
     fonts: (Array.isArray(d.fonts) ? d.fonts : []).slice(0, 20).map((f) => str(f, 40)),
     teeColours: (Array.isArray(d.teeColours) ? d.teeColours : []).slice(0, 30).map((c) => str(c, 30)),
     pictureStyles: Object.keys(AI_STYLES),
-    areas: (Array.isArray(d.areas) ? d.areas : []).slice(0, 20).map((a) => ({ key: str(a.key, 40), label: str(a.label, 40), free: Boolean(a.free) })),
+    areas: (Array.isArray(d.areas) ? d.areas : []).slice(0, 20).map((a) => ({ key: str(a.key, 40), label: str(a.label, 40), side: str(a.side, 10), free: Boolean(a.free) })),
     items: (Array.isArray(d.items) ? d.items : []).slice(0, 30).map((it) => ({
       id: str(it.id, 40),
       type: it.type === "text" ? "text" : "picture",
@@ -313,14 +337,16 @@ export const getAiAdmin = asyncHandler(async (req, res) => {
   res.json({
     configured: aiImageConfigured(),
     model: aiImageModel(),
+    // the second picture service, for photos Google refuses
+    grok: { configured: xaiConfigured(), model: xaiModel() },
     reason: await whyOff(settings),
     settings,
     month,
-    recent: recent.map((r) => ({ when: r.createdAt, who: r.user?.name || r.user?.email || "Customer", kind: r.kind, prompt: r.prompt, images: r.images, costInr: r.costInr })),
+    recent: recent.map((r) => ({ when: r.createdAt, who: r.user?.name || r.user?.email || "Customer", kind: r.kind, prompt: r.prompt, images: r.images, costInr: r.costInr, ai: /^grok/.test(r.model || "") ? "Grok" : "Google" })),
   });
 });
 
-// PUT /api/ai/admin  (admin only): { enabled, dailyPerUser, imagesPerRequest, monthlyCapInr, pricePerImageInr }
+// PUT /api/ai/admin  (admin only): { enabled, dailyPerUser, imagesPerRequest, monthlyCapInr, pricePerImageInr, grokPricePerImageInr }
 export const saveAiAdmin = asyncHandler(async (req, res) => {
   const incoming = {
     "ai.enabled": req.body.enabled,
@@ -328,6 +354,7 @@ export const saveAiAdmin = asyncHandler(async (req, res) => {
     "ai.imagesPerRequest": req.body.imagesPerRequest,
     "ai.monthlyCapInr": req.body.monthlyCapInr,
     "ai.pricePerImageInr": req.body.pricePerImageInr,
+    "ai.grokPricePerImageInr": req.body.grokPricePerImageInr,
   };
   for (const [key, raw] of Object.entries(incoming)) {
     if (raw === undefined) continue;

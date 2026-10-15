@@ -205,7 +205,8 @@ export async function generateImage({ prompt, image, ratio = "1:1", size = "1K" 
   const found = findImage(json);
   if (!found) {
     console.error("[ai] no picture in the answer");
-    throw Object.assign(new Error("No design came back. Try describing it differently."), { status: 502 });
+    // (with a photo, an answer without a picture is nearly always a quiet refusal — the caller can treat it as one)
+    throw Object.assign(new Error("No design came back. Try describing it differently."), { status: 502, noImage: true });
   }
   return { buffer: Buffer.from(found.data, "base64"), mime: found.mime };
 }

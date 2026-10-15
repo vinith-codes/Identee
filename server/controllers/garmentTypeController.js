@@ -10,6 +10,9 @@ import {
   cleanBySize,
 } from "../data/printPositions.js";
 
+// Every size a garment can have, in the order shown: kids' ages (the catalogue's groups), then adults.
+const SIZE_ORDER = ["4-6", "7-8", "9-10", "10-12", "11", "11-12", "12", "12-13", "13-14", ...SIZES, "4XL", "5XL"];
+
 function slugify(str) {
   return str
     .toLowerCase()
@@ -24,6 +27,17 @@ export const getGarmentTypes = asyncHandler(async (req, res) => {
     createdAt: 1,
   });
   res.json(items);
+});
+
+// GET /api/garment-types/coming-soon
+// Drafts announced as "Coming soon" — only what a card needs, never anything to design with.
+export const getComingSoonGarments = asyncHandler(async (req, res) => {
+  const items = await GarmentType.find({ isActive: false, comingSoon: true })
+    .select("key label category description catalogueImage catalogueCode basePrice sizes fabrics fit colors")
+    .sort({ createdAt: 1 })
+    .lean();
+  // the colours themselves aren't needed on a card — only how many there are
+  res.json(items.map(({ colors, ...g }) => ({ ...g, colourCount: (colors || []).length })));
 });
 
 // GET /api/garment-types/:key
@@ -112,17 +126,19 @@ export const updateGarmentType = asyncHandler(async (req, res) => {
   }
   if (b.sizes !== undefined) {
     if (!Array.isArray(b.sizes)) badRequest(res, "sizes must be a list");
-    item.sizes = SIZES.filter((sz) => b.sizes.includes(sz)); // keep XS → 3XL order
+    item.sizes = SIZE_ORDER.filter((sz) => b.sizes.includes(sz)); // kids' ages, then XS → 5XL
   }
   if (b.sizeChart !== undefined) {
     if (!Array.isArray(b.sizeChart)) badRequest(res, "sizeChart must be a list");
     item.sizeChart = b.sizeChart
-      .filter((r) => SIZES.includes(r?.size))
+      .filter((r) => SIZE_ORDER.includes(r?.size))
       .map((r) => ({
         size: r.size,
         chest: num(r.chest),
         shoulder: num(r.shoulder),
         length: num(r.length),
+        waist: num(r.waist), // a set's shorts
+        bottomLength: num(r.bottomLength),
       }));
   }
   if (b.colors !== undefined) {
@@ -164,6 +180,7 @@ export const updateGarmentType = asyncHandler(async (req, res) => {
     item.photoRuler = { topPct: Math.round(top * 100) / 100, hemPct: Math.round(hem * 100) / 100 };
   }
   if (b.isActive !== undefined) item.isActive = !!b.isActive;
+  if (b.comingSoon !== undefined) item.comingSoon = !!b.comingSoon;
 
   await item.save();
   res.json(item);

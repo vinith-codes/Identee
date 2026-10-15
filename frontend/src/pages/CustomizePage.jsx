@@ -16,6 +16,7 @@ import {
 import { fetchAllGarmentImages } from "../redux/slices/garmentImageSlice";
 import { fetchArtCategories } from "../redux/slices/artCategorySlice";
 import { fetchArtDesigns } from "../redux/slices/artDesignSlice";
+import { fetchPublicSettings } from "../redux/slices/publicSettingsSlice";
 import GarmentVisual from "../components/GarmentVisual";
 import ColorPickerPanel from "../components/ColorPickerPanel";
 import Garment3DViewer from "../components/Garment3DViewer";
@@ -188,6 +189,11 @@ export default function CustomizePage() {
     (!garmentImages.length && !imagesError);
   const { items: artCategories } = useSelector((s) => s.artCategory);
   const { items: artDesigns } = useSelector((s) => s.artDesign);
+  // Shop phone (Admin → Settings → General) for the Contact button.
+  const { values: publicSettings, isLoaded: settingsLoaded } = useSelector(
+    (s) => s.publicSettings,
+  );
+  const phoneDigits = String(publicSettings["general.phoneNumber"] || "").replace(/\D/g, "");
 
   const garment = garmentTypes.find((g) => g.key === type); // from GarmentType (admin "Garment Types" page)
   const colorDoc = garmentImages.find(
@@ -243,6 +249,10 @@ export default function CustomizePage() {
   useEffect(() => {
     return () => dispatch(reset());
   }, [dispatch]);
+
+  useEffect(() => {
+    if (!settingsLoaded) dispatch(fetchPublicSettings());
+  }, [dispatch, settingsLoaded]);
 
   useEffect(() => {
     dispatch(fetchGarmentTypes());
@@ -1018,11 +1028,15 @@ export default function CustomizePage() {
               disabled={isSaving}
             />
             <ToolbarButton label="Share" icon="🔗" onClick={handleShare} />
-            <ToolbarButton
-              label="Contact"
-              icon="📞"
-              onClick={() => (window.location.href = "tel:+916366526449")}
-            />
+            {phoneDigits && (
+              <ToolbarButton
+                label="Contact"
+                icon="📞"
+                onClick={() =>
+                  (window.location.href = `tel:+${phoneDigits.length === 10 ? `91${phoneDigits}` : phoneDigits}`)
+                }
+              />
+            )}
           </div>
 
           <button

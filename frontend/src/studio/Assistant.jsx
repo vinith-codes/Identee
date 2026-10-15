@@ -8,6 +8,7 @@
 import { useEffect, useRef, useState } from "react";
 import { EXAMPLES, replyTo } from "./assistantScript";
 import { imageUrl } from "../utils/imageUrl";
+import WaitCard from "./WaitCard";
 
 /**
  * The conversation (messages) and its state live in the page, so the chat is
@@ -23,7 +24,8 @@ import { imageUrl } from "../utils/imageUrl";
  */
 export default function Assistant({ messages, setMessages, state, setState, ctx, onAct, onFix, placed = {}, fabric }) {
   const [draft, setDraft] = useState("");
-  const [thinking, setThinking] = useState(false); // false | true | a line of text to show while waiting
+  // false | true (a short "Thinking…") | { label, expect, hint } for the AI: a card with a live seconds count
+  const [thinking, setThinking] = useState(false);
   const [pickFor, setPickFor] = useState(null); // the design whose "Other area" list is open
   const log = useRef(null);
   const box = useRef(null);
@@ -45,8 +47,23 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
     const slow = out.find((o) => ["generate", "slogans", "edit"].includes(o.act?.type));
     if (slow) {
       // the AI: wait for the answer, then show what the page hands back
-      setThinking(slow.act.type === "edit" ? "Working on it… (a picture takes about 20 seconds)" : slow.act.type === "slogans" ? "Writing a few…" : slow.act.photoUrl ? (/free/i.test(slow.act.artStyle || "") ? "Making your art…" : "Redrawing your photo… this takes about 20 seconds.") : slow.act.baseUrl ? "Changing your design… this takes about 20 seconds." : "Drawing your designs… this takes about 20 seconds.");
-      Promise.resolve(onAct(slow.act)).then((made) => {
+      const a = slow.act;
+      const PICTURE_HINT = "Usually 20–40 seconds. You can look around the room meanwhile.";
+      setThinking(
+        a.type === "edit"
+          ? { label: "Working on it…", expect: 8, hint: "If you asked for pictures, each one takes about 20–40 seconds." }
+          : a.type === "slogans"
+            ? { label: "Writing a few…", expect: 6 }
+            : a.photoUrl
+              ? /free/i.test(a.artStyle || "")
+                ? { label: "Making your art…", expect: 5 }
+                : { label: "Redrawing your photo…", expect: 35, hint: PICTURE_HINT }
+              : a.baseUrl
+                ? { label: "Changing your design…", expect: 25, hint: PICTURE_HINT }
+                : { label: "Drawing your design…", expect: 25, hint: PICTURE_HINT },
+      );
+      // the page may say what it is doing now (a chat request that turned into drawing two pictures)
+      Promise.resolve(onAct(slow.act, (now) => setThinking(now))).then((made) => {
         setThinking(false);
         setMessages((m) => [...m, ...(made || []), ...reply]);
       });
@@ -70,7 +87,8 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
   const tryAnother = (act) => {
     if (thinking || !act) return;
     setMessages((m) => [...m.map((x) => (x.chips ? { ...x, done: true } : x)), { from: "me", text: "Try another one" }]);
-    setThinking(act.photoUrl ? "Redrawing your photo… this takes about 20 seconds." : "Drawing another one… this takes about 20 seconds.");
+    const hint = "Usually 20–40 seconds. You can look around the room meanwhile.";
+    setThinking(act.photoUrl ? { label: "Redrawing your photo…", expect: 35, hint } : { label: "Drawing another one…", expect: 25, hint });
     Promise.resolve(onAct(act)).then((made) => {
       setThinking(false);
       setMessages((m) => [...m, ...(made || [])]);
@@ -188,7 +206,8 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
           }
           return <div key={i} className={`dr-msg ${m.from}`}>{m.text}</div>;
         })}
-        {thinking && <div className="dr-typing">{thinking === true ? "Thinking…" : thinking}</div>}
+        {thinking === true && <div className="dr-typing">Thinking…</div>}
+        {thinking && thinking !== true && <WaitCard key={`${messages.length}-${thinking.label}`} {...thinking} />}
       </div>
       <form
         className="dr-composer"

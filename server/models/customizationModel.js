@@ -14,7 +14,7 @@ const elementSchema = new mongoose.Schema(
     position: { type: String }, // e.g. "centre-front" (v2)
     side: {
       type: String,
-      enum: ["front", "back", "right", "left"],
+      enum: ["front", "back", "right", "left", "shorts"], // shorts = the co-ord set's shorts
       default: "front",
     },
 

@@ -1,6 +1,7 @@
 import express from "express";
 import {
   getGarmentTypes,
+  getComingSoonGarments,
   getGarmentTypeByKey,
   createGarmentType,
   updateGarmentType,
@@ -15,6 +16,7 @@ import { protect, admin } from "../middleware/authMiddleware.js";
 const router = express.Router();
 
 router.get("/", getGarmentTypes);
+router.get("/coming-soon", getComingSoonGarments);
 // admin routes go before "/:key" so "admin" is not read as a key
 router.get("/admin/all", protect, admin, adminGetGarmentTypes);
 router.get("/admin/:key", protect, admin, adminGetGarmentType);
