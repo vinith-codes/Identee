@@ -2,7 +2,11 @@
 # to the IDENTEE Regular fit size chart (size M: chest 40" round = 20" flat, length 28").
 # Same method as build_oversized.py — only the size-M proportions differ.
 #   python build_regular.py <white_photo_front_back.png> <side_white.png> <outdir> <pylib> [--no-hanger]
+#                           [--fit=CHEST_FLAT_IN,LENGTH_IN,LEN_PX,TOP_Y[,CHEST_ROW]]
 # (--no-hanger for a flat-lay photo, e.g. the kids tee: then the shirt's top rows are recoloured too)
+# (--fit for other garments, e.g. the crops: their size-M flat chest and length, and where the shoulder
+#  top / hem go on the canvas — a crop is wide and short, so it is drawn smaller to fit the canvas.
+#  The garment's photo ruler is then TOP_Y/10 and (TOP_Y + LEN_PX)/10 %.)
 # Writes <colour>-<view>.jpg (800x1000) and calibration.json (pixels per inch
 # and the shirt outline per view, used to size print areas per garment size).
 import sys, json
@@ -23,6 +27,14 @@ M_CHEST_IN, M_LENGTH_IN = 20, 28          # IDENTEE Regular fit, size M (from th
 # (27.3% and 87.4% of the canvas), so both garments' photos line up.
 TARGET_LEN_PX = 601                        # shoulder top -> hem on the canvas
 SHIRT_TOP_Y = 273                          # where the shoulder top sits on the canvas
+FIT = next((a.split("=", 1)[1] for a in sys.argv[5:] if a.startswith("--fit=")), None)
+CHEST_ROW = 0.55                           # where the body width is measured (fraction of shoulder -> hem), below the sleeves
+if FIT:
+    vals = [float(v) for v in FIT.split(",")]
+    M_CHEST_IN, M_LENGTH_IN, TARGET_LEN_PX, SHIRT_TOP_Y = vals[:4]
+    TARGET_LEN_PX, SHIRT_TOP_Y = int(TARGET_LEN_PX), int(SHIRT_TOP_Y)
+    if len(vals) > 4:
+        CHEST_ROW = vals[4]                    # a crop's sleeves reach further down its short body
 PPI = TARGET_LEN_PX / M_LENGTH_IN          # pixels per inch for size M
 
 COLOURS = {
@@ -61,7 +73,7 @@ def place_photo_half(half):
     widths = a.sum(1)
     rows = np.where(widths > widths.max() * 0.25)[0]   # the shirt's rows (the hanger's are much narrower)
     top, hem = rows[0], rows[-1]
-    ychest = top + int((hem - top) * 0.55)                 # below the sleeves
+    ychest = top + int((hem - top) * CHEST_ROW)            # below the sleeves
     r = np.where(a[ychest])[0]
     chest_px, body_cx = r.max() - r.min(), (r.max() + r.min()) / 2
     sx = (M_CHEST_IN / M_LENGTH_IN) / (chest_px / (hem - top))

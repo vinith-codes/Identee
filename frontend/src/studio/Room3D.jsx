@@ -365,7 +365,7 @@ const RACK_L = [-2.8, 0.5, -1.9];
 const RACK_R = [2.8, 0.5, -1.9];
 
 function Boutique({ visible, model, colour }) {
-  const { geo } = useTeeGeometry(model.url);
+  const { geo } = useTeeGeometry(model);
   // how dark the customer's tee is (0 = white, 1 = black): a dark tee gets more light on its edges,
   // otherwise it would melt into the dark room
   const dark = useMemo(() => {
@@ -640,8 +640,9 @@ function floatGeometry(src) {
   return geo;
 }
 
-function useTeeGeometry(url) {
-  const gltf = useGLTF(url);
+function useTeeGeometry(model) {
+  const gltf = useGLTF(model.url);
+  const hang = model.hangHalfHeight;
   return useMemo(() => {
     gltf.scene.updateMatrixWorld(true);
     let src = null;
@@ -652,6 +653,8 @@ function useTeeGeometry(url) {
     geo.computeBoundingBox();
     const c = new THREE.Vector3();
     geo.boundingBox.getCenter(c);
+    // a crop hangs from its shoulders at the same height as a full-length tee (else, centred, it floats up)
+    if (hang) c.y = geo.boundingBox.max.y - hang;
     const offset = new THREE.Matrix4().makeTranslation(-c.x, -c.y, -c.z);
     geo.applyMatrix4(offset);
     // measured points are raw z-up: (x, y, z) → (x, z, −y), then the same centring
@@ -663,7 +666,7 @@ function useTeeGeometry(url) {
     const map = src.material.map;
     if (map) map.colorSpace = THREE.SRGBColorSpace;
     return { geo, probe, map, normalMap: src.material.normalMap };
-  }, [gltf]);
+  }, [gltf, hang]);
 }
 
 const SLEEVE_DEPTH = 0.09; // metres: enough for the sleeve's curve, not enough to reach the body behind it
@@ -824,7 +827,7 @@ function Decal({ probe, spot, canvas, version, areaKey, onPick, interactive, ord
 }
 
 function Tee({ model, colour, areas, onPickArea, interactive, still, spotsRef, turntable, spin, face, spinSpeed, unfoldKey, onLit, hotspots, glowKey, activeKey, onHoverArea, popKey, showcase, twirlKey }) {
-  const { geo, probe, map, normalMap } = useTeeGeometry(model.url);
+  const { geo, probe, map, normalMap } = useTeeGeometry(model);
   // a full turn that eases out: on stepping into the room and when the tee's colour is changed there
   const twirl = useRef({ key: twirlKey, t: 9, from: 0 });
   const group = useRef();

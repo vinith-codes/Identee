@@ -179,6 +179,19 @@ texture (plain material).
   11 31/13/21.5, 12 32/13.5/22.5, 13-14 34/14/24 (chest round / shoulder / length, inches — ESTIMATES, client to confirm).
 - Girls Round Neck (girls-round-neck): reuses the Boys Round Neck photos (same tee); sizeChart = the kids rows (4-6, 7-8,
   9-10, 11-12, 13-14) + the regular adult chart XS–5XL.
+- **Crop Top with Collar** (girls-crop-top-collar) and **Oversized Crop** (girls-oversized-crop) — LIVE since 15 Oct, ESTIMATED charts:
+  - 3D: `collar-crop-top.glb` = "T-shirt Polo Lengan Pendek" by Ikal.Ichwan (CC BY 4.0) with buttons, button strip and
+    pocket removed, the front slit opened into a V and the body cropped (`identee-private-assets/3D-models/build_crop_polo.py`);
+    `oversized-crop.glb` = the oversized tee cut to 2/3 of its length (`crop_oversized.mjs`, keeps its texture).
+    TEE_MODELS.collarCrop / oversizedCrop; `modelForGarment` checks "crop" first. New model option `hangHalfHeight`:
+    a crop hangs from its shoulders at the full tee's height (Room3D `useTeeGeometry(model)`), else it floats up.
+    Footer + ATTRIBUTION credit the polo's maker.
+  - Collar crop: front prints start 1.5 cm below the V. Print sizes (garment overrides, M–XL): chests 10×10, Centre
+    Front 22×20, Top Back 30×10. Chart M 34/14/20 (chest/shoulder/length, matched to the product photo's proportions),
+    kids 10-12 / 12-13 / 13-14 + XS–5XL.
+  - Oversized crop: Centre Front 28×26, Full Back 36×30, chests and Top Back as the tee. Chart M 46/23/20 (the tee's chest,
+    length 2/3), kids 4-6 … 13-14 + XS–5XL. The catalogue's Left/Right Corner and Back Small have no print size yet.
+  - Photos: 48 each (README "The crops"), ruler 30/70.
 - Kids and Girls Round Neck are **LIVE since 15 Oct** with ESTIMATED kids charts and print sizes (user: "give approximate
   measurements, we'll change them when the client gives them"). Until the print team's kids sizes arrive, `printPositions.js` gives each kids age size the S print size scaled by its chest (e.g. Centre Front 16×19 cm
   at 4-6, Full Back 23×26 cm), and 4XL/5XL the 3XL size (before, both fell back to L). Checked in the room at 4-6.

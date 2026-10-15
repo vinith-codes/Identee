@@ -182,11 +182,12 @@ export default function SiteFooter() {
           </nav>
           {s["general.storeDescription"] && <span>{s["general.storeDescription"]}</span>}
         </div>
-        {/* Credits. The 3D tee is free to use under CC BY 4.0 only while its maker is named — keep this line. */}
+        {/* Credits. The 3D models are free to use under CC BY 4.0 only while their makers are named — keep this line. */}
         <p className="sf-credits">
           Credits:{" "}
-          <a href={TEE_MODELS.oversized.credit.href} target="_blank" rel="noopener noreferrer">3D tee model “oversized_t-shirt” by ap-school</a> and{" "}
-          <a href={TEE_MODELS.regular.credit.href} target="_blank" rel="noopener noreferrer">3D tee model “Tshirt” by Tabbuso</a>, used under{" "}
+          <a href={TEE_MODELS.oversized.credit.href} target="_blank" rel="noopener noreferrer">3D tee model “oversized_t-shirt” by ap-school</a>,{" "}
+          <a href={TEE_MODELS.regular.credit.href} target="_blank" rel="noopener noreferrer">3D tee model “Tshirt” by Tabbuso</a> and{" "}
+          <a href={TEE_MODELS.collarCrop.credit.href} target="_blank" rel="noopener noreferrer">3D polo model “T-shirt Polo Lengan Pendek” by Ikal.Ichwan</a>, used under{" "}
           <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener noreferrer">CC BY 4.0</a>.
         </p>
       </div>

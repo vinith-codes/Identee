@@ -9,3 +9,13 @@ regular-tee.glb
   by Tabbuso (https://sketchfab.com/Tabbuso), licensed under CC-BY-4.0
   (http://creativecommons.org/licenses/by/4.0/).
   Changes: meshes joined, welded, simplified to ~67k triangles, converted to metres and turned to face front, plain material, quantized.
+
+oversized-crop.glb
+  oversized-tee.glb (above, by ap-school, CC-BY-4.0) cut to 2/3 of its length for the Oversized Crop.
+
+collar-crop-top.glb
+  Based on "T-shirt Polo Lengan Pendek" (https://sketchfab.com/3d-models/t-shirt-polo-lengan-pendek-74c33d16b31346f1a46a55c3ec8e8a78)
+  by Ikal.Ichwan (https://sketchfab.com/Ikal.Ichwan), licensed under CC-BY-4.0
+  (http://creativecommons.org/licenses/by/4.0/).
+  Changes: buttons, button strip, pocket, label and stitch lines removed; front slit opened into a V; body cropped;
+  converted to metres and turned to face front, one mesh, plain material, welded, quantized.

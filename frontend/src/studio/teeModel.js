@@ -42,11 +42,44 @@ export const TEE_MODELS = {
       right: { top: 1.545, lateral: 0.069 },
     },
   },
+  // Oversized Crop: the oversized tee cut to 2/3 of its length (crop 20" ÷ tee 30" at M), same print anchors.
+  oversizedCrop: {
+    url: "/models/oversized-crop.glb",
+    credit: { text: "3D tee: “oversized_t-shirt” by ap-school, CC BY 4.0 (cropped)", href: "https://sketchfab.com/3d-models/oversized-t-shirt-e6f9b60f58404ccaa40e8e3bdb4edc95" },
+    lengthCm: 48.3,
+    hangHalfHeight: 0.355, // hang from the shoulders at the full tee's height (half the oversized tee's 0.71 m)
+    anchors: {
+      front: { top: 1.58 - 0.08, neck: 1.58 },
+      back: { top: 1.6096 - 0.07, neck: 1.6096 },
+      left: { top: 1.5286 - 0.05, lateral: 0.0314 },
+      right: { top: 1.5174 - 0.05, lateral: 0.0444 },
+    },
+  },
+  // Crop Top with Collar: a polo with the buttons, button strip and pocket removed, the front slit opened into a
+  // V and the body cropped (identee-private-assets/3D-models/build_crop_polo.py).
+  collarCrop: {
+    url: "/models/collar-crop-top.glb",
+    credit: { text: "3D top: “T-shirt Polo Lengan Pendek” by Ikal.Ichwan, CC BY 4.0 (cropped)", href: "https://sketchfab.com/3d-models/t-shirt-polo-lengan-pendek-74c33d16b31346f1a46a55c3ec8e8a78" },
+    lengthCm: 42.6, // shoulder top → hem
+    hangHalfHeight: 0.355,
+    anchors: {
+      // the front prints start 1.5 cm below the bottom of the V (1.470), clear of the opening
+      front: { top: 1.455, neck: 1.6057 },
+      back: { top: 1.638 - 0.07, neck: 1.638 },
+      left: { top: 1.6217 - 0.05, lateral: 0.0676 },
+      right: { top: 1.6225 - 0.05, lateral: 0.0686 },
+    },
+  },
 };
 
 // Which 3D model a garment uses (null = no 3D model → flat studio).
 export const modelForGarment = (garment) => {
   if (!garment) return null;
+  const name = `${garment.category || ""} ${garment.key || ""}`;
+  if (/crop/i.test(name)) {
+    if (/collar|polo/i.test(name)) return TEE_MODELS.collarCrop;
+    if (/oversized/i.test(name)) return TEE_MODELS.oversizedCrop;
+  }
   if (garment.fit === "oversized" || /oversized/i.test(garment.category || "") || /oversized/i.test(garment.key || "")) {
     return TEE_MODELS.oversized;
   }
