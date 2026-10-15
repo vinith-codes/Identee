@@ -136,6 +136,14 @@ small in a 10 × 52 cm strip — and "in vertical front" was sent to Google as p
 - Checked: the Assistant's replies for 4 messages, and the turned placement drawn with konvaRender. NOT checked with a real
   picture from Google (costs ~₹14 for one request of 4 pictures) — needs the user's go-ahead.
 
+**`feature-category-cards` — NOT MERGED (waiting for the user's "merge"):** "Design your own" (/customizable) now starts
+with one card per customizable collection, numbered like the client's catalogue (01 Girls Wear · 02 Unisex & Kids Wear ·
+03 Boys Wear); a card opens /customizable?category=<slug> with that collection's garments, or "Coming soon". A category
+shows when isCustomizable + active and it has a live garment or comingSoon. Card picture = the category image (Admin →
+Categories, 4:5) else the first garment's photo else gold initials. The home page's "Design your own" buttons now open
+/customizable (they went straight to the oversized tee). DB (15 Oct, with the user's go-ahead): the 3 categories added and
+oversized-tee's category set to "Boys Oversized" → Boys Wear. New catalogue garments should get the oversized tee's 12 colours.
+
 **`feature-policy-pages` — MERGED to `main` on 14 Oct 2026:** the four policy pages Razorpay checks
 before live payments: /terms, /privacy-policy, /refund-policy, /shipping-policy (`pages/PolicyPage.jsx`, one component;
 links in `utils/policyLinks.js`, shown in the footer's bottom row and as a side menu on each page). Business name, email,

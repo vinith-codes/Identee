@@ -156,7 +156,7 @@ export function HomeWays({ garment, customPhoto, stackPhotos, custom, ready }) {
           <p>Make something that's only yours, or choose from finished designs ready to wear.</p>
         </div>
         <div className="hm-ways">
-          <Link className="hm-way custom" to={garment ? `/customize/${garment.key}?new=1&color=white` : "/customizable"} data-reveal="draw"
+          <Link className="hm-way custom" to="/customizable" data-reveal="draw"
             onMouseEnter={(e) => {
               const el = e.currentTarget;
               el.classList.remove("draw");
@@ -376,7 +376,7 @@ function Vid({ src, par }) {
 }
 
 /* ---------- closing band ---------- */
-export function HomeFinal({ garment, photos }) {
+export function HomeFinal({ photos }) {
   const half = Math.ceil(photos.length / 2);
   const a = photos.slice(0, half);
   const b = photos.slice(half).length ? photos.slice(half) : photos;
@@ -390,7 +390,7 @@ export function HomeFinal({ garment, photos }) {
             Walk into the <em>design room.</em>
           </h2>
           <p>Drop in your artwork, place it, turn the tee around and see it exactly as it will be printed.</p>
-          <Link className="hm-btn gold" to={garment ? `/customize/${garment.key}?new=1&color=white` : "/customizable"}>
+          <Link className="hm-btn gold" to="/customizable">
             Start designing <span className="arr">→</span>
           </Link>
         </div>
