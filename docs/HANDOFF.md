@@ -136,6 +136,11 @@ small in a 10 × 52 cm strip — and "in vertical front" was sent to Google as p
 - Checked: the Assistant's replies for 4 messages, and the turned placement drawn with konvaRender. NOT checked with a real
   picture from Google (costs ~₹14 for one request of 4 pictures) — needs the user's go-ahead.
 
+**`feature-wider-assistant` — MERGED to `main` on 15 Oct 2026:** the client asked for more space for the assistant. Its
+panel is 440 px (400 px on 761–1279 px screens) instead of the editor's 364 px, and a "Wider" button in its header makes it
+about half the screen (`data-wide`, clamp 480–780 px; remembered in localStorage `identee:assistWide`). Wide: examples in two
+columns, AI pictures in three. Phones unchanged (the button is hidden).
+
 **`feature-try-another` — MERGED to `main` on 15 Oct 2026:** AI pictures are now ONE per request (the user
 set Admin → AI designs → Pictures per request = 1, daily limit 5), so the newest AI picture in the Assistant gets a
 "↻ Try another" button (`tryAnother` in `Assistant.jsx`): it repeats the same request (`again` on the designs message,
