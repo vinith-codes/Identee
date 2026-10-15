@@ -144,6 +144,13 @@ in `RULES` at the top of the file: printing 2–4 working days (team 5–7), del
 misprint/damage within 3 days, ready-made size exchange within 7 days, refund 5–7 working days, custom orders
 cancellable until printing starts (usually 24 h). Not legal advice — the client / their CA should read them.
 
+**`fix-old-phone-number` — pushed, NOT merged (15 Oct 2026; merge only when the user says "merge"):** an old number
+(+91 636 652 6449) was hard-coded as a fallback and flashed in the header before settings loaded. Now the header
+(`Navbar.jsx`), Contact Us and the Design Room "Contact" button use only Admin → Settings → General → phone number
+(`general.phoneNumber`, now 8870008311) and show nothing until it loads. Phone links are built like the footer's
+(10 digits → `tel:+91…`); Contact Us had been linking `tel:+8870008311` (no 91). Checked in the browser: header, footer and
+Contact Us all show 8870008311 → `tel:+918870008311`.
+
 **`fix-email-sender` — MERGED to `main` on 14 Oct 2026 (Zoho live: login code reached a Gmail inbox; SPF, DKIM, DMARC all live):** one email setup for everything the site sends
 (`server/utils/mailer.js`: `mailer()`, `fromAddress()`, `shopInbox()`). Before, only login codes could use EMAIL_HOST; order
 / invoice, contact-form, enquiry and review emails were hard-wired to Gmail, and contact messages, enquiries and invoice
