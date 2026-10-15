@@ -27,6 +27,7 @@ import Assistant from "./Assistant";
 import { AFTER_AI_SLOGANS, AFTER_DESIGN_CHIPS, bot as botSays, checkMessages, chips as chipRow, firstMessages, firstState } from "./assistantScript";
 import aiService from "../services/aiService";
 import { applyAiOps, areaFor, describeDesign } from "./aiOps";
+import WaitCard from "./WaitCard";
 import { checkDesign, inksFor, printSharpness } from "./designCheck";
 import { TEMPLATES } from "./designTemplates";
 import { FONTS, addStudioFonts } from "./fonts";
@@ -704,7 +705,7 @@ export default function DesignRoomPage() {
     if (!el || el.type !== "image" || !pos || busy) return;
     if (!ai.available) return say("That isn’t available right now.");
     if (!isLoggedIn()) return say("Log in to use this.");
-    setBusy(kind === "recolour" ? "Recolouring your picture… about 20 seconds" : "Redrawing your picture sharper… about 20 seconds");
+    setBusy({ label: kind === "recolour" ? "Recolouring your picture…" : "Redrawing your picture sharper…", expect: 25, hint: "Usually 20–40 seconds." });
     try {
       const { W, H } = areaPx(pos);
       const res = await aiService.design({ fixUrl: el.src, fixKind: kind, teeColour: colour?.name || "white", teeIsDark: lum(fabricHex) < 0.55, ratio: W / H });
@@ -883,7 +884,8 @@ export default function DesignRoomPage() {
     photoOnTee: [...elements].reverse().find((e) => e.type === "image" && !e.artDesignId && !aiCuts.current.has(e.src))?.src || null,
   });
   // Edit the tee by chat: the text AI suggests changes, aiOps checks and applies them (one Undo step).
-  const chatEdit = async (a) => {
+  // progress(now): tells the assistant's wait card what is happening now (drawing the pictures asked for)
+  const chatEdit = async (a, progress) => {
     try {
       const res = await aiService.edit({
         message: a.message,
@@ -920,6 +922,10 @@ export default function DesignRoomPage() {
       if (pictures.length && !ai.available) extra.push(botSays("Pictures can’t be made right now. You can pick from the art library or upload your own."));
       else if (pictures.length && !isLoggedIn()) extra.push(botSays("Log in and I’ll draw the pictures for you."), chipRow(["Log in"]));
       else {
+        if (pictures.length) {
+          // one after the other, about 20–40 seconds each
+          progress?.({ label: pictures.length > 1 ? `Drawing ${pictures.length} pictures…` : "Drawing your picture…", expect: 25 * pictures.length, hint: `Usually 20–40 seconds${pictures.length > 1 ? " for each" : ""}. You can look around the room meanwhile.` });
+        }
         for (const pic of pictures) {
           const used = [...new Set(els.map((e) => e.position))];
           // that area, or the biggest free one on the same side (e.g. "the back" on a crop top with only Top Back)
@@ -1123,10 +1129,10 @@ export default function DesignRoomPage() {
     const pos = positions.find((p) => p.key === issue.position);
     commit((prev) => prev.map((e) => (e.id !== issue.elId ? e : issue.measure && pos ? textBox({ ...e, ...issue.patch }, pos) : { ...e, ...issue.patch })));
   };
-  const assistantAct = (a) => {
+  const assistantAct = (a, progress) => {
     if (a.type === "generate") return generateDesigns(a);
     if (a.type === "slogans") return writeSlogans(a);
-    if (a.type === "edit") return chatEdit(a);
+    if (a.type === "edit") return chatEdit(a, progress);
     if (a.type === "photoPick") return photoRef.current?.click();
     if (a.type === "place") return placeAiDesign(a.url, a.areaKey);
     if (a.type === "login") return goToLogin();
@@ -1963,7 +1969,12 @@ export default function DesignRoomPage() {
         )}
 
         {toast && <div className="dr-toast" role="status">{toast}{/log in/i.test(toast) && <button type="button" onClick={goToLogin}>Log in</button>}</div>}
-        {busy && <div className="dr-busy" role="status">{busy}</div>}
+        {/* busy: a line of text, or { label, expect, hint } for the AI (a card with a live seconds count) */}
+        {busy && (
+          <div className="dr-busy">
+            <WaitCard key={typeof busy === "string" ? busy : busy.label} {...(typeof busy === "string" ? { label: busy } : busy)} />
+          </div>
+        )}
       </main>
 
       {step === "review" && (
