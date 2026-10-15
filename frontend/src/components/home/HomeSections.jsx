@@ -214,6 +214,50 @@ export function HomeWays({ garment, customPhoto, stackPhotos, custom, ready }) {
 }
 
 /* ---------- three steps (the real Design Room order) ---------- */
+/* ---------- the Photo Studio, highlighted: the customer's photo as art, or print-ready ---------- */
+export function HomePhoto({ garment }) {
+  // straight into the design room, which opens the Photo Studio (?photo=1)
+  const href = garment ? `/customize/${garment.key}?new=1&photo=1` : "/customizable";
+  const looks = [
+    ["Cartoon", "linear-gradient(135deg,#FFB547,#FF6B6B)"],
+    ["Sketch", "linear-gradient(135deg,#E9E4D8,#8A8172)"],
+    ["Sticker", "linear-gradient(135deg,#7FD1FF,#B57BFF)"],
+    ["Pop art", "linear-gradient(135deg,#FFE14D,#FF3EA5)"],
+    ["Watercolour", "linear-gradient(135deg,#9FE3C7,#F7B2C4)"],
+    ["Print-ready photo", "linear-gradient(135deg,#2A2622,#C9A24B)"],
+  ];
+  return (
+    <section className="hm-photo" aria-label="Your photo on a tee">
+      <div className="hm-wrap hm-photo-in">
+        <div className="hm-photo-copy" data-reveal>
+          <p className="hm-eyebrow">New · Photo studio</p>
+          <h2>Your photo, on a tee</h2>
+          <p>
+            Upload a photo of anyone or anything you love. Turn it into art, or keep it a photo with the background removed,
+            ready to print. Then see it on your tee in 3D.
+          </p>
+          <ol>
+            <li><b>1</b> Upload your photo</li>
+            <li><b>2</b> Pick art or print-ready</li>
+            <li><b>3</b> Add it to your tee</li>
+          </ol>
+          <Link className="hm-btn gold" to={href}>
+            Start with your photo <span className="arr">→</span>
+          </Link>
+        </div>
+        <ul className="hm-photo-looks" data-reveal aria-label="Looks your photo can have">
+          {looks.map(([name, bg], i) => (
+            <li key={name} style={{ "--i": i }}>
+              <i style={{ background: bg }} aria-hidden="true" />
+              {name}
+            </li>
+          ))}
+        </ul>
+      </div>
+    </section>
+  );
+}
+
 export function HomeSteps() {
   const steps = [
     ["Pick colour & size", "Every print area is shown at its real size in cm for the size you choose."],

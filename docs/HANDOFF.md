@@ -136,6 +136,20 @@ small in a 10 × 52 cm strip — and "in vertical front" was sent to Google as p
 - Checked: the Assistant's replies for 4 messages, and the turned placement drawn with konvaRender. NOT checked with a real
   picture from Google (costs ~₹14 for one request of 4 pictures) — needs the user's go-ahead.
 
+**`feature-photo-studio` (15 Oct, the boss's request — a highlighted feature):** the customer's photo, as ART or PRINT-READY.
+- `frontend/src/studio/PhotoStudio.jsx`: a panel in the editor's place (like the assistant): upload (or drop) a photo → "Turn it
+  into art" (the image AI's photo styles Cartoon / Sketch / Sticker / Watercolour / Pop art — 1 request each, Google then Grok —
+  or "Free instant looks" = our art filters) or "Keep it a photo — print-ready" (background removed in the browser, free; and
+  optionally "Enhance with AI", 1 request) → results with Add to tee (on the open area, else the front's main one) and, for a
+  photo, a print check (DPI at full area size). Never stuck: wait card per step, errors with Try again / Back, a way back everywhere.
+  Its state stays while closed. The assistant's "Photo to art" opens it too.
+- Server: fix kind `photo` (aiImageService PHOTO_ENHANCE: same real photograph, only sharper / cleaner light; not cut out).
+- Entry points: first screen "Start with my photo" (gold), the room's first start card "Your photo", a top-bar "Your photo"
+  button, the Upload tab, a home-page band (HomePhoto → /customize/<garment>?new=1&photo=1, which opens the studio) and a strip
+  on /customizable.
+- Tested with the network faked (no login used, no AI cost): every step, a failure + Try again, print-ready with the real
+  in-browser background removal. NOT yet tested with the real AI (needs a logged-in test and paid requests).
+
 **`feature-assistant-no-dead-ends` — MERGED to `main` on 15 Oct 2026 (0f7c392):** the customer must never feel stuck in the assistant. One path for every slow AI job
 (`run` in Assistant.jsx) that always ends — also when the request throws — so the wait card can't stay forever. A failed
 request shows "↻ Try again" (the same request; the page returns `{ failed: true }`, or `{ retry: act }` for just the picture

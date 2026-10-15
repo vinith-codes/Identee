@@ -156,7 +156,7 @@ export const makeAiDesign = asyncHandler(async (req, res) => {
   // fixing a picture that is on the tee: make it sharper, or recolour it for this tee
   const fixing = !changing && !fromPhoto && Boolean(req.body.fixUrl) && FIX_KINDS.includes(req.body.fixKind);
   const text = fixing
-    ? (req.body.fixKind === "recolour" ? "Recolour a picture for the tee" : "Make a picture sharper")
+    ? (req.body.fixKind === "recolour" ? "Recolour a picture for the tee" : req.body.fixKind === "photo" ? "Photo Studio: enhance a photo" : "Make a picture sharper")
     : fromPhoto
     ? `Photo to art: ${PHOTO_STYLES[req.body.artStyle] ? req.body.artStyle : "Cartoon"}`
     : String((changing ? req.body.change : req.body.subject) || "").replace(/\s+/g, " ").trim().slice(0, 300);
@@ -175,7 +175,8 @@ export const makeAiDesign = asyncHandler(async (req, res) => {
     }
     const stored = await fetchOurImage(req.body.fixUrl, req);
     const dark = Boolean(req.body.teeIsDark);
-    const flat = await sharp(stored.data).rotate().resize(1536, 1536, { fit: "inside", withoutEnlargement: true }).flatten({ background: dark ? "#000000" : "#ffffff" }).jpeg({ quality: 92 }).toBuffer();
+    // (a photo keeps its own background: it is only made sharper)
+    const flat = await sharp(stored.data).rotate().resize(1536, 1536, { fit: "inside", withoutEnlargement: true }).flatten({ background: dark && req.body.fixKind !== "photo" ? "#000000" : "#ffffff" }).jpeg({ quality: 92 }).toBuffer();
     jobs = [generateImage({ prompt: fixPrompt({ kind: req.body.fixKind, teeColour: teeName, teeIsDark: dark }), image: { data: flat, mime: "image/jpeg" }, ratio: nearestRatio(req.body.ratio) })];
   } else if (fromPhoto) {
     // a customer's own photo, redrawn as art (two options)
@@ -236,7 +237,15 @@ export const makeAiDesign = asyncHandler(async (req, res) => {
     throw new Error(err?.message || "The design maker had a problem. Please try again.");
   }
   // cut each design out of its plain background here, so "Add to tee" is instant in the Design Room
-  let cut = await Promise.all(made.map((m) => cutOutPlainBackground(m.buffer).catch(() => ({ buffer: m.buffer, mime: m.mime, width: 1024, height: 1024, cut: false }))));
+  // (an enhanced photo is not cut: it is a photograph, its light parts are not a background)
+  const keepPhoto = fixing && req.body.fixKind === "photo";
+  let cut = await Promise.all(
+    made.map((m) =>
+      keepPhoto
+        ? sharp(m.buffer).metadata().then((md) => ({ buffer: m.buffer, mime: m.mime, width: md.width || 1024, height: md.height || 1024, cut: false }))
+        : cutOutPlainBackground(m.buffer).catch(() => ({ buffer: m.buffer, mime: m.mime, width: 1024, height: 1024, cut: false })),
+    ),
+  );
   // a one-line banner: drop the empty space around the words, so it runs the full length of the strip
   if (banner) {
     cut = await Promise.all(

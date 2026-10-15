@@ -27,6 +27,7 @@ import {
   HomePromises,
   HomeOutlook,
   HomeFinal,
+  HomePhoto,
 } from "../components/home/HomeSections";
 import useReveal from "../components/home/useReveal";
 import "../components/home/home.css";
@@ -224,6 +225,7 @@ export default function Home() {
 
       <HomeHero garment={garment} colours={colours.slice(0, 6)} printCm={printCm} />
       <HomeMarquee />
+      <HomePhoto garment={garment} />
       <HomeWays garment={garment} customPhoto={garment ? coverPhoto(garment, garmentImages) : null} stackPhotos={stackPhotos} custom={custom} ready={ready} />
       <HomeSteps />
       <HomeFeatured products={products} />

@@ -87,9 +87,17 @@ export const photoArtPrompt = ({ style, teeColour, teeIsDark, variation, of }) =
     .join(" ");
 
 // Fixing a picture that is already on the tee (the customer's upload or an AI design).
-export const FIX_KINDS = ["sharpen", "recolour"];
+// photo = Photo Studio's "Enhance": the customer's photo made print-ready, still a real photograph
+export const FIX_KINDS = ["sharpen", "recolour", "photo"];
+const PHOTO_ENHANCE =
+  "Enhance this photograph so it prints sharp and clean on a t-shirt. It must stay the SAME real photograph: the same people, " +
+  "faces, expressions, hair, pose, clothes, objects, colours and composition — do not redraw, restyle, beautify or change anyone. " +
+  "Only make it sharper and clearer: remove blur, noise, grain and compression blocks, recover fine detail, and balance the light " +
+  "and contrast naturally. Keep any words exactly as they are. Keep the background as it is. No added text, frame, border or watermark.";
 export const fixPrompt = ({ kind, teeColour, teeIsDark }) =>
-  kind === "recolour"
+  kind === "photo"
+    ? PHOTO_ENHANCE
+    : kind === "recolour"
     ? `Recolour this design so it stands out clearly when printed on a ${teeColour} t-shirt. Keep exactly the same drawing, shapes, words and layout; change only the colours (for example dark lines become light on a dark t-shirt). The background must be flat pure ${teeIsDark ? "black" : "white"} and nothing else. Do not add a t-shirt, a frame or a watermark.`
     : `Redraw this exact image as clean, sharp, high-resolution artwork ready for printing. Keep the same design, shapes, colours, words and layout exactly as they are; only remove blur, noise, pixel blocks and jagged edges. Spell any words exactly as in the image. The background must be flat pure ${teeIsDark ? "black" : "white"} and nothing else. Do not add a t-shirt, a frame or a watermark.`;
 
