@@ -173,6 +173,12 @@ texture (plain material).
   than the chart, so it is widened to 20" × 28" at M), 12 garmentcolorimages docs, sizeChart XS–3XL from the PDF + 4XL/5XL
   continuing its steps (ESTIMATE), photoRuler 27.3/87.4. **LIVE since 15 Oct** (user's go-ahead), using the catalogue's
   oversized-based print sizes until the print team gives regular-tee sizes.
+- **AI features on every garment** (15 Oct): the assistant's "Where to print" only offers kinds of print the garment
+  has areas for (+ "On the shorts"); area names match without "Shorts –" ("left leg"); a short "draw … on the left leg"
+  makes the picture for that area (`subjectAndArea`); one-sentence requests also route on shorts/leg words. The text AI
+  gets each area's side and is told to use the biggest free area on a side the garment lacks (Full Back on the crop top
+  → Top Back); `aiOps.areaFor` does the same for add_text / move / make_picture, and says so when nothing is free.
+  Ready layouts say which parts were left out. Tested: "GOAL" on the right leg (co-ord), "PRIYA on the back" → Top Back (crop).
 - **Co-ord Set (T-Shirt + Shorts)** (coord-set) — LIVE since 15 Oct, ESTIMATED charts and leg print sizes:
   - The room shows an OUTFIT: TEE_MODELS.coord = the regular tee + `bottom` (coord-shorts.glb, the shorts from
     "Male Tshirt and Shorts" by kanesk06, CC BY 4.0; `build_shorts.py`). Room3D `Bottoms` renders the shorts inside the

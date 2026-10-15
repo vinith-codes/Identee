@@ -26,7 +26,7 @@ import Rolling from "./Rolling";
 import Assistant from "./Assistant";
 import { AFTER_AI_SLOGANS, AFTER_DESIGN_CHIPS, bot as botSays, checkMessages, chips as chipRow, firstMessages, firstState } from "./assistantScript";
 import aiService from "../services/aiService";
-import { applyAiOps, describeDesign } from "./aiOps";
+import { applyAiOps, areaFor, describeDesign } from "./aiOps";
 import { checkDesign, inksFor, printSharpness } from "./designCheck";
 import { TEMPLATES } from "./designTemplates";
 import { FONTS, addStudioFonts } from "./fonts";
@@ -872,7 +872,7 @@ export default function DesignRoomPage() {
     sizes,
     sizeNow,
     chart: (sz) => garment.sizeChart?.find((r) => r.size === sz),
-    areas: positions.map((p) => ({ key: p.key, label: p.label, free: usedKeys.includes(p.key) || !blockersOf(p.key, positions, usedKeys).length })),
+    areas: positions.map((p) => ({ key: p.key, label: p.label, side: p.side, free: usedKeys.includes(p.key) || !blockersOf(p.key, positions, usedKeys).length })),
     issues: designIssues,
     inks: inksFor(fabricHex, INKS),
     ai: { ...ai, loggedIn: isLoggedIn() },
@@ -921,9 +921,13 @@ export default function DesignRoomPage() {
       else if (pictures.length && !isLoggedIn()) extra.push(botSays("Log in and I’ll draw the pictures for you."), chipRow(["Log in"]));
       else {
         for (const pic of pictures) {
-          const pos = positions.find((p) => p.key === pic.area);
           const used = [...new Set(els.map((e) => e.position))];
-          if (!pos || (!used.includes(pos.key) && blockersOf(pos.key, positions, used).length)) continue;
+          // that area, or the biggest free one on the same side (e.g. "the back" on a crop top with only Top Back)
+          const pos = areaFor(pic.area, positions, used);
+          if (!pos) {
+            extra.push(botSays(`There’s no free print area for ${pic.subject.slice(0, 80)} on this ${garment?.label || "garment"}. Remove a print, or ask for it somewhere else.`));
+            continue;
+          }
           const { W, H } = areaPx(pos);
           try {
             const made = await aiService.design({ subject: pic.subject.slice(0, 200), style: ai.styles.includes(pic.style) ? pic.style : ai.styles[0], teeColour: tee?.name || "white", teeIsDark: lum(tee?.hex || fabricHex) < 0.55, ratio: W / H, count: 2 });
@@ -1095,9 +1099,13 @@ export default function DesignRoomPage() {
     const base = fresh ? [] : elements;
     const taken = [...new Set(base.map((e) => e.position))];
     const added = [];
+    const skipped = []; // parts of the layout with no area on this garment (or covered)
     for (const item of tpl.items) {
       const pos = item.areas.map((k) => positions.find((p) => p.key === k)).find((p) => p && (taken.includes(p.key) || !blockersOf(p.key, positions, taken).length));
-      if (!pos) continue;
+      if (!pos) {
+        skipped.push(item.role ? `the player ${item.role}` : `“${item.text}”`);
+        continue;
+      }
       const { hCm } = areaPx(pos);
       const start = { type: "text", text: item.text, fontFamily: item.font || "Anton", fontSizePct: Math.min(60, (item.cm / hCm) * 100), color: inkDefault, align: "center", effect: "straight", x: 50, y: item.y, width: 0, height: 0, ...(item.role ? { role: item.role } : {}), ...(item.link ? { link: item.link } : {}) };
       let el = textBox(start, pos);
@@ -1105,10 +1113,11 @@ export default function DesignRoomPage() {
       added.push({ id: makeId(), position: pos.key, side: pos.side, rotation: 0, zIndex: base.length + added.length + 1, ...el });
       if (!taken.includes(pos.key)) taken.push(pos.key);
     }
-    if (!added.length) return say("This layout needs print areas that are covered by your current design.");
+    if (!added.length) return say("This layout needs print areas that this garment doesn’t have, or that are covered by your current design.");
     commit(() => [...base, ...added]);
     openArea(added[0].position, { force: true });
     setSelectedId(null);
+    if (skipped.length) say(`Left out ${[...new Set(skipped)].join(", ")}: this ${garment?.label || "garment"} has no free print area for ${skipped.length === 1 ? "it" : "them"}.`);
   };
   const applyFix = (issue) => {
     const pos = positions.find((p) => p.key === issue.position);
