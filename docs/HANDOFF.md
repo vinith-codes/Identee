@@ -144,7 +144,7 @@ in `RULES` at the top of the file: printing 2–4 working days (team 5–7), del
 misprint/damage within 3 days, ready-made size exchange within 7 days, refund 5–7 working days, custom orders
 cancellable until printing starts (usually 24 h). Not legal advice — the client / their CA should read them.
 
-**`fix-old-phone-number` — pushed, NOT merged (15 Oct 2026; merge only when the user says "merge"):** an old number
+**`fix-old-phone-number` — MERGED to `main` on 15 Oct 2026:** an old number
 (+91 636 652 6449) was hard-coded as a fallback and flashed in the header before settings loaded. Now the header
 (`Navbar.jsx`), Contact Us and the Design Room "Contact" button use only Admin → Settings → General → phone number
 (`general.phoneNumber`, now 8870008311) and show nothing until it loads. Phone links are built like the footer's
