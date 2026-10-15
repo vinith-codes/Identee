@@ -154,7 +154,7 @@ oversized-tee's category set to "Boys Oversized" → Boys Wear. New catalogue ga
 - Card pictures: the user then sent a garment-on-a-hanger photo for each of the 6 (15 Oct); they replace the catalogue
   cuts (Cloudinary identee/catalogue/*-hanger.jpg, 800×1000 4:5). The crop top's source was only 203×250 (soft); the girls'
   round neck is pink and a back view — the user may send better ones later.
-- Collection pictures (category.image, Cloudinary identee/categories/girls-wear, boys-wear): photos the user sent of models
+- Collection pictures (category.image, Cloudinary identee/categories/girls-wear, unisex-kids-wear, boys-wear): photos the user sent of models
   wearing a black crop / a printed black oversized tee. The boys photo carried a seller code ("s-986469648") at the bottom —
   cropped off; it looks like another seller's listing photo, so the client should confirm they may use it.
 
