@@ -185,7 +185,8 @@ export default function SiteFooter() {
         {/* Credits. The 3D tee is free to use under CC BY 4.0 only while its maker is named — keep this line. */}
         <p className="sf-credits">
           Credits:{" "}
-          <a href={TEE_MODELS.oversized.credit.href} target="_blank" rel="noopener noreferrer">3D tee model “oversized_t-shirt” by ap-school</a>, used under{" "}
+          <a href={TEE_MODELS.oversized.credit.href} target="_blank" rel="noopener noreferrer">3D tee model “oversized_t-shirt” by ap-school</a> and{" "}
+          <a href={TEE_MODELS.regular.credit.href} target="_blank" rel="noopener noreferrer">3D tee model “Tshirt” by Tabbuso</a>, used under{" "}
           <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener noreferrer">CC BY 4.0</a>.
         </p>
       </div>

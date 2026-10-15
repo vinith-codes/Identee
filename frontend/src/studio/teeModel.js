@@ -26,6 +26,21 @@ export const TEE_MODELS = {
       right: { top: 1.5174 - 0.05, lateral: 0.0444 }, // wearer's right sleeve (raw −x)
     },
   },
+  // Regular-fit round-neck tee — the boys', girls' and kids' round necks (and the co-ord set's tee).
+  // Converted from the Sketchfab file (inches) to metres, front facing +z, one mesh; measured in
+  // identee-private-assets/3D-models/regular-tee-measurements.json.
+  regular: {
+    url: "/models/regular-tee.glb",
+    credit: { text: "3D tee: “Tshirt” by Tabbuso, CC BY 4.0", href: "https://sketchfab.com/3d-models/tshirt-5a21282b2e454d1696547148f617d3d0" },
+    lengthCm: 62.6, // shoulder top → hem at the centre, ≈ size S
+    anchors: {
+      // the main print's top: 8 cm (front) / 7 cm (back) below the neckline, as on the oversized tee
+      front: { top: 1.6328 - 0.08, neck: 1.6328 },
+      back: { top: 1.6802 - 0.07, neck: 1.6802 },
+      left: { top: 1.5406 - 0.05, lateral: 0.0666 },
+      right: { top: 1.582 - 0.05, lateral: 0.0552 },
+    },
+  },
 };
 
 // Which 3D model a garment uses (null = no 3D model → flat studio).
@@ -34,6 +49,8 @@ export const modelForGarment = (garment) => {
   if (garment.fit === "oversized" || /oversized/i.test(garment.category || "") || /oversized/i.test(garment.key || "")) {
     return TEE_MODELS.oversized;
   }
+  // regular-fit round-neck tees (and the co-ord set's tee)
+  if (/round.?neck|co-?ord/i.test(`${garment.category || ""} ${garment.key || ""}`)) return TEE_MODELS.regular;
   return null;
 };
 

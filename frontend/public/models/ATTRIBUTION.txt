@@ -3,3 +3,9 @@ oversized-tee.glb
   by ap-school (https://sketchfab.com/ap-school), licensed under CC-BY-4.0
   (http://creativecommons.org/licenses/by/4.0/).
   Changes: meshes joined, simplified to ~60k triangles, textures resized (normal map 2048 WebP), quantized.
+
+regular-tee.glb
+  Based on "Tshirt" (https://sketchfab.com/3d-models/tshirt-5a21282b2e454d1696547148f617d3d0)
+  by Tabbuso (https://sketchfab.com/Tabbuso), licensed under CC-BY-4.0
+  (http://creativecommons.org/licenses/by/4.0/).
+  Changes: meshes joined, welded, simplified to ~67k triangles, converted to metres and turned to face front, plain material, quantized.
