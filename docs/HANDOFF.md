@@ -158,6 +158,17 @@ oversized-tee's category set to "Boys Oversized" → Boys Wear. New catalogue ga
   wearing a black crop / a printed black oversized tee. The boys photo carried a seller code ("s-986469648") at the bottom —
   cropped off; it looks like another seller's listing photo, so the client should confirm they may use it.
 
+**3D regular round-neck tee (on `feature-category-cards`, not merged):** "Tshirt" by Tabbuso (Sketchfab, CC BY 4.0;
+credit in the room and the footer, `public/models/ATTRIBUTION.txt`). Originals + licence + measurements in
+`identee-private-assets/3D-models/` (tabbuso_tshirt.zip, regular-tee-*). Pipeline: gltf-transform 4.1.1 join → weld → simplify
+0.18 → prune; then a small script baked the inch-unit node transforms into metres, turned it to face +z, wrote one plain-material
+mesh (UVs dropped — decals don't need them), measured it; then quantize → `public/models/regular-tee.glb` (0.96 MB, 67k tris).
+`TEE_MODELS.regular` (lengthCm 62.6 ≈ size S, neck front 1.6328 / back 1.6802, sleeves centred on the short sleeves);
+`modelForGarment` uses it for round-neck / co-ord garments (boys-, girls-, kids-round-neck, coord-set). Checked in the room by
+temporarily showing it for the oversized tee: front + back prints land right; the oversized tee's 9×10 cm sleeve print is wider
+than this slimmer sleeve's face and gets cut — fine once the regular tees get their own (smaller) sleeve sizes. No fabric
+texture (plain material).
+
 **`feature-policy-pages` — MERGED to `main` on 14 Oct 2026:** the four policy pages Razorpay checks
 before live payments: /terms, /privacy-policy, /refund-policy, /shipping-policy (`pages/PolicyPage.jsx`, one component;
 links in `utils/policyLinks.js`, shown in the footer's bottom row and as a side menu on each page). Business name, email,

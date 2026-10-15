@@ -37,15 +37,16 @@ export const TEE_MODELS = {
       // the main print's top: 8 cm (front) / 7 cm (back) below the neckline, as on the oversized tee
       front: { top: 1.6328 - 0.08, neck: 1.6328 },
       back: { top: 1.6802 - 0.07, neck: 1.6802 },
-      left: { top: 1.5406 - 0.05, lateral: 0.0666 },
-      right: { top: 1.582 - 0.05, lateral: 0.0552 },
+      // the sleeves are short (≈14 cm at their outer side): the print's top sits so it is centred on the sleeve
+      left: { top: 1.535, lateral: 0.072 },
+      right: { top: 1.545, lateral: 0.069 },
     },
   },
 };
 
 // Which 3D model a garment uses (null = no 3D model → flat studio).
 export const modelForGarment = (garment) => {
-  if (!garment) return null;
+  if (!garment) return null;
   if (garment.fit === "oversized" || /oversized/i.test(garment.category || "") || /oversized/i.test(garment.key || "")) {
     return TEE_MODELS.oversized;
   }
