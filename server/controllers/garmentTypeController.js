@@ -10,6 +10,9 @@ import {
   cleanBySize,
 } from "../data/printPositions.js";
 
+// Every size a garment can have, in the order shown: kids' ages (the catalogue's groups), then adults.
+const SIZE_ORDER = ["4-6", "7-8", "9-10", "10-12", "11", "11-12", "12", "12-13", "13-14", ...SIZES, "4XL", "5XL"];
+
 function slugify(str) {
   return str
     .toLowerCase()
@@ -123,17 +126,19 @@ export const updateGarmentType = asyncHandler(async (req, res) => {
   }
   if (b.sizes !== undefined) {
     if (!Array.isArray(b.sizes)) badRequest(res, "sizes must be a list");
-    item.sizes = SIZES.filter((sz) => b.sizes.includes(sz)); // keep XS → 3XL order
+    item.sizes = SIZE_ORDER.filter((sz) => b.sizes.includes(sz)); // kids' ages, then XS → 5XL
   }
   if (b.sizeChart !== undefined) {
     if (!Array.isArray(b.sizeChart)) badRequest(res, "sizeChart must be a list");
     item.sizeChart = b.sizeChart
-      .filter((r) => SIZES.includes(r?.size))
+      .filter((r) => SIZE_ORDER.includes(r?.size))
       .map((r) => ({
         size: r.size,
         chest: num(r.chest),
         shoulder: num(r.shoulder),
         length: num(r.length),
+        waist: num(r.waist), // a set's shorts
+        bottomLength: num(r.bottomLength),
       }));
   }
   if (b.colors !== undefined) {

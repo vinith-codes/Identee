@@ -19,3 +19,10 @@ collar-crop-top.glb
   (http://creativecommons.org/licenses/by/4.0/).
   Changes: buttons, button strip, pocket, label and stitch lines removed; front slit opened into a V; body cropped;
   converted to metres and turned to face front, one mesh, plain material, welded, quantized.
+
+coord-shorts.glb
+  Based on "Male Tshirt and Shorts - Plain Texture" (https://sketchfab.com/3d-models/male-tshirt-and-shorts-plain-texture-06b9009696a64e1f87b5400ddbab1cdd)
+  by kanesk06 (https://sketchfab.com/kanesk06), licensed under CC-BY-4.0
+  (http://creativecommons.org/licenses/by/4.0/).
+  Changes: only the shorts kept (mannequin and tee removed), converted to metres and turned to face front,
+  plain material, welded, quantized.

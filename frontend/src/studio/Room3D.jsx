@@ -18,9 +18,13 @@ const VIEWS = {
   back: [0, 0.3, -4.3],
   left: [4.0, 0.3, 0.3],
   right: [-4.0, 0.3, 0.3],
+  shorts: [0, -0.3, 2.8], // the co-ord set's shorts (below the tee), seen from the front
 };
+// where a view looks (default: the middle of the tee)
+const VIEW_LOOK = { shorts: [0, -0.45, 0] };
 const RAY = {
   front: { origin: (p) => new THREE.Vector3(p.x, p.y, 2), dir: new THREE.Vector3(0, 0, -1) },
+  shorts: { origin: (p) => new THREE.Vector3(p.x, p.y, 2), dir: new THREE.Vector3(0, 0, -1) }, // the shorts' front
   back: { origin: (p) => new THREE.Vector3(p.x, p.y, -2), dir: new THREE.Vector3(0, 0, 1) },
   left: { origin: (p) => new THREE.Vector3(2, p.y, p.z), dir: new THREE.Vector3(-1, 0, 0) },
   right: { origin: (p) => new THREE.Vector3(-2, p.y, p.z), dir: new THREE.Vector3(1, 0, 0) },
@@ -38,7 +42,9 @@ const SETS = {
   boutique: { background: "#0D0B09", fog: [9, 20] },
 };
 // the tee in the Review step: which way it faces for each side picture
-const FACE = { front: 0, back: Math.PI, left: -Math.PI / 2, right: Math.PI / 2 };
+const FACE = { front: 0, back: Math.PI, left: -Math.PI / 2, right: Math.PI / 2, shorts: 0 };
+// sides printed straight on from the front or back (not a sloping sleeve)
+const FLAT_SIDES = ["front", "back", "shorts"];
 
 function Backdrop({ room, dark }) {
   const scene = useThree((st) => st.scene);
@@ -666,7 +672,7 @@ function useTeeGeometry(model) {
     probe.userData.toModel = toModel;
     const map = src.material.map;
     if (map) map.colorSpace = THREE.SRGBColorSpace;
-    return { geo, probe, map, normalMap: src.material.normalMap };
+    return { geo, probe, map, normalMap: src.material.normalMap, centre: c };
   }, [gltf, hang]);
 }
 
@@ -732,7 +738,7 @@ function pressOn(probe, geometry) {
     // on. (The fabric's own direction at the area's middle can face sideways
     // on a fold, which twisted tall or off-centre areas.) Sleeves slope, so
     // they keep the fabric's direction.
-    const flat = geometry.side === "front" || geometry.side === "back";
+    const flat = FLAT_SIDES.includes(geometry.side);
     const n = flat ? r.dir.clone().negate() : sleeveNormal(probe, r, p, geometry, hit);
     const up = new THREE.Vector3(0, 1, 0);
     const xAxis = up.clone().cross(n).normalize();
@@ -827,17 +833,9 @@ function Decal({ probe, spot, canvas, version, areaKey, onPick, interactive, ord
   );
 }
 
-function Tee({ model, colour, areas, onPickArea, interactive, still, spotsRef, turntable, spin, face, spinSpeed, unfoldKey, onLit, hotspots, glowKey, activeKey, onHoverArea, popKey, showcase, twirlKey }) {
-  const { geo, probe, map, normalMap } = useTeeGeometry(model);
-  // a full turn that eases out: on stepping into the room and when the tee's colour is changed there
-  const twirl = useRef({ key: twirlKey, t: 9, from: 0 });
-  const group = useRef();
-  const mesh = useRef();
-  const mat = useRef();
-  const target = useMemo(() => new THREE.Color(colour), [colour]);
-  const speed = useRef(0); // turntable speed, eased
-  // Print areas that can be picked by pointing at the tee itself: where each one's middle lands.
-  const targets = useMemo(
+// Print areas that can be picked by pointing at a garment piece: where each one's middle lands on it.
+function useTargets(hotspots, probe) {
+  return useMemo(
     () =>
       (hotspots || [])
         .map(({ key, spot, main }) => {
@@ -850,27 +848,93 @@ function Tee({ model, colour, areas, onPickArea, interactive, still, spotsRef, t
         .filter(Boolean),
     [hotspots, probe],
   );
-  // The print area under the pointer: of those that contain the point, the one with the lowest rank
-  // (so Left Chest wins inside Centre Front, and Centre Front wins in the middle of the chest).
-  const areaAt = (e) => {
-    if (!mesh.current || !e.face) return null;
-    const p = mesh.current.worldToLocal(e.point.clone());
-    const n = e.face.normal;
-    // Front or back: the side being looked at. (Not the fabric's own direction at that spot — on this
-    // model it is unreliable in places, and a tap on the front was read as the back.) Seen edge-on,
-    // it is the half of the tee the point is in.
-    const look = e.ray.direction.clone().transformDirection(new THREE.Matrix4().copy(mesh.current.matrixWorld).invert());
-    const onFront = look.z < -0.15 ? true : look.z > 0.15 ? false : p.z > 0;
-    let best = null;
-    for (const t of targets) {
-      const sleeve = t.side === "left" || t.side === "right";
-      const inside = sleeve
-        ? Math.abs(n.x) > 0.45 && Math.abs(p.x - t.at.x) < 0.1 && Math.abs(p.z - t.at.z) <= t.w / 2 && Math.abs(p.y - t.at.y) <= t.h / 2
-        : (t.side === "front") === onFront && Math.abs(p.x - t.at.x) <= t.w / 2 && Math.abs(p.y - t.at.y) <= t.h / 2;
-      if (inside && (!best || t.rank < best.rank)) best = t;
-    }
-    return best && best.key !== activeKey ? best.key : null;
-  };
+}
+
+// The print area under the pointer on a piece: of those that contain the point, the one with the lowest rank
+// (so Left Chest wins inside Centre Front, and Centre Front wins in the middle of the chest).
+function areaUnder(e, piece, targets, activeKey) {
+  if (!piece || !e.face) return null;
+  const p = piece.worldToLocal(e.point.clone());
+  const n = e.face.normal;
+  // Front or back: the side being looked at. (Not the fabric's own direction at that spot — on this
+  // model it is unreliable in places, and a tap on the front was read as the back.) Seen edge-on,
+  // it is the half of the tee the point is in.
+  const look = e.ray.direction.clone().transformDirection(new THREE.Matrix4().copy(piece.matrixWorld).invert());
+  const onFront = look.z < -0.15 ? true : look.z > 0.15 ? false : p.z > 0;
+  let best = null;
+  for (const t of targets) {
+    const sleeve = t.side === "left" || t.side === "right";
+    const inside = sleeve
+      ? Math.abs(n.x) > 0.45 && Math.abs(p.x - t.at.x) < 0.1 && Math.abs(p.z - t.at.z) <= t.w / 2 && Math.abs(p.y - t.at.y) <= t.h / 2
+      : (t.side !== "back") === onFront && Math.abs(p.x - t.at.x) <= t.w / 2 && Math.abs(p.y - t.at.y) <= t.h / 2;
+    if (inside && (!best || t.rank < best.rank)) best = t;
+  }
+  return best && best.key !== activeKey ? best.key : null;
+}
+
+// The co-ord set's shorts, hanging under the tee (inside the tee's group, so they turn, sway and are
+// photographed with it). Their own mesh, prints, glow and pointer handling; hidden during the reveal.
+function Bottoms({ part, teeCentre, colour, areas, hotspots, glowKey, glowSpot, activeKey, interactive, onPickArea, hover, unfold }) {
+  const { geo, probe, centre } = useTeeGeometry(part);
+  const mesh = useRef();
+  const mat = useRef();
+  const target = useMemo(() => new THREE.Color(colour), [colour]);
+  const targets = useTargets(hotspots, probe);
+  useFrame((_, dt) => {
+    if (mat.current) mat.current.color.lerp(target, Math.min(1, dt * 6));
+    if (mesh.current) mesh.current.visible = !unfold.current.on;
+  });
+  // the two models' own placement against each other, then the offset
+  const [ox, oy, oz] = part.offset || [0, 0, 0];
+  const at = [centre.x - teeCentre.x + ox, centre.y - teeCentre.y + oy, centre.z - teeCentre.z + oz];
+  const areaAt = (e) => areaUnder(e, mesh.current, targets, activeKey);
+  return (
+    <mesh
+      ref={mesh}
+      name="bottoms"
+      geometry={geo}
+      position={at}
+      castShadow
+      onPointerMove={(e) => {
+        if (!interactive || e.buttons) return;
+        e.stopPropagation();
+        hover(areaAt(e));
+      }}
+      onPointerOut={() => hover(null)}
+      onClick={(e) => {
+        if (!interactive || e.delta > 6) return;
+        e.stopPropagation();
+        const key = areaAt(e);
+        if (key) onPickArea?.(key);
+      }}
+    >
+      <meshStandardMaterial ref={mat} color={colour} roughness={0.92} metalness={0} side={THREE.DoubleSide} />
+      {areas.map((a, i) => (
+        <Decal key={`${a.key}-${a.spotKey}`} order={i} areaKey={a.key} probe={probe} spot={a.spot} canvas={a.canvas} version={a.version} onPick={onPickArea} interactive={interactive} />
+      ))}
+      {interactive && glowSpot && <AreaGlow key={glowKey} probe={probe} spot={glowSpot} />}
+    </mesh>
+  );
+}
+
+const onBottoms = (spot) => spot?.side === "shorts";
+
+function Tee({ model, colour, areas, onPickArea, interactive, still, spotsRef, turntable, spin, face, spinSpeed, unfoldKey, onLit, hotspots, glowKey, activeKey, onHoverArea, popKey, showcase, twirlKey }) {
+  const { geo, probe, map, normalMap, centre } = useTeeGeometry(model);
+  // a full turn that eases out: on stepping into the room and when the tee's colour is changed there
+  const twirl = useRef({ key: twirlKey, t: 9, from: 0 });
+  const group = useRef();
+  const mesh = useRef();
+  const mat = useRef();
+  const target = useMemo(() => new THREE.Color(colour), [colour]);
+  const speed = useRef(0); // turntable speed, eased
+  // a co-ord set's shorts are a second piece: their areas, hotspots and glow go to it
+  const teeAreas = model.bottom ? areas.filter((a) => !onBottoms(a.spot)) : areas;
+  const teeHotspots = useMemo(() => (model.bottom ? (hotspots || []).filter((h) => !onBottoms(h.spot)) : hotspots), [hotspots, model.bottom]);
+  const bottomHotspots = useMemo(() => (hotspots || []).filter((h) => onBottoms(h.spot)), [hotspots]);
+  const targets = useTargets(teeHotspots, probe);
+  const areaAt = (e) => areaUnder(e, mesh.current, targets, activeKey);
+  const baseScale = TEE_SCALE * (model.outfit?.scale || 1);
   const hovered = useRef(null);
   const hover = (key) => {
     if (hovered.current === key) return;
@@ -917,7 +981,7 @@ function Tee({ model, colour, areas, onPickArea, interactive, still, spotsRef, t
     }
     // the pop: a quick swell that settles (only for something added; a colour change just lights the ring)
     const x = PULSE.t / 0.5;
-    g.scale.setScalar(TEE_SCALE * (1 + (x < 1 && !turntable ? 0.035 * Math.sin(Math.PI * x) * (1 - x) : 0)));
+    g.scale.setScalar(baseScale * (1 + (x < 1 && !turntable ? 0.035 * Math.sin(Math.PI * x) * (1 - x) : 0)));
     const u = unfold.current;
     if (u.key !== unfoldKey) {
       u.key = unfoldKey;
@@ -981,21 +1045,25 @@ function Tee({ model, colour, areas, onPickArea, interactive, still, spotsRef, t
     }
   });
 
-  // expose each area's surface point (world) for the camera
+  // expose each area's surface point (world) for the camera — on the tee or, for a co-ord set, the shorts
   useLayoutEffect(() => {
     spotsRef.current = (key) => {
-      const m = mesh.current?.children.find((c) => c.userData.areaKey === key);
-      if (!m || !mesh.current) return null;
-      mesh.current.updateMatrixWorld(true);
-      const point = m.userData.point.clone().applyMatrix4(mesh.current.matrixWorld);
-      const normal = m.userData.normal.clone().transformDirection(mesh.current.matrixWorld);
-      const scale = mesh.current.getWorldScale(new THREE.Vector3()).x;
+      let m = null;
+      group.current?.traverse((o) => {
+        if (!m && o.userData?.areaKey === key && o.userData.point) m = o;
+      });
+      if (!m) return null;
+      m.updateMatrixWorld(true);
+      const point = m.userData.point.clone().applyMatrix4(m.matrixWorld);
+      const normal = m.userData.normal.clone().transformDirection(m.matrixWorld);
+      const scale = m.getWorldScale(new THREE.Vector3()).x;
       return { point, normal, w: m.userData.w * scale, h: m.userData.h * scale }; // size on screen units
     };
   });
 
   return (
-    <group ref={group} name="tee" scale={TEE_SCALE} position-y={TEE_Y}>
+    <group ref={group} name="tee" scale={baseScale} position-y={TEE_Y} userData={{ baseScale }}>
+      <group position-y={model.outfit?.lift || 0}>
       <mesh
         ref={mesh}
         geometry={geo}
@@ -1018,11 +1086,28 @@ function Tee({ model, colour, areas, onPickArea, interactive, still, spotsRef, t
         }}
       >
         <meshStandardMaterial ref={mat} color={colour} map={map} normalMap={normalMap} normalScale={[0.8, 0.8]} vertexColors={!!geo.getAttribute("color")} roughness={0.92} metalness={0} side={THREE.DoubleSide} onBeforeCompile={foldable} customProgramCacheKey={foldKey} />
-        {areas.map((a, i) => (
+        {teeAreas.map((a, i) => (
           <Decal key={`${a.key}-${a.spotKey}`} order={i} areaKey={a.key} probe={probe} spot={a.spot} canvas={a.canvas} version={a.version} onPick={onPickArea} interactive={interactive} />
         ))}
-        {interactive && glowSpot && <AreaGlow key={glowKey} probe={probe} spot={glowSpot} />}
+        {interactive && glowSpot && !onBottoms(glowSpot) && <AreaGlow key={glowKey} probe={probe} spot={glowSpot} />}
       </mesh>
+      {model.bottom && (
+        <Bottoms
+          part={model.bottom}
+          teeCentre={centre}
+          colour={colour}
+          areas={areas.filter((a) => onBottoms(a.spot))}
+          hotspots={bottomHotspots}
+          glowKey={glowKey}
+          glowSpot={onBottoms(glowSpot) ? glowSpot : null}
+          activeKey={activeKey}
+          interactive={interactive}
+          onPickArea={onPickArea}
+          hover={hover}
+          unfold={unfold}
+        />
+      )}
+      </group>
     </group>
   );
 }
@@ -1038,6 +1123,7 @@ function CameraRig({ request, getSpot, apiRef, wakeKey, room, dark }) {
     let look = new THREE.Vector3(0, 0.1, 0);
     if (request.view) {
       to = new THREE.Vector3(...VIEWS[request.view]);
+      if (VIEW_LOOK[request.view]) look = new THREE.Vector3(...VIEW_LOOK[request.view]);
     } else if (request.area) {
       const s = getSpot(request.area);
       if (!s) {
@@ -1065,7 +1151,7 @@ function CameraRig({ request, getSpot, apiRef, wakeKey, room, dark }) {
       // view direction: straight on for front/back; for sleeves the fabric's
       // direction, kept level (the surface can tilt on a fold)
       const facing =
-        request.side === "front"
+        request.side === "front" || request.side === "shorts"
           ? new THREE.Vector3(0, 0, 1)
           : request.side === "back"
             ? new THREE.Vector3(0, 0, -1)
@@ -1166,7 +1252,7 @@ function CameraRig({ request, getSpot, apiRef, wakeKey, room, dark }) {
       });
       hidden.forEach((o) => (o.visible = false));
       const scaleWas = tee?.scale.x;
-      if (tee) tee.scale.setScalar(TEE_SCALE);
+      if (tee) tee.scale.setScalar(tee.userData.baseScale || TEE_SCALE);
       prints.forEach(([m]) => (m.opacity = 1));
       FOLD.left.value = 0;
       FOLD.right.value = 0;

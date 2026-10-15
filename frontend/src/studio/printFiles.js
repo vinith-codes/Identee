@@ -138,7 +138,9 @@ const acrossText = (s) =>
 // in its place (numbered ①②③, with the TOP and SIDE arrows), and a table with one line per print.
 // NOT for printing on the tee. Prints and distances are to scale; the tee's outline is a sketch.
 const MAP_PX = 12; // px per cm on the tee drawings
-const EST_START = { front: 8, back: 7 }; // the usual start line when an area has none from the collar (cm) — as in teeModel.js
+// the usual start line when an area has none from the collar (cm) — as in teeModel.js
+// (shorts: below the top of the waistband, the co-ord set's leg prints)
+const EST_START = { front: 8, back: 7, shorts: 25 };
 
 function arrow(g, x1, y1, x2, y2) {
   g.beginPath();
@@ -509,7 +511,7 @@ export async function buildPrintPack(pack, onStep = () => {}) {
     }
 
     // every print gets a number: front first, then back, then the sleeves
-    const SIDE_ORDER = { front: 0, back: 1, left: 2, right: 3 };
+    const SIDE_ORDER = { front: 0, back: 1, left: 2, right: 3, shorts: 4 };
     const areas = [...d.areas].sort((a, b) => (SIDE_ORDER[a.side] ?? 9) - (SIDE_ORDER[b.side] ?? 9));
     const files = [];
     for (const [k, area] of areas.entries()) {
@@ -542,7 +544,11 @@ export async function buildPrintPack(pack, onStep = () => {}) {
     const mains = Object.fromEntries(d.areas.filter((a) => a.mainLabel).map((a) => [a.side, a.mainLabel]));
     const notesFor = (rs) =>
       [...new Set(rs.filter((r) => r.spot && !r.spot.fromCollar).map((r) => (r.spot.sleeve ? "sleeve" : r.spot.side)))].map((side) =>
-        side === "sleeve" ? "* Sleeves: measured from the top of the sleeve print area (your usual sleeve position)." : `* ${side === "front" ? "Front" : "Back"} start = your usual ${side} print start line (the top of ${mains[side] || `the main ${side} area`}) — no distance from the collar seam yet.`,
+        side === "sleeve"
+          ? "* Sleeves: measured from the top of the sleeve print area (your usual sleeve position)."
+          : side === "shorts"
+            ? `* Shorts start = ${EST_START.shorts} cm below the top of the waistband (size M — your usual leg print position). SIDE = from the shorts' centre seam.`
+            : `* ${side === "front" ? "Front" : "Back"} start = your usual ${side} print start line (the top of ${mains[side] || `the main ${side} area`}) — no distance from the collar seam yet.`,
       );
     const texts = elements.filter((e) => e.type === "text");
     const fonts = texts.length ? `Text: ${texts.map((e) => `${d.players?.length && e.role ? `[each player's ${e.role}]` : `“${e.text}”`} (${e.fontFamily}${e.color ? `, ${e.color}` : ""})`).join("; ")}` : "";

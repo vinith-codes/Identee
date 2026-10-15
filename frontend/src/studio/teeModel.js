@@ -72,10 +72,35 @@ export const TEE_MODELS = {
   },
 };
 
+// Co-ord set: the regular round-neck tee with shorts below it, shown as one outfit. The shorts are their own
+// model (`bottom`); print areas on the "shorts" side are placed on it (its anchors, its length per size).
+// identee-private-assets/3D-models/build_shorts.py
+TEE_MODELS.coord = {
+  ...TEE_MODELS.regular,
+  outfit: { scale: 0.8, lift: 0.19 }, // the whole outfit a little smaller and raised, so tee and shorts both fit the view
+  bottom: {
+    url: "/models/coord-shorts.glb",
+    credit: { text: "3D shorts: “Male Tshirt and Shorts” by kanesk06, CC BY 4.0", href: "https://sketchfab.com/3d-models/male-tshirt-and-shorts-plain-texture-06b9009696a64e1f87b5400ddbab1cdd" },
+    lengthCm: 44.1, // waistband top → hem, ≈ size S/M
+    // where it sits against the tee: both models are at body height already; lifted so the waistband tucks
+    // under the tee's hem, and back a little so it hangs under the tee's middle (metres)
+    offset: [0, 0.1, -0.03],
+    anchors: {
+      // the leg prints' top: 25 cm below the top of the waistband (estimate); legs centred at x ±0.0966
+      shorts: { top: 1.0149 - 0.25, neck: 1.0149 },
+    },
+  },
+};
+TEE_MODELS.coord.credit = {
+  text: "3D: “Tshirt” by Tabbuso, “Male Tshirt and Shorts” by kanesk06, CC BY 4.0",
+  href: TEE_MODELS.coord.bottom.credit.href,
+};
+
 // Which 3D model a garment uses (null = no 3D model → flat studio).
 export const modelForGarment = (garment) => {
   if (!garment) return null;
   const name = `${garment.category || ""} ${garment.key || ""}`;
+  if (/co-?ord/i.test(name)) return TEE_MODELS.coord;
   if (/crop/i.test(name)) {
     if (/collar|polo/i.test(name)) return TEE_MODELS.collarCrop;
     if (/oversized/i.test(name)) return TEE_MODELS.oversizedCrop;
@@ -83,8 +108,8 @@ export const modelForGarment = (garment) => {
   if (garment.fit === "oversized" || /oversized/i.test(garment.category || "") || /oversized/i.test(garment.key || "")) {
     return TEE_MODELS.oversized;
   }
-  // regular-fit round-neck tees (and the co-ord set's tee)
-  if (/round.?neck|co-?ord/i.test(`${garment.category || ""} ${garment.key || ""}`)) return TEE_MODELS.regular;
+  // regular-fit round-neck tees
+  if (/round.?neck/i.test(name)) return TEE_MODELS.regular;
   return null;
 };
 

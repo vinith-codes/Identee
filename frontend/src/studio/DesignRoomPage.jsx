@@ -48,6 +48,7 @@ const AREA_GROUPS = [
   ["Front", ["front"]],
   ["Back", ["back"]],
   ["Sleeves", ["left", "right"]],
+  ["Shorts", ["shorts"]], // the co-ord set's shorts (only shown for a garment that has shorts areas)
 ];
 const groupOfSide = (side) => AREA_GROUPS.find(([, sides]) => sides.includes(side))?.[0] || AREA_GROUPS[0][0];
 const ICON_TEXT = "M5 6h14M12 6v13M9 19h6";
@@ -246,6 +247,8 @@ export default function DesignRoomPage() {
   const sizeNow = sizes.includes(size) ? size : sizes.includes("M") ? "M" : sizes[0];
   const chartRow = garment?.sizeChart?.find((r) => r.size === sizeNow);
   const lengthCm = (chartRow?.length || 30) * 2.54;
+  // a co-ord set's shorts: their own length for this size (else the shorts model's own length)
+  const bottomLengthCm = chartRow?.bottomLength ? chartRow.bottomLength * 2.54 : model?.bottom?.lengthCm;
   const fabricHex = colour?.hex || "#1C1C1D";
   const inkDefault = lum(fabricHex) < 0.55 ? "#FFFFFF" : "#141110";
   const artTotal = elements.reduce((n, e) => n + (e.artPrice || 0), 0);
@@ -434,8 +437,15 @@ export default function DesignRoomPage() {
   // Where each print sits on the tee — only changes with the size, so the 3D
   // print shapes are built once, not on every drag frame.
   const spots = useMemo(
-    () => (model ? Object.fromEntries(positions.map((pos) => [pos.key, placeArea(model, pos, sizeNow, lengthCm)])) : {}),
-    [model, positions, sizeNow, lengthCm],
+    () =>
+      model
+        ? Object.fromEntries(
+            positions
+              .filter((pos) => pos.side !== "shorts" || model.bottom) // shorts areas need a model with shorts
+              .map((pos) => [pos.key, pos.side === "shorts" ? placeArea(model.bottom, pos, sizeNow, bottomLengthCm) : placeArea(model, pos, sizeNow, lengthCm)]),
+          )
+        : {},
+    [model, positions, sizeNow, lengthCm, bottomLengthCm],
   );
   const areas3D = useMemo(
     () =>
@@ -1856,7 +1866,11 @@ export default function DesignRoomPage() {
                   return (
                     <div key={sz} className={`dr-qrow${n ? " on" : ""}`}>
                       <b>{sz}</b>
-                      <small>{r ? `chest ${r.chest}″ · length ${r.length}″` : ""}</small>
+                      <small>
+                        {r ? `chest ${r.chest}″ · length ${r.length}″` : ""}
+                        {/* a co-ord set's shorts */}
+                        {r?.bottomLength ? ` · shorts: waist ${r.waist}″, length ${r.bottomLength}″` : ""}
+                      </small>
                       <div className="dr-stepper">
                         <button type="button" onClick={() => setQty(sz, n - 1)} disabled={!n} aria-label={`One less ${sz}`}>−</button>
                         <output key={n} aria-live="polite">{n}</output>

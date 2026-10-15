@@ -26,6 +26,9 @@ const sizeChartRowSchema = new mongoose.Schema(
     chest: { type: Number }, // inches
     shoulder: { type: Number },
     length: { type: Number },
+    // a set's bottom piece (the co-ord set's shorts), inches: waist (relaxed, flat × 2) and length
+    waist: { type: Number },
+    bottomLength: { type: Number },
   },
   { _id: false },
 );

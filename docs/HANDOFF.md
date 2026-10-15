@@ -173,6 +173,20 @@ texture (plain material).
   than the chart, so it is widened to 20" × 28" at M), 12 garmentcolorimages docs, sizeChart XS–3XL from the PDF + 4XL/5XL
   continuing its steps (ESTIMATE), photoRuler 27.3/87.4. **LIVE since 15 Oct** (user's go-ahead), using the catalogue's
   oversized-based print sizes until the print team gives regular-tee sizes.
+- **Co-ord Set (T-Shirt + Shorts)** (coord-set) — LIVE since 15 Oct, ESTIMATED charts and leg print sizes:
+  - The room shows an OUTFIT: TEE_MODELS.coord = the regular tee + `bottom` (coord-shorts.glb, the shorts from
+    "Male Tshirt and Shorts" by kanesk06, CC BY 4.0; `build_shorts.py`). Room3D `Bottoms` renders the shorts inside the
+    tee's group (they turn, sway and are photographed with it; hidden during the reveal); `outfit: {scale, lift}` fits
+    both in the view. Shared `useTargets` / `areaUnder` for tapping on either piece; the camera finds prints on both.
+  - New print side **"shorts"** with areas `left-leg` / `right-leg` ("Shorts – Left/Right Leg", 10×10 cm at M,
+    25 cm below the waistband top — estimates). Only offered by a garment that turns them on (not in DEFAULT_OFFERED).
+    Allowed in customizationModel's side enum; Design Room tab "Shorts"; AreaThumb draws shorts; VIEWS/RAY/FACE.shorts.
+    Print pack: shorts rows last, "below shorts start*" with a footnote (25 cm below the waistband top, from the centre seam).
+  - Size chart rows can carry `waist` and `bottomLength` (inches, the shorts); spots on the shorts use bottomLength.
+    The Review sizes list shows them. Chart = round-neck charts + shorts waist/length estimates.
+  - Photos: Kids Round Neck tee photo (60%) above the recoloured shorts render, like the catalogue picture.
+  - The admin size save (garmentTypeController) now keeps kids' age sizes, 4XL/5XL, waist and bottomLength (it used to
+    keep only XS–3XL). The admin set-up wizard's own size list is still XS–3XL — saving sizes there would drop the others.
 - Kids Round Neck (kids-round-neck): 48 photos from the user's kids front/back flat-lay photo (background removed,
   `clean_small_photo.py`, then `build_regular.py … --no-hanger`), Cloudinary `identee/garments/kids-round-neck/`,
   private copy in `identee-private-assets/kids-images/`. sizeChart 4-6 26/10.5/18, 7-8 28/11.5/19.5, 9-10 30/12.5/21,

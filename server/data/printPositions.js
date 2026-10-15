@@ -63,6 +63,11 @@ export const PRINT_AREA_CATALOG = [
   { key: "vertical-back", label: "Vertical Back", side: "back", cm: [10, 51], bySize: sheet([10, 51], [10, 51], [10, 54]), collarCm: BACK_START, place: { align: "centre", topCm: 1 } },
   { key: "left-sleeve", label: "Left Sleeve", side: "left", main: true, cm: [9, 10], place: { align: "centre", topCm: 0 } },
   { key: "right-sleeve", label: "Right Sleeve", side: "right", main: true, cm: [9, 10], place: { align: "centre", topCm: 0 } },
+  // The co-ord set's shorts ("Bottom Print – Left / Right Leg"): the front of each leg, measured from the top of the
+  // waistband (the shorts' start line is 25 cm below it at M — ESTIMATE until the print team gives sizes).
+  // gapCm: the shorts' centre line to the print's inner edge, so a 10 cm print sits in the middle of the leg.
+  { key: "left-leg", label: "Shorts – Left Leg", side: "shorts", main: true, cm: [10, 10], place: { align: "wearer-left", gapCm: 4.7, topCm: 0 } },
+  { key: "right-leg", label: "Shorts – Right Leg", side: "shorts", cm: [10, 10], place: { align: "wearer-right", gapCm: 4.7, topCm: 0 } },
 ];
 
 export const CATALOG_BY_KEY = Object.fromEntries(PRINT_AREA_CATALOG.map((a) => [a.key, a]));
@@ -191,8 +196,9 @@ export const overlappingPairs = (usedKeys, positions) => {
   return pairs;
 };
 
-// The areas offered when a garment has no saved print-area settings.
-const DEFAULT_OFFERED = PRINT_AREA_CATALOG.filter((a) => a.cm).map((a) => a.key);
+// The areas offered when a garment has no saved print-area settings (tee areas only: the shorts
+// areas are only for a garment that turns them on, the co-ord set).
+const DEFAULT_OFFERED = PRINT_AREA_CATALOG.filter((a) => a.cm && a.side !== "shorts").map((a) => a.key);
 
 /**
  * Print positions a customer can use on this garment.
