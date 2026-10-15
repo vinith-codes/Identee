@@ -26,7 +26,7 @@ const CSS = `
   .cz-cat:hover { transform: translateY(-4px); box-shadow: 0 22px 40px -24px rgba(21,19,15,.35); border-color: #D9C58E; }
   .cz-cat:focus-visible { outline: 2px solid #B8912F; outline-offset: 3px; }
   .cz-img { position: relative; aspect-ratio: 4 / 4.2; max-width: 100%; background: #F4F0E7; display: grid; place-items: center; overflow: hidden; }
-  .cz-img img { width: 100%; height: 100%; object-fit: cover; transition: transform .5s; }
+  .cz-img img { width: 100%; height: 100%; object-fit: cover; object-position: 50% 12%; transition: transform .5s; } /* keep faces and hangers in view */
   .cz-cat:hover .cz-img img { transform: scale(1.04); }
   .cz-ph { width: 100%; height: 100%; display: grid; place-items: center; background: radial-gradient(circle at 30% 20%, #2A251C, #121010 70%); color: #C9A24B; font: 800 clamp(40px, 6vw, 72px)/1 "Bricolage Grotesque", "Helvetica Neue", Arial, sans-serif; letter-spacing: -0.03em; }
   .cz-soon { position: absolute; top: 14px; left: 14px; background: #15130F; color: #F0D585; font: 700 11px/1 "Inter", sans-serif; letter-spacing: .14em; text-transform: uppercase; padding: 7px 11px; border-radius: 999px; }
