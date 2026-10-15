@@ -151,6 +151,9 @@ oversized-tee's category set to "Boys Oversized" → Boys Wear. New catalogue ga
   catalogueCode; GET /api/garment-types/coming-soon returns them (card details only); each collection shows them as
   "Coming soon" cards. To finish one: Admin → Customizable wizard (photos per colour, size chart, print sizes), then
   make it live. Blocked on: print sizes for kids sizes / 4XL–5XL and the new areas (corners, back small, yoke, shorts).
+- Card pictures: the user then sent a garment-on-a-hanger photo for each of the 6 (15 Oct); they replace the catalogue
+  cuts (Cloudinary identee/catalogue/*-hanger.jpg, 800×1000 4:5). The crop top's source was only 203×250 (soft); the girls'
+  round neck is pink and a back view — the user may send better ones later.
 
 **`feature-policy-pages` — MERGED to `main` on 14 Oct 2026:** the four policy pages Razorpay checks
 before live payments: /terms, /privacy-policy, /refund-policy, /shipping-policy (`pages/PolicyPage.jsx`, one component;
