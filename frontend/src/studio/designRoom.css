@@ -603,6 +603,30 @@
 .dr-handoff { margin: 0 20px 14px; border: 1px solid var(--line); background: #FAF7F1; border-radius: 12px; padding: 10px 12px; font-size: 12.5px; font-weight: 600; color: var(--ink-soft); text-align: left; }
 .dr-handoff:hover { border-color: var(--ink); color: var(--ink); }
 .dr-assist .dr-composer { padding-bottom: 10px; }
+/* the assistant gets more room than the editors (a chat with picture cards needs it), and "Wider" makes it
+   about half the screen; the 3D view beside it shrinks and stays in use */
+@media (min-width: 761px) {
+  .dr-editor.dr-assist { width: 440px; transition: width .35s cubic-bezier(.2, .7, .2, 1); }
+  .dr-editor.dr-assist[data-wide] { width: clamp(480px, 48vw, 780px); }
+  .dr-assist[data-wide] .dr-chatlog { padding-inline: 28px; }
+  .dr-assist[data-wide] .dr-msg { max-width: 82%; }
+  .dr-assist[data-wide] .dr-designs { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .dr-assist[data-wide] .dr-examples { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .dr-assist[data-wide] .dr-wait { max-width: 420px; }
+}
+@media (min-width: 761px) and (max-width: 1279px) {
+  .dr-editor.dr-assist { width: 400px; }
+  .dr-editor.dr-assist[data-wide] { width: clamp(440px, 55vw, 640px); }
+}
+.dr-assisthead { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.dr-widen { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); background: #fff; color: var(--ink-soft); border-radius: 999px; padding: 6px 11px; font-size: 12px; font-weight: 700; cursor: pointer; }
+.dr-widen svg { width: 14px; height: 14px; }
+.dr-widen:hover { border-color: var(--ink); color: var(--ink); }
+.dr-widen[aria-pressed="true"] { background: var(--gold-soft); border-color: var(--gold); color: var(--gold-deep); }
+@media (max-width: 760px) {
+  .dr-widen { display: none; } /* phones: the assistant is already a large sheet */
+}
+@media (prefers-reduced-motion: reduce) { .dr-editor.dr-assist { transition: none; } }
 .dr-ways { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .dr-enter.alt { display: inline-flex; align-items: center; justify-content: center; gap: 8px; background: #fff; border: 1.5px solid var(--gold); color: var(--ink); }
 .dr-enter.alt svg { width: 18px; height: 18px; color: var(--gold-deep); }

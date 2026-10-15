@@ -61,6 +61,7 @@ const DRAFT_KEY = (type) => `identee:design:v3:${type}`;
 const ROOM_KEY = (type) => `identee:room:v1:${type}`;
 const CHAT_KEPT = 80; // messages
 const SIZE_KEY = "identee:size";
+const ASSIST_WIDE_KEY = "identee:assistWide";
 const DARK_KEY = "identee:room-dark"; // the customer's light / dark studio choice
 const HISTORY_CAP = 50;
 
@@ -152,6 +153,12 @@ export default function DesignRoomPage() {
   // The design assistant has its own panel (it works on the whole tee, not one print area). It takes
   // the editor's place on the right; picking a print area or "Edit by hand" brings the editor back.
   const [assist, setAssist] = useState(() => Boolean(session?.assist));
+  // the assistant made wide (about half the screen) with its Expand button — remembered on this device
+  const [assistWide, setAssistWide] = useState(() => readJSON(ASSIST_WIDE_KEY) === true);
+  const toggleAssistWide = () => {
+    writeJSON(ASSIST_WIDE_KEY, !assistWide);
+    setAssistWide(!assistWide);
+  };
   // the assistant's conversation (kept while you switch tabs, and across a reload of the page)
   const [chat, setChat] = useState(() => (Array.isArray(session?.chat) && session.chat.length ? session.chat : firstMessages()));
   const [chatState, setChatState] = useState(() => session?.chatState || firstState());
@@ -1728,14 +1735,30 @@ export default function DesignRoomPage() {
         )}
 
         {step === "design" && assist && (
-          <section className="dr-editor dr-assist" aria-label="Design assistant">
+          <section className="dr-editor dr-assist" data-wide={assistWide ? "1" : undefined} aria-label="Design assistant">
             <header>
               <div>
                 <div className="eyebrow">Design assistant</div>
                 <h2>Tell me what you want</h2>
                 <div className="sub">{activePos ? `Working on ${activePos.label}. You can still change anything by hand.` : "Describe your tee, or pick a starting point."}</div>
               </div>
-              <button type="button" className="dr-x" aria-label="Close the assistant" onClick={() => setAssist(false)}>✕</button>
+              <div className="dr-assisthead">
+                {/* more room for the chat: about half the screen, and back */}
+                <button
+                  type="button"
+                  className="dr-widen"
+                  aria-pressed={assistWide}
+                  aria-label={assistWide ? "Make the assistant narrower" : "Make the assistant wider"}
+                  title={assistWide ? "Narrower" : "Wider"}
+                  onClick={toggleAssistWide}
+                >
+                  <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d={assistWide ? "M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7" : "M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"} />
+                  </svg>
+                  <span>{assistWide ? "Narrower" : "Wider"}</span>
+                </button>
+                <button type="button" className="dr-x" aria-label="Close the assistant" onClick={() => setAssist(false)}>✕</button>
+              </div>
             </header>
             <Assistant messages={chat} setMessages={setChat} state={chatState} setState={setChatState} ctx={assistantCtx} onAct={assistantAct} onFix={applyFix} placed={aiOn} fabric={fabricHex} />
             {elements.length > 0 && (
