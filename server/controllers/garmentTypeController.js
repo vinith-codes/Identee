@@ -30,10 +30,11 @@ export const getGarmentTypes = asyncHandler(async (req, res) => {
 // Drafts announced as "Coming soon" — only what a card needs, never anything to design with.
 export const getComingSoonGarments = asyncHandler(async (req, res) => {
   const items = await GarmentType.find({ isActive: false, comingSoon: true })
-    .select("key label category description catalogueImage catalogueCode basePrice sizes fabrics fit")
+    .select("key label category description catalogueImage catalogueCode basePrice sizes fabrics fit colors")
     .sort({ createdAt: 1 })
     .lean();
-  res.json(items.map((g) => ({ ...g, colourCount: undefined })));
+  // the colours themselves aren't needed on a card — only how many there are
+  res.json(items.map(({ colors, ...g }) => ({ ...g, colourCount: (colors || []).length })));
 });
 
 // GET /api/garment-types/:key

@@ -1,8 +1,9 @@
 // components/CustomizableGarments.jsx
 //
 // /customizable: one card per live customizable garment (Admin →
-// Customizable; drafts never show). "Start designing" opens the 3D design
-// room, where the customer picks the colour and size.
+// Customizable). "Start designing" opens the 3D design room, where the
+// customer picks the colour and size. Drafts announced as "coming soon"
+// (soon) get the same card with their catalogue photo and a greyed-out button.
 import { useNavigate } from "react-router-dom";
 import { imageUrl } from "../utils/imageUrl";
 import { defaultColour, isSellable } from "../utils/garments";
@@ -16,7 +17,16 @@ const C = {
   cream: "#FBF7EE",
 };
 
-const sizeRange = (sizes) => (sizes?.length ? (sizes.length > 1 ? `${sizes[0]}–${sizes[sizes.length - 1]}` : sizes[0]) : "");
+const span = (list) => (list.length > 1 ? `${list[0]}–${list[list.length - 1]}` : list[0] || "");
+// "S–3XL"; with kids' age sizes too: "Ages 4–14 · XS–5XL"
+const sizeRange = (sizes) => {
+  if (!sizes?.length) return "";
+  const isAge = (s) => /^\d+(-\d+)?$/.test(String(s).trim()); // "4-6", "11" — not "2XL"
+  const kids = sizes.filter(isAge);
+  const adults = sizes.filter((s) => !isAge(s));
+  const ages = kids.length ? `Ages ${String(kids[0]).split("-")[0]}–${String(kids[kids.length - 1]).split("-").pop()}` : "";
+  return [ages, span(adults)].filter(Boolean).join(" · ");
+};
 
 function GarmentCard({ garment, photos }) {
   const navigate = useNavigate();
@@ -59,7 +69,36 @@ function GarmentCard({ garment, photos }) {
   );
 }
 
-export default function CustomizableGarments({ garments: all, images, loading }) {
+// A product that is coming soon: the same card, with its catalogue photo and nothing to click into yet.
+function ComingSoonCard({ garment }) {
+  const facts = [
+    garment.basePrice > 0 && `From ₹${garment.basePrice}`,
+    sizeRange(garment.sizes),
+    garment.colourCount > 1 && `${garment.colourCount} colours`,
+    (garment.fabrics || []).map((f) => f.name).join(" · "),
+  ].filter(Boolean);
+  return (
+    <article className="identee-cust-card is-soon">
+      <div className="identee-cust-photo">
+        {garment.catalogueImage ? (
+          <img src={imageUrl(garment.catalogueImage, 640)} alt={garment.label} loading="lazy" style={{ objectFit: "cover" }} />
+        ) : (
+          <span style={{ color: C.muted, fontSize: 13 }}>{garment.label}</span>
+        )}
+        <span className="identee-cust-badge">Coming soon</span>
+      </div>
+      <div style={{ padding: "16px 18px 18px" }}>
+        <h3 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: C.ink }}>{garment.label}</h3>
+        {facts.length > 0 && <p style={{ margin: "4px 0 0", fontSize: 13, color: C.muted }}>{facts.join("  ·  ")}</p>}
+        <button type="button" className="identee-cust-cta is-soon" disabled>
+          Coming soon
+        </button>
+      </div>
+    </article>
+  );
+}
+
+export default function CustomizableGarments({ garments: all, images, loading, soon = [] }) {
   const garments = all.filter((g) => isSellable(g, images));
   if (loading && !garments.length) {
     return (
@@ -71,13 +110,16 @@ export default function CustomizableGarments({ garments: all, images, loading })
       </div>
     );
   }
-  if (!garments.length) {
+  if (!garments.length && !soon.length) {
     return <p style={{ color: C.muted, margin: 0 }}>Customizable garments are coming soon.</p>;
   }
   return (
     <div className="identee-cust-grid">
       {garments.map((g) => (
         <GarmentCard key={g._id} garment={g} photos={images.filter((p) => p.garmentType === g.key)} />
+      ))}
+      {soon.map((g) => (
+        <ComingSoonCard key={g._id || g.key} garment={g} />
       ))}
       <Styles />
     </div>
@@ -101,6 +143,9 @@ function Styles() {
       .identee-cust-cta { margin-top: 14px; width: 100%; min-height: 46px; border: none; border-radius: 999px; cursor: pointer;
         background: linear-gradient(135deg, ${C.gold}, ${C.goldBright}); color: ${C.ink}; font-weight: 800; font-size: 14px; }
       .identee-cust-cta:hover { filter: brightness(1.04); }
+      .identee-cust-card.is-soon .identee-cust-photo { cursor: default; }
+      .identee-cust-cta.is-soon { background: #EFEAE0; color: ${C.muted}; cursor: default; }
+      .identee-cust-cta.is-soon:hover { filter: none; }
     `}</style>
   );
 }

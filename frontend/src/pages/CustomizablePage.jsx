@@ -39,15 +39,6 @@ const CSS = `
   .cz-back:hover { text-decoration: underline; text-underline-offset: 3px; }
   .cz-head { margin: 0 0 6px; font: 800 clamp(24px, 3vw, 30px)/1.1 "Bricolage Grotesque", "Helvetica Neue", Arial, sans-serif; color: #15130F; text-transform: uppercase; }
   .cz-sub { margin: 0 0 20px; color: #6B6559; font-size: 15px; }
-  .cz-soonlist { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 20px; margin-top: 8px; }
-  .cz-sooncard { border: 1px solid #EAE3CF; border-radius: 16px; overflow: hidden; background: #fff; display: flex; flex-direction: column; }
-  .cz-sooncard .cz-img { aspect-ratio: 4 / 5; background: #fff; }
-  .cz-sooncard img { object-fit: contain; }
-  .cz-soonbody { padding: 14px 16px 16px; display: grid; gap: 4px; }
-  .cz-soonbody b { font-size: 16px; color: #15130F; }
-  .cz-soonbody span { font-size: 13px; color: #6B6559; line-height: 1.45; }
-  .cz-soonbody em { font-style: normal; font-size: 12px; font-weight: 700; letter-spacing: .08em; color: #B8912F; text-transform: uppercase; }
-  .cz-subhead { margin: 28px 0 12px; font: 800 18px/1.2 "Bricolage Grotesque", "Helvetica Neue", Arial, sans-serif; color: #15130F; }
   .cz-empty { padding: 36px 24px; border: 1px dashed #D9CFB4; border-radius: 16px; background: #FBF7EE; text-align: center; color: #4A443B; }
   .cz-empty b { display: block; font-size: 17px; color: #15130F; margin-bottom: 6px; }
   @media (max-width: 900px) { .cz-cats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
@@ -159,27 +150,7 @@ export default function CustomizablePage() {
               <section>
                 <h2 className="cz-head">{open.name}</h2>
                 {open.description && <p className="cz-sub">{open.description}</p>}
-                {open.garments.length > 0 && <CustomizableGarments garments={open.garments} images={images} />}
-                {open.soon.length > 0 && (
-                  <>
-                    {open.garments.length > 0 && <h3 className="cz-subhead">Coming soon</h3>}
-                    <div className="cz-soonlist">
-                      {open.soon.map((g) => (
-                        <article key={g.key} className="cz-sooncard">
-                          <div className="cz-img">
-                            {g.catalogueImage ? <img src={imageUrl(g.catalogueImage, 600)} alt={g.label} loading="lazy" /> : <div className="cz-ph" aria-hidden="true">{g.label[0]}</div>}
-                            <span className="cz-soon">Coming soon</span>
-                          </div>
-                          <div className="cz-soonbody">
-                            {g.catalogueCode && <em>{g.catalogueCode}</em>}
-                            <b>{g.label}</b>
-                            <span>{[(g.fabrics || []).map((f) => f.name).join(" · "), g.basePrice > 0 && `From ₹${g.basePrice}`].filter(Boolean).join(" · ")}</span>
-                          </div>
-                        </article>
-                      ))}
-                    </div>
-                  </>
-                )}
+                {(open.garments.length > 0 || open.soon.length > 0) && <CustomizableGarments garments={open.garments} soon={open.soon} images={images} />}
                 {!open.garments.length && !open.soon.length && (
                   <div className="cz-empty">
                     <b>Coming soon</b>
