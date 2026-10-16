@@ -41,11 +41,6 @@ const CSS = `
   .cz-back:hover { text-decoration: underline; text-underline-offset: 3px; }
   .cz-head { margin: 0 0 6px; font: 800 clamp(24px, 3vw, 30px)/1.1 "Bricolage Grotesque", "Helvetica Neue", Arial, sans-serif; color: #15130F; text-transform: uppercase; }
   .cz-sub { margin: 0 0 20px; color: #6B6559; font-size: 15px; }
-  .cz-photo { display: flex; align-items: center; gap: 14px; margin: 0 0 24px; padding: 14px 18px; border: 1px solid #D7B45E; border-radius: 16px; background: linear-gradient(135deg, #FBF3DE, #F4E7C4); color: #15130F; }
-  .cz-photo svg { width: 30px; height: 30px; flex-shrink: 0; color: #8C6A1F; }
-  .cz-photo div { display: grid; gap: 2px; min-width: 0; }
-  .cz-photo b { font-size: 15px; }
-  .cz-photo span { font-size: 13.5px; color: #4A3A12; }
   .cz-empty { padding: 36px 24px; border: 1px dashed #D9CFB4; border-radius: 16px; background: #FBF7EE; text-align: center; color: #4A443B; }
   .cz-empty b { display: block; font-size: 17px; color: #15130F; margin-bottom: 6px; }
   @media (max-width: 900px) { .cz-cats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
@@ -115,17 +110,6 @@ export default function CustomizablePage() {
           text={only ? "Pick a garment and colour, add your text, photos or artwork, and see it true to size before you order." : "Choose a collection, then the garment you want to design."}
           switchTo={{ to: SHOPS.team.to, label: "Ordering for a team or group? →" }}
         />
-
-        {/* the Photo Studio, highlighted: every garment can start from the customer's photo */}
-        <div className="cz-photo">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <path d="M4 8h3l2-3h6l2 3h3v11H4zM12 16.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" />
-          </svg>
-          <div>
-            <b>New · Photo studio</b>
-            <span>Turn your photo into art, or keep it a photo, print-ready. Pick a garment, then tap “Start with my photo”.</span>
-          </div>
-        </div>
 
         {loading && <CustomizableGarments garments={[]} images={[]} loading />}
 
