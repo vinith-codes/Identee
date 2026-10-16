@@ -168,6 +168,22 @@ panel is 440 px (400 px on 761–1279 px screens) instead of the editor's 364 px
 about half the screen (`data-wide`, clamp 480–780 px; remembered in localStorage `identee:assistWide`). Wide: examples in two
 columns, AI pictures in three. Phones unchanged (the button is hidden).
 
+**`feature-improve-idea` + `fix-mockup-outline` — MERGED to `main` on 16 Oct 2026:**
+- **"Improve my idea"** (Draw tab and Chat): the customer's rough words → a clear picture prompt + "What you'll get"
+  (Words / Top / Bottom / Colours, and a **Check** line when a word has two meanings, e.g. glass vs eyeglasses) with a
+  suggested style and print area, BEFORE any picture request. Server `POST /api/ai/improve` (no login, 20/min) →
+  `improveIdea` in aiTextService.js: model `AI_IDEA_MODEL` (default gemini-flash-latest, ~₹0.03, ~8 s; falls back to the
+  small model). Rules: keep the customer's colours, never add words they didn't ask for, pick the style they name; the
+  server strips "for a white t-shirt" / "on a black background" from the prompt. Frontend: shared `IdeaPreview.jsx`;
+  DrawStudio "✨ Improve my idea" → Use this / Keep my words; Chat (assistantScript `st.idea`, chips IMPROVE / DRAW_THIS /
+  DRAW_MINE / IN_DRAW_TAB, act "improve" → DesignRoomPage `chatImprove`). "art" and "hand lettering" (even misspelt) now
+  count as a drawing request in Chat. Checked on screen (phone) and with real text-AI answers; a picture drawn FROM an
+  improved prompt was not tested by me (paid).
+- **Mockup border fix:** `captureMockups` repaints every print area without the dashed border (from `paintedEls`, what the
+  page last drew — keeps team players right) right before the snapshots. Before, a 450 ms wait raced the redraw and big
+  pictures were saved with the border (My designs). Old designs keep their old picture until saved again.
+- Gotcha seen: Vite's file watcher once missed an edit (served an old DesignRoomPage) — touching the file fixed it.
+
 **`fix-phone-layout` — MERGED to `main` on 16 Oct 2026:** every public page + the Design Room checked at 375 px (no page
 wider than the screen). Fixed: Home's floating WhatsApp/Instagram buttons sit bottom-RIGHT on phones (on the left they
 covered the start of every line) and, like Contact us, no longer fall back to an old number (+91 994 590 0292) — only
