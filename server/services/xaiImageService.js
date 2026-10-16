@@ -1,8 +1,9 @@
 // services/xaiImageService.js
 //
 // The second picture service: xAI's Grok Imagine. Used when Google's picture service refuses
-// (it refuses well-known people): for "photo to art" (the customer's photo) and for a new
-// drawing typed by the customer. Off unless XAI_API_KEY is set in .env.
+// (it refuses well-known people): for "photo to art", a change to a design and a fix (sharpen,
+// recolour, enhance) — all edits of a picture — and for a new drawing typed by the customer.
+// Off unless XAI_API_KEY is set in .env.
 //
 // .env:
 //   XAI_API_KEY               the key from console.x.ai (the company's account)
@@ -15,7 +16,7 @@
 // A new drawing: POST https://api.x.ai/v1/images/generations — JSON { model, prompt, n, aspect_ratio }.
 const ENDPOINT = "https://api.x.ai/v1/images/edits";
 const NEW_ENDPOINT = "https://api.x.ai/v1/images/generations";
-const TIMEOUT_MS = 90_000;
+const TIMEOUT_MS = 120_000; // a well-known person can take Grok about a minute
 
 const key = () => process.env.XAI_API_KEY?.trim() || "";
 export const xaiConfigured = () => Boolean(key());

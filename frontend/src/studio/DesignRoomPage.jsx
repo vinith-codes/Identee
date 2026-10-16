@@ -967,7 +967,7 @@ export default function DesignRoomPage() {
             placed[pos.key] = { url: first.url, elId: el.id };
             focus = focus || pos.key;
             changed++;
-            extra.push(botSays(`For ${pos.label} I drew ${pic.subject}. The first one is on your tee; tap Add to tee on the other to swap.`), { designs: made.images.map((im) => im.url) });
+            extra.push(botSays(`For ${pos.label} I drew ${pic.subject}. ${made.images.length > 1 ? "The first one is on your tee; tap Add to tee on the other to swap." : "It’s on your tee."}`), { designs: made.images.map((im) => im.url) });
           } catch (err) {
             pictureFailed = true;
             extra.push(

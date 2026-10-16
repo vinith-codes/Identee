@@ -36,7 +36,7 @@ export default function WaitCard({ label, expect = 0, hint = "" }) {
           <span style={{ width: `${pct}%` }} />
         </div>
       )}
-      {(late || hint) && <small>{late ? "Taking longer than usual — still working. Please keep this page open." : hint}</small>}
+      {(late || hint) && <small>{late ? `Taking longer than usual — still working.${expect >= 20 ? " Well-known people go to a second AI and can take up to two minutes." : ""} Please keep this page open.` : hint}</small>}
     </div>
   );
 }

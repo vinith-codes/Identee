@@ -166,7 +166,7 @@ export const makeAiDesign = asyncHandler(async (req, res) => {
   }
   let jobs;
   let banner = false;
-  let photoJob = null; // photo to art, or a change to a design: what Grok needs if Google refuses the picture
+  let photoJob = null; // photo to art, a change to a design, or a fix: what Grok needs if Google refuses the picture
   let drawJob = null; // a new drawing: what Grok needs if Google refuses the words (a named person)
   const teeName = String(req.body.teeColour || "white").replace(/[^\w \-]/g, "").slice(0, 30) || "white";
   if (fixing) {
@@ -178,7 +178,9 @@ export const makeAiDesign = asyncHandler(async (req, res) => {
     const dark = Boolean(req.body.teeIsDark);
     // (a photo keeps its own background: it is only made sharper)
     const flat = await sharp(stored.data).rotate().resize(1536, 1536, { fit: "inside", withoutEnlargement: true }).flatten({ background: dark && req.body.fixKind !== "photo" ? "#000000" : "#ffffff" }).jpeg({ quality: 92 }).toBuffer();
-    jobs = [generateImage({ prompt: fixPrompt({ kind: req.body.fixKind, teeColour: teeName, teeIsDark: dark }), image: { data: flat, mime: "image/jpeg" }, ratio: nearestRatio(req.body.ratio) })];
+    const prompt = fixPrompt({ kind: req.body.fixKind, teeColour: teeName, teeIsDark: dark });
+    photoJob = { promptFor: () => prompt, image: { data: flat, mime: "image/jpeg" } }; // Grok does it if Google refuses
+    jobs = [generateImage({ prompt, image: photoJob.image, ratio: nearestRatio(req.body.ratio) })];
   } else if (fromPhoto) {
     // a customer's own photo, redrawn as art (two options)
     if (!isOurUpload(req.body.photoUrl)) {
@@ -226,7 +228,7 @@ export const makeAiDesign = asyncHandler(async (req, res) => {
   // or quietly, with no picture in the answer: then Grok (xAI) makes it, when it is set up. One version only —
   // Grok costs about twice as much.
   const googleRefused = results[0].reason?.status === 422 || results[0].reason?.noImage === true;
-  if (!made.length && googleRefused) console.log(`[ai] Google refused; Grok: ${xaiConfigured() ? (photoJob ? (changing ? "change to a design" : "photo") : drawJob ? `drawing (${drawJob.ratio})` : "not for this kind of request") : "not set up"}`);
+  if (!made.length && googleRefused) console.log(`[ai] Google refused; Grok: ${xaiConfigured() ? (photoJob ? (changing ? "change to a design" : fixing ? `fix (${req.body.fixKind})` : "photo") : drawJob ? `drawing (${drawJob.ratio})` : "not for this kind of request") : "not set up"}`);
   if (!made.length && (photoJob || drawJob) && googleRefused && xaiConfigured()) {
     try {
       made = [
@@ -463,7 +465,17 @@ export const makePrintPicture = asyncHandler(async (req, res) => {
     .jpeg({ quality: 95 })
     .toBuffer();
 
-  const out = await generateImage({ prompt: printPrompt({ dark, plain: hasAlpha }), image: { data: small, mime: "image/jpeg" }, ratio, size: "4K" });
+  let out;
+  try {
+    out = await generateImage({ prompt: printPrompt({ dark, plain: hasAlpha }), image: { data: small, mime: "image/jpeg" }, ratio, size: "4K" });
+  } catch (err) {
+    // Google refuses some pictures (well-known people) — then too: Grok can't make 4,000 px, so the original is printed
+    if (err?.status === 422 || err?.noImage) {
+      res.status(422);
+      throw new Error(`The picture service won't enlarge this one (it refuses well-known people). Nothing was charged. It prints from the original picture (${meta.width} × ${meta.height} px).`);
+    }
+    throw err;
+  }
   const big = await sharp(out.buffer).metadata();
   const keepW = Math.min(big.width, Math.round((big.width * meta.width) / sheetW));
   const keepH = Math.min(big.height, Math.round((big.height * meta.height) / sheetH));
