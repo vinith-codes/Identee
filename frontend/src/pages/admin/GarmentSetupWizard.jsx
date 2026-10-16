@@ -289,7 +289,8 @@ function BasicsStep({ garment, save, saving, next, styles }) {
           <span className="aw-lbl">Starting price (₹)</span>
           <input className="aw-inp" type="number" min="0" inputMode="numeric" value={price} placeholder="Not decided yet" onChange={(e) => setPrice(e.target.value)} />
           <span className="aw-help" style={{ display: "block" }}>
-            What the customer pays per piece, GST included. An AI-made design adds its amount on top (Settings → AI designs).
+            What the customer pays per piece, GST included. A design with a picture (AI, art library or upload) adds its
+            amount on top (Settings → AI designs).
             You can publish only after setting it.
           </span>
           <span className="aw-lbl" style={{ marginTop: 10 }}>Struck-out price (₹, optional)</span>

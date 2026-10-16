@@ -273,11 +273,11 @@ export default function DesignRoomPage() {
   const bottomLengthCm = chartRow?.bottomLength ? chartRow.bottomLength * 2.54 : model?.bottom?.lengthCm;
   const fabricHex = colour?.hex || "#1C1C1D";
   const inkDefault = lum(fabricHex) < 0.55 ? "#FFFFFF" : "#141110";
-  // Price per piece (launch, 16 Oct 2026): the garment's price + a set amount when the design has an AI-made
-  // picture (Admin → Settings → AI designs). Art from the library and uploads add nothing. The server works it
-  // out the same way at checkout (checkoutService.customizationLine).
-  const hasAiDesign = elements.some((e) => e.type === "image" && /\/ai-designs\//.test(e.src || ""));
-  const aiAddOn = hasAiDesign ? Number(ai.designAddOnInr ?? 100) : 0;
+  // Price per piece (launch, 16 Oct 2026): the garment's price + a set amount when the design has a picture —
+  // AI-made, from the art library or uploaded (Admin → Settings → AI designs); once per tee, text only adds
+  // nothing. The server works it out the same way at checkout (checkoutService.customizationLine).
+  const hasPictureOn = elements.some((e) => e.type === "image" && e.src);
+  const aiAddOn = hasPictureOn ? Number(ai.designAddOnInr ?? 100) : 0;
   const unitPrice = (garment?.basePrice || 0) + aiAddOn;
   // the struck-out "was" price, with the same AI amount on top so the saving stays the same
   const wasPrice = garment?.comparePrice > garment?.basePrice ? garment.comparePrice + aiAddOn : 0;
@@ -1710,7 +1710,7 @@ export default function DesignRoomPage() {
         <div className="dr-price">
           {wasPrice > 0 && <s className="dr-was">₹{wasPrice.toLocaleString("en-IN")}</s>}
           ₹{unitPrice.toLocaleString("en-IN")}
-          <small>{aiAddOn ? `incl. ₹${aiAddOn} AI design` : "per piece"}</small>
+          <small>{aiAddOn ? `incl. ₹${aiAddOn} picture` : "per piece"}</small>
         </div>
         {step === "design" && (
           <button type="button" className={`dr-aibtn${assist ? " on" : ""}`} aria-pressed={assist} onClick={() => toggleAiTab(aiTab)}>
@@ -2186,7 +2186,7 @@ export default function DesignRoomPage() {
                 <div className="dr-total">
                   {wasPrice > 0 && pieces > 0 && <s className="dr-was">₹{(wasPrice * pieces).toLocaleString("en-IN")}</s>}
                   <Rolling value={unitPrice * pieces} format={rupees} />
-                  <small>{pieces} × ₹{unitPrice.toLocaleString("en-IN")}{aiAddOn ? ` (incl. ₹${aiAddOn} AI design)` : ""} · incl. GST</small>
+                  <small>{pieces} × ₹{unitPrice.toLocaleString("en-IN")}{aiAddOn ? ` (incl. ₹${aiAddOn} for the picture)` : ""} · incl. GST</small>
                   {shippingNote(shipRule, pieces) && <small className="dr-shipnote">{shippingNote(shipRule, pieces)}</small>}
                   {siteOffer && <small className="dr-offernote">+ Extra {siteOffer.offerPercentage}% off at checkout with code <b>{siteOffer.code}</b></small>}
                 </div>

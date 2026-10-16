@@ -37,8 +37,8 @@ const DEFAULTS = {
   "ai.pricePerImageInr": { value: 2.9, type: "number", description: "What one picture costs, in rupees (for the spending figures)" },
   // Grok (xAI) redraws photos Google refuses; $5 of credit ≈ 71 pictures
   "ai.grokPricePerImageInr": { value: 6, type: "number", description: "What one Grok picture costs, in rupees (for the spending figures)" },
-  // what the CUSTOMER pays extra per tee with an AI-made picture (utils/aiPricing.js; art library and uploads add nothing)
-  [AI_ADDON_KEY]: { value: AI_ADDON_DEFAULT, type: "number", description: "Extra price per tee with an AI-made design (₹)" },
+  // what the CUSTOMER pays extra per tee with a picture — AI-made, art library or upload (utils/aiPricing.js)
+  [AI_ADDON_KEY]: { value: AI_ADDON_DEFAULT, type: "number", description: "Extra price per tee with a picture (₹)" },
 };
 const LIMITS = { "ai.dailyPerUser": [1, 50], "ai.imagesPerRequest": [1, 4], "ai.monthlyCapInr": [0, 1000000], "ai.pricePerImageInr": [0, 100], "ai.grokPricePerImageInr": [0, 100], [AI_ADDON_KEY]: [0, 5000] };
 
@@ -94,7 +94,7 @@ export const getAiStatus = asyncHandler(async (req, res) => {
   const reason = await whyOff(settings);
   const left = req.user ? Math.max(0, settings.dailyPerUser - (await usedToday(req.user._id))) : null;
   // text: the assistant can write slogans to order (same key; switched off together with the design maker)
-  // designAddOnInr: what an AI-made design adds to the tee's price (the Design Room shows it)
+  // designAddOnInr: what a picture (AI, art library or upload) adds to the tee's price (the Design Room shows it)
   res.json({ available: !reason, reason, text: aiTextConfigured() && settings.enabled, styles: Object.keys(AI_STYLES), photoStyles: [...Object.keys(PHOTO_STYLES), FILTER_STYLE], dailyPerUser: settings.dailyPerUser, left, designAddOnInr: settings.designAddOnInr });
 });
 
