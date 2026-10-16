@@ -55,6 +55,7 @@ export default function AddressStep({ selectedAddress, onContinue }) {
   // deliverability check on already-saved addresses below.
   const [shippingRules, setShippingRules] = useState([]);
   const [rulesLoading, setRulesLoading] = useState(true);
+  const [flatShipping, setFlatShipping] = useState(true);
 
   useEffect(() => {
     const fetchShippingRules = async () => {
@@ -65,6 +66,8 @@ export default function AddressStep({ selectedAddress, onContinue }) {
         setShippingRules(
           Array.isArray(data.shippingRules) ? data.shippingRules : [],
         );
+        // flat shipping (₹100, free from 3 pieces): the per-state costs aren't charged, so don't show them
+        setFlatShipping(data.flatRate != null);
       } catch (err) {
         console.error("Failed to load shipping states:", err);
       } finally {
@@ -464,11 +467,14 @@ export default function AddressStep({ selectedAddress, onContinue }) {
         {/* ── Add mode: inline new-address form ── */}
         {mode === "add" && (
           <div>
+            {/* phones: one field per row (three side by side were too narrow to read) */}
+            <style>{`@media (max-width: 600px) { .addr-row { grid-template-columns: 1fr !important; } }`}</style>
             <UseLocationButton
               deliverableStates={deliverableStates}
               onFill={fillForm}
             />
             <div
+              className="addr-row"
               style={{
                 display: "grid",
                 gridTemplateColumns: "1fr 1fr",
@@ -531,6 +537,7 @@ export default function AddressStep({ selectedAddress, onContinue }) {
             </div>
 
             <div
+              className="addr-row"
               style={{
                 display: "grid",
                 gridTemplateColumns: "1fr 1fr 1fr",
@@ -577,7 +584,7 @@ export default function AddressStep({ selectedAddress, onContinue }) {
                     <option value="">Select state…</option>
                     {shippingRules.map((rule) => (
                       <option key={rule._id || rule.state} value={rule.state}>
-                        {rule.state} (₹{rule.cost} delivery)
+                        {flatShipping ? rule.state : `${rule.state} (₹${rule.cost} delivery)`}
                       </option>
                     ))}
                   </select>

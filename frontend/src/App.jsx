@@ -125,7 +125,7 @@ function PlaceholderAdminPage({ title, desc }) {
           margin: "4px 0 0",
           fontSize: 26,
           fontWeight: 600,
-          fontFamily: "'Cormorant Garamond', serif",
+          fontFamily: "'Bricolage Grotesque', 'Helvetica Neue', Arial, sans-serif",
         }}
       >
         {title}

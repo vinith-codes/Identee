@@ -9,6 +9,7 @@ import {
   removeCartItem,
 } from "../redux/slices/cartWishlistSlice";
 import { imageUrl } from "../utils/imageUrl";
+import EmptyState from "../components/EmptyState";
 
 
 const C = {
@@ -95,11 +96,7 @@ export default function CartPage() {
     );
   }
   if (cartItems.length === 0) {
-    return (
-      <div style={{ padding: 40, textAlign: "center", color: C.muted }}>
-        Your cart is empty.
-      </div>
-    );
+    return <EmptyState title="Your cart is empty" text="Design a tee of your own, or pick a ready-made one." />;
   }
 
   const total = cartItems.reduce((sum, item) => sum + item.price, 0);

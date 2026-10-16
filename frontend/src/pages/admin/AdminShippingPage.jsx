@@ -375,7 +375,7 @@ export default function AdminShippingPage() {
           margin: "4px 0 4px",
           fontSize: 26,
           fontWeight: 600,
-          fontFamily: "'Cormorant Garamond', serif",
+          fontFamily: "'Bricolage Grotesque', 'Helvetica Neue', Arial, sans-serif",
         }}
       >
         Shipping

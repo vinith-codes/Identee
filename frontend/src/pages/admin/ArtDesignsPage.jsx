@@ -67,7 +67,7 @@ export default function ArtDesignsPage() {
   return (
     <div style={{ minHeight: "100vh", background: C.bg, color: C.ink, padding: "32px 40px", fontFamily: "'Inter', sans-serif" }}>
       <p style={{ margin: 0, fontSize: 11, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", color: C.gold }}>Admin</p>
-      <h1 style={{ margin: "4px 0 24px", fontSize: 26, fontWeight: 600, fontFamily: "'Cormorant Garamond', serif" }}>Art Designs</h1>
+      <h1 style={{ margin: "4px 0 24px", fontSize: 26, fontWeight: 600, fontFamily: "'Bricolage Grotesque', 'Helvetica Neue', Arial, sans-serif" }}>Art Designs</h1>
 
       {categories.length === 0 && (
         <p style={{ color: C.muted, fontSize: 13, marginBottom: 20 }}>

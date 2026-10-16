@@ -1,5 +1,8 @@
 import { useState, useEffect } from "react";
+import { useDispatch, useSelector } from "react-redux";
 import { THEME } from "../../theme/theme";
+import { fetchCart } from "../../redux/slices/cartWishlistSlice";
+import EmptyState from "../EmptyState";
 import CheckoutStepper from "./CheckoutStepper";
 import AddressStep from "./AddressStep";
 import OrderSummaryStep from "./OrderSummaryStep";
@@ -22,6 +25,18 @@ export default function CheckoutFlow({ items: itemsProp, buyNow: buyNowProp }) {
     setItems(itemsProp || null);
   }, [itemsProp]);
 
+  // Cart checkout: load the cart fresh, and with nothing in it show a way back
+  // to the shop instead of the address form.
+  const dispatch = useDispatch();
+  const token = useSelector((s) => s.auth?.user?.token);
+  const cartCount = useSelector((s) => s.cartWishlist?.cartItems?.length || 0);
+  const [cartChecked, setCartChecked] = useState(false);
+  useEffect(() => {
+    if (itemsProp || !token) return;
+    Promise.resolve(dispatch(fetchCart(token))).finally(() => setCartChecked(true));
+  }, [itemsProp, token, dispatch]);
+  const emptyCart = !itemsProp && cartChecked && cartCount === 0 && step < 3;
+
   // What the server should price (it never trusts client prices). Rebuilt
   // from the editable items so the quote always matches what's on screen.
   //   product:       { productId, items: [{ size, qty }] }
@@ -37,6 +52,14 @@ export default function CheckoutFlow({ items: itemsProp, buyNow: buyNowProp }) {
           productId: buyNowProp.productId,
           items: (items || []).map((it) => ({ size: it.size, qty: it.qty })),
         };
+
+  if (emptyCart) {
+    return (
+      <div style={{ minHeight: "60vh", background: THEME.bg }}>
+        <EmptyState title="Nothing to check out yet" text="Your cart is empty. Add a tee to your cart, then come back here." />
+      </div>
+    );
+  }
 
   return (
     <div

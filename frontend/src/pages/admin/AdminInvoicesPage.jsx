@@ -37,7 +37,7 @@ export default function AdminInvoicesPage() {
           margin: "4px 0 20px",
           fontSize: 26,
           fontWeight: 600,
-          fontFamily: "'Cormorant Garamond', serif",
+          fontFamily: "'Bricolage Grotesque', 'Helvetica Neue', Arial, sans-serif",
         }}
       >
         Invoices

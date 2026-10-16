@@ -68,7 +68,7 @@ export default function OfferBannerPage() {
   return (
     <div style={{ minHeight: "100vh", background: THEME.bg, color: THEME.text, padding: "32px 40px", fontFamily: "'Inter', sans-serif" }}>
       <p style={{ ...labelStyle, margin: 0, color: THEME.gold }}>Admin · Content</p>
-      <h1 style={{ margin: "4px 0 4px", fontSize: 26, fontWeight: 600, fontFamily: "'Cormorant Garamond', serif" }}>
+      <h1 style={{ margin: "4px 0 4px", fontSize: 26, fontWeight: 600, fontFamily: "'Bricolage Grotesque', 'Helvetica Neue', Arial, sans-serif" }}>
         Offer Banner
       </h1>
       <p style={{ margin: "0 0 24px", fontSize: 14, color: THEME.textMuted }}>
