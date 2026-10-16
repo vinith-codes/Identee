@@ -54,7 +54,7 @@ export function setPngDpi(png, dpi = PRINT_DPI) {
   return out;
 }
 
-const toPng = (canvas) =>
+export const toPng = (canvas) =>
   new Promise((resolve, reject) =>
     canvas.toBlob((b) => (b ? b.arrayBuffer().then((a) => resolve(new Uint8Array(a)), reject) : reject(new Error("The picture is too big for this browser"))), "image/png"),
   );
@@ -72,7 +72,7 @@ export async function renderPrintFile(elements, [wCm, hCm]) {
 /* ---------- where things go ---------- */
 // The artwork's outer box inside its print area, in % of the area. Measured in cm (the area is rarely square),
 // so a turned item — text running up a Vertical Front — is measured as it really sits.
-function artworkBox(els, [wCm, hCm]) {
+export function artworkBox(els, [wCm, hCm]) {
   let x0 = Infinity;
   let y0 = Infinity;
   let x1 = -Infinity;
@@ -101,7 +101,7 @@ function artworkBox(els, [wCm, hCm]) {
 //   across: its centre's distance from the tee's centre line, + = the wearer's left
 //           (sleeves: from the sleeve area's centre, as seen in the file)
 // box = the artwork's box in % of the area.
-function artworkSpot(area, size, box, [w, h]) {
+export function artworkSpot(area, size, box, [w, h]) {
   const left = (box.x0 / 100) * w;
   const top = (box.y0 / 100) * h;
   const aw = ((box.x1 - box.x0) / 100) * w;
@@ -126,7 +126,7 @@ function artworkSpot(area, size, box, [w, h]) {
 }
 
 // SIDE in words: "centred · 5 cm each side", "8.8 cm to wearer's LEFT"
-const acrossText = (s) =>
+export const acrossText = (s) =>
   Math.abs(s.across) < 0.3
     ? s.sleeve ? "centred on sleeve" : `centred · ${fmtCm(s.aw / 2)} cm each side`
     : s.sleeve
@@ -140,7 +140,7 @@ const acrossText = (s) =>
 const MAP_PX = 12; // px per cm on the tee drawings
 // the usual start line when an area has none from the collar (cm) — as in teeModel.js
 // (shorts: below the top of the waistband, the co-ord set's leg prints)
-const EST_START = { front: 8, back: 7, shorts: 25 };
+export const EST_START = { front: 8, back: 7, shorts: 25 };
 
 function arrow(g, x1, y1, x2, y2) {
   g.beginPath();
@@ -447,13 +447,13 @@ async function jobCard({ heading, sub, rows, tee, checks = [], notes = [] }) {
 }
 
 /* ---------- names ---------- */
-const safe = (s) =>
+export const safe = (s) =>
   String(s || "")
     .replace(/[^\w\- ]+/g, "")
     .trim()
     .replace(/\s+/g, "-")
     .slice(0, 40) || "design";
-const fmtCm = (n) => String(Math.round(n * 10) / 10);
+export const fmtCm = (n) => String(Math.round(n * 10) / 10);
 
 /**
  * Builds the ZIP for one order.

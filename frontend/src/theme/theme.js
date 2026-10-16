@@ -23,7 +23,7 @@ export const THEME = {
   danger: "#C0392B",
   dangerBg: "#C0392B14",
   dangerBorder: "#C0392B44",
-  fontDisplay: "'Cormorant Garamond', serif",
+  fontDisplay: "'Bricolage Grotesque', 'Helvetica Neue', Arial, sans-serif",
   fontBody: "'Inter', sans-serif",
   shadow: "0 4px 20px rgba(20,17,16,0.08)",
 };

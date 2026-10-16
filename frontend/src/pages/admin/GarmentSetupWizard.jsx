@@ -134,7 +134,7 @@ export default function GarmentSetupWizard() {
     return (
       <div style={AW.page}>
         <p style={{ color: "#A3341F" }}>{loadError}</p>
-        <Link to="/admin/customizable">← Back to Customizable</Link>
+        <Link to="/admin/customizable">← Back to Create your IDENTEE</Link>
       </div>
     );
   }
@@ -147,7 +147,7 @@ export default function GarmentSetupWizard() {
       <style>{AW.css}</style>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
         <div style={{ fontSize: 14 }}>
-          <Link to="/admin/customizable" className="aw-link">← Customizable</Link>
+          <Link to="/admin/customizable" className="aw-link">← Create your IDENTEE</Link>
           <span style={{ color: "#A39C8C", margin: "0 8px" }}>/</span>
           <b>Set up: {garment.label}</b>{" "}
           <span className={`aw-tag ${garment.isActive ? "live" : "draft"}`} style={{ marginLeft: 6 }}>
@@ -565,7 +565,7 @@ Its colours, photos and print areas are removed. This cannot be undone.`)) retur
       </div>
       <p className="aw-help">
         {garment.isActive
-          ? `Live — ${garment.label} appears under "Design your own" on the website.`
+          ? `Live — ${garment.label} appears under "Create your IDENTEE" on the website.`
           : "Draft — customers can't see it yet. You can open it in the customizer after publishing."}
       </p>
 

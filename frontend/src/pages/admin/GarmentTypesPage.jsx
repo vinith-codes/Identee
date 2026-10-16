@@ -72,7 +72,7 @@ export default function GarmentTypesPage() {
           margin: "4px 0 24px",
           fontSize: 26,
           fontWeight: 600,
-          fontFamily: "'Cormorant Garamond', serif",
+          fontFamily: "'Bricolage Grotesque', 'Helvetica Neue', Arial, sans-serif",
         }}
       >
         Garment Types

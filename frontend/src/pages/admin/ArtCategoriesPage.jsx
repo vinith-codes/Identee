@@ -56,7 +56,7 @@ export default function ArtCategoriesPage() {
   return (
     <div style={{ minHeight: "100vh", background: C.bg, color: C.ink, padding: "32px 40px", fontFamily: "'Inter', sans-serif" }}>
       <p style={{ margin: 0, fontSize: 11, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", color: C.gold }}>Admin</p>
-      <h1 style={{ margin: "4px 0 24px", fontSize: 26, fontWeight: 600, fontFamily: "'Cormorant Garamond', serif" }}>Art Categories</h1>
+      <h1 style={{ margin: "4px 0 24px", fontSize: 26, fontWeight: 600, fontFamily: "'Bricolage Grotesque', 'Helvetica Neue', Arial, sans-serif" }}>Art Categories</h1>
 
       <form onSubmit={handleCreate} style={{ display: "flex", gap: 12, marginBottom: 28, alignItems: "flex-start", flexWrap: "wrap" }}>
         <input

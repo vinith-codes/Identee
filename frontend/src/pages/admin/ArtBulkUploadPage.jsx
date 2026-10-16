@@ -107,7 +107,7 @@ export default function ArtBulkUploadPage() {
           margin: "4px 0 6px",
           fontSize: 26,
           fontWeight: 600,
-          fontFamily: "'Cormorant Garamond', serif",
+          fontFamily: "'Bricolage Grotesque', 'Helvetica Neue', Arial, sans-serif",
         }}
       >
         Bulk Upload Art Designs

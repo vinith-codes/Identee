@@ -31,7 +31,7 @@ export const DRAW_THIS = "Draw this · 1 request";
 export const DRAW_MINE = "Draw my words";
 export const IN_DRAW_TAB = "Open in the Draw tab";
 const MOODS = ["Royal", "Sporty", "Cute", "Minimal", "Retro", "Bold"];
-const MORE = ["Colour help", "Where to print", "Size help", MORE_PHOTO, MORE_STYLE, "Remove a background", "Make a design"];
+const MORE = ["Colour help", "Where to print", "Size help", MORE_PHOTO, MORE_STYLE, "Remove a background", "Make a design", IMPROVE];
 const AFTER_SLOGANS = ["Show more", "Add a name or year", "Change tone", "Something else"];
 const PRINT_FOR = {
   "A small logo": [["left-chest", "right-chest", "left-sleeve"], "A small logo sits best on the chest or a sleeve."],
@@ -71,6 +71,7 @@ const act = (a) => ({ act: a });
 export const EXAMPLES = [
   { title: "Design the whole tee in one sentence", hint: "Up to three pictures at once: front, back, a sleeve", say: "A tiger on the front and a tree on the back, on a black t-shirt", fill: true, needs: "pictures" },
   { title: "Draw a picture for me", say: "Draw a lion holding a cricket bat", fill: true, needs: "pictures", tab: "draw" },
+  { title: "✨ Improve my idea", hint: "Say it your way: a picture, words, where each goes. I’ll show what you’ll get before drawing (free)", say: IMPROVE, needs: "idea" },
   { title: "Turn my photo into art", hint: "Cartoon, sketch, sticker and more", say: "Photo to art", needs: "pictures", tab: "photo" },
   { title: "Turn words into lettering art", say: "Hand lettering that says “Work smarter not harder”", fill: true, needs: "pictures", tab: "draw", style: "Hand lettering" },
   { title: "Write a slogan", say: "A slogan for my mother", fill: true },
@@ -176,7 +177,8 @@ export function replyTo(text, ctx, st, { tapped = false } = {}) {
   if (st.idea) {
     const ai = ctx.ai;
     const better = st.idea.improved;
-    if (t === IMPROVE) return done([act({ type: "improve", idea: st.idea.subject, areaKey: st.idea.areaKey })]);
+    // (already improved: tapping it again asks for a new idea, below)
+    if (t === IMPROVE && !better) return done([act({ type: "improve", idea: st.idea.subject, areaKey: st.idea.areaKey })]);
     if (t === DRAW_THIS && better) {
       const job = { subject: better.prompt, style: ai.styles.includes(better.style) ? better.style : ai.styles[0], ...(better.area || st.idea.areaKey ? { areaKey: better.area || st.idea.areaKey } : {}) };
       return done([act({ type: "generate", ...job })], { lastDesign: job, idea: null });
@@ -186,6 +188,22 @@ export function replyTo(text, ctx, st, { tapped = false } = {}) {
       const a = better ? { subject: better.prompt, style: better.style, areaKey: better.area || st.idea.areaKey } : { subject: st.idea.subject, areaKey: st.idea.areaKey };
       return done([act({ type: "aiTab", tab: "draw", ...a })], { idea: null });
     }
+  }
+  // "✨ Improve my idea" on its own (the examples, More help, the button above the message box): ask for the idea,
+  // then make it clear. From the button with something typed it comes as "✨ Improve my idea: <the idea>".
+  const typedIdea = t.startsWith(`${IMPROVE}:`) ? t.slice(IMPROVE.length + 1).trim() : "";
+  if (t === IMPROVE || typedIdea) {
+    const ai = ctx.ai;
+    if (!ai.available || !ai.text) return done([bot("Improving ideas is not available right now. You can still describe your picture in the Draw tab."), chips(["Make a design", "Something else"])]);
+    if (typedIdea.length >= 3) {
+      const idea = subjectAndArea(typedIdea, ctx.areas);
+      return done([act({ type: "improve", idea: idea.subject, areaKey: idea.areaKey })], { idea: { subject: idea.subject, areaKey: idea.areaKey, improved: null } });
+    }
+    return done([bot("Tell me your idea in your own words: what to draw, any words on it, and where each part goes. For example: “Vijay’s face at the top and the name VIJAY in bold letters at the bottom left”. I’ll make it clear and show you what you’ll get before anything is drawn.")], { wait: "idea", idea: null });
+  }
+  if (wait === "idea" && !offTopic && t.length >= 3) {
+    const idea = subjectAndArea(t, ctx.areas);
+    return done([act({ type: "improve", idea: idea.subject, areaKey: idea.areaKey })], { idea: { subject: idea.subject, areaKey: idea.areaKey, improved: null } });
   }
   if (t === "Log in") return done([act({ type: "login" })]);
 
@@ -244,6 +262,20 @@ export function replyTo(text, ctx, st, { tapped = false } = {}) {
       .replace(/\s+/g, " ")
       .trim();
     if (said.length < 2) return done([bot("Which words should I draw? Type them, for example: “Work smarter not harder” as an image."), chips(["Something else"])]);
+    // More than words: a picture of something AND words, or where each goes ("the vijay image at the top and the
+    // text VIJAY as an image at the bottom left"). Lettering the whole sentence drew the instructions themselves,
+    // so such a request goes to "Improve my idea" — it shows what will be drawn before a request is used.
+    const mixed = !quoted && (/\b(image|picture|photo|portrait|drawing|illustration|logo|face|cartoon|sketch)\b/.test(said.toLowerCase()) || /\b(top|bottom|left|right|cent(re|er)|middle|below|above|under(neath)?)\b|\band (the )?(text|words?|name)\b/.test(said.toLowerCase()));
+    if (mixed) {
+      const idea = subjectAndArea(t, ctx.areas);
+      if (ai.text) {
+        return done(
+          [bot("That’s a picture and words together. Let me make the idea clear first — it’s free, and I’ll show you what you’ll get before drawing."), chips([IMPROVE, DRAW_MINE, IN_DRAW_TAB])],
+          { idea: { subject: idea.subject, areaKey: idea.areaKey, improved: null }, wait: null },
+        );
+      }
+      return done([act({ type: "aiTab", tab: "draw", subject: idea.subject, areaKey: idea.areaKey })]);
+    }
     // anything else they asked for (a crown, rays, colours) stays in the request as written
     const job = { subject: quoted ? `${unArea(t.replace(quoted[0], "")).replace(/\s+/g, " ").trim()} — the words to letter, spelled exactly: “${said}”` : `the words “${said}”, spelled exactly`, style: LETTERING, ...(named ? { areaKey: named.key } : {}) };
     return done([act({ type: "generate", ...job })], { lastDesign: job });

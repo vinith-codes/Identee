@@ -125,7 +125,7 @@ export default function SettingsLayout() {
           <div style={{ padding: "0 10px", marginBottom: 22 }}>
             <p
               style={{
-                fontFamily: "'Cormorant Garamond', serif",
+                fontFamily: "'Bricolage Grotesque', 'Helvetica Neue', Arial, sans-serif",
                 fontSize: 22,
                 fontWeight: 600,
                 color: theme.text,

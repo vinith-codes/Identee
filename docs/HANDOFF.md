@@ -219,6 +219,54 @@ IDENTEE_Measurements_Needed.pdf` (5 pages, every number still guessed, with draw
 (Downloads, recorded by a puppeteer script with ffmpeg at E:\tools\ffmpeg — headless Chrome needs `--use-angle=d3d11`
 for smooth 3D frames; swiftshader gives ~1 fps).
 
+**`feature-three-shops` — MERGED to `main` on 16 Oct 2026:** the client's three main categories, named the same
+everywhere (`utils/shopNames.js`); the addresses stay.
+- **Create your IDENTEE** (was Design your own / Customizable) → /customizable · **Shop your IDENTEE** (was Ready-made)
+  → /ready-made · **Create your team/group IDENTEE** (new) → /team-orders (`TeamOrdersPage.jsx`: 3 steps, who it's for,
+  the garments with "Start the team design", WhatsApp / call for big orders). Its cards open the room with `?team=1`:
+  `startTeam()` puts the Team jersey layout on and the assistant asks for the player list (also via "Design with the
+  Assistant"). Menu, home (hero, a wide third card with a jersey + roster, marquee), footer ("Bulk & team orders" → team
+  page), headings, breadcrumbs, empty states and the admin (menu, Categories tabs, headings, wizard) use the new names.
+- **Shop your IDENTEE is Coming soon** until Admin → Settings → General → "Shop your IDENTEE is open" (`general.shopOpen`,
+  public boolean; the row was added to the shared DB, off, with the user's go-ahead). Off: /ready-made, its category
+  pages and product pages show `ShopComingSoon.jsx`; menu SOON tag and no dropdown; home hides featured products and the
+  shop card says Coming soon, hero's 2nd button = team orders; footer hides shop categories; empty states offer team
+  orders; checkout (buy now + cart) refuses ready-made items (checkoutService `shopOpen()`). Hook: `utils/shopOpen.js`.
+  The admin switch itself was not clicked by me (customer login).
+- Design Room's ← on the first step goes back to the page the customer came from (`leaveRoom`, `cameFromSite` read
+  once before the address is tidied); opened from a link: team page for a team design, else /customizable.
+- The "New · Photo studio" banner on /customizable was removed (asked by the user). `ShopChoices.jsx` is unused.
+
+**`fix-chat-image-and-words` — MERGED to `main` on 16 Oct 2026 (tested by the user):**
+- "I want the vijay image at the top and the text VIJAY As a Image at the bottom left" hit the words-as-lettering
+  shortcut ("as a image") and the whole sentence was lettered. assistantScript: when such a request names a picture
+  (image, photo, portrait, logo…) or a place (top, bottom left, below…), it offers "Improve my idea" first; plain
+  lettering ("God is my only belief as an image") is unchanged.
+- "✨ Improve my idea" in the Chat is always reachable: a button above the message box (`.dr-improve-row`; improves what
+  is typed — sent as "✨ Improve my idea: <idea>" — or asks for the idea, wait "idea"), a starting example
+  (`needs: "idea"` = image AI + text AI) and More help.
+- The preview card (IdeaPreview `areas` + `onArea`) has a Print area list in Chat and Draw: the AI only suggests one
+  (main front when the idea names none). Chat order: area the customer named → AI's suggestion → open area → main front,
+  free areas only (`chatImprove`); "Draw this" uses the choice; the list locks once drawn.
+- Chat rules can be tested without the browser or AI: node with a resolve hook that adds ".js" to the frontend's
+  extensionless imports, then call `replyTo(text, ctx, state)`.
+
+**`fix-phone-logged-in` — MERGED to `main` on 16 Oct 2026:** the logged-in pages at 375 px. Account: all 8 tabs in a
+2-column grid (a sideways row hid most), the page scrolls instead of the panel. Checkout address form: one field per row
+on phones (`.addr-row`). Empty cart / favourites / checkout-with-empty-cart show `components/EmptyState.jsx` (Design your
+own / Shop ready-made); CheckoutFlow loads the cart itself before deciding. State lists (checkout + Account) hide the
+old per-state prices while flat shipping is on (`flatRate != null`) — they said "Tamil Nadu (₹49 delivery)". Every
+heading that named Cormorant Garamond (never loaded → Times) now uses Bricolage Grotesque, incl. `THEME.fontDisplay`
+(the login page's italic quote keeps its Georgia fallback on purpose). Seen on a phone with the customer test account;
+the admin pages (new heading font) and checkout WITH items were not seen by me. Vite's watcher missed edits twice
+again — touch the file if a change doesn't show.
+
+**`docs-3d-models` — MERGED to `main` on 16 Oct 2026:** decided with the user that 3D models stay a **developer job,
+added in the code** (no admin zip upload — new shapes are rare and need testing on the running site). How to make and
+add one: `docs/3D_MODELS.md` (licence rules, preparing/shrinking, measuring anchors, TEE_MODELS + modelForGarment, the 7
+files a new print side touches, the test list). The admin's part for a new product is the wizard, including the colour
+photo maker on branch `feature-colour-photo-maker` (f95095d, NOT merged — waits for the user's test in the real wizard).
+
 **NEXT PHASE (moved there by the user, 16 Oct 2026): WhatsApp order updates + the Meta setup.** The code is done on
 branch `feature-whatsapp-orders` (241724b, NOT merged; its own HANDOFF entry explains it; client guide
 identee-private-assets/IDENTEE_WhatsApp_Order_Updates_Guide.pdf). Meta: no app created yet; business verification waits

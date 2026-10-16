@@ -20,13 +20,14 @@ export const ADMIN_MENU = [
     to: "/admin/orders",
     children: [
       { to: "/admin/orders", label: "All orders" },
+      { to: "/admin/print-sheets", label: "Print sheets" },
       { to: "/admin/invoices", label: "Invoices" },
       { to: "/admin/shipping", label: "Shipping rates" },
     ],
   },
   {
     key: "customizable",
-    label: "Customizable",
+    label: "Create your IDENTEE",
     icon: "customizable",
     to: "/admin/customizable",
     // the old editors stay reachable (linked from the Customizable page)
@@ -34,7 +35,7 @@ export const ADMIN_MENU = [
   },
   {
     key: "readymade",
-    label: "Ready-made",
+    label: "Shop your IDENTEE",
     icon: "readymade",
     to: "/admin/products",
     children: [

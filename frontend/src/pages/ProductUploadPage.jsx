@@ -671,7 +671,7 @@ export default function ProductUploadPage() {
             fontWeight: 600,
             color: THEME.text,
             letterSpacing: "0.01em",
-            fontFamily: "'Cormorant Garamond', serif",
+            fontFamily: "'Bricolage Grotesque', 'Helvetica Neue', Arial, sans-serif",
           }}
         >
           Upload Product

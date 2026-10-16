@@ -128,7 +128,7 @@ export default function GeneralSettingsPage() {
           margin: "4px 0 4px",
           fontSize: 24,
           fontWeight: 600,
-          fontFamily: "'Cormorant Garamond', serif",
+          fontFamily: "'Bricolage Grotesque', 'Helvetica Neue', Arial, sans-serif",
         }}
       >
         General
@@ -231,6 +231,15 @@ export default function GeneralSettingsPage() {
           label="YouTube"
           value={form["general.youtubeUrl"] || ""}
           onChange={(v) => set("general.youtubeUrl", v)}
+        />
+      </SettingCard>
+
+      <SettingCard title="Shop your IDENTEE">
+        <ToggleField
+          label="Shop your IDENTEE is open"
+          description="Off: the ready-made shop shows “Coming soon” everywhere (menu, home page, its categories and product pages) and ready-made products can't be ordered. On: customers can browse and buy them. Create your IDENTEE and team orders are not affected."
+          checked={form["general.shopOpen"] === true}
+          onChange={(v) => set("general.shopOpen", v)}
         />
       </SettingCard>
 

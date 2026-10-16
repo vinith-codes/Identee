@@ -19,8 +19,8 @@ const EMPTY = {
 // The two shops, one tab each. A category saved before the split has no kind ("not sorted yet") and is listed in
 // both tabs until it is given one (Edit → Shop).
 const TABS = [
-  ["readymade", "Ready-made", "The ready-made shop: categories of finished products, by their Garment Style."],
-  ["customizable", "Design your own", "Collections on the Design your own page: the garments customers design, by their style."],
+  ["readymade", "Shop your IDENTEE", "The Shop your IDENTEE page: categories of finished products, by their Garment Style."],
+  ["customizable", "Create your IDENTEE", "Collections on the Create your IDENTEE page: the garments customers design, by their style."],
 ];
 const inTab = (c, tab) => !c.kind || c.kind === tab;
 
@@ -167,7 +167,7 @@ function CategoryForm({ initial, tab, onCancel, onSaved }) {
   return (
     <div style={{ ...card, padding: 24, marginBottom: 24 }}>
       <h3 style={{ margin: "0 0 18px", fontFamily: THEME.fontDisplay, fontSize: 22 }}>
-        {isEdit ? `Edit "${initial.name}"` : designOwn ? "New Design-your-own collection" : "New ready-made category"}
+        {isEdit ? `Edit "${initial.name}"` : designOwn ? "New Create your IDENTEE collection" : "New Shop your IDENTEE category"}
       </h3>
 
       <div style={{ marginBottom: 18 }}>
@@ -180,7 +180,7 @@ function CategoryForm({ initial, tab, onCancel, onSaved }) {
           ))}
         </div>
         <p style={{ margin: "4px 0 0", fontSize: 11, color: THEME.textMuted }}>
-          {designOwn ? "Shown on the Design your own page, with the garments customers can design." : "Shown in the ready-made shop and its menu, with finished products."}
+          {designOwn ? "Shown on the Create your IDENTEE page, with the garments customers can design." : "Shown on the Shop your IDENTEE page and its menu, with finished products."}
           {isEdit && !initial.kind && " This category isn't sorted yet — pick one and save."}
         </p>
       </div>
@@ -205,7 +205,7 @@ function CategoryForm({ initial, tab, onCancel, onSaved }) {
         <label style={labelStyle}>Styles in this category</label>
         <p style={{ margin: "4px 0 8px", fontSize: 12, color: THEME.textMuted }}>
           {designOwn ? (
-            <>Designable garments appear here when their style (Customizable → step 1 "Shown in category") matches one of these.</>
+            <>Designable garments appear here when their style (Create your IDENTEE → step 1 "Shown in category") matches one of these.</>
           ) : (
             <>Products appear here when their <strong>Garment Style</strong> matches one of these (not case-sensitive).</>
           )}
@@ -240,7 +240,7 @@ function CategoryForm({ initial, tab, onCancel, onSaved }) {
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 18, marginTop: 20 }}>
         <ImagePicker
-          label={designOwn ? "Card picture (Design your own page)" : "Tile image (ready-made shop)"}
+          label={designOwn ? "Card picture (Create your IDENTEE page)" : "Tile image (Shop your IDENTEE page)"}
           hint="Portrait 4:5, e.g. 800×1000 px · JPG/PNG/WebP · max 5 MB"
           current={initial?.image?.url}
           file={files.image}
@@ -263,7 +263,7 @@ function CategoryForm({ initial, tab, onCancel, onSaved }) {
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 14, marginTop: 20 }}>
         <Toggle label="Visible on the website" hint="Turn off to hide without deleting" checked={form.isActive} onChange={(v) => setForm({ ...form, isActive: v })} />
         {!designOwn && (
-          <Toggle label='"Design your own" button' hint="Shows a button to the design room on this category's page" checked={form.isCustomizable} onChange={(v) => setForm({ ...form, isCustomizable: v })} />
+          <Toggle label='"Create your own" button' hint="Shows a button to the design room on this category's page" checked={form.isCustomizable} onChange={(v) => setForm({ ...form, isCustomizable: v })} />
         )}
         <Toggle label="Coming soon" hint="Greyed-out tile, not clickable" checked={form.comingSoon} onChange={(v) => setForm({ ...form, comingSoon: v })} />
       </div>
@@ -462,7 +462,7 @@ export default function CategoriesPage() {
                   {!c.isActive && <Badge text="Hidden" />}
                   {c.comingSoon && <Badge text="Coming soon" />}
                   {!c.kind && <Badge text="Not sorted yet — Edit to pick a shop" />}
-                  {c.kind !== "customizable" && c.isCustomizable && <Badge text='"Design your own" button' gold />}
+                  {c.kind !== "customizable" && c.isCustomizable && <Badge text='"Create your own" button' gold />}
                 </p>
                 <p style={{ margin: "4px 0 0", fontSize: 12, color: THEME.textMuted }}>
                   {c.styles.length ? c.styles.join(" · ") : "No styles"} ·{" "}

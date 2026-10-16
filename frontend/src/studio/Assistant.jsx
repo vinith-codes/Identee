@@ -6,7 +6,7 @@
 // print-area / size help). The paid AI parts can replace those scripted
 // replies later (see docs/AI_PLAN.md).
 import { useEffect, useRef, useState } from "react";
-import { EXAMPLES, replyTo } from "./assistantScript";
+import { EXAMPLES, IMPROVE, replyTo } from "./assistantScript";
 import { imageUrl } from "../utils/imageUrl";
 import WaitCard from "./WaitCard";
 import IdeaPreview from "./IdeaPreview";
@@ -155,7 +155,15 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
           }
           if (m.preview) {
             // "Improve my idea": what will be drawn, before any picture request is spent
-            return <IdeaPreview key={i} preview={m.preview} />;
+            // its print area can be changed until it is drawn (the idea still waiting is this one)
+            const live = !thinking && state.idea?.improved?.prompt === m.preview.prompt;
+            const free = ctx().areas.filter((a) => a.free || a.key === m.preview.area);
+            const pickArea = (key) => {
+              const label = free.find((a) => a.key === key)?.label;
+              setMessages((all) => all.map((x, n) => (n === i ? { ...x, preview: { ...x.preview, area: key, areaLabel: label } } : x)));
+              setState({ ...state, idea: { ...state.idea, improved: { ...state.idea.improved, area: key } } });
+            };
+            return <IdeaPreview key={i} preview={m.preview} {...(live ? { areas: free, onArea: pickArea } : {})} />;
           }
           if (m.issues) {
             return (
@@ -172,7 +180,7 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
           if (m.examples) {
             // only what works right now: picture features need the image AI, chat editing needs the text AI
             const c = ctx();
-            const list = EXAMPLES.filter((e) => (e.needs === "pictures" ? c.ai.available : e.needs === "text" ? c.ai.text : true));
+            const list = EXAMPLES.filter((e) => (e.needs === "pictures" ? c.ai.available : e.needs === "text" ? c.ai.text : e.needs === "idea" ? c.ai.available && c.ai.text : true));
             return (
               <div key={i} className="dr-examples">
                 {list.map((e) => (
@@ -243,6 +251,23 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
       </div>
       {/* while the assistant works, the customer can type the next message; it is sent when it's done */}
       {thinking && thinking !== true && <p className="dr-busynote">I’m still on your last request. You can type your next one; Send works again as soon as I’m done.</p>}
+      {/* always here (the examples list is only at the start of a chat): what is typed is made clear first, free */}
+      {ctx().ai.available && ctx().ai.text && (
+        <div className="dr-improve-row">
+          <button
+            type="button"
+            className="dr-improve"
+            disabled={!!thinking}
+            onClick={() => {
+              const idea = draft.trim();
+              if (say(idea.length >= 3 ? `${IMPROVE}: ${idea}` : IMPROVE, true)) setDraft("");
+            }}
+          >
+            {IMPROVE}
+          </button>
+          <span>{draft.trim().length >= 3 ? "Makes what you typed clear first. Free." : "Free. Shows what you’ll get before drawing."}</span>
+        </div>
+      )}
       <form
         className="dr-composer"
         onSubmit={(e) => {

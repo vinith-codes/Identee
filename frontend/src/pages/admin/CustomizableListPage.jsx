@@ -48,7 +48,7 @@ export default function CustomizableListPage() {
       <style>{AW.css}</style>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 16, flexWrap: "wrap" }}>
         <div>
-          <h1 style={AW.h1}>Customizable garments</h1>
+          <h1 style={AW.h1}>Create your IDENTEE · garments</h1>
           <p style={AW.lead}>Garments customers can put their own design on. Set each one up step by step.</p>
         </div>
         {!adding && (

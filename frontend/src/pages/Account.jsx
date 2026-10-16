@@ -82,6 +82,7 @@ export default function Account() {
   // AddressStep uses, so an address saved here is guaranteed deliverable.
   const [shippingRules, setShippingRules] = useState([]);
   const [rulesLoading, setRulesLoading] = useState(true);
+  const [flatShipping, setFlatShipping] = useState(true);
 
   const authToken = user?.token;
 
@@ -104,6 +105,8 @@ export default function Account() {
         setShippingRules(
           Array.isArray(data.shippingRules) ? data.shippingRules : [],
         );
+        // flat shipping (₹100, free from 3 pieces): the per-state costs aren't charged, so don't show them
+        setFlatShipping(data.flatRate != null);
       })
       .catch((err) => console.error("Failed to load shipping states:", err))
       .finally(() => {
@@ -339,13 +342,15 @@ export default function Account() {
         @media (max-width: 600px) {
           .account-tiers-row { flex-wrap: wrap; gap: 12px !important; }
           .account-tiers-row > div { flex: 1 1 30% !important; }
+          /* every tab visible: two per row (a sideways-scrolling row hid most of them) */
           .account-menu-list {
-            flex-direction: row !important;
-            overflow-x: auto;
-            padding-bottom: 4px;
+            display: grid !important;
+            grid-template-columns: 1fr 1fr;
           }
-          .account-menu-list button { white-space: nowrap; }
-          .account-content-panel { padding: 18px !important; }
+          .account-menu-list button { padding: 11px 12px !important; font-size: 13px !important; min-width: 0; }
+          .account-menu-list .account-logout { margin-top: 0 !important; }
+          /* the page scrolls, not a box inside it */
+          .account-content-panel { padding: 18px !important; max-height: none !important; overflow: visible !important; }
           .address-action-row { flex-wrap: wrap; }
         }
       `}</style>
@@ -458,6 +463,7 @@ export default function Account() {
           })}
 
           <button
+            className="account-logout"
             onClick={handleLogout}
             style={{
               display: "flex",
@@ -831,7 +837,7 @@ export default function Account() {
                       <option value="">Select state…</option>
                       {shippingRules.map((rule) => (
                         <option key={rule._id || rule.state} value={rule.state}>
-                          {rule.state} (₹{rule.cost} delivery)
+                          {flatShipping ? rule.state : `${rule.state} (₹${rule.cost} delivery)`}
                         </option>
                       ))}
                     </select>

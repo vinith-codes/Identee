@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useSelector } from "react-redux";
 import { imageUrl } from "../utils/imageUrl";
+import EmptyState from "../components/EmptyState";
 
 const BACKEND_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
@@ -39,9 +40,7 @@ export default function FavoritesPage() {
   }
   if (favorites.length === 0) {
     return (
-      <div style={{ padding: 40, textAlign: "center", color: C.muted }}>
-        No favorites yet.
-      </div>
+      <EmptyState first="shop" title="No favourites yet" text="Tap the heart on any tee to keep it here for later." />
     );
   }
 

@@ -295,7 +295,7 @@ export default function OrderDesignsModal({ orderId, onClose }) {
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
           <div>
             <p style={{ ...labelStyle, margin: 0, color: THEME.gold }}>Custom designs · print files</p>
-            <h2 style={{ margin: "4px 0 2px", fontFamily: "'Cormorant Garamond', serif", fontSize: 24 }}>
+            <h2 style={{ margin: "4px 0 2px", fontFamily: "'Bricolage Grotesque', 'Helvetica Neue', Arial, sans-serif", fontSize: 24 }}>
               Order {pack?.order.number || "…"}
             </h2>
             {pack && <p style={{ margin: 0, fontSize: 13, color: THEME.textMuted }}>{pack.order.customer}</p>}

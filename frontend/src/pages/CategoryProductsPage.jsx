@@ -8,6 +8,8 @@ import { useParams, useSearchParams, useNavigate, Link } from "react-router-dom"
 import categoryService from "../services/categoryService";
 import { imageUrl } from "../utils/imageUrl";
 import ShopGrid from "../components/shop/ShopGrid";
+import ShopComingSoon from "../components/ShopComingSoon";
+import { useShopOpen } from "../utils/shopOpen";
 
 const C = { ink: "#15130F", gold: "#C9A24B", goldBright: "#F0D585" };
 
@@ -17,6 +19,7 @@ export default function CategoryProductsPage() {
   const navigate = useNavigate();
   const [category, setCategory] = useState(null);
   const [categoryError, setCategoryError] = useState("");
+  const shop = useShopOpen();
 
   useEffect(() => {
     let cancelled = false;
@@ -45,13 +48,16 @@ export default function CategoryProductsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [categoryName]);
 
+  // the shop's categories open with the shop (Coming soon until then)
+  if (!shop.open) return <div style={{ minHeight: "70vh", background: "#fff" }}>{shop.known && <ShopComingSoon />}</div>;
+
   if (categoryError) {
     return (
       <div style={{ minHeight: "70vh", display: "grid", placeItems: "center", padding: 24, textAlign: "center" }}>
         <div>
           <h1 style={{ color: C.ink, margin: "0 0 8px" }}>{categoryError === "notfound" ? "Category not found" : "Something went wrong"}</h1>
           <Link to="/ready-made" style={{ color: "#7A5B12", fontWeight: 700 }}>
-            ← All ready-made
+            ← All of Shop your IDENTEE
           </Link>
         </div>
       </div>
@@ -75,7 +81,7 @@ export default function CategoryProductsPage() {
         <div style={{ position: "relative", maxWidth: 1280, width: "100%", margin: "0 auto", padding: "40px 20px 28px", color: "#fff" }}>
           <nav aria-label="Breadcrumb" style={{ fontSize: 12, letterSpacing: "0.16em", textTransform: "uppercase", fontWeight: 700, opacity: 0.85 }}>
             <Link to="/" style={{ color: "inherit", textDecoration: "none" }}>Home</Link> /{" "}
-            <Link to="/ready-made" style={{ color: "inherit", textDecoration: "none" }}>Ready-made</Link>
+            <Link to="/ready-made" style={{ color: "inherit", textDecoration: "none" }}>Shop your IDENTEE</Link>
           </nav>
           <h1 style={{ margin: "6px 0 4px", fontSize: "clamp(28px, 4vw, 38px)", fontWeight: 800 }}>{category?.name || "…"}</h1>
           {category?.description && <p style={{ margin: 0, fontSize: 14.5, opacity: 0.88, maxWidth: 620 }}>{category.description}</p>}
@@ -88,7 +94,7 @@ export default function CategoryProductsPage() {
                 background: `linear-gradient(135deg, ${C.gold}, ${C.goldBright})`, color: C.ink, fontWeight: 700, fontSize: 13,
               }}
             >
-              ✎ Design your own {category.name}
+              ✎ Create your own {category.name}
             </button>
           )}
         </div>

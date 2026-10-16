@@ -49,6 +49,10 @@ const addDesignToCart = async (id, items) => (await axios.post(`${API_URL}/${id}
 // admin: the custom designs in an order, ready to make print files
 const getOrderPrintPack = async (orderId) => (await axios.get(`${API_URL}/admin/order/${orderId}`, auth())).data;
 
+// a day's custom-design orders for the print team's sheets (day = YYYY-MM-DD, India time)
+const getPrintDay = async (day) => (await axios.get(`${API_URL}/admin/print-day/${day}`, auth())).data;
+const markPrintDayDownloaded = async (day, counts) => (await axios.post(`${API_URL}/admin/print-day/${day}/downloaded`, counts, auth())).data;
+
 const customizationService = {
   getPrintPositions,
   uploadDesignImage,
@@ -61,6 +65,8 @@ const customizationService = {
   deleteDesign,
   addDesignToCart,
   getOrderPrintPack,
+  getPrintDay,
+  markPrintDayDownloaded,
 };
 
 export default customizationService;

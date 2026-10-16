@@ -114,6 +114,8 @@ export default function Home() {
   const { items: garmentImages } = useSelector((s) => s.garmentImage);
   const { videoBanners } = useSelector((s) => s.banner);
   const { values: publicSettings, isLoaded: settingsLoaded } = useSelector((s) => s.publicSettings);
+  // "Shop your IDENTEE" open (Admin → Settings → General), else Coming soon: no featured products, the card says so
+  const shopOpen = publicSettings?.["general.shopOpen"] === true;
   const [products, setProducts] = useState([]); // featured (topped up with newest)
   const root = useRef(null);
 
@@ -229,13 +231,13 @@ export default function Home() {
       `}</style>
       <FloatingSocial settings={publicSettings} />
 
-      <HomeHero garment={garment} colours={colours.slice(0, 6)} printCm={printCm} />
-      <HomeMarquee />
+      <HomeHero garment={garment} colours={colours.slice(0, 6)} printCm={printCm} shopOpen={shopOpen} />
+      <HomeMarquee shopOpen={shopOpen} />
       <HomePhoto garment={garment} />
-      <HomeWays garment={garment} customPhoto={garment ? coverPhoto(garment, garmentImages) : null} stackPhotos={stackPhotos} custom={custom} ready={ready} />
+      <HomeWays garment={garment} customPhoto={garment ? coverPhoto(garment, garmentImages) : null} stackPhotos={stackPhotos} custom={custom} ready={ready} shopOpen={shopOpen} />
       <HomeSteps />
-      <HomeFeatured products={products} />
-      <HomePromises tight={products.length < 3} />
+      {shopOpen && <HomeFeatured products={products} />}
+      <HomePromises tight={!shopOpen || products.length < 3} />
       <HomeOutlook main={video("styleOutlookMain", subVideo1)} side1={video("styleOutlookSide1", hoodieVideo)} side2={video("styleOutlookSide2", polosVideo)} />
       <HomeFinal garment={garment} photos={colours.map((c) => c.front)} />
 
