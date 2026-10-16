@@ -219,6 +219,12 @@ IDENTEE_Measurements_Needed.pdf` (5 pages, every number still guessed, with draw
 (Downloads, recorded by a puppeteer script with ffmpeg at E:\tools\ffmpeg — headless Chrome needs `--use-angle=d3d11`
 for smooth 3D frames; swiftshader gives ~1 fps).
 
+**`docs-3d-models` — MERGED to `main` on 16 Oct 2026:** decided with the user that 3D models stay a **developer job,
+added in the code** (no admin zip upload — new shapes are rare and need testing on the running site). How to make and
+add one: `docs/3D_MODELS.md` (licence rules, preparing/shrinking, measuring anchors, TEE_MODELS + modelForGarment, the 7
+files a new print side touches, the test list). The admin's part for a new product is the wizard, including the colour
+photo maker on branch `feature-colour-photo-maker` (f95095d, NOT merged — waits for the user's test in the real wizard).
+
 **NEXT PHASE (moved there by the user, 16 Oct 2026): WhatsApp order updates + the Meta setup.** The code is done on
 branch `feature-whatsapp-orders` (241724b, NOT merged; its own HANDOFF entry explains it; client guide
 identee-private-assets/IDENTEE_WhatsApp_Order_Updates_Guide.pdf). Meta: no app created yet; business verification waits
