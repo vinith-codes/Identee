@@ -24,7 +24,7 @@ import { areaCm, blockersOf, clashesIn, modelForGarment, placeArea } from "./tee
 import AreaThumb from "./AreaThumb";
 import Rolling from "./Rolling";
 import Assistant from "./Assistant";
-import { AFTER_AI_SLOGANS, AFTER_DESIGN_CHIPS, bot as botSays, checkMessages, chips as chipRow, firstMessages, firstState } from "./assistantScript";
+import { AFTER_AI_SLOGANS, AFTER_DESIGN_CHIPS, DRAW_MINE, DRAW_THIS, IN_DRAW_TAB, bot as botSays, checkMessages, chips as chipRow, firstMessages, firstState } from "./assistantScript";
 import aiService from "../services/aiService";
 import { applyAiOps, areaFor, describeDesign } from "./aiOps";
 import WaitCard from "./WaitCard";
@@ -1233,6 +1233,32 @@ export default function DesignRoomPage() {
     }
   };
   const drawPlace = async (url, key) => Boolean(await placeAiDesign(url, key));
+  // "Improve my idea" (Draw tab and Chat): the text AI makes the idea clear and says what will be drawn,
+  // suggesting a style and one of the free print areas (with its real size now). Free — no picture request.
+  const improveIdea = async (idea) => {
+    const free = positions.filter((p) => usedKeys.includes(p.key) || !blockersOf(p.key, positions, usedKeys).length);
+    try {
+      return await aiService.improve({
+        idea,
+        teeColour: colour?.name || "white",
+        teeIsDark: lum(fabricHex) < 0.55,
+        areas: free.map((p) => ({ key: p.key, label: p.label, side: p.side, cm: areaCm(p, sizeNow) })),
+      });
+    } catch (err) {
+      throw aiFailed(err, "I couldn’t improve that just now. Try again, or draw it with your own words.");
+    }
+  };
+  // the same in the chat: the preview, then Draw this / Open in the Draw tab / Draw my words (never a dead end)
+  const chatImprove = async (a) => {
+    try {
+      const res = await improveIdea(a.idea);
+      const areaLabel = positions.find((p) => p.key === res.area)?.label;
+      setChatState((st) => ({ ...st, idea: { ...(st.idea || { subject: a.idea, areaKey: a.areaKey }), improved: res } }));
+      return [botSays("Here’s what I’ll draw. Tap “Draw this” when it looks right, or change it in the Draw tab."), { preview: { ...res, areaLabel } }, chipRow([DRAW_THIS, IN_DRAW_TAB, DRAW_MINE])];
+    } catch (err) {
+      return [botSays(err.message), chipRow([DRAW_MINE, IN_DRAW_TAB])];
+    }
+  };
   const studioPlace = async (r, areaKey) => {
     const key = areaKey || photoTarget?.key;
     if (!key) return false;
@@ -1274,6 +1300,7 @@ export default function DesignRoomPage() {
   const assistantAct = (a, progress) => {
     if (a.type === "generate") return generateDesigns(a);
     if (a.type === "slogans") return writeSlogans(a);
+    if (a.type === "improve") return chatImprove(a);
     if (a.type === "edit") return chatEdit(a, progress);
     if (a.type === "photoPick") return openPhotoStudio();
     if (a.type === "aiTab") {
@@ -1944,6 +1971,7 @@ export default function DesignRoomPage() {
                 onDraw={drawDesign}
                 onChange={changeDrawing}
                 onPlace={drawPlace}
+                onImprove={improveIdea}
                 onClose={() => setAssist(false)}
               />
             </div>

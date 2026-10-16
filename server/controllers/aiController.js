@@ -21,7 +21,7 @@ import Customization from "../models/customizationModel.js";
 import GarmentType from "../models/garmentTypeModel.js";
 import { uploadFile, deleteStoredFile } from "../utils/imageStorage.js";
 import { cutOutPlainBackground, onPlainBackground } from "../services/cutoutService.js";
-import { aiTextConfigured, planEdit, writeSlogans } from "../services/aiTextService.js";
+import { aiTextConfigured, improveIdea, planEdit, writeSlogans } from "../services/aiTextService.js";
 import sharp from "sharp";
 import { artFilters, FILTER_STYLE } from "../services/artFilterService.js";
 import { xaiConfigured, xaiEditImage, xaiModel, xaiNewImage } from "../services/xaiImageService.js";
@@ -308,6 +308,37 @@ export const makeSlogans = asyncHandler(async (req, res) => {
   } catch {
     res.status(502);
     throw new Error("I couldn’t think of any just now. Please try again.");
+  }
+});
+
+// POST /api/ai/improve  (no login needed; limited per address in the route)
+// { idea, teeColour?, teeIsDark?, areas?: [{ key, label, side, cm }] } -> { prompt, expect: [{ label, value }], style, area }
+// "Improve my idea": the customer's rough words as a clear instruction for the picture AI, and what they will get.
+// Text only — costs a fraction of a paisa, so it is not counted against the picture limits.
+export const makeImprovedIdea = asyncHandler(async (req, res) => {
+  const settings = await readSettings();
+  if (!settings.enabled || !aiTextConfigured()) {
+    res.status(503);
+    throw new Error("Improving ideas isn’t available right now — your own words work fine too.");
+  }
+  const idea = String(req.body.idea || "").replace(/\s+/g, " ").trim().slice(0, 400);
+  if (idea.length < 3) {
+    res.status(400);
+    throw new Error("Write your idea first — a few words are enough.");
+  }
+  const str = (v, n) => String(v ?? "").slice(0, n);
+  const areas = (Array.isArray(req.body.areas) ? req.body.areas : []).slice(0, 20).map((a) => ({
+    key: str(a.key, 40),
+    label: str(a.label, 40),
+    side: str(a.side, 10),
+    cm: Array.isArray(a.cm) ? a.cm.slice(0, 2).map((n) => Math.round(Number(n) || 0)) : null,
+  }));
+  const styles = Object.entries(AI_STYLES).map(([name, about]) => ({ name, about: String(about).slice(0, 120) }));
+  try {
+    res.json(await improveIdea({ idea, teeColour: str(req.body.teeColour || "white", 30), teeIsDark: Boolean(req.body.teeIsDark), styles, areas }));
+  } catch {
+    res.status(502);
+    throw new Error("I couldn’t improve that just now. Try again, or draw it with your own words.");
   }
 });
 

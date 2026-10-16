@@ -9,6 +9,7 @@ import { useEffect, useRef, useState } from "react";
 import { EXAMPLES, replyTo } from "./assistantScript";
 import { imageUrl } from "../utils/imageUrl";
 import WaitCard from "./WaitCard";
+import IdeaPreview from "./IdeaPreview";
 
 const PICTURE_HINT = "Usually 20–40 seconds. You can look around the room meanwhile.";
 // What the wait card says for an AI job: { label, expect (usual seconds), hint }
@@ -17,6 +18,8 @@ const waitFor = (a) =>
     ? { label: "Working on it…", expect: 8, hint: "If you asked for pictures, each one takes about 20–40 seconds." }
     : a.type === "slogans"
       ? { label: "Writing a few…", expect: 6 }
+      : a.type === "improve"
+        ? { label: "Improving your idea…", expect: 9 }
       : a.photoUrl
         ? /free/i.test(a.artStyle || "")
           ? { label: "Making your art…", expect: 5 }
@@ -81,7 +84,7 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
     const { out, st } = replyTo(text, ctx(), state, { tapped });
     setState(st);
     const reply = out.filter((o) => !o.act);
-    const slow = out.find((o) => ["generate", "slogans", "edit"].includes(o.act?.type));
+    const slow = out.find((o) => ["generate", "slogans", "edit", "improve"].includes(o.act?.type));
     if (slow) {
       // the AI: wait for the answer, then show what the page hands back
       run(slow.act, waitFor(slow.act), reply);
@@ -149,6 +152,10 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
                 ))}
               </div>
             );
+          }
+          if (m.preview) {
+            // "Improve my idea": what will be drawn, before any picture request is spent
+            return <IdeaPreview key={i} preview={m.preview} />;
           }
           if (m.issues) {
             return (

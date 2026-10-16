@@ -27,6 +27,10 @@ const slogans = async (body) => (await axios.post(`${API_URL}/slogans`, body, { 
 // Edit the tee by chat: { message, design } -> { reply, ops }
 const edit = async (body) => (await axios.post(`${API_URL}/edit`, body, { timeout: 30000 })).data;
 
+// "Improve my idea" (text only, not counted as a picture request):
+// { idea, teeColour, teeIsDark, areas: [{ key, label, side, cm }] } -> { prompt, expect: [{ label, value }], style, area }
+const improve = async (body) => (await axios.post(`${API_URL}/improve`, body, { timeout: 30000 })).data;
+
 // admin
 const getAdmin = async () => (await axios.get(`${API_URL}/admin`, auth())).data;
 const saveAdmin = async (values) => (await axios.put(`${API_URL}/admin`, values, auth())).data;
@@ -37,4 +41,4 @@ const printPicture = async (body) => (await axios.post(`${API_URL}/admin/print-p
 // print the original again
 const dropPrintPicture = async (body) => (await axios.delete(`${API_URL}/admin/print-picture`, { ...auth(), data: body })).data;
 
-export default { status, design, slogans, edit, getAdmin, saveAdmin, printPicture, dropPrintPicture };
+export default { status, design, slogans, edit, improve, getAdmin, saveAdmin, printPicture, dropPrintPicture };

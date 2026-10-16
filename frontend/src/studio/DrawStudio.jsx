@@ -7,6 +7,7 @@
 import { useRef, useState } from "react";
 import { imageUrl } from "../utils/imageUrl";
 import WaitCard from "./WaitCard";
+import IdeaPreview from "./IdeaPreview";
 
 // What each design style looks like, in a few words, and a colour swatch for its card.
 const STYLE_INFO = {
@@ -26,14 +27,19 @@ const WAIT_HINT = "Usually 20–40 seconds. You can look around the room meanwhi
  * @param onDraw   ({ subject, style, areaKey }) => Promise<{ images: [{ url, width, height }], left? }>
  * @param onChange ({ baseUrl, change, areaKey }) => Promise<{ images, left? }>
  * @param onPlace  (url, areaKey) => Promise<boolean>
+ * @param onImprove (idea) => Promise<{ prompt, expect, style, area }>  "Improve my idea" (text AI, free)
  */
-export default function DrawStudio({ ai, areas, targetKey, fabric, session, setSession, onLogin, onDraw, onChange, onPlace, onClose }) {
+export default function DrawStudio({ ai, areas, targetKey, fabric, session, setSession, onLogin, onDraw, onChange, onPlace, onImprove, onClose }) {
   const { subject = "", style = null, areaKey = null, view = "form", results = [], placed = {}, error = null, wait = null, last = null, changing = null } = session;
   const set = (patch) => setSession((s) => ({ ...s, ...patch }));
   const steps = useRef(0);
   const [missing, setMissing] = useState("");
   const [change, setChange] = useState("");
   const [pickFor, setPickFor] = useState(null); // the design whose "Other area" choices are open
+  // "Improve my idea": { preview } once the text AI answered, shown until Use this / Keep mine
+  const [improving, setImproving] = useState(false);
+  const [preview, setPreview] = useState(null);
+  const [improveNote, setImproveNote] = useState("");
   const styles = (ai.styles || []).filter((s) => STYLE_INFO[s]);
   const pickedStyle = styles.includes(style) ? style : styles[0];
   const freeAreas = areas.filter((a) => a.free);
@@ -65,6 +71,29 @@ export default function DrawStudio({ ai, areas, targetKey, fabric, session, setS
       set({ view: "results", results: res.images.map((im) => ({ url: im.url, w: im.width, h: im.height })), changing: null });
     }, () => changeIt(baseUrl, words));
   };
+  // the customer's rough words → a clear instruction + what they'll get (nothing is drawn yet, nothing is counted)
+  const improve = async () => {
+    const idea = subject.trim();
+    if (idea.length < 3) return setMissing("Write your idea first — a few words are enough.");
+    setMissing("");
+    setImproveNote("");
+    setPreview(null);
+    setImproving(true);
+    try {
+      setPreview(await onImprove(idea));
+    } catch (err) {
+      setImproveNote(err?.message || "I couldn’t improve that just now. Try again, or draw it with your own words.");
+    } finally {
+      setImproving(false);
+    }
+  };
+  const useImproved = () => {
+    const free = freeAreas.some((a) => a.key === preview.area);
+    set({ subject: preview.prompt, ...(styles.includes(preview.style) ? { style: preview.style } : {}), ...(free ? { areaKey: preview.area } : {}) });
+    setPreview(null);
+    setImproveNote("Your idea is improved. Check the style and print area below, then tap Draw it.");
+  };
+
   // a design can go on the area it was drawn for (Add to tee) and on any other one as well (Other area)
   const onIt = (url) => [].concat(placed[url] || []);
   const place = async (r, key = session.request?.areaKey || forKey) => {
@@ -100,14 +129,27 @@ export default function DrawStudio({ ai, areas, targetKey, fabric, session, setS
             rows={3}
             placeholder="A lion holding a cricket bat"
             aria-label="What should the design show?"
-            onChange={(e) => { set({ subject: e.target.value }); if (missing) setMissing(""); }}
+            onChange={(e) => { set({ subject: e.target.value }); if (missing) setMissing(""); if (improveNote) setImproveNote(""); }}
           />
           {missing && <p className="ds-missing" role="alert">{missing}</p>}
           <div className="ds-ideas">
             {IDEAS.map((idea) => (
-              <button key={idea} type="button" className="dr-chip" onClick={() => { set({ subject: idea }); setMissing(""); }}>{idea}</button>
+              <button key={idea} type="button" className="dr-chip" onClick={() => { set({ subject: idea }); setMissing(""); setPreview(null); }}>{idea}</button>
             ))}
           </div>
+          {ai.text && onImprove && (
+            <div className="ds-improve">
+              <button type="button" className="ps-btn" onClick={improve} disabled={improving}>{improving ? "Improving your idea…" : "✨ Improve my idea"}</button>
+              <small>Free · shows what you’ll get before drawing</small>
+            </div>
+          )}
+          {improveNote && <p className="ds-improvenote" role="status">{improveNote}</p>}
+          {preview && (
+            <IdeaPreview preview={{ ...preview, areaLabel: areas.find((a) => a.key === preview.area && a.free)?.label }}>
+              <button type="button" className="ps-btn gold" onClick={useImproved}>Use this</button>
+              <button type="button" className="ps-btn" onClick={() => setPreview(null)}>Keep my words</button>
+            </IdeaPreview>
+          )}
 
           <h3 className="ps-h">Pick a style</h3>
           <div className="ps-styles">

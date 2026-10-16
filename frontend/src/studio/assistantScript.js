@@ -25,6 +25,11 @@ const MORE_PHOTO = "Photo to art";
 const MORE_STYLE = "Style it for me";
 const TEAM_ORDER = "Team order";
 const ADD_PLAYERS = "Add my players";
+// "Improve my idea" in the chat (see st.idea): make it clear first (free), then draw
+export const IMPROVE = "✨ Improve my idea";
+export const DRAW_THIS = "Draw this · 1 request";
+export const DRAW_MINE = "Draw my words";
+export const IN_DRAW_TAB = "Open in the Draw tab";
 const MOODS = ["Royal", "Sporty", "Cute", "Minimal", "Retro", "Bold"];
 const MORE = ["Colour help", "Where to print", "Size help", MORE_PHOTO, MORE_STYLE, "Remove a background", "Make a design"];
 const AFTER_SLOGANS = ["Show more", "Add a name or year", "Change tone", "Something else"];
@@ -77,7 +82,7 @@ export const EXAMPLES = [
 ];
 const HELLO = "Hi. I can design your tee with you. Tap one to try it, or type what you want in your own words.";
 export const firstMessages = () => [bot(HELLO), { examples: true }, chips(["More help"])];
-export const firstState = () => ({ occasion: null, tone: null, shown: 0, wait: null, template: null, subject: null, areaKey: null, lastDesign: null, changeUrl: null, ask: null, said: [], photoUrl: null });
+export const firstState = () => ({ occasion: null, tone: null, shown: 0, wait: null, template: null, subject: null, areaKey: null, lastDesign: null, changeUrl: null, ask: null, said: [], photoUrl: null, idea: null });
 // after slogans the AI wrote
 export const AFTER_AI_SLOGANS = ["Show more", "Change tone", "Something else"];
 export const AFTER_DESIGN_CHIPS = AFTER_DESIGNS;
@@ -165,6 +170,23 @@ export function replyTo(text, ctx, st, { tapped = false } = {}) {
     return done([act({ type: "generate", baseUrl: st.changeUrl, change: t })], { changeUrl: null });
   }
   if (t === "Make more" && st.lastDesign) return done([act({ type: "generate", ...st.lastDesign })]);
+
+  /* ----- "Improve my idea": a drawing idea typed in the chat (st.idea), made clear by the text AI before any
+     picture request is spent. The preview says what the customer will get; nothing is drawn until they say so. ----- */
+  if (st.idea) {
+    const ai = ctx.ai;
+    const better = st.idea.improved;
+    if (t === IMPROVE) return done([act({ type: "improve", idea: st.idea.subject, areaKey: st.idea.areaKey })]);
+    if (t === DRAW_THIS && better) {
+      const job = { subject: better.prompt, style: ai.styles.includes(better.style) ? better.style : ai.styles[0], ...(better.area || st.idea.areaKey ? { areaKey: better.area || st.idea.areaKey } : {}) };
+      return done([act({ type: "generate", ...job })], { lastDesign: job, idea: null });
+    }
+    if (t === DRAW_MINE) return done([bot("Which style?"), chips(ai.styles)], { subject: st.idea.subject, areaKey: st.idea.areaKey, wait: "aiStyle", idea: null });
+    if (t === IN_DRAW_TAB) {
+      const a = better ? { subject: better.prompt, style: better.style, areaKey: better.area || st.idea.areaKey } : { subject: st.idea.subject, areaKey: st.idea.areaKey };
+      return done([act({ type: "aiTab", tab: "draw", ...a })], { idea: null });
+    }
+  }
   if (t === "Log in") return done([act({ type: "login" })]);
 
   /* ----- slogans written to order (the text AI) -----
@@ -309,7 +331,8 @@ export function replyTo(text, ctx, st, { tapped = false } = {}) {
   /* ----- make a design (the image AI) ----- */
   // asked before slogans: "draw a lion with a cricket bat" is a picture, not a cricket slogan
   const wordsWanted = /slogan|quote|tagline|caption|\bline\b|\bwords\b|\btext\b/.test(low);
-  const wantsDesign = t === "Make a design" || (!wordsWanted && /\b(design|draw|drawing|picture|image|logo|artwork|illustrat\w*|mascot)\b/.test(low));
+  // ("art" and "hand lettering" too, also misspelt: "hukum in handlettring art at the top")
+  const wantsDesign = t === "Make a design" || (!wordsWanted && /\b(design|draw|drawing|picture|image|logo|artwork|art|illustrat\w*|mascot|hand.?lett?e?ring|lettering)\b/.test(low));
   if (wantsDesign) {
     const ai = ctx.ai;
     if (!ai.available) {
@@ -320,6 +343,13 @@ export function replyTo(text, ctx, st, { tapped = false } = {}) {
     if (ai.left === 0) return done([bot("You’ve used today’s design requests. They reset tomorrow. Until then, try the art library or upload a picture."), chips(["Open the art library", "Upload a picture"])]);
     // drawing has its own tab (Draw): it opens with what was typed ("draw a lion holding a bat") filled in
     const said = t !== "Make a design" && t.split(/\s+/).length >= 3 ? subjectAndArea(t.replace(/^(please )?(can you |could you )?(draw|design|make|create|generate)( me)?( an?| the| some)?\s+/i, ""), ctx.areas) : { subject: "", areaKey: null };
+    // a real idea and the text AI is there: offer to make it clearer first (free), so they know what they'll get
+    if (said.subject && ai.text) {
+      return done(
+        [bot("I can draw that. Want me to improve your idea first? It’s free, and I’ll show you what you’ll get before drawing."), chips([IMPROVE, DRAW_MINE, IN_DRAW_TAB])],
+        { idea: { subject: said.subject, areaKey: said.areaKey, improved: null }, wait: null },
+      );
+    }
     return done([act({ type: "aiTab", tab: "draw", subject: said.subject, areaKey: said.areaKey })]);
   }
 

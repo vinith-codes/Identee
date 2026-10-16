@@ -11,6 +11,8 @@ const TIMEOUT_MS = 20_000;
 const apiKey = () => process.env.IDENTEE_GEMINI_API_KEY?.trim() || process.env.GEMINI_API_KEY?.trim() || "";
 export const aiTextConfigured = () => Boolean(apiKey());
 const model = () => process.env.AI_TEXT_MODEL?.trim() || "gemini-flash-lite-latest";
+// "Improve my idea" (AI_IDEA_MODEL optional): a little stronger, it follows a long list of rules
+const ideaModel = () => process.env.AI_IDEA_MODEL?.trim() || "gemini-flash-latest";
 
 /**
  * @param ask     what the customer wants a slogan about, in their own words
@@ -76,14 +78,14 @@ export async function writeSlogans({ ask, tone, avoid = [], count = 5 }) {
 }
 
 // A shared way to ask the text model for a JSON answer.
-async function askJson(prompt, temperature = 0.3) {
+async function askJson(prompt, temperature = 0.3, modelName = model()) {
   const key = apiKey();
   if (!key) throw Object.assign(new Error("not set up"), { status: 503 });
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
   let res;
   try {
-    res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model()}:generateContent`, {
+    res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent`, {
       method: "POST",
       headers: { "x-goog-api-key": key, "Content-Type": "application/json" },
       body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: prompt }] }], generationConfig: { temperature, responseMimeType: "application/json" } }),
@@ -101,6 +103,59 @@ async function askJson(prompt, temperature = 0.3) {
   }
   const text = (json?.candidates?.[0]?.content?.parts || []).map((p) => p.text || "").join("");
   return JSON.parse(text.replace(/^```(?:json)?|```$/g, "").trim());
+}
+
+/**
+ * "Improve my idea": the customer's rough words ("hukum in handlettring at the top and a hand holding glass")
+ * become a clear instruction for the picture AI, plus a plain list of what they will get — shown to them
+ * before any picture request is spent.
+ *
+ * @param idea       what the customer typed
+ * @param teeColour  the tee's colour name; teeIsDark: whether it is dark
+ * @param styles     the picture styles they can pick ({ name, about })
+ * @param areas      the free print areas ({ key, label, side, cm: [w, h] }) — one is suggested
+ * @returns {Promise<{ prompt: string, expect: [{ label, value }], style: string|null, area: string|null }>}
+ */
+export async function improveIdea({ idea, teeColour, teeIsDark, styles = [], areas = [] }) {
+  const prompt = [
+    "You help a customer of a custom t-shirt shop describe a design for an AI picture maker. They wrote a rough idea; rewrite it as a clear instruction and tell them, in plain words, what they will get.",
+    'Answer with JSON only: {"prompt": string, "expect": [{"label": string, "value": string}], "style": string, "area": string}.',
+    "prompt: at most 280 characters, in English. Describe only the artwork: what is in it, where each part sits (top, middle, bottom, left, right), the drawing style, and the colours.",
+    "Words: ONLY words the customer asked to appear (a name, a slogan, letters in quotes, \"the text …\", \"the word …\"). Never add words of your own — \"for my cricket team\" says who it is for, it is not text to print. Put each wanted word or phrase in double quotes, written as the customer meant it (a name or short word they typed in small letters may be written in capitals), followed by (spelled X-X-X) when it is one short word. Fix the customer's typos everywhere else.",
+    "Colours: keep every colour the customer asked for, exactly. Only where they named none, choose colours that show well on a " + (teeIsDark ? "dark" : "light") + " " + teeColour + " t-shirt (one-colour ink: black on a light tee, white on a dark tee).",
+    "Never mention the t-shirt, a shirt, a mockup, a background, a base, a frame or a watermark in the prompt. Do not add objects they did not ask for; you may add style details that make it look good. When a word could mean two different things, pick one meaning and name it precisely (never leave the vague word).",
+    "expect: 3 to 5 short lines for the customer, in the customer's language, each label one or two words (for example Words, Top, Bottom, Style, Colours) and each value under 60 characters. Say plainly what each part will look like, naming objects precisely so the customer can spot a misunderstanding. If there are words, the first line is Words: the exact words. Only if a word the customer wrote really has two likely meanings in this design, the LAST line has the label Check (no Check line otherwise) and says which meaning you chose and what to write instead for the other (for example: Check — I read \"glass\" as a drinking glass; write \"eyeglasses\" if you meant spectacles).",
+    "style: the one of these picture styles that suits best; when the customer names a style (lettering, cartoon, watercolour, retro badge…), choose that one: " + JSON.stringify(styles),
+    "area: the key of the print area that suits the design's shape best (tall designs with parts at top and bottom suit a tall area; a small logo suits a chest area). Choose from: " + JSON.stringify(areas),
+    "The customer's idea: " + JSON.stringify(String(idea).slice(0, 400)),
+  ].join("\n");
+  // a stronger (still cheap: about ₹0.03) model than the slogans use — it has to follow many rules at once
+  let out;
+  try {
+    out = await askJson(prompt, 0.3, ideaModel());
+  } catch {
+    out = await askJson(prompt, 0.3); // the small model, if that one is busy
+  }
+  // (the picture AI is told about the tee and the plain background separately; mentioning them here only confuses it)
+  const text = String(out?.prompt || "")
+    .replace(/[,.]?\s*(designed |made )?(for|on) an? [\w -]{0,20}\b(t-?shirt|tee|shirt)\b\.?/gi, ".")
+    .replace(/[,.]?\s*(on|against|over) (an? |the )?([\w-]+ ){0,3}(background|canvas|base|backdrop)\b/gi, "")
+    .replace(/\.\s*\./g, ".")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 300);
+  if (text.length < 10) throw Object.assign(new Error("empty"), { status: 502 });
+  const expect = (Array.isArray(out?.expect) ? out.expect : [])
+    .map((e) => ({ label: String(e?.label || "").trim().slice(0, 24), value: String(e?.value || "").trim().slice(0, 90) }))
+    .filter((e) => e.label && e.value)
+    .slice(0, 5);
+  const names = styles.map((s) => s.name);
+  return {
+    prompt: text,
+    expect,
+    style: names.includes(out?.style) ? out.style : null,
+    area: areas.some((a) => a.key === out?.area) ? out.area : null,
+  };
 }
 
 /**
