@@ -219,6 +219,16 @@ IDENTEE_Measurements_Needed.pdf` (5 pages, every number still guessed, with draw
 (Downloads, recorded by a puppeteer script with ffmpeg at E:\tools\ffmpeg — headless Chrome needs `--use-angle=d3d11`
 for smooth 3D frames; swiftshader gives ~1 fps).
 
+**`fix-phone-logged-in` — MERGED to `main` on 16 Oct 2026:** the logged-in pages at 375 px. Account: all 8 tabs in a
+2-column grid (a sideways row hid most), the page scrolls instead of the panel. Checkout address form: one field per row
+on phones (`.addr-row`). Empty cart / favourites / checkout-with-empty-cart show `components/EmptyState.jsx` (Design your
+own / Shop ready-made); CheckoutFlow loads the cart itself before deciding. State lists (checkout + Account) hide the
+old per-state prices while flat shipping is on (`flatRate != null`) — they said "Tamil Nadu (₹49 delivery)". Every
+heading that named Cormorant Garamond (never loaded → Times) now uses Bricolage Grotesque, incl. `THEME.fontDisplay`
+(the login page's italic quote keeps its Georgia fallback on purpose). Seen on a phone with the customer test account;
+the admin pages (new heading font) and checkout WITH items were not seen by me. Vite's watcher missed edits twice
+again — touch the file if a change doesn't show.
+
 **`docs-3d-models` — MERGED to `main` on 16 Oct 2026:** decided with the user that 3D models stay a **developer job,
 added in the code** (no admin zip upload — new shapes are rare and need testing on the running site). How to make and
 add one: `docs/3D_MODELS.md` (licence rules, preparing/shrinking, measuring anchors, TEE_MODELS + modelForGarment, the 7
