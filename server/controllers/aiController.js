@@ -24,7 +24,7 @@ import { cutOutPlainBackground, onPlainBackground } from "../services/cutoutServ
 import { aiTextConfigured, planEdit, writeSlogans } from "../services/aiTextService.js";
 import sharp from "sharp";
 import { artFilters, FILTER_STYLE } from "../services/artFilterService.js";
-import { xaiConfigured, xaiEditImage, xaiModel } from "../services/xaiImageService.js";
+import { xaiConfigured, xaiEditImage, xaiModel, xaiNewImage } from "../services/xaiImageService.js";
 import { AI_STYLES, PHOTO_STYLES, aiImageConfigured, aiImageModel, changeDesignPrompt, generateImage, nearestRatio, newDesignPrompt, photoArtPrompt, FIX_KINDS, fixPrompt, printPrompt, RATIO_VALUES } from "../services/aiImageService.js";
 
 const CATEGORY = "ai";
@@ -167,6 +167,7 @@ export const makeAiDesign = asyncHandler(async (req, res) => {
   let jobs;
   let banner = false;
   let photoJob = null; // photo to art: what Grok needs if Google refuses the photo
+  let drawJob = null; // a new drawing: what Grok needs if Google refuses the words (a named person)
   const teeName = String(req.body.teeColour || "white").replace(/[^\w \-]/g, "").slice(0, 30) || "white";
   if (fixing) {
     if (!isOurUpload(req.body.fixUrl)) {
@@ -208,6 +209,8 @@ export const makeAiDesign = asyncHandler(async (req, res) => {
     const of = Math.min(4, Math.max(1, wanted));
     // lettering for a tall, thin area: one long line on the widest picture (21:9; 16:9 if the model won't do 21:9)
     banner = Boolean(req.body.banner) && style === "Hand lettering";
+    const ask = { subject: text, style, teeColour, teeIsDark: Boolean(req.body.teeIsDark), oneLine: banner };
+    drawJob = { prompt: newDesignPrompt({ ...ask, variation: 1, of: 1 }), ratio: banner ? "16:9" : nearestRatio(req.body.ratio) };
     jobs = Array.from({ length: of }, (_, i) => {
       const prompt = newDesignPrompt({ subject: text, style, teeColour, teeIsDark: Boolean(req.body.teeIsDark), variation: i + 1, of, oneLine: banner });
       if (!banner) return generateImage({ prompt, ratio: nearestRatio(req.body.ratio) });
@@ -218,12 +221,17 @@ export const makeAiDesign = asyncHandler(async (req, res) => {
   const results = await Promise.allSettled(jobs);
   let made = results.filter((r) => r.status === "fulfilled").map((r) => r.value);
   let byGrok = false;
-  // Google refuses photos of well-known people — with a safety error (422), or quietly, with no picture in the
-  // answer: then Grok (xAI) redraws the photo, when it is set up. One version only — Grok costs about twice as much.
+  // Google refuses well-known people — in a photo or by name ("Messi kicking a ball") — with a safety error (422),
+  // or quietly, with no picture in the answer: then Grok (xAI) makes it, when it is set up. One version only —
+  // Grok costs about twice as much.
   const googleRefused = results[0].reason?.status === 422 || results[0].reason?.noImage === true;
-  if (!made.length && photoJob && googleRefused && xaiConfigured()) {
+  if (!made.length && (photoJob || drawJob) && googleRefused && xaiConfigured()) {
     try {
-      made = [await xaiEditImage({ prompt: photoJob.promptFor(0).replace(/ This is option \d+ of \d+:[^.]*\./, ""), image: photoJob.image })];
+      made = [
+        photoJob
+          ? await xaiEditImage({ prompt: photoJob.promptFor(0).replace(/ This is option \d+ of \d+:[^.]*\./, ""), image: photoJob.image })
+          : await xaiNewImage(drawJob),
+      ];
       byGrok = true;
     } catch {
       made = [];
