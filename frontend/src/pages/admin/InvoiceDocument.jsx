@@ -349,9 +349,10 @@ const InvoiceDocument = forwardRef(({ invoice }, ref) => {
                 background: "#FAF7EE",
               }}
             >
-              <SummaryRow label="Subtotal" value={pricing.subtotal} />
-              <SummaryRow label="CGST (2.5%)" value={pricing.cgstPrice} />
-              <SummaryRow label="SGST (2.5%)" value={pricing.sgstPrice} />
+              <SummaryRow label={pricing.gstIncluded ? "Subtotal (incl. GST)" : "Subtotal"} value={pricing.subtotal} />
+              {/* prices that include GST: the tax is shown under the total, not added (orders from 16 Oct 2026) */}
+              {!pricing.gstIncluded && <SummaryRow label="CGST (2.5%)" value={pricing.cgstPrice} />}
+              {!pricing.gstIncluded && <SummaryRow label="SGST (2.5%)" value={pricing.sgstPrice} />}
               {pricing.discountAmount > 0 && (
                 <SummaryRow
                   label={`Coupon (${invoice.coupon?.code || ""})`}
@@ -379,6 +380,11 @@ const InvoiceDocument = forwardRef(({ invoice }, ref) => {
                 <span>Grand Total</span>
                 <span style={{ color: "#9C6F23" }}>₹{pricing.totalPrice}</span>
               </div>
+              {pricing.gstIncluded && (
+                <div style={{ marginTop: 8, fontSize: 11.5, color: "#7A7062", lineHeight: 1.5 }}>
+                  Includes GST: CGST 2.5% ₹{pricing.cgstPrice} · SGST 2.5% ₹{pricing.sgstPrice}
+                </div>
+              )}
             </div>
           </div>
 

@@ -33,7 +33,7 @@ export const getGarmentTypes = asyncHandler(async (req, res) => {
 // Drafts announced as "Coming soon" — only what a card needs, never anything to design with.
 export const getComingSoonGarments = asyncHandler(async (req, res) => {
   const items = await GarmentType.find({ isActive: false, comingSoon: true })
-    .select("key label category description catalogueImage catalogueCode basePrice sizes fabrics fit colors")
+    .select("key label category alsoIn description catalogueImage catalogueCode basePrice comparePrice sizes fabrics fit colors")
     .sort({ createdAt: 1 })
     .lean();
   // the colours themselves aren't needed on a card — only how many there are
@@ -111,6 +111,15 @@ export const updateGarmentType = asyncHandler(async (req, res) => {
     const price = num(b.basePrice);
     if (price === null || price < 0) badRequest(res, "Price must be 0 or more");
     item.basePrice = price;
+  }
+  if (b.comparePrice !== undefined) {
+    const was = num(b.comparePrice) ?? 0;
+    if (was < 0) badRequest(res, "The struck-out price must be 0 or more");
+    item.comparePrice = was;
+  }
+  if (b.alsoIn !== undefined) {
+    if (!Array.isArray(b.alsoIn)) badRequest(res, "alsoIn must be a list");
+    item.alsoIn = [...new Set(b.alsoIn.map((s) => slugify(String(s))).filter(Boolean))].slice(0, 10);
   }
   if (b.description !== undefined) item.description = String(b.description).slice(0, 600);
   if (b.fit !== undefined) {

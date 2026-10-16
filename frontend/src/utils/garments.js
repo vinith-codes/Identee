@@ -15,6 +15,11 @@ export const categoryOfGarment = (garment, categories) => {
   return categories.find((c) => (c.styles || []).some((s) => s.trim().toLowerCase() === style)) || null;
 };
 
+// Is the garment shown in this collection? Its own (by style), or one of the others it is also shown in
+// (garment.alsoIn: category slugs — the Oversized Tee in Boys Wear and Girls Wear).
+export const inCategory = (garment, category, categories) =>
+  categoryOfGarment(garment, categories)?.slug === category.slug || (garment.alsoIn || []).includes(category.slug);
+
 const hasFront = (garment, images, slug) =>
   images.some((p) => (p.garmentType === undefined || p.garmentType === garment.key) && p.colorSlug === slug && p.front?.imageUrl);
 

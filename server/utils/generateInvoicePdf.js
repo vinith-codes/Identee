@@ -191,9 +191,13 @@ function buildInvoiceHtml(invoice) {
 
         <div class="summary-wrap">
           <div class="summary">
-            <div class="summary-row"><span class="k">Subtotal</span><span>₹${pricing.subtotal ?? 0}</span></div>
-            <div class="summary-row"><span class="k">CGST (2.5%)</span><span>₹${pricing.cgstPrice ?? 0}</span></div>
-            <div class="summary-row"><span class="k">SGST (2.5%)</span><span>₹${pricing.sgstPrice ?? 0}</span></div>
+            <div class="summary-row"><span class="k">${pricing.gstIncluded ? "Subtotal (incl. GST)" : "Subtotal"}</span><span>₹${pricing.subtotal ?? 0}</span></div>
+            ${
+              pricing.gstIncluded
+                ? "" // prices include GST: shown under the total instead of being added
+                : `<div class="summary-row"><span class="k">CGST (2.5%)</span><span>₹${pricing.cgstPrice ?? 0}</span></div>
+            <div class="summary-row"><span class="k">SGST (2.5%)</span><span>₹${pricing.sgstPrice ?? 0}</span></div>`
+            }
             ${
               pricing.discountAmount > 0
                 ? `<div class="summary-row"><span class="k">Coupon (${invoice.coupon?.code || ""})</span><span style="color:${THEME.gold}">− ₹${pricing.discountAmount}</span></div>`
@@ -204,6 +208,7 @@ function buildInvoiceHtml(invoice) {
             }</span></div>
             <div class="summary-divider"></div>
             <div class="grand-total"><span>Grand Total</span><span class="v">₹${pricing.totalPrice ?? 0}</span></div>
+            ${pricing.gstIncluded ? `<div class="summary-row" style="font-size:11px"><span class="k">Includes GST: CGST 2.5% ₹${pricing.cgstPrice ?? 0} · SGST 2.5% ₹${pricing.sgstPrice ?? 0}</span><span></span></div>` : ""}
           </div>
         </div>
       </div>

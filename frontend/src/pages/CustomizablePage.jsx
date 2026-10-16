@@ -16,7 +16,7 @@ import { fetchGarmentTypes } from "../redux/slices/garmentTypeSlice";
 import { fetchAllGarmentImages } from "../redux/slices/garmentImageSlice";
 import CustomizableGarments from "../components/CustomizableGarments";
 import ShopPageHeader from "../components/ShopPageHeader";
-import { categoryOfGarment, coverPhoto, isSellable } from "../utils/garments";
+import { categoryOfGarment, coverPhoto, inCategory, isSellable } from "../utils/garments";
 import { imageUrl } from "../utils/imageUrl";
 import garmentTypeService from "../services/garmentTypeService";
 
@@ -88,8 +88,8 @@ export default function CustomizablePage() {
       image: c.image,
       comingSoon: !!c.comingSoon,
       order: c.displayOrder ?? 999,
-      garments: sellable.filter((g) => categoryOfGarment(g, categories)?.slug === c.slug),
-      soon: soon.filter((g) => categoryOfGarment(g, categories)?.slug === c.slug),
+      garments: sellable.filter((g) => inCategory(g, c, categories)),
+      soon: soon.filter((g) => inCategory(g, c, categories)),
     }))
     .filter((g) => g.garments.length || g.soon.length || g.comingSoon);
   // a live garment that isn't in any category still shows

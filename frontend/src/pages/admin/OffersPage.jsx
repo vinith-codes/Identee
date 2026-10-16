@@ -45,6 +45,8 @@ const emptyForm = () => ({
   startDate: "",
   expiryDate: "",
   maxUsage: "",
+  onePerCustomer: true, // false: a customer may use it on every order (a standing "extra 10% off" code)
+  showOnSite: false, // shown next to prices on the website
 });
 
 function getToken() {
@@ -107,6 +109,8 @@ export default function OffersPage() {
       startDate: offer.startDate?.slice(0, 10) || "",
       expiryDate: offer.expiryDate?.slice(0, 10) || "",
       maxUsage: offer.maxUsage || 0,
+      onePerCustomer: offer.onePerCustomer !== false,
+      showOnSite: offer.showOnSite === true,
     });
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
@@ -139,6 +143,8 @@ export default function OffersPage() {
         startDate: form.startDate,
         expiryDate: form.expiryDate,
         maxUsage: Number(form.maxUsage) || 0,
+        onePerCustomer: form.onePerCustomer,
+        showOnSite: form.showOnSite,
       };
 
       if (editingId) {
@@ -305,6 +311,17 @@ export default function OffersPage() {
           </div>
         </div>
 
+        <div style={{ display: "grid", gap: 8, margin: "0 0 16px", fontSize: 13, color: C.ink }}>
+          <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <input type="checkbox" checked={!form.onePerCustomer} onChange={(e) => set("onePerCustomer", !e.target.checked)} />
+            A customer can use it on every order (not just once)
+          </label>
+          <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <input type="checkbox" checked={form.showOnSite} onChange={(e) => set("showOnSite", e.target.checked)} />
+            Show it next to prices on the website (“+ Extra {form.offerPercentage || "10"}% off with code {form.code.trim().toUpperCase() || "…"}”)
+          </label>
+        </div>
+
         <div style={{ display: "flex", gap: 10 }}>
           <button
             type="submit"
@@ -427,6 +444,8 @@ export default function OffersPage() {
                       ? ` / ${offer.maxUsage}`
                       : " (unlimited)"}
                   </span>
+                  {offer.onePerCustomer === false && <span>Every order</span>}
+                  {offer.showOnSite && <b style={{ color: C.gold }}>On the website</b>}
                 </div>
 
                 <div style={{ display: "flex", gap: 8 }}>

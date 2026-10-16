@@ -119,6 +119,8 @@ const orderSchema = mongoose.Schema(
 
     cgstPrice: { type: Number, default: 0 },
     sgstPrice: { type: Number, default: 0 },
+    // true: prices include GST (from 16 Oct 2026) — cgst/sgst are the part of the price that is tax, not added on top
+    gstIncluded: { type: Boolean, default: false },
 
     taxPrice: { type: Number, required: true },
     shippingPrice: { type: Number, required: true },

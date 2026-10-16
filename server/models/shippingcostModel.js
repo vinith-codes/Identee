@@ -9,6 +9,10 @@ const shippingRuleSchema = new mongoose.Schema({
 
 const shippingCostSchema = new mongoose.Schema(
   {
+    // Flat shipping by number of pieces (launch, 16 Oct 2026): flatRate per order, free from freeFromPieces pieces.
+    // flatRate null = the older per-state costs below.
+    flatRate: { type: Number, default: 100 },
+    freeFromPieces: { type: Number, default: 3 },
     freeShippingAbove: { type: Number, default: 0 },
     shippingRules: [shippingRuleSchema],
   },

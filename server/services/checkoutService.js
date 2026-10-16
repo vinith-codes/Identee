@@ -5,8 +5,8 @@ import mongoose from "mongoose";
 import Product from "../models/productModel.js";
 import Customization from "../models/customizationModel.js";
 import GarmentType from "../models/garmentTypeModel.js";
-import ArtDesign from "../models/artDesignModel.js";
 import ShippingCost from "../models/shippingcostModel.js";
+import { aiDesignAddOn, hasAiPicture } from "../utils/aiPricing.js";
 import Offer from "../models/OfferModel.js";
 import { applySubscriptionPrice } from "../utils/applySubscriptionPrice.js";
 import { addressProblem } from "../utils/address.js";
@@ -68,13 +68,9 @@ export const customizationLine = async (customizationId, qty, size, user) => {
     throw new HttpError(400, "This garment is no longer available");
   }
 
-  const artIds = customization.elements.filter((el) => el.artDesignId).map((el) => el.artDesignId);
-  let addOn = 0;
-  if (artIds.length) {
-    const designs = await ArtDesign.find({ _id: { $in: artIds } });
-    const priceById = Object.fromEntries(designs.map((d) => [d._id.toString(), d.price || 0]));
-    addOn = artIds.reduce((sum, id) => sum + (priceById[id.toString()] || 0), 0);
-  }
+  // Price (launch, 16 Oct 2026): the garment's price, + a set amount per tee when the design has an AI-made picture
+  // (Admin → Settings → AI designs). Art from the library and the customer's own uploads add nothing.
+  const addOn = hasAiPicture(customization.elements) ? await aiDesignAddOn() : 0;
 
   // Size: the one chosen at checkout, else the one the design was made for.
   const sizes = garment.sizes?.length ? garment.sizes : SIZES;
@@ -188,8 +184,22 @@ const resolveAddress = (user, bodyAddress) => {
   return address;
 };
 
-const computeShipping = async (state, subtotal) => {
+// Flat shipping by pieces (Admin → Shipping): ₹flatRate per order, free from freeFromPieces pieces (₹100, free from 3).
+// When flatRate is cleared, the older per-state costs apply.
+export const FLAT_SHIPPING = { rate: 100, freeFrom: 3 };
+const computeShipping = async (state, subtotal, pieces) => {
   const settings = await ShippingCost.findOne();
+  // (only an explicit null switches back to the per-state costs; a document saved before this has no flatRate yet)
+  const rate = settings?.flatRate === null ? null : settings?.flatRate ?? FLAT_SHIPPING.rate;
+  if (rate !== null) {
+    // the states in Admin → Shipping are still the ones delivered to (only their own costs are not used)
+    const rules = settings?.shippingRules || [];
+    if (rules.length && !rules.some((r) => r.state.trim().toLowerCase() === String(state).trim().toLowerCase())) {
+      throw new HttpError(400, `Shipping not available for state: ${state}`);
+    }
+    const freeFrom = settings?.freeFromPieces || FLAT_SHIPPING.freeFrom;
+    return pieces >= freeFrom ? 0 : round2(Number(rate) || 0);
+  }
   if (!settings) throw new HttpError(400, "Shipping settings not configured");
 
   const rule = settings.shippingRules.find(
@@ -220,7 +230,7 @@ export const validateCoupon = async (rawCode, user) => {
   if (offer.maxUsage > 0 && offer.usedCount >= offer.maxUsage) {
     throw new HttpError(400, "Coupon usage limit reached");
   }
-  if (offer.usedBy?.some((id) => id.toString() === user._id.toString())) {
+  if (offer.onePerCustomer !== false && offer.usedBy?.some((id) => id.toString() === user._id.toString())) {
     throw new HttpError(400, "You already used this coupon");
   }
   return offer;
@@ -234,23 +244,26 @@ export const buildQuote = async (user, body = {}) => {
   const { source, lines } = await resolveLines(user, body);
   const shippingAddress = resolveAddress(user, body.shippingAddress);
 
+  // Prices INCLUDE GST (from 16 Oct 2026): the coupon comes off the price, shipping is added, and the GST is the
+  // part of the (discounted) price that is tax — shown on the invoice, never added on top.
   const subtotal = round2(lines.reduce((sum, l) => sum + l.price, 0));
-  const cgst = round2((subtotal * GST_PERCENT.cgst) / 100);
-  const sgst = round2((subtotal * GST_PERCENT.sgst) / 100);
-  const tax = round2(cgst + sgst);
-  const shipping = await computeShipping(shippingAddress.state, subtotal);
+  const pieces = lines.reduce((n, l) => n + (Number(l.qty) || 0), 0);
+  const shipping = await computeShipping(shippingAddress.state, subtotal, pieces);
 
   let discount = 0;
   let coupon = null;
   const offer = await validateCoupon(body.couponCode, user);
   if (offer) {
-    discount = round2(
-      Math.min((subtotal * offer.offerPercentage) / 100, subtotal + tax + shipping - 1),
-    );
+    discount = round2(Math.min((subtotal * offer.offerPercentage) / 100, subtotal + shipping - 1));
     coupon = { code: offer.code, percentage: offer.offerPercentage, discountAmount: discount };
   }
 
-  const total = round2(subtotal + tax + shipping - discount);
+  const goods = round2(subtotal - discount);
+  const rate = (GST_PERCENT.cgst + GST_PERCENT.sgst) / 100;
+  const tax = round2(goods - goods / (1 + rate));
+  const cgst = round2(tax / 2);
+  const sgst = round2(tax - cgst);
+  const total = round2(goods + shipping);
   if (total < 1) throw new HttpError(400, "Final amount too low");
 
   return {
@@ -258,7 +271,9 @@ export const buildQuote = async (user, body = {}) => {
     lines,
     shippingAddress,
     coupon,
+    pieces,
     pricing: {
+      gstIncluded: true,
       subtotal,
       cgstAmount: cgst,
       sgstAmount: sgst,

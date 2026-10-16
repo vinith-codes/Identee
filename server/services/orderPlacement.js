@@ -55,6 +55,7 @@ export const placeOrder = async ({ userId, quote, paymentMethod, payment }) => {
       })),
       shippingAddress: quote.shippingAddress,
       paymentMethod,
+      gstIncluded: quote.pricing.gstIncluded === true,
       cgstPrice: quote.pricing.cgstAmount,
       sgstPrice: quote.pricing.sgstAmount,
       taxPrice: quote.pricing.taxAmount,

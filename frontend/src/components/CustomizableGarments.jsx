@@ -7,6 +7,7 @@
 import { useNavigate } from "react-router-dom";
 import { imageUrl } from "../utils/imageUrl";
 import { defaultColour, isSellable } from "../utils/garments";
+import PriceTag from "./PriceTag";
 
 const C = {
   ink: "#15130F",
@@ -39,7 +40,6 @@ function GarmentCard({ garment, photos }) {
 
   const colourCount = garment.colors?.length || 0;
   const facts = [
-    garment.basePrice > 0 && `From ₹${garment.basePrice}`,
     sizeRange(garment.sizes),
     colourCount > 1 && `${colourCount} colours`,
     (garment.fabrics || []).map((f) => f.name).join(" · "),
@@ -58,6 +58,11 @@ function GarmentCard({ garment, photos }) {
 
       <div style={{ padding: "16px 18px 18px" }}>
         <h3 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: C.ink }}>{garment.label}</h3>
+        {garment.basePrice > 0 && (
+          <div style={{ marginTop: 6 }}>
+            <PriceTag price={garment.basePrice} was={garment.comparePrice} size={17} offer />
+          </div>
+        )}
         {facts.length > 0 && (
           <p style={{ margin: "4px 0 0", fontSize: 13, color: C.muted }}>{facts.join("  ·  ")}</p>
         )}

@@ -3,6 +3,7 @@ import { useSelector } from "react-redux";
 import { THEME, inputStyle } from "../../theme/theme";
 import checkoutService from "../../services/checkoutService";
 import { imageUrl } from "../../utils/imageUrl";
+import { shippingNote, useShippingRule, useSiteOffer } from "../../utils/sitePricing";
 
 const EMPTY_CART_ITEMS = [];
 
@@ -75,6 +76,9 @@ export default function OrderSummaryStep({
   const mrpDiscount = Math.max(mrpTotal - subtotal, 0);
   const couponDiscount = coupon?.discountAmount || 0;
   const estimatedTotal = Math.max(subtotal - couponDiscount, 0);
+  const pieces = items.reduce((n, item) => n + (Number(item.qty) || 0), 0);
+  const siteOffer = useSiteOffer(); // the coupon shown on the site
+  const shipRule = useShippingRule(); // ₹100 shipping, free from 3 pieces
 
   // Finds how much stock is left for this item's size, so +/- can't push
   // qty past what's actually available.
@@ -475,6 +479,16 @@ export default function OrderSummaryStep({
           >
             Have a discount code?
           </h3>
+          {/* the code shown on the site (Admin → Offers): tap to fill it in */}
+          {!coupon && siteOffer && (
+            <button
+              type="button"
+              onClick={() => setCouponInput(siteOffer.code)}
+              style={{ display: "block", margin: "-4px 0 12px", padding: 0, border: 0, background: "none", cursor: "pointer", textAlign: "left", fontSize: 12.5, color: THEME.goldDeep, fontFamily: THEME.fontBody }}
+            >
+              Use code <b>{siteOffer.code}</b> for an extra {siteOffer.offerPercentage}% off — tap to fill it in
+            </button>
+          )}
 
           {coupon ? (
             <div
@@ -627,7 +641,7 @@ export default function OrderSummaryStep({
             fontFamily: THEME.fontBody,
           }}
         >
-          Shipping calculated at next step
+          {shippingNote(shipRule, pieces) || "Shipping calculated at next step"}
         </p>
 
         {mrpDiscount + couponDiscount > 0 && (

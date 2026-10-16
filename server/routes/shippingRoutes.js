@@ -5,6 +5,7 @@ import {
   addStateShipping,
   updateStateShipping,
   updateFreeShipping,
+  updateFlatShipping,
   deleteStateShipping,
   getShippingCostByState,
 } from "../controllers/shippingControler.js";
@@ -18,6 +19,8 @@ router
   .route("/updatestate/:id")
   .put(protect, adminOnly, updateStateShipping);
 router.route("/updatefreeshipping").put(protect, adminOnly, updateFreeShipping);
+// flat shipping by pieces (₹100, free from 3 pieces)
+router.route("/flatshipping").put(protect, adminOnly, updateFlatShipping);
 router.route("/deletestate/:id").delete(protect, adminOnly, deleteStateShipping);
 router.route("/getshippingcostbystate").get(protect, getShippingCostByState);
 router.get("/cost", protect, getShippingCostByState);

@@ -10,6 +10,7 @@ import {
   resetShippingError,
 } from "../../redux/slices/shippingSlice";
 import { fetchAllOrders } from "../../redux/slices/orderSlice";
+import shippingService from "../../services/shippingService";
 import { getLabelStyle, getInputStyle, THEME } from "../../theme/theme";
 
 const STATUS_COLORS = {
@@ -211,6 +212,28 @@ export default function AdminShippingPage() {
 
   const [stateFilter, setStateFilter] = useState("");
 
+  // flat shipping by pieces (₹100 per order, free from 3 pieces) — replaces each state's own cost while on
+  const [flat, setFlat] = useState({ on: true, rate: 100, from: 3 });
+  const [savingFlat, setSavingFlat] = useState(false);
+  useEffect(() => {
+    shippingService
+      .getShippingCost()
+      .then((s) => setFlat({ on: s.flatRate !== null && s.flatRate !== undefined, rate: s.flatRate ?? 100, from: s.freeFromPieces ?? 3 }))
+      .catch(() => {});
+  }, []);
+  const saveFlat = async () => {
+    setSavingFlat(true);
+    try {
+      const token = JSON.parse(localStorage.getItem("userInfo") || "{}").token;
+      await shippingService.updateFlatShipping({ flatRate: flat.on ? Number(flat.rate) : null, freeFromPieces: Number(flat.from) }, token);
+      toast.success(flat.on ? `Shipping: ₹${flat.rate} per order, free from ${flat.from} pieces` : "Shipping: each state's own cost again");
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Failed to save flat shipping");
+    } finally {
+      setSavingFlat(false);
+    }
+  };
+
   const thStyle = {
     padding: "10px 16px",
     color: theme.textMuted,
@@ -397,6 +420,33 @@ export default function AdminShippingPage() {
             boxShadow: theme.shadow,
           }}
         >
+          {/* flat shipping by pieces: the rule in use while it is on */}
+          <div style={{ marginBottom: 18, paddingBottom: 18, borderBottom: `1px solid ${theme.border}` }}>
+            <p style={{ margin: "0 0 4px", fontSize: 14, fontWeight: 700, color: theme.text }}>Flat shipping</p>
+            <p style={{ margin: "0 0 12px", fontSize: 12, color: theme.textMuted }}>
+              One charge per order, whatever the state — free when the order has enough pieces. While this is on, the state
+              costs and the threshold below are not used (the states listed still decide where you deliver).
+            </p>
+            <label style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 13, fontWeight: 600, color: theme.text, marginBottom: 10 }}>
+              <input type="checkbox" checked={flat.on} onChange={(e) => setFlat((f) => ({ ...f, on: e.target.checked }))} />
+              Use flat shipping
+            </label>
+            <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", opacity: flat.on ? 1 : 0.5 }}>
+              <span style={{ fontSize: 13, color: theme.text }}>₹</span>
+              <input type="number" min={0} value={flat.rate} disabled={!flat.on} onChange={(e) => setFlat((f) => ({ ...f, rate: e.target.value }))} style={{ ...inputStyle, width: 90, flex: "0 1 90px" }} aria-label="Shipping charge per order" />
+              <span style={{ fontSize: 13, color: theme.text }}>per order · free from</span>
+              <input type="number" min={1} value={flat.from} disabled={!flat.on} onChange={(e) => setFlat((f) => ({ ...f, from: e.target.value }))} style={{ ...inputStyle, width: 70, flex: "0 1 70px" }} aria-label="Free from this many pieces" />
+              <span style={{ fontSize: 13, color: theme.text }}>pieces</span>
+              <button
+                type="button"
+                onClick={saveFlat}
+                disabled={savingFlat}
+                style={{ background: `linear-gradient(135deg, ${theme.gold}, ${theme.goldBright})`, border: "none", borderRadius: 8, padding: "9px 18px", fontSize: 13, fontWeight: 700, color: theme.ink, cursor: savingFlat ? "not-allowed" : "pointer" }}
+              >
+                {savingFlat ? "Saving…" : "Save"}
+              </button>
+            </div>
+          </div>
           <p
             style={{
               margin: "0 0 4px",

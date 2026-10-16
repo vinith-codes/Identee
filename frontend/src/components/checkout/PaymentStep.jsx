@@ -60,7 +60,8 @@ function PriceRow({ label, value, bold, negative }) {
           fontFamily: THEME.fontBody,
         }}
       >
-        {negative ? "− " : ""}₹{value}
+        {negative ? "− " : ""}
+        {typeof value === "number" ? `₹${value}` : value}
       </span>
     </div>
   );
@@ -408,15 +409,14 @@ export default function PaymentStep({ shippingAddress, coupon, onBack, buyNow })
 
         {quote && (
           <>
-            <PriceRow label="Subtotal" value={quote.priceBreakdown.subtotal} />
-            <PriceRow
-              label="CGST (2.5%)"
-              value={quote.priceBreakdown.cgstAmount}
-            />
-            <PriceRow
-              label="SGST (2.5%)"
-              value={quote.priceBreakdown.sgstAmount}
-            />
+            {/* prices include GST (gstIncluded): the tax is shown as a note, not added */}
+            <PriceRow label={quote.priceBreakdown.gstIncluded ? "Subtotal (incl. GST)" : "Subtotal"} value={quote.priceBreakdown.subtotal} />
+            {!quote.priceBreakdown.gstIncluded && (
+              <>
+                <PriceRow label="CGST (2.5%)" value={quote.priceBreakdown.cgstAmount} />
+                <PriceRow label="SGST (2.5%)" value={quote.priceBreakdown.sgstAmount} />
+              </>
+            )}
             {quote.priceBreakdown.discountAmount > 0 && (
               <PriceRow
                 label={`Discount (${quote.coupon?.code})`}
@@ -426,7 +426,7 @@ export default function PaymentStep({ shippingAddress, coupon, onBack, buyNow })
             )}
             <PriceRow
               label="Shipping Fee"
-              value={quote.priceBreakdown.shippingAmount}
+              value={quote.priceBreakdown.shippingAmount === 0 ? "Free" : quote.priceBreakdown.shippingAmount}
             />
             <div
               style={{
@@ -439,6 +439,11 @@ export default function PaymentStep({ shippingAddress, coupon, onBack, buyNow })
               value={quote.priceBreakdown.total}
               bold
             />
+            {quote.priceBreakdown.gstIncluded && (
+              <p style={{ margin: "4px 0 0", fontSize: 11, color: THEME.textMuted, fontFamily: THEME.fontBody }}>
+                Includes GST ₹{quote.priceBreakdown.taxAmount} (CGST ₹{quote.priceBreakdown.cgstAmount} + SGST ₹{quote.priceBreakdown.sgstAmount})
+              </p>
+            )}
           </>
         )}
 

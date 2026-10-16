@@ -31,6 +31,11 @@
 .dr-step.done .n { background: var(--ok); color: #fff; }
 .dr-price { font: 800 18px/1 var(--display); white-space: nowrap; font-variant-numeric: tabular-nums; text-align: right; }
 .dr-price small { display: block; font: 500 11px/1.2 var(--body); color: var(--muted); }
+/* the struck-out "was" price (₹899 → ₹699) */
+.dr-was { font: 600 12px/1 var(--body); color: var(--muted); margin-right: 5px; }
+.dr-total .dr-was { display: block; text-align: right; font-size: 13px; margin: 0 0 2px; }
+.dr-total .dr-shipnote { color: var(--ink-soft); }
+.dr-total .dr-offernote { color: var(--gold-deep); font-weight: 600; }
 
 .dr-stage { position: relative; min-height: 0; overflow: hidden; }
 

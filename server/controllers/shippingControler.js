@@ -151,6 +151,26 @@ const deleteStateShipping = async (req, res) => {
  * Get shipping cost based on state & free shipping rule
  * GET /api/shipping/getshippingcost?state=Tamil Nadu
  */
+// PUT /api/shipping/flatshipping (admin): { flatRate: number | null, freeFromPieces }
+// flatRate = ₹ per order, free from freeFromPieces pieces; null = use each state's own cost again.
+const updateFlatShipping = async (req, res) => {
+  try {
+    const { flatRate, freeFromPieces } = req.body;
+    const rate = flatRate === null ? null : Number(flatRate);
+    const from = Number(freeFromPieces);
+    if (rate !== null && (!Number.isFinite(rate) || rate < 0 || rate > 10000)) {
+      return res.status(400).json({ message: "Enter a shipping charge from 0 to 10000" });
+    }
+    if (!Number.isInteger(from) || from < 1 || from > 100) {
+      return res.status(400).json({ message: "Free shipping needs a number of pieces from 1 to 100" });
+    }
+    const settings = await shippingCosts.findOneAndUpdate({}, { flatRate: rate, freeFromPieces: from }, { upsert: true, new: true });
+    res.json(settings);
+  } catch (error) {
+    res.status(500).json({ message: "Failed to update flat shipping" });
+  }
+};
+
 const getShippingCostByState = async (req, res) => {
   try {
     const { state } = req.query;
@@ -175,9 +195,12 @@ const getShippingCostByState = async (req, res) => {
       });
     }
 
+    // flat shipping (₹flatRate, free from freeFromPieces pieces) replaces the state's own cost — see checkoutService
+    const flat = shippingSettings.flatRate !== null && shippingSettings.flatRate !== undefined;
     res.json({
-      shippingCost: stateRule.cost,
-      freeShippingAbove: shippingSettings.freeShippingAbove,
+      shippingCost: flat ? shippingSettings.flatRate : stateRule.cost,
+      freeShippingAbove: flat ? 0 : shippingSettings.freeShippingAbove,
+      freeFromPieces: flat ? shippingSettings.freeFromPieces : null,
       state: stateRule.state,
       alwaysCharge: stateRule.alwaysCharge || false,
     });
@@ -192,6 +215,7 @@ export {
   addStateShipping,
   updateStateShipping,
   updateFreeShipping,
+  updateFlatShipping,
   deleteStateShipping,
   getShippingCostByState,
 };

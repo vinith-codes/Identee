@@ -48,6 +48,11 @@ const offerModel = new mongoose.Schema(
         ref: "User",
       },
     ],
+
+    // false = a customer may use it on every order (a standing "extra 10% off" code)
+    onePerCustomer: { type: Boolean, default: true },
+    // shown next to prices on the site ("Extra 10% off with code …") while it is valid
+    showOnSite: { type: Boolean, default: false },
   },
   {
     timestamps: true,

@@ -53,6 +53,11 @@ const garmentTypeSchema = new mongoose.Schema(
     label: { type: String, required: true, trim: true },
     category: { type: String, required: true, trim: true },
     basePrice: { type: Number, required: true, default: 0 }, // 🆕 e.g. 599
+    // the "was" price shown struck through next to basePrice (₹899 → ₹699); 0 = no struck price
+    comparePrice: { type: Number, default: 0 },
+    // other collections (category slugs) the garment also shows in, besides the one its style belongs to
+    // (the Oversized Tee in Boys Wear and in Girls Wear)
+    alsoIn: { type: [String], default: [] },
     colors: { type: [colorSchema], default: [] },
     isActive: { type: Boolean, default: true }, // false = draft, hidden from customers
     // A draft announced to customers: a "Coming soon" card in its collection, with a catalogue photo

@@ -95,7 +95,7 @@ export default function GarmentSetupWizard() {
         setCatalog(g.printAreaCatalog);
         setImages(imgs);
         const list = Array.isArray(cats) ? cats : cats.categories || [];
-        setStyles(list.flatMap((c) => (c.styles || []).map((s) => ({ category: c.name, style: s }))));
+        setStyles(list.flatMap((c) => (c.styles || []).map((s) => ({ category: c.name, slug: c.slug, customizable: !!c.isCustomizable, style: s }))));
       })
       .catch((err) => alive && setLoadError(errMsg(err, "Could not load this garment.")));
     return () => {
@@ -213,6 +213,8 @@ function BasicsStep({ garment, save, saving, next, styles }) {
     garment.fabrics.length ? garment.fabrics : oversizedHint ? SHEET_FABRICS : [],
   );
   const [price, setPrice] = useState(garment.basePrice || "");
+  const [wasPrice, setWasPrice] = useState(garment.comparePrice || "");
+  const [alsoIn, setAlsoIn] = useState(garment.alsoIn || []);
   const [category, setCategory] = useState(garment.category);
   const [description, setDescription] = useState(
     garment.description || SHEET_DESCRIPTION[oversizedHint ? "oversized" : "regular"],
@@ -224,6 +226,9 @@ function BasicsStep({ garment, save, saving, next, styles }) {
 
   const styleKnown = styles.some((s) => s.style.toLowerCase() === category.toLowerCase());
   const shownIn = styles.find((s) => s.style.toLowerCase() === category.toLowerCase())?.category;
+  const ownSlug = styles.find((s) => s.style.toLowerCase() === category.toLowerCase())?.slug;
+  // the other customizable collections it can also be shown in (one entry per collection)
+  const collections = [...new Map(styles.filter((s) => s.customizable && s.slug && s.slug !== ownSlug).map((s) => [s.slug, s.category])).entries()];
 
   const submit = async () => {
     const ok = await save({
@@ -231,6 +236,8 @@ function BasicsStep({ garment, save, saving, next, styles }) {
       fit,
       fabrics: fabrics.map(({ key, name }) => ({ key, name })),
       basePrice: price === "" ? 0 : Number(price),
+      comparePrice: wasPrice === "" ? 0 : Number(wasPrice),
+      alsoIn: alsoIn.filter((slug) => slug !== ownSlug),
       category,
       description,
     });
@@ -282,7 +289,13 @@ function BasicsStep({ garment, save, saving, next, styles }) {
           <span className="aw-lbl">Starting price (₹)</span>
           <input className="aw-inp" type="number" min="0" inputMode="numeric" value={price} placeholder="Not decided yet" onChange={(e) => setPrice(e.target.value)} />
           <span className="aw-help" style={{ display: "block" }}>
-            Price of the blank garment; print and artwork charges are added on top. You can publish only after setting it.
+            What the customer pays per piece, GST included. An AI-made design adds its amount on top (Settings → AI designs).
+            You can publish only after setting it.
+          </span>
+          <span className="aw-lbl" style={{ marginTop: 10 }}>Struck-out price (₹, optional)</span>
+          <input className="aw-inp" type="number" min="0" inputMode="numeric" value={wasPrice} placeholder="e.g. 899" onChange={(e) => setWasPrice(e.target.value)} />
+          <span className="aw-help" style={{ display: "block" }}>
+            Shown crossed out next to the price (₹899 → ₹{price || "…"}). Leave empty for no crossed-out price.
           </span>
         </label>
         <label>
@@ -298,6 +311,25 @@ function BasicsStep({ garment, save, saving, next, styles }) {
           <span className="aw-help" style={{ display: "block" }}>
             {shownIn ? `Appears on the website under ${shownIn}.` : "Pick a style so it appears under a category."}
           </span>
+          {collections.length > 0 && (
+            <>
+              <span className="aw-lbl" style={{ marginTop: 10 }}>Also show in</span>
+              <span style={{ display: "flex", flexWrap: "wrap", gap: "6px 14px" }}>
+                {collections.map(([slug, name]) => (
+                  <span key={slug} style={{ display: "inline-flex", gap: 6, alignItems: "center", fontSize: 13 }}>
+                    <input
+                      type="checkbox"
+                      checked={alsoIn.includes(slug)}
+                      onChange={(e) => setAlsoIn((list) => (e.target.checked ? [...list, slug] : list.filter((x) => x !== slug)))}
+                      aria-label={`Also show in ${name}`}
+                    />
+                    {name}
+                  </span>
+                ))}
+              </span>
+              <span className="aw-help" style={{ display: "block" }}>For example the Oversized Tee in both Boys Wear and Girls Wear.</span>
+            </>
+          )}
         </label>
       </div>
 

@@ -418,6 +418,8 @@ const generateInvoice = asyncHandler(async (req, res) => {
     shippingAddress: shipping,
     orderItems,
     pricing: {
+      // gstIncluded: the CGST/SGST are part of the prices, not added on top (orders from 16 Oct 2026)
+      gstIncluded: order.gstIncluded === true,
       subtotal: order.orderItems.reduce((sum, i) => sum + i.price, 0),
       cgstPrice: order.cgstPrice,
       sgstPrice: order.sgstPrice,

@@ -47,8 +47,15 @@ const updateFreeShipping = async (freeShippingAbove, token) => {
   return res.data;
 };
 
+// flat shipping by pieces: { flatRate: number | null (null = each state's own cost), freeFromPieces }
+const updateFlatShipping = async ({ flatRate, freeFromPieces }, token) => {
+  const res = await axios.put(`${API_URL}/flatshipping`, { flatRate, freeFromPieces }, authHeader(token));
+  return res.data;
+};
+
 const shippingService = {
   getShippingCost,
+  updateFlatShipping,
   addState,
   updateState,
   deleteState,

@@ -28,6 +28,8 @@ import { AFTER_AI_SLOGANS, AFTER_DESIGN_CHIPS, DRAW_MINE, DRAW_THIS, IN_DRAW_TAB
 import aiService from "../services/aiService";
 import { applyAiOps, areaFor, describeDesign } from "./aiOps";
 import WaitCard from "./WaitCard";
+import PriceTag from "../components/PriceTag";
+import { shippingNote, useShippingRule, useSiteOffer } from "../utils/sitePricing";
 import PhotoStudio from "./PhotoStudio";
 import DrawStudio from "./DrawStudio";
 import { checkDesign, inksFor, printSharpness } from "./designCheck";
@@ -271,8 +273,16 @@ export default function DesignRoomPage() {
   const bottomLengthCm = chartRow?.bottomLength ? chartRow.bottomLength * 2.54 : model?.bottom?.lengthCm;
   const fabricHex = colour?.hex || "#1C1C1D";
   const inkDefault = lum(fabricHex) < 0.55 ? "#FFFFFF" : "#141110";
-  const artTotal = elements.reduce((n, e) => n + (e.artPrice || 0), 0);
-  const unitPrice = (garment?.basePrice || 0) + artTotal;
+  // Price per piece (launch, 16 Oct 2026): the garment's price + a set amount when the design has an AI-made
+  // picture (Admin → Settings → AI designs). Art from the library and uploads add nothing. The server works it
+  // out the same way at checkout (checkoutService.customizationLine).
+  const hasAiDesign = elements.some((e) => e.type === "image" && /\/ai-designs\//.test(e.src || ""));
+  const aiAddOn = hasAiDesign ? Number(ai.designAddOnInr ?? 100) : 0;
+  const unitPrice = (garment?.basePrice || 0) + aiAddOn;
+  // the struck-out "was" price, with the same AI amount on top so the saving stays the same
+  const wasPrice = garment?.comparePrice > garment?.basePrice ? garment.comparePrice + aiAddOn : 0;
+  const siteOffer = useSiteOffer(); // "+ Extra 10% off with code …" (Admin → Offers, shown on the site)
+  const shipRule = useShippingRule(); // ₹100 shipping, free from 3 pieces
   const activePos = positions.find((p) => p.key === active) || null;
   const roles = hasRoles(elements);
   const teamMode = roles && team;
@@ -1698,8 +1708,9 @@ export default function DesignRoomPage() {
           )}
         </div>
         <div className="dr-price">
+          {wasPrice > 0 && <s className="dr-was">₹{wasPrice.toLocaleString("en-IN")}</s>}
           ₹{unitPrice.toLocaleString("en-IN")}
-          <small>{artTotal ? `incl. ₹${artTotal} art` : "per piece"}</small>
+          <small>{aiAddOn ? `incl. ₹${aiAddOn} AI design` : "per piece"}</small>
         </div>
         {step === "design" && (
           <button type="button" className={`dr-aibtn${assist ? " on" : ""}`} aria-pressed={assist} onClick={() => toggleAiTab(aiTab)}>
@@ -2173,8 +2184,11 @@ export default function DesignRoomPage() {
                   </p>
                 </div>
                 <div className="dr-total">
+                  {wasPrice > 0 && pieces > 0 && <s className="dr-was">₹{(wasPrice * pieces).toLocaleString("en-IN")}</s>}
                   <Rolling value={unitPrice * pieces} format={rupees} />
-                  <small>{pieces} × ₹{unitPrice.toLocaleString("en-IN")}</small>
+                  <small>{pieces} × ₹{unitPrice.toLocaleString("en-IN")}{aiAddOn ? ` (incl. ₹${aiAddOn} AI design)` : ""} · incl. GST</small>
+                  {shippingNote(shipRule, pieces) && <small className="dr-shipnote">{shippingNote(shipRule, pieces)}</small>}
+                  {siteOffer && <small className="dr-offernote">+ Extra {siteOffer.offerPercentage}% off at checkout with code <b>{siteOffer.code}</b></small>}
                 </div>
               </div>
             </section>
@@ -2393,7 +2407,7 @@ function Fitting({ garment, colours, colour, onColour, sizes, size, onSize, onEn
         </div>
         <p className="dr-waysnote">Either way, you can switch at any time and change everything by hand.</p>
         <div className="dr-fitfoot">
-          {garment.basePrice > 0 && <span>From ₹{garment.basePrice}</span>}
+          {garment.basePrice > 0 && <PriceTag price={garment.basePrice} was={garment.comparePrice} size={14} offer />}
           {credit && <a href={credit.href} target="_blank" rel="noopener noreferrer">{credit.text}</a>}
         </div>
       </div>
@@ -2587,7 +2601,6 @@ function Controls({ sel, areaCmW, areaRatio, onPatch, onDelete, onDuplicate, onL
       {sel?.type === "image" && (
         <>
           {quality()}
-          {sel.artPrice ? <div className="dr-quality">Art design · +₹{sel.artPrice}</div> : null}
           {!sel.artDesignId && (
             <button type="button" className="dr-add dr-bgbtn" onClick={onRemoveBg}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
