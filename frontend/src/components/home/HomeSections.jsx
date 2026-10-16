@@ -95,7 +95,22 @@ export function HomeHero({ garment, colours, printCm, shopOpen }) {
           )}
         </div>
 
-        <div className="hm-stage" aria-label={c ? `${garment?.label || "Tee"} in ${c.name}` : undefined}>
+        {/* the tee leans towards the pointer (mouse / trackpad only; not with reduced motion) */}
+        <div
+          className="hm-stage"
+          aria-label={c ? `${garment?.label || "Tee"} in ${c.name}` : undefined}
+          onPointerMove={(e) => {
+            if (calm || e.pointerType !== "mouse") return;
+            const r = e.currentTarget.getBoundingClientRect();
+            if (!r.width || !r.height) return;
+            e.currentTarget.style.setProperty("--ry", `${(((e.clientX - r.left) / r.width) - 0.5) * 10}deg`);
+            e.currentTarget.style.setProperty("--rx", `${(0.5 - (e.clientY - r.top) / r.height) * 8}deg`);
+          }}
+          onPointerLeave={(e) => {
+            e.currentTarget.style.setProperty("--ry", "0deg");
+            e.currentTarget.style.setProperty("--rx", "0deg");
+          }}
+        >
           {colours.map((col, i) => (
             <img key={col.slug} src={imageUrl(col.front, 1000)} alt="" className={i === cur ? "on" : ""} loading={i === 0 ? "eager" : "lazy"} />
           ))}
@@ -153,10 +168,43 @@ export function HomeMarquee({ shopOpen }) {
    Open-ended on purpose (not a list of themes, which reads as "only these"): type any idea → the design room opens
    and the assistant takes it from there (navigation state, see DesignRoomPage `ideaLink`); or start with a tool. */
 const IDEA_EXAMPLE = "Messi on the back, my name on the front";
+// the box types a few ideas by itself, so people see the kind of thing they can ask for (stops once they click in)
+const IDEA_EXAMPLES = [
+  IDEA_EXAMPLE,
+  "Our cricket team, a name and number on each tee",
+  "My dog as a cartoon on the front",
+  "Happy 60th Appa, with his photo",
+  "Class of 2026 on the back, with all our names",
+];
+function useTypedExample(stop) {
+  const [n, setN] = useState(0); // which example
+  const [len, setLen] = useState(0); // letters shown
+  const calm = reduceMotion();
+  useEffect(() => {
+    if (calm || stop) return;
+    const full = IDEA_EXAMPLES[n].length;
+    // type, hold the whole line for a moment, then the next one
+    const t = setTimeout(
+      () => {
+        if (len < full) setLen(len + 1);
+        else {
+          setN((n + 1) % IDEA_EXAMPLES.length);
+          setLen(0);
+        }
+      },
+      len < full ? 45 : 2200,
+    );
+    return () => clearTimeout(t);
+  }, [n, len, calm, stop]);
+  // stopped (they clicked in or typed): the current example in full, not a half-typed line
+  return calm ? IDEA_EXAMPLE : stop ? IDEA_EXAMPLES[n] : IDEA_EXAMPLES[n].slice(0, len);
+}
 export function HomeCreate({ garment, colours }) {
   const navigate = useNavigate();
   const [idea, setIdea] = useState("");
   const [missing, setMissing] = useState(false);
+  const [focused, setFocused] = useState(false);
+  const example = useTypedExample(focused || idea.length > 0);
   const base = garment ? `/customize/${garment.key}?new=1` : null;
   const go = (extra = "", color = "white") => (base ? `${base}&color=${color}${extra}` : SHOPS.create.to);
   const photo = (slug, i) => (colours.find((c) => c.slug === slug) || colours[i % Math.max(1, colours.length)])?.front;
@@ -188,7 +236,9 @@ export function HomeCreate({ garment, colours }) {
                 setIdea(e.target.value);
                 if (missing) setMissing(false);
               }}
-              placeholder={`Try: “${IDEA_EXAMPLE}”`}
+              onFocus={() => setFocused(true)}
+              onBlur={() => setFocused(false)}
+              placeholder={`Try: “${example}”`}
               aria-label="Describe what you want on your tee"
               maxLength={400}
             />
@@ -212,7 +262,7 @@ export function HomeCreate({ garment, colours }) {
         </div>
         <div className="hm-six" data-reveal>
           {WAYS6.map((w, i) => (
-            <Link key={w.title} className="hm-six-card" to={w.to}>
+            <Link key={w.title} className="hm-six-card" to={w.to} style={{ "--i": i }}>
               <span className="art">
                 {photo(w.slug, i) && <img src={imageUrl(photo(w.slug, i), 420)} alt="" loading="lazy" />}
                 {w.ov}
@@ -228,7 +278,20 @@ export function HomeCreate({ garment, colours }) {
 }
 
 /* ---------- three ways to shop ---------- */
+// the team card's jersey shows each person in turn — everyone gets their own name and number
+const ROSTER = [
+  ["ARUN", "07", "L"],
+  ["KARTHIK", "10", "XL"],
+  ["DIVYA", "23", "M"],
+];
 export function HomeWays({ garment, customPhoto, stackPhotos, custom, ready, shopOpen }) {
+  const [who, setWho] = useState(0);
+  useEffect(() => {
+    if (reduceMotion()) return;
+    const t = setInterval(() => setWho((n) => (n + 1) % ROSTER.length), 2400);
+    return () => clearInterval(t);
+  }, []);
+  const [pName, pNumber] = ROSTER[who];
   return (
     <section className="hm-sec" id="shop" aria-label="Three ways to shop">
       <div className="hm-wrap">
@@ -297,9 +360,11 @@ export function HomeWays({ garment, customPhoto, stackPhotos, custom, ready, sho
           </Link>
           <Link className="hm-way team" to={SHOPS.team.to} data-reveal="draw" style={{ "--i": 2 }}>
             <div className="hm-roster" aria-hidden="true">
-              <span>ARUN · 7 · L</span>
-              <span>KARTHIK · 10 · XL</span>
-              <span>DIVYA · 23 · M</span>
+              {ROSTER.map(([n, no, s], i) => (
+                <span key={n} className={i === who ? "on" : ""}>
+                  {n} · {Number(no)} · {s}
+                </span>
+              ))}
             </div>
             <div className="hm-jersey" aria-hidden="true">
               <svg viewBox="0 0 200 210">
@@ -309,8 +374,10 @@ export function HomeWays({ garment, customPhoto, stackPhotos, custom, ready, sho
                 <circle cx="69" cy="55" r="6" fill="#C9A24B" />
                 <text x="69" y="59" textAnchor="middle" fill="#15130F" style={{ font: "800 11px Inter, Arial, sans-serif" }}>+</text>
                 <text x="79" y="58.5" textAnchor="start" fill="#E6D3A3" style={{ font: "700 9.5px Inter, Arial, sans-serif", letterSpacing: "0.05em" }}>YOUR LOGO</text>
-                <text x="100" y="92" textAnchor="middle" fill="#FFFFFF" style={{ font: "800 19px Inter, Arial, sans-serif", letterSpacing: "0.08em" }}>ARUN</text>
-                <text x="100" y="172" textAnchor="middle" fill="#B8912F" style={{ font: "800 78px 'Bricolage Grotesque', Arial, sans-serif" }}>07</text>
+                <g key={who} className="hm-flip">
+                  <text x="100" y="92" textAnchor="middle" fill="#FFFFFF" style={{ font: "800 19px Inter, Arial, sans-serif", letterSpacing: "0.08em" }}>{pName}</text>
+                  <text x="100" y="172" textAnchor="middle" fill="#B8912F" style={{ font: "800 78px 'Bricolage Grotesque', Arial, sans-serif" }}>{pNumber}</text>
+                </g>
               </svg>
             </div>
             <div className="label">
