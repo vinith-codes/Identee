@@ -219,6 +219,19 @@ IDENTEE_Measurements_Needed.pdf` (5 pages, every number still guessed, with draw
 (Downloads, recorded by a puppeteer script with ffmpeg at E:\tools\ffmpeg — headless Chrome needs `--use-angle=d3d11`
 for smooth 3D frames; swiftshader gives ~1 fps).
 
+**`feature-print-sheets` + `feature-colour-photo-maker` — MERGED to `main` on 16 Oct 2026 (tested by the user):**
+- **Print sheets** (Admin → Orders → Print sheets): the print team prints on 58 × 100 cm sheets, a day at once. Pick a
+  date (orders placed that day, IST, not cancelled) → every print drawn at 300 DPI with the same code as one order's
+  files (`studio/printSheets.js`), cut to its artwork, one piece per tee, MaxRects layout (largest first, 1 cm gap,
+  0.5 cm edge, turned 90° when it fits better), a tag under each print (order · size · colour · area · n of N; two lines
+  on narrow prints) → previews → ZIP of SHEET-NN.png (6850 × 11811 px, 300 DPI) + SHEET-LIST.txt (what's where, where
+  each goes on the tee). Server: GET /api/customizations/admin/print-day/:day (shares `printPackOf` with one order's
+  print files) and POST …/downloaded → `PrintSheetDay` (the page warns "downloaded on … by …"). A busy day ≈ 30 MB per
+  sheet in the ZIP and ~20 s to make.
+- **Colour photo maker** (garment wizard step 4, "Make all colours from one white garment"): white front/back photos →
+  background removed, sized to the size chart's M (shoulder 27.3 %, hem 87.4 %), recoloured to every colour, uploaded,
+  photo ruler saved (`garmentSetup/colourPhotos.js`, `ColourPhotoMaker.jsx`). Same method as `build_regular.py`.
+
 **`feature-three-shops` — MERGED to `main` on 16 Oct 2026:** the client's three main categories, named the same
 everywhere (`utils/shopNames.js`); the addresses stay.
 - **Create your IDENTEE** (was Design your own / Customizable) → /customizable · **Shop your IDENTEE** (was Ready-made)
