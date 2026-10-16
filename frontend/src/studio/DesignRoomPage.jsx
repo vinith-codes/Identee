@@ -1233,10 +1233,11 @@ export default function DesignRoomPage() {
     }
   };
   const drawPlace = async (url, key) => Boolean(await placeAiDesign(url, key));
-  const studioPlace = async (r) => {
-    if (!photoTarget) return false;
+  const studioPlace = async (r, areaKey) => {
+    const key = areaKey || photoTarget?.key;
+    if (!key) return false;
     aiCuts.current.set(r.url, { path: r.url, w: r.w, h: r.h }); // already final: put on as it is
-    return Boolean(await placeAiDesign(r.url, photoTarget.key));
+    return Boolean(await placeAiDesign(r.url, key));
   };
 
   // A ready-made layout: its texts go to the first area the garment offers that is free.
@@ -1948,6 +1949,7 @@ export default function DesignRoomPage() {
               <PhotoStudio
                 ai={{ ...ai, loggedIn: isLoggedIn() }}
                 target={photoTarget ? { label: photoTarget.label, cm: areaCm(photoTarget, sizeNow) } : { label: "your tee", cm: null }}
+                areas={positions.filter((p) => usedKeys.includes(p.key) || !blockersOf(p.key, positions, usedKeys).length).map((p) => ({ key: p.key, label: p.label }))}
                 fabric={fabricHex}
                 session={photoSession}
                 setSession={setPhotoSession}

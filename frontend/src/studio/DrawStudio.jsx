@@ -33,6 +33,7 @@ export default function DrawStudio({ ai, areas, targetKey, fabric, session, setS
   const steps = useRef(0);
   const [missing, setMissing] = useState("");
   const [change, setChange] = useState("");
+  const [pickFor, setPickFor] = useState(null); // the design whose "Other area" choices are open
   const styles = (ai.styles || []).filter((s) => STYLE_INFO[s]);
   const pickedStyle = styles.includes(style) ? style : styles[0];
   const freeAreas = areas.filter((a) => a.free);
@@ -64,9 +65,16 @@ export default function DrawStudio({ ai, areas, targetKey, fabric, session, setS
       set({ view: "results", results: res.images.map((im) => ({ url: im.url, w: im.width, h: im.height })), changing: null });
     }, () => changeIt(baseUrl, words));
   };
-  const place = async (r) => {
-    const key = session.request?.areaKey || forKey;
-    if (await onPlace(r.url, key)) set({ placed: { ...placed, [r.url]: areas.find((a) => a.key === key)?.label || "your tee" } });
+  // a design can go on the area it was drawn for (Add to tee) and on any other one as well (Other area)
+  const onIt = (url) => [].concat(placed[url] || []);
+  const place = async (r, key = session.request?.areaKey || forKey) => {
+    setPickFor(null);
+    if (!(await onPlace(r.url, key))) return;
+    const label = areas.find((a) => a.key === key)?.label || "your tee";
+    setSession((s) => {
+      const was = [].concat(s.placed?.[r.url] || []);
+      return { ...s, placed: { ...s.placed, [r.url]: was.includes(label) ? was : [...was, label] } };
+    });
   };
 
   if (!ai.available) {
@@ -157,14 +165,24 @@ export default function DrawStudio({ ai, areas, targetKey, fabric, session, setS
             {results.map((r) => (
               <div key={r.url} className="ps-result">
                 <img src={imageUrl(r.url, 500)} alt="A design made for you" style={{ background: fabric }} />
-                {placed[r.url] ? <span className="ps-on">On {placed[r.url]} ✓</span> : <button type="button" className="ps-btn gold" onClick={() => place(r)}>Add to tee</button>}
+                {onIt(r.url).length ? <span className="ps-on">On {onIt(r.url).join(" and ")} ✓</span> : <button type="button" className="ps-btn gold" onClick={() => place(r)}>Add to tee</button>}
                 {changing === r.url ? (
                   <form className="ds-change" onSubmit={(e) => { e.preventDefault(); changeIt(r.url, change); }}>
                     <input value={change} onChange={(e) => setChange(e.target.value)} placeholder="Make it angrier, add a crown…" aria-label="What should change?" maxLength={200} autoFocus />
                     <button type="submit" className="ps-btn" disabled={change.trim().length < 3}>Change · 1 request</button>
                   </form>
                 ) : (
-                  canDraw && <button type="button" className="ps-link" onClick={() => set({ changing: r.url })}>Change it</button>
+                  <div className="ps-links">
+                    {freeAreas.length > 1 && <button type="button" className="ps-link" aria-expanded={pickFor === r.url} onClick={() => setPickFor(pickFor === r.url ? null : r.url)}>Other area</button>}
+                    {canDraw && <button type="button" className="ps-link" onClick={() => set({ changing: r.url })}>Change it</button>}
+                  </div>
+                )}
+                {pickFor === r.url && (
+                  <div className="dr-designareas">
+                    {freeAreas.map((a) => (
+                      <button key={a.key} type="button" className="dr-chip" onClick={() => place(r, a.key)}>{a.label}</button>
+                    ))}
+                  </div>
                 )}
               </div>
             ))}

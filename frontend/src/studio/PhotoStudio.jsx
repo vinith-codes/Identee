@@ -29,9 +29,10 @@ const isFree = (s) => /free/i.test(s);
  * @param onUpload  (file) => Promise<{ url, w, h }>
  * @param onArt     (url, style) => Promise<{ images: [{ url, width, height, label }], left?, filtered?, refused? }>
  * @param onPrintReady (photo, { cutOut, enhance }, progress) => Promise<{ url, w, h, enhanced, cut }>
- * @param onPlace   (result) => Promise<boolean>  put a result on the tee
+ * @param areas     [{ key, label }] — the other print areas a result can go on as well ("Other area")
+ * @param onPlace   (result, areaKey?) => Promise<boolean>  put a result on the tee (on target unless areaKey)
  */
-export default function PhotoStudio({ ai, target, fabric, session, setSession, onLogin, onUpload, onArt, onPrintReady, onPlace, onClose }) {
+export default function PhotoStudio({ ai, target, areas = [], fabric, session, setSession, onLogin, onUpload, onArt, onPrintReady, onPlace, onClose }) {
   const { photo = null, view = "pick", results = [], resultKind = null, placed = {}, error = null, wait = null, last = null } = session;
   const set = (patch) => setSession((s) => ({ ...s, ...patch }));
   const fileRef = useRef(null);
@@ -39,6 +40,7 @@ export default function PhotoStudio({ ai, target, fabric, session, setSession, o
   const [cutOut, setCutOut] = useState(true);
   const [enhance, setEnhance] = useState(false);
   const [dragOver, setDragOver] = useState(false);
+  const [pickFor, setPickFor] = useState(null); // the result whose "Other area" choices are open
   const aiOk = ai.available && ai.loggedIn && ai.left !== 0;
   const styles = (ai.photoStyles || []).filter((s) => isFree(s) || ai.available);
 
@@ -81,8 +83,15 @@ export default function PhotoStudio({ ai, target, fabric, session, setSession, o
       },
       makePhoto,
     );
-  const place = async (r) => {
-    if (await onPlace(r)) set({ placed: { ...placed, [r.url]: target.label } });
+  const onIt = (url) => [].concat(placed[url] || []);
+  const place = async (r, area = null) => {
+    setPickFor(null);
+    if (!(await onPlace(r, area?.key))) return;
+    const label = area?.label || target.label;
+    setSession((s) => {
+      const was = [].concat(s.placed?.[r.url] || []);
+      return { ...s, placed: { ...s.placed, [r.url]: was.includes(label) ? was : [...was, label] } };
+    });
   };
 
   // print quality of a photo at this area's size: pixels per inch when it fills the area
@@ -203,13 +212,23 @@ export default function PhotoStudio({ ai, target, fabric, session, setSession, o
                   <img src={imageUrl(r.url, 500)} alt={r.label} style={{ background: fabric }} />
                   <b>{r.label}</b>
                   {q && <span className={`ps-q ${q[0]}`}>{q[1]}</span>}
-                  {placed[r.url] ? (
-                    <span className="ps-on">On {placed[r.url]} ✓</span>
+                  {onIt(r.url).length ? (
+                    <span className="ps-on">On {onIt(r.url).join(" and ")} ✓</span>
                   ) : (
                     <button type="button" className="ps-btn gold" onClick={() => place(r)}>Add to tee</button>
                   )}
-                  {q?.[0] === "low" && !r.enhanced && aiOk && (
-                    <button type="button" className="ps-link" onClick={() => { setEnhance(true); set({ view: "choose" }); }}>Enhance it with AI</button>
+                  <div className="ps-links">
+                    {areas.length > 1 && <button type="button" className="ps-link" aria-expanded={pickFor === r.url} onClick={() => setPickFor(pickFor === r.url ? null : r.url)}>Other area</button>}
+                    {q?.[0] === "low" && !r.enhanced && aiOk && (
+                      <button type="button" className="ps-link" onClick={() => { setEnhance(true); set({ view: "choose" }); }}>Enhance it with AI</button>
+                    )}
+                  </div>
+                  {pickFor === r.url && (
+                    <div className="dr-designareas">
+                      {areas.map((a) => (
+                        <button key={a.key} type="button" className="dr-chip" onClick={() => place(r, a)}>{a.label}</button>
+                      ))}
+                    </div>
                   )}
                 </div>
               );
