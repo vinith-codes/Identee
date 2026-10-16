@@ -1,5 +1,12 @@
 # Garment images for the customizer
 
+**For new products, use the admin tool instead (16 Oct 2026):** Admin → Customizable → the garment's wizard → step 4
+"Make all colours from one white garment" does the same as `build_regular.py` in the browser
+(`frontend/src/pages/admin/garmentSetup/colourPhotos.js` + `ColourPhotoMaker.jsx`): white front/back photos (sides
+optional, else `frontend/public/garment-tools/side_white.svg`), background removed, sized to the size chart's M
+(shoulder 27.3 %, hem 87.4 %; a very wide garment is drawn smaller), recoloured to every colour, uploaded, photo ruler
+saved. Tested on the Boys Round Neck white photo: within 1 px of the script's photos. These scripts stay for odd cases.
+
 Builds the Oversized Tee images the customizer uses: **12 colours × 4 views**
 (front, back, left side, right side), 800 × 1000 px, drawn to the IDENTEE size
 chart (size M: chest 23" flat, length 30"), so print areas can be shown at their

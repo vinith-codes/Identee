@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import garmentImageService from "../../../services/garmentImageService";
 import { imageUrl } from "../../../utils/imageUrl";
 import { AW } from "./wizardStyles";
+import ColourPhotoMaker from "./ColourPhotoMaker";
 
 const VIEWS = [
   ["front", "Front"],
@@ -13,7 +14,7 @@ const VIEWS = [
 ];
 const MAX_MB = 8;
 
-export default function PhotosStep({ garment, images, reloadImages, progress, next }) {
+export default function PhotosStep({ garment, images, reloadImages, progress, next, save }) {
   const inputRef = useRef(null);
   const [target, setTarget] = useState(null); // { colour, view }
   const [busy, setBusy] = useState(""); // "slug-view" being uploaded
@@ -53,6 +54,9 @@ export default function PhotosStep({ garment, images, reloadImages, progress, ne
         colour. <b>{progress.photoCount} of {progress.photoTotal}</b> uploaded. Click a box to upload or replace a photo.
       </p>
       <input ref={inputRef} type="file" accept="image/*" hidden onChange={upload} />
+      {/* every colour from one white garment photo (in the browser), or upload each photo by hand below */}
+      <ColourPhotoMaker garment={garment} images={images} reloadImages={reloadImages} save={save} />
+      <p style={{ ...AW.lead, marginTop: 18 }}>Or upload each photo by hand (real photos of each colour):</p>
       {error && <p style={{ color: "#A3341F", fontSize: 13, fontWeight: 600 }}>{error}</p>}
 
       {garment.colors.length === 0 ? (

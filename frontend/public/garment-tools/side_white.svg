@@ -1,0 +1,82 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="1000" viewBox="0 0 800 1000">
+  <!-- Oversized tee, side profile (wearer's right side; shirt front faces left).
+       Drawn in white/grey; the recolour script tints it like the photos.
+       Scale matches the front/back photos: collar ≈ y 240, hem ≈ y 935. -->
+  <defs>
+    <filter id="b6" filterUnits="userSpaceOnUse" x="0" y="0" width="800" height="1000"><feGaussianBlur stdDeviation="6"/></filter>
+    <filter id="b14" filterUnits="userSpaceOnUse" x="0" y="0" width="800" height="1000"><feGaussianBlur stdDeviation="14"/></filter>
+    <filter id="b26" filterUnits="userSpaceOnUse" x="0" y="0" width="800" height="1000"><feGaussianBlur stdDeviation="26"/></filter>
+    <filter id="knit" filterUnits="userSpaceOnUse" x="0" y="0" width="800" height="1000">
+      <feTurbulence type="fractalNoise" baseFrequency="1.4 0.7" numOctaves="2" seed="11"/>
+      <feColorMatrix type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 -1.5 1.15"/>
+    </filter>
+    <linearGradient id="torsoShade" gradientUnits="userSpaceOnUse" x1="236" y1="0" x2="566" y2="0">
+      <stop offset="0" stop-color="#000" stop-opacity="0.26"/>
+      <stop offset="0.14" stop-color="#000" stop-opacity="0.05"/>
+      <stop offset="0.42" stop-color="#fff" stop-opacity="0.32"/>
+      <stop offset="0.8" stop-color="#000" stop-opacity="0.03"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.24"/>
+    </linearGradient>
+    <linearGradient id="torsoV" gradientUnits="userSpaceOnUse" x1="0" y1="240" x2="0" y2="940">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.12"/>
+      <stop offset="0.6" stop-color="#fff" stop-opacity="0"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.10"/>
+    </linearGradient>
+    <linearGradient id="sleeveShade" gradientUnits="userSpaceOnUse" x1="300" y1="260" x2="610" y2="420">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.34"/>
+      <stop offset="0.55" stop-color="#fff" stop-opacity="0.04"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.20"/>
+    </linearGradient>
+    <linearGradient id="sleeveV" gradientUnits="userSpaceOnUse" x1="0" y1="260" x2="0" y2="600">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.16"/>
+      <stop offset="0.75" stop-color="#000" stop-opacity="0"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.12"/>
+    </linearGradient>
+    <path id="torso" d="M352 246 C 316 258, 286 282, 268 318 C 248 362, 240 420, 238 500 C 236 620, 238 780, 244 932 C 320 946, 484 948, 558 934 C 564 800, 566 640, 564 500 C 562 420, 556 362, 538 318 C 520 282, 490 258, 452 246 C 422 238, 382 238, 352 246 Z"/>
+    <path id="sleeve" d="M318 330 C 330 292, 370 266, 424 262 C 482 260, 528 284, 552 322 C 584 372, 604 436, 614 500 C 620 536, 622 560, 622 576 C 560 600, 432 606, 344 590 C 336 540, 326 470, 320 410 C 316 380, 314 352, 318 330 Z"/>
+    <clipPath id="cTorso"><use href="#torso"/></clipPath>
+    <clipPath id="cSleeve"><use href="#sleeve"/></clipPath>
+  </defs>
+  <g id="scaled" transform="translate(137.59 28.04) scale(0.6544 0.8964)">
+
+  <ellipse cx="400" cy="950" rx="190" ry="16" fill="#000" opacity="0.2" filter="url(#b26)"/>
+
+  <!-- TORSO -->
+  <use href="#torso" fill="#ECECEA"/>
+  <g clip-path="url(#cTorso)">
+    <rect width="800" height="1000" fill="url(#torsoShade)"/>
+    <rect width="800" height="1000" fill="url(#torsoV)"/>
+    <path d="M276 620 C 280 720, 278 830, 272 930" stroke="#000" stroke-opacity="0.09" stroke-width="22" fill="none" filter="url(#b14)"/>
+    <path d="M530 640 C 534 740, 532 840, 528 930" stroke="#000" stroke-opacity="0.09" stroke-width="18" fill="none" filter="url(#b14)"/>
+    <path d="M430 640 C 436 740, 434 840, 428 934" stroke="#fff" stroke-opacity="0.38" stroke-width="16" fill="none" filter="url(#b14)"/>
+    <path d="M406 600 C 408 700, 408 820, 406 940" stroke="#000" stroke-opacity="0.12" stroke-width="2.2" fill="none"/>
+    <path d="M240 906 C 320 920, 484 922, 562 908" stroke="#000" stroke-opacity="0.11" stroke-width="2" stroke-dasharray="6 5" fill="none"/>
+    <path d="M240 916 C 320 930, 484 932, 562 918" stroke="#000" stroke-opacity="0.11" stroke-width="2" stroke-dasharray="6 5" fill="none"/>
+    <!-- shadow cast by the sleeve -->
+    <path d="M330 592 C 440 612, 560 606, 626 580" stroke="#000" stroke-opacity="0.30" stroke-width="46" fill="none" filter="url(#b26)"/>
+    <rect width="800" height="1000" filter="url(#knit)" opacity="0.06"/>
+  </g>
+
+  <!-- SLEEVE (shadow behind it first) -->
+  <use href="#sleeve" fill="#000" opacity="0.18" filter="url(#b14)" transform="translate(8 12)"/>
+  <use href="#sleeve" fill="#EFEFED"/>
+  <g clip-path="url(#cSleeve)">
+    <rect width="800" height="1000" fill="url(#sleeveShade)"/>
+    <rect width="800" height="1000" fill="url(#sleeveV)"/>
+    <path d="M440 320 C 480 390, 512 470, 528 580" stroke="#000" stroke-opacity="0.12" stroke-width="26" fill="none" filter="url(#b14)"/>
+    <path d="M372 360 C 390 430, 402 500, 408 584" stroke="#fff" stroke-opacity="0.38" stroke-width="16" fill="none" filter="url(#b14)"/>
+    <path d="M566 350 C 584 420, 596 490, 602 570" stroke="#000" stroke-opacity="0.10" stroke-width="18" fill="none" filter="url(#b14)"/>
+    <path d="M326 372 C 396 350, 500 352, 576 380" stroke="#000" stroke-opacity="0.11" stroke-width="2.2" fill="none"/>
+    <path d="M340 556 C 430 572, 556 568, 620 540" stroke="#000" stroke-opacity="0.11" stroke-width="2" stroke-dasharray="6 5" fill="none"/>
+    <path d="M341 566 C 431 582, 557 578, 621 550" stroke="#000" stroke-opacity="0.11" stroke-width="2" stroke-dasharray="6 5" fill="none"/>
+    <rect width="800" height="1000" filter="url(#knit)" opacity="0.06"/>
+  </g>
+  <use href="#sleeve" fill="none" stroke="#000" stroke-opacity="0.10" stroke-width="1.4"/>
+
+  <!-- COLLAR band seen from the side -->
+  <path d="M346 250 C 376 232, 430 230, 462 246 C 466 256, 458 262, 448 260 C 422 250, 384 252, 360 266 C 348 270, 340 260, 346 250 Z" fill="#E0E0DE"/>
+  <path d="M346 250 C 376 232, 430 230, 462 246" stroke="#000" stroke-opacity="0.15" stroke-width="2" fill="none"/>
+  <path d="M360 266 C 384 252, 422 250, 448 260" stroke="#000" stroke-opacity="0.18" stroke-width="2" fill="none"/>
+  <use href="#torso" fill="none" stroke="#000" stroke-opacity="0.10" stroke-width="1.4"/>
+  </g>
+</svg>
