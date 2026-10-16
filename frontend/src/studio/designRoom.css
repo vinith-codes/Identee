@@ -497,6 +497,13 @@
 /* never stuck: a failed request can be tried again; while busy the chat says so */
 .dr-chip.dr-retry { border-color: var(--gold); background: var(--gold-soft); color: var(--gold-deep); font-weight: 700; }
 .dr-busynote { margin: 0; padding: 8px 20px 0; font-size: 12px; color: var(--muted); }
+/* "✨ Improve my idea" above the message box */
+.dr-improve-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 20px 0; border-top: 1px solid var(--line); }
+.dr-improve-row + .dr-composer { border-top: 0; padding-top: 8px; }
+.dr-improve { border: 1px solid var(--line); border-radius: 999px; background: #fff; color: var(--ink); padding: 6px 12px; font-weight: 700; font-size: 12.5px; cursor: pointer; }
+.dr-improve:hover:not(:disabled) { border-color: var(--ink); }
+.dr-improve:disabled { opacity: .55; cursor: default; }
+.dr-improve-row span { font-size: 12px; color: var(--muted); }
 .dr-composer button:disabled { opacity: .55; cursor: default; }
 .dr-chatchips .dr-chip:disabled { cursor: default; }
 .dr-busy .dr-wait { min-width: 260px; }
