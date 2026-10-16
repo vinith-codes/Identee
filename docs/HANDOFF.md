@@ -168,6 +168,19 @@ panel is 440 px (400 px on 761–1279 px screens) instead of the editor's 364 px
 about half the screen (`data-wide`, clamp 480–780 px; remembered in localStorage `identee:assistWide`). Wide: examples in two
 columns, AI pictures in three. Phones unchanged (the button is hidden).
 
+**`fix-phone-layout` — MERGED to `main` on 16 Oct 2026:** every public page + the Design Room checked at 375 px (no page
+wider than the screen). Fixed: Home's floating WhatsApp/Instagram buttons sit bottom-RIGHT on phones (on the left they
+covered the start of every line) and, like Contact us, no longer fall back to an old number (+91 994 590 0292) — only
+Admin → Settings (WhatsApp, else phone), nothing until loaded; Design Room top bar on phones = colour dot + "Size M"
+(`.dr-pickname` hidden, `.dr-picksize`); the 404 page sits inside CustomerLayout with Go to the home page / Design your
+own; Contact us has one map (SiteFooter leaves its map out on /contact-us) and one copyright line; the login heading uses
+Bricolage Grotesque (Cormorant Garamond was never loaded); Home photo-studio squares stay equal (`align-content: start`);
+Terms + Privacy name xAI's Grok next to Google (UPDATED 16 Oct — tell the client). Not checked on a phone yet: pages that
+need a login (Account, My orders, My designs, Checkout, Admin). Also 16 Oct: `docs/print-requests/
+IDENTEE_Measurements_Needed.pdf` (5 pages, every number still guessed, with drawings) and a 72 s HUKUM advert video
+(Downloads, recorded by a puppeteer script with ffmpeg at E:\tools\ffmpeg — headless Chrome needs `--use-angle=d3d11`
+for smooth 3D frames; swiftshader gives ~1 fps).
+
 **NEXT PHASE (moved there by the user, 16 Oct 2026): WhatsApp order updates + the Meta setup.** The code is done on
 branch `feature-whatsapp-orders` (241724b, NOT merged; its own HANDOFF entry explains it; client guide
 identee-private-assets/IDENTEE_WhatsApp_Order_Updates_Guide.pdf). Meta: no app created yet; business verification waits
