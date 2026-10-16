@@ -1,6 +1,6 @@
 // pages/CustomizablePage.jsx  —  /customizable
 //
-// "Design your own" in two steps, like the IDENTEE catalogue:
+// "Create your IDENTEE" (was "Design your own") in two steps, like the IDENTEE catalogue:
 //   1. /customizable                    — one card per customizable store category
 //                                          (Girls Wear · Unisex & Kids Wear · Boys Wear)
 //   2. /customizable?category=<slug>    — the garments of that category
@@ -18,6 +18,7 @@ import CustomizableGarments from "../components/CustomizableGarments";
 import ShopPageHeader from "../components/ShopPageHeader";
 import { categoryOfGarment, coverPhoto, inCategory, isSellable } from "../utils/garments";
 import { isDesignYourOwn } from "../utils/categoryKinds";
+import { SHOPS } from "../utils/shopNames";
 import { imageUrl } from "../utils/imageUrl";
 import garmentTypeService from "../services/garmentTypeService";
 
@@ -109,10 +110,10 @@ export default function CustomizablePage() {
       <style>{CSS}</style>
       <main style={{ maxWidth: 1280, margin: "0 auto", padding: "32px 24px 64px" }}>
         <ShopPageHeader
-          eyebrow="Customizable"
-          title="Design your own"
+          eyebrow="Design it yourself"
+          title={SHOPS.create.name}
           text={only ? "Pick a garment and colour, add your text, photos or artwork, and see it true to size before you order." : "Choose a collection, then the garment you want to design."}
-          switchTo={{ to: "/ready-made", label: "Shop ready-made instead →" }}
+          switchTo={{ to: SHOPS.team.to, label: "Ordering for a team or group? →" }}
         />
 
         {/* the Photo Studio, highlighted: every garment can start from the customer's photo */}

@@ -9,12 +9,13 @@ import { fetchFavorites, fetchCart } from "../redux/slices/cartWishlistSlice";
 import { fetchPublicSettings } from "../redux/slices/publicSettingsSlice";
 import { fetchCategories } from "../redux/slices/categorySlice";
 import { isReadyMade } from "../utils/categoryKinds";
+import { SHOPS } from "../utils/shopNames";
 import { imageUrl } from "../utils/imageUrl";
 
 
 const slugify = (s) => s.toLowerCase().replace(/\s+/g, "-");
 
-// ─── Static navigation links (Customize / Ready-made are added below) ─────
+// ─── Static navigation links (the three ways to shop are added below) ─────
 const STATIC_NAV_LINKS = [
   { to: "/", label: "Home" },
   { to: "/about-us", label: "About Us" },
@@ -104,14 +105,14 @@ export default function Navbar() {
     [storeCategories],
   );
 
-  // Home · Customize · Ready-made (category dropdown) · About · Contact —
-  // the same two ways to shop as the home page.
+  // Home · Create your IDENTEE · Shop your IDENTEE (category dropdown) · Team / group · About · Contact —
+  // the same three ways to shop as the home page (utils/shopNames.js).
   const NAV_LINKS = useMemo(() => {
     const links = [STATIC_NAV_LINKS[0]]; // Home
-    links.push({ to: "/customizable", label: "Customize" });
+    links.push({ to: SHOPS.create.to, label: SHOPS.create.name });
     links.push({
-      to: "/ready-made",
-      label: "Ready-made",
+      to: SHOPS.shop.to,
+      label: SHOPS.shop.name,
       subLinks:
         productCategoryItems.length > 0
           ? [
@@ -125,6 +126,7 @@ export default function Navbar() {
             ]
           : [],
     });
+    links.push({ to: SHOPS.team.to, label: "Team / group IDENTEE" });
     links.push(STATIC_NAV_LINKS[1], STATIC_NAV_LINKS[2]); // About / Contact
     return links;
   }, [productCategoryItems]);

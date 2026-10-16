@@ -120,6 +120,17 @@
 .hm-way.ready:hover .hm-stack img:nth-child(1), .hm-way.ready.draw .hm-stack img:nth-child(1) { transform: translateX(-32%) rotate(-9deg); }
 .hm-way.ready:hover .hm-stack img:nth-child(2), .hm-way.ready.draw .hm-stack img:nth-child(2) { transform: translateX(32%) rotate(9deg); }
 .hm-way.ready:hover .hm-stack img:nth-child(3), .hm-way.ready.draw .hm-stack img:nth-child(3) { transform: translateY(-4%); }
+/* the third way: a team / group order — a wide, shorter card under the other two, with a jersey back */
+.hm-way.team { grid-column: 1 / -1; min-height: 300px; background: linear-gradient(120deg, #FBF5E6, var(--gold-soft)); color: var(--ink); justify-content: center; }
+.hm-way.team .label { max-width: 520px; }
+.hm-way.team p { color: #4A4130; }
+.hm-jersey { position: absolute; right: 6%; top: 50%; width: min(34%, 300px); transform: translateY(-50%) rotate(4deg); z-index: 1; transition: transform 1s var(--ease); }
+.hm-way.team:hover .hm-jersey { transform: translateY(-52%) rotate(1deg); }
+.hm-jersey svg { width: 100%; height: auto; display: block; filter: drop-shadow(0 24px 30px rgba(21,19,15,.18)); }
+.hm-roster { position: absolute; right: calc(6% + min(34%, 300px) + 18px); top: 50%; transform: translateY(-50%); display: grid; gap: 8px; z-index: 1; font: 700 13px/1 var(--body); letter-spacing: .06em; }
+.hm-roster span { background: #fff; border-radius: 999px; padding: 8px 12px; box-shadow: 0 8px 18px -12px rgba(21,19,15,.4); white-space: nowrap; }
+.hm-roster span:nth-child(2) { transform: translateX(14px); }
+@media (max-width: 1180px) { .hm-roster { display: none; } }
 .hm-way.ready::after { content: ""; position: absolute; inset: 46% 0 0; background: linear-gradient(transparent, var(--ink) 56%); z-index: 1; }
 
 /* ---------- steps ---------- */
@@ -190,6 +201,10 @@
   .hm-stage { max-width: 400px; order: -1; }
   .hm-note { display: none; }
   .hm-way { min-height: 520px; padding: 26px; }
+  .hm-way.team { min-height: 0; justify-content: flex-start; padding-top: 250px; }
+  .hm-jersey { top: 26px; right: 50%; width: 190px; transform: translateX(50%) rotate(4deg); }
+  .hm-way.team:hover .hm-jersey { transform: translateX(50%) rotate(1deg); }
+  .hm-roster { display: none; }
   .hm-steps { grid-template-columns: minmax(0, 1fr); }
   .hm-step, .hm-step + .hm-step { padding: 28px 0 8px; border-left: 0; }
   .hm-promises { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 28px 0; }

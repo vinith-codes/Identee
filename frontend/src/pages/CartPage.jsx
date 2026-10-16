@@ -96,7 +96,7 @@ export default function CartPage() {
     );
   }
   if (cartItems.length === 0) {
-    return <EmptyState title="Your cart is empty" text="Design a tee of your own, or pick a ready-made one." />;
+    return <EmptyState title="Your cart is empty" text="Create a tee of your own, or shop a finished one." />;
   }
 
   const total = cartItems.reduce((sum, item) => sum + item.price, 0);

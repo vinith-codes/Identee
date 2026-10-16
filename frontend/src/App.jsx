@@ -39,6 +39,7 @@ import CartPage from "./pages/CartPage";
 import Account from "./pages/Account";
 import CustomizablePage from "./pages/CustomizablePage";
 import ReadyMadePage from "./pages/ReadyMadePage";
+import TeamOrdersPage from "./pages/TeamOrdersPage";
 import ChooseColorPage from "./pages/ChooseColorPage";
 import AdminShippingPage from "./pages/admin/AdminShippingPage";
 import OffersPage from "./pages/admin/OffersPage";
@@ -161,7 +162,7 @@ const NotFound = () => (
       </p>
       <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap", marginTop: 24 }}>
         <Link to="/" style={{ padding: "12px 22px", borderRadius: 999, background: "#15130F", color: "#fff", fontWeight: 700, fontSize: 14, textDecoration: "none" }}>Go to the home page</Link>
-        <Link to="/customizable" style={{ padding: "12px 22px", borderRadius: 999, border: "1.5px solid #15130F", color: "#15130F", fontWeight: 700, fontSize: 14, textDecoration: "none" }}>Design your own</Link>
+        <Link to="/customizable" style={{ padding: "12px 22px", borderRadius: 999, border: "1.5px solid #15130F", color: "#15130F", fontWeight: 700, fontSize: 14, textDecoration: "none" }}>Create your IDENTEE</Link>
       </div>
     </div>
   </main>
@@ -274,6 +275,7 @@ export default function App() {
           />
           <Route path="/customizable" element={<CustomizablePage />} />
           <Route path="/ready-made" element={<ReadyMadePage />} />
+          <Route path="/team-orders" element={<TeamOrdersPage />} />
           {/* old address of the customizable list */}
           <Route path="/customize/choose-product" element={<LegacyChooseProduct />} />
           <Route

@@ -16,8 +16,8 @@ const css = `
 `;
 
 const WAYS = {
-  design: { to: "/customizable", label: "Design your own" },
-  shop: { to: "/ready-made", label: "Shop ready-made" },
+  design: { to: "/customizable", label: "Create your IDENTEE" },
+  shop: { to: "/ready-made", label: "Shop your IDENTEE" },
 };
 
 export default function EmptyState({ title, text, first = "design" }) {

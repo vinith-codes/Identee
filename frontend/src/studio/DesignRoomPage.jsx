@@ -144,6 +144,9 @@ export default function DesignRoomPage() {
   // ?photo=1 (the photo banner on the home page): entering the room opens the Photo Studio. Read once —
   // the address is tidied after the page opens.
   const [photoLink] = useState(() => params.get("photo") === "1");
+  // ?team=1 ("Create your team/group IDENTEE", /team-orders): entering the room puts the Team jersey layout on the
+  // tee and the assistant asks for the player list.
+  const [teamLink] = useState(() => params.get("team") === "1");
   const stored = useMemo(() => readJSON(DRAFT_KEY(type)), [type]);
   // (a design already saved to My designs isn't "unfinished" — it's kept there)
   const [earlier, setEarlier] = useState(() => (fresh && stored?.elements?.length && !stored.designId ? stored : null));
@@ -324,10 +327,11 @@ export default function DesignRoomPage() {
   // the address is only where a new design starts; left there, a reload brought it back over the colour
   // the customer had picked since.)
   useEffect(() => {
-    if (!fresh && !params.get("color")) return;
+    if (!fresh && !params.get("color") && !params.get("team")) return;
     const next = new URLSearchParams(params);
     next.delete("new");
     next.delete("color");
+    next.delete("team");
     navigate(`${location.pathname}${next.toString() ? `?${next}` : ""}`, { replace: true });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -1310,6 +1314,16 @@ export default function DesignRoomPage() {
     setSelectedId(null);
     if (skipped.length) say(`Left out ${[...new Set(skipped)].join(", ")}: this ${garment?.label || "garment"} has no free print area for ${skipped.length === 1 ? "it" : "them"}.`);
   };
+  // the team page's way in: the Team jersey layout, then the assistant asks for the players
+  const startTeam = () => {
+    applyTemplate("team", true);
+    openAiTab("chat");
+    setChat((m) => [
+      ...m.map((x) => (x.chips ? { ...x, done: true } : x)),
+      botSays("Your team layout is on the tee: a small team name on the chest, and the team name, player name and number on the back. Tap any text to change the words, font or colour. Then send me your players as name, number and size, one per line or separated by commas, like this: Arun 7 L, Karthik 10 XL. Every player gets their own tee. You can also fill the list in Review."),
+      chipRow(["Continue to review", "Something else"]),
+    ]);
+  };
   const applyFix = (issue) => {
     const pos = positions.find((p) => p.key === issue.position);
     commit((prev) => prev.map((e) => (e.id !== issue.elId ? e : issue.measure && pos ? textBox({ ...e, ...issue.patch }, pos) : { ...e, ...issue.patch })));
@@ -2213,11 +2227,13 @@ export default function DesignRoomPage() {
               setEarlier(null);
               enterRoom();
               if (photoLink) openPhotoStudio();
+              if (teamLink) startTeam();
             }}
             onAssistant={() => {
               setEarlier(null);
               enterRoom();
-              openAiTab("chat");
+              if (teamLink) startTeam();
+              else openAiTab("chat");
             }}
             onPhoto={() => {
               setEarlier(null);

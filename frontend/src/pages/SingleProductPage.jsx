@@ -195,7 +195,7 @@ export default function SingleProductPage() {
   return (
     <Shell>
       <nav className="pp-crumbs" aria-label="Breadcrumb">
-        <Link to="/">Home</Link> / <Link to="/ready-made">Ready-made</Link>
+        <Link to="/">Home</Link> / <Link to="/ready-made">Shop your IDENTEE</Link>
         {style && (
           <>
             {" "}
@@ -527,7 +527,7 @@ function Unavailable({ title, text }) {
       <h1 className="pp-title" style={{ fontSize: 24 }}>{title}</h1>
       <p style={{ color: "#71695B", margin: "8px 0 18px" }}>{text}</p>
       <Link to="/ready-made" className="pp-btn dark" style={{ display: "inline-flex", textDecoration: "none" }}>
-        Shop ready-made
+        Shop your IDENTEE
       </Link>
     </div>
   );

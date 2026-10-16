@@ -34,7 +34,7 @@ const TONES = {
 
 const QUICK = [
   { to: "/admin/customizable", label: "+ Customizable garment" },
-  { to: "/admin/upload-product", label: "+ Ready-made product" },
+  { to: "/admin/upload-product", label: "+ Shop your IDENTEE product" },
   { to: "/admin/offers", label: "+ Coupon" },
 ];
 

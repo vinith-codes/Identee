@@ -13,6 +13,7 @@ import { fetchPublicSettings } from "../redux/slices/publicSettingsSlice";
 import { TEE_MODELS } from "../studio/teeModel";
 import { POLICY_LINKS } from "../utils/policyLinks";
 import { isReadyMade } from "../utils/categoryKinds";
+import { SHOPS } from "../utils/shopNames";
 
 const CSS = `
   .sf { background: #fff; color: #15130F; font-family: "Inter", "Helvetica Neue", Arial, sans-serif; border-top: 1px solid #E2DED3; }
@@ -132,8 +133,9 @@ export default function SiteFooter() {
           <nav className="sf-col" aria-label="Shop">
             <h3>Shop</h3>
             <ul>
-              <li><Link to="/customizable">Design your own</Link></li>
-              <li><Link to="/ready-made">Ready-made</Link></li>
+              <li><Link to={SHOPS.create.to}>{SHOPS.create.name}</Link></li>
+              <li><Link to={SHOPS.shop.to}>{SHOPS.shop.name}</Link></li>
+              <li><Link to={SHOPS.team.to}>{SHOPS.team.name}</Link></li>
               {shopCats.map((c) => (
                 <li key={c._id || c.slug}><Link to={`/category/${c.slug}`}>{c.name}</Link></li>
               ))}
@@ -154,7 +156,7 @@ export default function SiteFooter() {
             <ul>
               <li><Link to="/about-us">About us</Link></li>
               <li><Link to="/contact-us">Contact us</Link></li>
-              <li><Link to="/contact-us">Bulk &amp; team orders</Link></li>
+              <li><Link to={SHOPS.team.to}>Bulk &amp; team orders</Link></li>
             </ul>
             {social.length > 0 && (
               <div className="sf-social">
