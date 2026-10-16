@@ -168,6 +168,28 @@ panel is 440 px (400 px on 761–1279 px screens) instead of the editor's 364 px
 about half the screen (`data-wide`, clamp 480–780 px; remembered in localStorage `identee:assistWide`). Wide: examples in two
 columns, AI pictures in three. Phones unchanged (the button is hidden).
 
+**`feature-launch-pricing` + `feature-category-types` — MERGED to `main` on 16 Oct 2026 (DB set with the user's go-ahead):**
+- **Launch pricing** (client, 16 Oct): Oversized ~~₹899~~ ₹699, Round Neck (boys & girls) ~~₹699~~ ₹499 — garment
+  `comparePrice` (struck) + `basePrice`; PriceTag.jsx shows them (cards, Design Room fit/top bar/Review). **Prices include
+  GST**: checkoutService.buildQuote takes the coupon off, adds shipping, and CGST/SGST are the tax PART of the price;
+  orders get `gstIncluded: true`; invoice page + PDF say "incl. GST". **Any picture on the tee (AI, art library or upload)
+  = +₹100 per tee**, once (utils/aiPricing.js `hasPicture`, setting `ai.designAddOnInr`, Admin → Settings → AI designs);
+  per-design art prices are no longer charged; text only = garment price. **Shipping** ₹100 per order, free from 3
+  pieces (ShippingCost.flatRate / freeFromPieces, Admin → Shipping → Flat shipping; null flatRate = old per-state costs;
+  the listed states still decide where we deliver). **Coupon IDENTEE10**: 10%, every order (`onePerCustomer: false`),
+  shown on the site (`showOnSite`, GET /api/offers/on-site → "+ Extra 10% off with code IDENTEE10"), expiry 2099
+  ("until I disable"), discount in whole rupees. Garment `alsoIn` (category slugs): the Oversized Tee also in Girls Wear;
+  wizard step 1 sets struck price + "Also show in". Launch range: only Oversized + Round Neck live; kids round neck, both
+  crops and co-ord set isActive false + comingSoon. Backup of the old values:
+  identee-private-assets/backup-2026-10-16-before-launch-pricing.json. Checked with real quotes (₹799 for 1 oversized,
+  ₹1,887 for 3 + coupon); a real order end to end and its invoice were NOT tested before the merge.
+- **Categories split** (after 3 Design-your-own collections were deleted by accident and re-created as they were):
+  `Category.kind` "readymade" | "customizable" (no default — an unsorted one behaves the old way;
+  utils/categoryKinds.js). Admin → Categories has a tab per shop; the ready-made shop/menu/footer/home counts use
+  ready-made ones, Design your own + the garment wizard the others. Delete needs the typed name and is refused while
+  garments (by style or alsoIn) or products use it (409 with which ones); "Hide instead" offered. All 9 sorted in the DB.
+  The admin page itself was not seen by me (test login is a customer).
+
 **`feature-improve-idea` + `fix-mockup-outline` — MERGED to `main` on 16 Oct 2026:**
 - **"Improve my idea"** (Draw tab and Chat): the customer's rough words → a clear picture prompt + "What you'll get"
   (Words / Top / Bottom / Colours, and a **Check** line when a word has two meanings, e.g. glass vs eyeglasses) with a
