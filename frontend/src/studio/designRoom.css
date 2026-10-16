@@ -1052,6 +1052,10 @@ button.dr-back { padding: 0; font: inherit; font-weight: 700; cursor: pointer; }
 .ip-list dd { margin: 0; color: var(--ink-soft); }
 .ip-picks { margin: 0; display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12.5px; color: var(--ink-soft); }
 .ip-picks b { color: var(--ink); }
+.ip-area { display: grid; grid-template-columns: 74px minmax(0, 1fr); align-items: center; gap: 8px; font-size: 13px; }
+.ip-area span { font-weight: 700; color: var(--ink); }
+.ip-area select { min-width: 0; border: 1px solid var(--line); border-radius: 8px; background: #fff; color: var(--ink); padding: 6px 8px; font: inherit; font-weight: 600; }
+.ip-area select:disabled { opacity: .6; }
 .ip-prompt { font-size: 12px; color: var(--muted); }
 .ip-prompt summary { cursor: pointer; font-weight: 600; }
 .ip-prompt p { margin: 6px 0 0; line-height: 1.45; color: var(--ink-soft); }

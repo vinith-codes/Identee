@@ -1263,10 +1263,15 @@ export default function DesignRoomPage() {
   // the same in the chat: the preview, then Draw this / Open in the Draw tab / Draw my words (never a dead end)
   const chatImprove = async (a) => {
     try {
-      const res = await improveIdea(a.idea);
-      const areaLabel = positions.find((p) => p.key === res.area)?.label;
+      const got = await improveIdea(a.idea);
+      // the print area it will be drawn for, shown in the card and changeable there: the one the customer named,
+      // else the AI's suggestion, else the open area, else the main front area (only areas that are free)
+      const freeKey = (k) => k && positions.some((p) => p.key === k && (usedKeys.includes(k) || !blockersOf(k, positions, usedKeys).length));
+      const area = [a.areaKey, got.area, active].find(freeKey) || positions.find((p) => p.side === "front" && p.main && freeKey(p.key))?.key || positions.find((p) => freeKey(p.key))?.key || null;
+      const res = { ...got, area };
+      const areaLabel = positions.find((p) => p.key === area)?.label;
       setChatState((st) => ({ ...st, idea: { ...(st.idea || { subject: a.idea, areaKey: a.areaKey }), improved: res } }));
-      return [botSays("Here’s what I’ll draw. Tap “Draw this” when it looks right, or change it in the Draw tab."), { preview: { ...res, areaLabel } }, chipRow([DRAW_THIS, IN_DRAW_TAB, DRAW_MINE])];
+      return [botSays("Here’s what I’ll draw. Change the print area in the card if you like, then tap “Draw this”."), { preview: { ...res, areaLabel } }, chipRow([DRAW_THIS, IN_DRAW_TAB, DRAW_MINE])];
     } catch (err) {
       return [botSays(err.message), chipRow([DRAW_MINE, IN_DRAW_TAB])];
     }

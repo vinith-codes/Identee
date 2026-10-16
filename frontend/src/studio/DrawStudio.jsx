@@ -145,7 +145,11 @@ export default function DrawStudio({ ai, areas, targetKey, fabric, session, setS
           )}
           {improveNote && <p className="ds-improvenote" role="status">{improveNote}</p>}
           {preview && (
-            <IdeaPreview preview={{ ...preview, areaLabel: areas.find((a) => a.key === preview.area && a.free)?.label }}>
+            <IdeaPreview
+              preview={{ ...preview, area: freeAreas.some((a) => a.key === preview.area) ? preview.area : forKey }}
+              areas={freeAreas}
+              onArea={(key) => setPreview((p) => ({ ...p, area: key }))}
+            >
               <button type="button" className="ps-btn gold" onClick={useImproved}>Use this</button>
               <button type="button" className="ps-btn" onClick={() => setPreview(null)}>Keep my words</button>
             </IdeaPreview>

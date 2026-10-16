@@ -155,7 +155,15 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
           }
           if (m.preview) {
             // "Improve my idea": what will be drawn, before any picture request is spent
-            return <IdeaPreview key={i} preview={m.preview} />;
+            // its print area can be changed until it is drawn (the idea still waiting is this one)
+            const live = !thinking && state.idea?.improved?.prompt === m.preview.prompt;
+            const free = ctx().areas.filter((a) => a.free || a.key === m.preview.area);
+            const pickArea = (key) => {
+              const label = free.find((a) => a.key === key)?.label;
+              setMessages((all) => all.map((x, n) => (n === i ? { ...x, preview: { ...x.preview, area: key, areaLabel: label } } : x)));
+              setState({ ...state, idea: { ...state.idea, improved: { ...state.idea.improved, area: key } } });
+            };
+            return <IdeaPreview key={i} preview={m.preview} {...(live ? { areas: free, onArea: pickArea } : {})} />;
           }
           if (m.issues) {
             return (
