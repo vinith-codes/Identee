@@ -34,6 +34,7 @@ import PhotoStudio from "./PhotoStudio";
 import DrawStudio from "./DrawStudio";
 import { checkDesign, inksFor, printSharpness } from "./designCheck";
 import { TEMPLATES } from "./designTemplates";
+import TeamModeChoice from "./TeamModeChoice";
 import { FONTS, addStudioFonts } from "./fonts";
 import "./designRoom.css";
 
@@ -2198,13 +2199,14 @@ export default function DesignRoomPage() {
                 ))}
               </div>
               {roles && (
-                <div className="dr-teamswitch">
-                  <div className="eyebrow">What is printed on each tee?</div>
-                  <div className="dr-seg" role="group" aria-label="What is printed on each tee">
-                    <button type="button" className={!teamMode ? "on" : ""} aria-pressed={!teamMode} onClick={() => setTeamOn(false)}>The same on every tee</button>
-                    <button type="button" className={teamMode ? "on" : ""} aria-pressed={teamMode} onClick={() => setTeamOn(true)}>A name &amp; number per tee</button>
-                  </div>
-                </div>
+                <TeamModeChoice
+                  teamMode={teamMode}
+                  onChange={setTeamOn}
+                  roles={rolesIn(elements)}
+                  sample={{ name: elements.find((e) => e.type === "text" && e.role === "name")?.text, number: elements.find((e) => e.type === "text" && e.role === "number")?.text }}
+                  fabric={fabricHex}
+                  ink={inkDefault}
+                />
               )}
               {teamMode && (
                 <TeamList players={players} setPlayers={setPlayers} sizes={sizes} sizeNow={sizeNow} roles={rolesIn(elements)} shownId={previewId} onShow={showPlayer} />

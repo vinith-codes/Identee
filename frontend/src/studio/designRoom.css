@@ -675,6 +675,19 @@
 /* ================= team orders: a name and number per tee (Review) ================= */
 .dr-seg.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .dr-teamswitch { display: grid; gap: 6px; }
+/* Review: "What is printed on each tee?" as two picture cards (TeamModeChoice.jsx) */
+.dr-tm { display: grid; gap: 8px; }
+.dr-tm-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.dr-tm-card { position: relative; display: grid; gap: 4px; align-content: start; text-align: left; padding: 10px 10px 12px; border: 1.5px solid var(--line); border-radius: 14px; background: #fff; cursor: pointer; color: var(--ink); font: inherit; transition: border-color .2s, box-shadow .2s; }
+.dr-tm-card:hover { border-color: #D9C58E; }
+.dr-tm-card.on { border-color: var(--ink); box-shadow: 0 0 0 1.5px var(--ink) inset; }
+.dr-tm-card.on::after { content: "✓"; position: absolute; top: 8px; right: 8px; display: grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: var(--ink); color: #F0D585; font: 900 11px/1 Inter, sans-serif; }
+.dr-tm-card:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.dr-tm-tees { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 2px; padding: 6px 4px 2px; border-radius: 10px; background: #F1F0EC; margin-bottom: 4px; }
+.dr-tm-tees svg { width: 100%; height: auto; display: block; }
+.dr-tm-card b { font-size: 13.5px; line-height: 1.25; }
+.dr-tm-card small { color: var(--muted); font-size: 12px; line-height: 1.4; }
+.dr-tm-note { margin: 0; padding: 8px 10px; border-radius: 10px; background: #FBF5E6; border: 1px solid #EAD9A8; color: #6A4F12; font-size: 12.5px; line-height: 1.45; }
 .dr-team { display: grid; gap: 8px; }
 .dr-teamhead { display: flex; align-items: baseline; justify-content: space-between; }
 .dr-teamhead b { font: 800 18px/1 var(--display); font-variant-numeric: tabular-nums; }

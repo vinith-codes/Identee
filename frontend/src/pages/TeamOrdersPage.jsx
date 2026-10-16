@@ -54,6 +54,12 @@ export default function TeamOrdersPage() {
   }, [dispatch, isLoaded]);
 
   const sellable = garments.filter((g) => isSellable(g, images));
+  // the layouts are drawn on the tee's own photos — a dark one looks most like a jersey (navy, black…), else any
+  const pickerPhotos = (garment) => {
+    const mine = images.filter((p) => p.garmentType === garment.key && p.front?.imageUrl && p.back?.imageUrl);
+    const doc = ["navy", "black", "bottle-green", "maroon"].map((s) => mine.find((p) => p.colorSlug === s)).find(Boolean) || mine[0];
+    return doc ? { front: doc.front, back: doc.back, light: !["navy", "black", "bottle-green", "maroon"].includes(doc.colorSlug) } : null;
+  };
   const loading = (isLoading || imagesLoading) && !sellable.length;
   const digits = (n) => String(n || "").replace(/\D/g, "");
   const wa = digits(settings["general.whatsappNumber"]);
@@ -105,6 +111,7 @@ export default function TeamOrdersPage() {
         {picking && (
           <TeamLayoutPicker
             garment={picking.garment}
+            photos={pickerPhotos(picking.garment)}
             onClose={() => setPicking(null)}
             onChoose={(layout) => navigate(`/customize/${picking.garment.key}?new=1${picking.colour ? `&color=${picking.colour.slug}` : ""}&team=${layout}`)}
           />
