@@ -260,7 +260,7 @@ export default function LoginPage() {
             className="text-3xl leading-snug font-light italic opacity-90"
             style={{
               color: "#F3EFE6",
-              fontFamily: "'Cormorant Garamond', serif",
+              fontFamily: "'Cormorant Garamond', Georgia, 'Times New Roman', serif",
             }}
           >
             Your style, your story,
@@ -325,11 +325,13 @@ export default function LoginPage() {
             </span>
           </div>
 
+          {/* the site's heading font (Cormorant Garamond is never loaded, so it showed as Times) */}
           <h2
-            className="text-2xl font-semibold mb-1"
+            className="text-2xl font-bold mb-1"
             style={{
               color: "#F3EFE6",
-              fontFamily: "'Cormorant Garamond', serif",
+              fontFamily: "'Bricolage Grotesque', 'Helvetica Neue', Arial, sans-serif",
+              letterSpacing: "-0.01em",
             }}
           >
             {headings[step][0]}

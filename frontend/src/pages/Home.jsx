@@ -67,8 +67,10 @@ function InstagramIcon({ size = 18, color = "#fff" }) {
 /*  FLOATING SOCIAL — WhatsApp + Instagram, fixed on the left edge     */
 /* ------------------------------------------------------------------ */
 function FloatingSocial({ settings = {} }) {
-  const whatsapp = settings["general.whatsappNumber"] || "+91 994 590 0292";
-  const whatsappDigits = whatsapp.replace(/\D/g, "");
+  // Admin → Settings → General (WhatsApp number, else the phone number); nothing until it loads
+  const whatsappDigits = String(settings["general.whatsappNumber"] || settings["general.phoneNumber"] || "").replace(/\D/g, "");
+  if (!whatsappDigits) return null;
+  const waDigits = whatsappDigits.length === 10 ? `91${whatsappDigits}` : whatsappDigits;
 
   const instagramRaw = settings["general.instagramUrl"];
   const instagramHref = instagramRaw
@@ -80,7 +82,7 @@ function FloatingSocial({ settings = {} }) {
   return (
     <div className="identee-floating-social">
       <a
-        href={`https://wa.me/${whatsappDigits}`}
+        href={`https://wa.me/${waDigits}`}
         target="_blank"
         rel="noreferrer"
         className="identee-floating-btn identee-floating-whatsapp"
@@ -216,9 +218,11 @@ export default function Home() {
         @media (max-width: 900px) {
           .identee-footer-grid { grid-template-columns: repeat(2, 1fr); }
         }
+        /* phones: on the left the buttons covered the start of every line of text — the corner on the
+           right only touches the ends of a few lines, like a chat button */
         @media (max-width: 720px) {
-          .identee-floating-social { left: 10px; gap: 10px; }
-          .identee-floating-btn { width: 38px; height: 38px; }
+          .identee-floating-social { left: auto; right: 10px; bottom: calc(14px + env(safe-area-inset-bottom, 0px)); gap: 10px; }
+          .identee-floating-btn { width: 40px; height: 40px; }
         }
       `}</style>
       <FloatingSocial settings={publicSettings} />

@@ -1570,9 +1570,11 @@ export default function DesignRoomPage() {
           <div className="dr-pick">
             <button type="button" className="dr-pickbtn" aria-expanded={pickOpen} aria-haspopup="dialog" onClick={() => setPickOpen((o) => !o)}>
               <i style={{ background: fabricHex }} aria-hidden="true" />
-              <span>
-                <b>{garment.label}</b> {colour?.name} · {sizeNow}
+              {/* on a phone only the colour dot and "Size M" (there is no room for the names) */}
+              <span className="dr-pickname">
+                <b>{garment.label}</b> {colour?.name}
               </span>
+              <span className="dr-picksize">{sizeNow}</span>
               <span aria-hidden="true">▾</span>
             </button>
             {pickOpen && (

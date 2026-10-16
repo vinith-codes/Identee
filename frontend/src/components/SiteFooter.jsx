@@ -6,7 +6,7 @@
 // Contact details, address and social links come from Admin → Settings;
 // anything not filled in there is simply left out.
 import { useEffect } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { fetchCategories } from "../redux/slices/categorySlice";
 import { fetchPublicSettings } from "../redux/slices/publicSettingsSlice";
@@ -74,6 +74,8 @@ export default function SiteFooter() {
   const dispatch = useDispatch();
   const { values: s = {}, isLoaded } = useSelector((st) => st.publicSettings);
   const { items: categories, status } = useSelector((st) => st.categories);
+  // Contact us has the map already, next to the address
+  const showMap = useLocation().pathname !== "/contact-us";
 
   useEffect(() => {
     if (!isLoaded) dispatch(fetchPublicSettings());
@@ -167,9 +169,11 @@ export default function SiteFooter() {
             <div className="sf-col">
               <h3>Visit us</h3>
               <address>{address}</address>
-              <div className="sf-map">
-                <iframe title="Store location on the map" src={`https://www.google.com/maps?q=${encodeURIComponent(address)}&output=embed`} loading="lazy" />
-              </div>
+              {showMap && (
+                <div className="sf-map">
+                  <iframe title="Store location on the map" src={`https://www.google.com/maps?q=${encodeURIComponent(address)}&output=embed`} loading="lazy" />
+                </div>
+              )}
             </div>
           )}
         </div>

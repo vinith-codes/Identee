@@ -261,6 +261,8 @@
 .dr-pickbtn i { width: 16px; height: 16px; border-radius: 50%; border: 1px solid rgba(0,0,0,.2); flex-shrink: 0; }
 .dr-pickbtn > span:nth-child(2) { overflow: hidden; text-overflow: ellipsis; }
 .dr-pickbtn b { color: var(--ink); font-weight: 700; margin-right: 4px; }
+.dr-picksize { flex-shrink: 0; margin-left: -4px; }
+.dr-picksize::before { content: "· "; }
 .dr-scrim { position: fixed; inset: 0; z-index: 39; }
 .dr-pickpop { position: absolute; left: 0; top: calc(100% + 8px); z-index: 40; width: 340px; max-width: calc(100vw - 24px); box-sizing: border-box; background: #fff; border: 1px solid var(--line);
   border-radius: 16px; box-shadow: var(--shadow); padding: 16px; display: grid; gap: 10px; }
@@ -350,7 +352,10 @@
 @media (max-width: 760px) {
   .dr-top { flex-wrap: nowrap; }
   .dr-pick { flex: 1; }
-  .dr-pickbtn { width: 100%; padding: 7px 10px; }
+  .dr-pickbtn { width: 100%; padding: 7px 10px; gap: 6px; }
+  .dr-pickname { display: none; }
+  .dr-picksize { color: var(--ink); font-weight: 700; margin-left: 0; }
+  .dr-picksize::before { content: "Size "; font-weight: 500; color: var(--ink-soft); }
   .dr-pickpop { position: fixed; left: 12px; right: 12px; top: 60px; width: auto; max-height: calc(100% - 80px); overflow-y: auto; }
   .dr-price small, .dr-save { display: none; }
   .dr-price { font-size: 16px; }

@@ -13,7 +13,7 @@ import { useDispatch, useSelector } from "react-redux";
 import { fetchPublicSettings } from "../redux/slices/publicSettingsSlice";
 import { POLICY_LINKS } from "../utils/policyLinks";
 
-const UPDATED = "14 October 2026";
+const UPDATED = "16 October 2026";
 
 // The rules in one place, so a change is made once.
 const RULES = {
@@ -90,7 +90,7 @@ const PAGES = {
         <p>What you see on screen is a preview. Printed colours can differ slightly from your screen, and print sizes follow the size of the garment you choose.</p>
       </>],
       ["Designs made with AI", <>
-        <p>Our design assistant can make pictures for you using an AI service (Google). These pictures are made for you to print on your order. Because they are made by a computer, they may now and then look like existing artwork or contain small mistakes — please check the picture, including any spelling, before you order. We may decline to print an AI picture that breaks the rules above.</p>
+        <p>Our design assistant can make pictures for you using AI services (Google, and xAI’s Grok for some pictures). These pictures are made for you to print on your order. Because they are made by a computer, they may now and then look like existing artwork or contain small mistakes — please check the picture, including any spelling, before you order. We may decline to print an AI picture that breaks the rules above.</p>
       </>],
       ["Prices and payment", <>
         <p>All prices are in Indian Rupees (₹). Any GST is shown at checkout before you pay. Delivery charges depend on your state and are shown at checkout.</p>
@@ -141,7 +141,7 @@ const PAGES = {
           <li><strong>Razorpay</strong> — to take online payments;</li>
           <li><strong>courier partners</strong> — your name, phone and address, to deliver your order;</li>
           <li><strong>Cloudinary</strong> — stores the pictures you upload and your design previews;</li>
-          <li><strong>Google</strong> — when you use the AI design assistant, your request (and any photo you give it) is sent to Google’s AI service to make the picture;</li>
+          <li><strong>Google</strong> — when you use the AI design assistant, your request (and any photo you give it) is sent to Google’s AI service to make the picture, and to xAI (Grok) when Google can’t make it;</li>
           <li><strong>our email provider</strong> — to send sign-in codes and order emails;</li>
           <li>government authorities, when the law requires it.</li>
         </ul>

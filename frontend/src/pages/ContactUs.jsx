@@ -339,17 +339,17 @@ export default function ContactUs() {
     if (!settingsLoaded) dispatch(fetchPublicSettings());
   }, [dispatch, settingsLoaded]);
 
+  // only what Admin → Settings → General says (nothing until it loads — no old fallback numbers)
   const email =
     publicSettings["general.storeEmail"] ||
     publicSettings["general.supportEmail"] ||
-    "work@yourdesignstore.in";
+    "";
   const phone = publicSettings["general.phoneNumber"];
-  const whatsapp =
-    publicSettings["general.whatsappNumber"] || "+91 994 590 0292";
-  const address =
-    publicSettings["general.businessAddress"] || "Coimbatore, Tamil Nadu";
+  const whatsapp = publicSettings["general.whatsappNumber"] || phone || "";
+  const address = publicSettings["general.businessAddress"] || "";
   const phoneDigits = String(phone || "").replace(/\D/g, "");
-  const whatsappDigits = whatsapp.replace(/\D/g, "");
+  const whatsappDigits = String(whatsapp).replace(/\D/g, "");
+  const waDigits = whatsappDigits.length === 10 ? `91${whatsappDigits}` : whatsappDigits;
   const mapQuery = encodeURIComponent(address);
   const storeName = publicSettings["general.storeName"] || "Identee";
 
@@ -455,12 +455,14 @@ export default function ContactUs() {
               Prefer a call or a chat? We're around most business days.
             </p>
 
-            <InfoRow
-              icon={<MailIcon />}
-              label="Email"
-              value={email}
-              href={`mailto:${email}`}
-            />
+            {email && (
+              <InfoRow
+                icon={<MailIcon />}
+                label="Email"
+                value={email}
+                href={`mailto:${email}`}
+              />
+            )}
             {phone && (
               <InfoRow
                 icon={<PhoneIcon />}
@@ -469,15 +471,18 @@ export default function ContactUs() {
                 href={`tel:+${phoneDigits.length === 10 ? `91${phoneDigits}` : phoneDigits}`}
               />
             )}
-            <InfoRow
-              icon={<WhatsAppIcon color={C.ink} />}
-              label="WhatsApp"
-              value={whatsapp}
-              href={`https://wa.me/${whatsappDigits}`}
-            />
-            <InfoRow icon={<PinIcon />} label="Address" value={address} />
+            {whatsapp && (
+              <InfoRow
+                icon={<WhatsAppIcon color={C.ink} />}
+                label="WhatsApp"
+                value={whatsapp}
+                href={`https://wa.me/${waDigits}`}
+              />
+            )}
+            {address && <InfoRow icon={<PinIcon />} label="Address" value={address} />}
 
-            <div
+            {/* (the footer below leaves its own map out on this page) */}
+            {address && <div
               style={{
                 marginTop: 22,
                 borderRadius: 14,
@@ -494,22 +499,10 @@ export default function ContactUs() {
                 style={{ border: 0, display: "block" }}
                 loading="lazy"
               />
-            </div>
+            </div>}
           </div>
         </div>
       </section>
-
-      <div
-        style={{
-          borderTop: `1px solid ${C.border}`,
-          padding: "18px 24px",
-          textAlign: "center",
-          fontSize: 12,
-          color: C.muted,
-        }}
-      >
-        © {new Date().getFullYear()} {storeName}. All rights reserved.
-      </div>
     </div>
   );
 }

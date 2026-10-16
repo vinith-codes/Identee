@@ -5,6 +5,7 @@ import {
   Routes,
   Route,
   Navigate,
+  Link,
   Outlet,
   useLocation,
   useSearchParams,
@@ -147,13 +148,23 @@ const SellerDashboard = () => (
   </div>
 );
 
+// An address that doesn't exist: shown inside the shop's menu and footer, with a way on (never a dead end)
 const NotFound = () => (
-  <div
-    className="min-h-screen flex items-center justify-center"
-    style={{ background: "#0B0B0C", color: "#8A877F" }}
-  >
-    <p className="text-lg">404 — Page not found</p>
-  </div>
+  <main style={{ minHeight: "60vh", display: "grid", placeItems: "center", padding: "56px 24px", background: "#FBF8F1", fontFamily: "'Inter', 'Helvetica Neue', Arial, sans-serif", color: "#15130F" }}>
+    <div style={{ maxWidth: 460, textAlign: "center" }}>
+      <p style={{ margin: 0, fontSize: 12, fontWeight: 700, letterSpacing: "0.22em", color: "#9C7A22", textTransform: "uppercase" }}>Page not found</p>
+      <h1 style={{ margin: "12px 0 0", fontFamily: "'Bricolage Grotesque', 'Helvetica Neue', Arial, sans-serif", fontWeight: 800, fontSize: "clamp(26px, 6vw, 36px)", lineHeight: 1.12, textWrap: "balance" }}>
+        We can’t find that page
+      </h1>
+      <p style={{ margin: "12px 0 0", fontSize: 15, lineHeight: 1.6, color: "#6F6A60" }}>
+        The link may be old or mistyped. Everything is still here — pick where to go next.
+      </p>
+      <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap", marginTop: 24 }}>
+        <Link to="/" style={{ padding: "12px 22px", borderRadius: 999, background: "#15130F", color: "#fff", fontWeight: 700, fontSize: 14, textDecoration: "none" }}>Go to the home page</Link>
+        <Link to="/customizable" style={{ padding: "12px 22px", borderRadius: 999, border: "1.5px solid #15130F", color: "#15130F", fontWeight: 700, fontSize: 14, textDecoration: "none" }}>Design your own</Link>
+      </div>
+    </div>
+  </main>
 );
 // ──────────────────────────────────────────────────────────────────────────
 
@@ -310,6 +321,8 @@ export default function App() {
               </PrivateRoute>
             }
           />
+          {/* any other address: "page not found", with the menu and footer */}
+          <Route path="*" element={<NotFound />} />
         </Route>
 
         {/* Admin routes — AdminSidebar layout wraps every /admin/* page */}
@@ -377,8 +390,6 @@ export default function App() {
           }
         />
 
-        {/* Fallback */}
-        <Route path="*" element={<NotFound />} />
       </Routes>
     </Router>
   );
