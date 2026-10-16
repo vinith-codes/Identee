@@ -240,12 +240,12 @@ everywhere (`utils/shopNames.js`); the addresses stay.
   `startTeam()` puts the Team jersey layout on and the assistant asks for the player list (also via "Design with the
   Assistant"). Menu, home (hero, a wide third card with a jersey + roster, marquee), footer ("Bulk & team orders" → team
   page), headings, breadcrumbs, empty states and the admin (menu, Categories tabs, headings, wizard) use the new names.
-- **Shop your IDENTEE is Coming soon** until Admin → Settings → General → "Shop your IDENTEE is open" (`general.shopOpen`,
+- **Shop your IDENTEE is Coming soon** until Admin → Settings → Store Branding (the "general" tab) → "Shop your IDENTEE is open" (`general.shopOpen`,
   public boolean; the row was added to the shared DB, off, with the user's go-ahead). Off: /ready-made, its category
   pages and product pages show `ShopComingSoon.jsx`; menu SOON tag and no dropdown; home hides featured products and the
   shop card says Coming soon, hero's 2nd button = team orders; footer hides shop categories; empty states offer team
   orders; checkout (buy now + cart) refuses ready-made items (checkoutService `shopOpen()`). Hook: `utils/shopOpen.js`.
-  The admin switch itself was not clicked by me (customer login).
+  The admin switch was tested by the user (works).
 - Design Room's ← on the first step goes back to the page the customer came from (`leaveRoom`, `cameFromSite` read
   once before the address is tidied); opened from a link: team page for a team design, else /customizable.
 - The "New · Photo studio" banner on /customizable was removed (asked by the user). `ShopChoices.jsx` is unused.
