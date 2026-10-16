@@ -147,6 +147,8 @@ export default function DesignRoomPage() {
   // ?team=1 ("Create your team/group IDENTEE", /team-orders): entering the room puts the Team jersey layout on the
   // tee and the assistant asks for the player list.
   const [teamLink] = useState(() => params.get("team") === "1");
+  // was the room opened from another page of the site? (read once: tidying the address below changes location.key)
+  const [cameFromSite] = useState(() => location.key !== "default");
   const stored = useMemo(() => readJSON(DRAFT_KEY(type)), [type]);
   // (a design already saved to My designs isn't "unfinished" — it's kept there)
   const [earlier, setEarlier] = useState(() => (fresh && stored?.elements?.length && !stored.designId ? stored : null));
@@ -1522,6 +1524,12 @@ export default function DesignRoomPage() {
   };
   // a team order is one tee per player; otherwise the sizes × quantities picked
   // The top-left arrow: one step back, never straight out of the room (the design stays as it is).
+  // out of the room: back to the page they came from (team page, home, a collection…). Opened straight from a
+  // link (nothing to go back to): the team page for a team design, else Create your IDENTEE.
+  const leaveRoom = () => {
+    if (cameFromSite) return navigate(-1);
+    navigate(teamLink ? "/team-orders" : "/customizable");
+  };
   const stepBack = () => {
     if (step === "review") return backToDesign();
     closeArea();
@@ -1625,9 +1633,9 @@ export default function DesignRoomPage() {
   return (
     <div className="dr-app" data-step={step} data-lit={lit ? "1" : undefined}>
       <header className="dr-top">
-        {/* the arrow goes back one step: Review → Design → colour & size → the list of garments */}
+        {/* the arrow goes back one step: Review → Design → colour & size → the page the customer came from */}
         {step === "fit" ? (
-          <Link to="/customizable" className="dr-back" aria-label="Back to customizable garments" title="Back to all garments">←</Link>
+          <button type="button" className="dr-back" onClick={leaveRoom} aria-label="Back" title="Back">←</button>
         ) : (
           <button type="button" className="dr-back" onClick={stepBack} aria-label={step === "review" ? "Back to the design" : "Back to colour and size"} title={step === "review" ? "Back to the design" : "Back to colour and size"}>←</button>
         )}
