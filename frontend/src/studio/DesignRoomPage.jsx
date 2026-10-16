@@ -1343,7 +1343,9 @@ export default function DesignRoomPage() {
     }
   };
   // the team page's way in: the Team jersey layout, then the assistant asks for the players
-  const startTeam = () => {
+  // withAssistant: "Design with the Assistant" opens it; "Design it myself" doesn't (the editor opens on the layout,
+  // and the assistant's note about the list is there if they open it later — or they fill the list in Review)
+  const startTeam = (withAssistant = false) => {
     const tpl = TEMPLATES.find((t) => t.key === teamLink && t.team);
     if (tpl) applyTemplate(tpl.key, true);
     // what the list needs: a number only when the layout has one
@@ -1351,7 +1353,7 @@ export default function DesignRoomPage() {
     const list = numbers
       ? "send me your people as name, number and size, one per line or separated by commas, like this: Arun 7 L, Karthik 10 XL"
       : "send me your people as name and size, one per line, like this: Arun L";
-    openAiTab("chat");
+    if (withAssistant) openAiTab("chat");
     setChat((m) => [
       ...m.map((x) => (x.chips ? { ...x, done: true } : x)),
       botSays(
@@ -2278,7 +2280,7 @@ export default function DesignRoomPage() {
             onAssistant={() => {
               setEarlier(null);
               enterRoom();
-              if (teamLink) startTeam();
+              if (teamLink) startTeam(true);
               else if (!ideaLink) openAiTab("chat");
               startWith();
             }}
