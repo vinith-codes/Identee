@@ -41,11 +41,24 @@ export async function xaiEditImage({ prompt, image }) {
  */
 export async function xaiNewImage({ prompt, ratio }) {
   const body = { model: xaiModel(), prompt, n: 1 };
-  if (!ratio) return askGrok(NEW_ENDPOINT, "new image", body);
+  const shape = grokRatio(ratio);
+  if (!shape) return askGrok(NEW_ENDPOINT, "new image", body);
   // a shape Grok doesn't take is not a refusal: then ask again without it
-  return askGrok(NEW_ENDPOINT, "new image", { ...body, aspect_ratio: ratio }).catch((err) =>
-    err?.status === 400 ? askGrok(NEW_ENDPOINT, "new image", body) : Promise.reject(err),
+  return askGrok(NEW_ENDPOINT, "new image", { ...body, aspect_ratio: shape }).catch((err) =>
+    err?.badRequest ? askGrok(NEW_ENDPOINT, "new image", body) : Promise.reject(err),
   );
+}
+
+// The picture shapes Grok takes (it has no 4:5 or 5:4): the closest one to the print area's shape.
+const GROK_RATIOS = ["1:1", "3:4", "4:3", "2:3", "3:2", "9:16", "16:9", "1:2", "2:1", "21:9"];
+const ratioValue = (r) => {
+  const [w, h] = String(r).split(":").map(Number);
+  return w > 0 && h > 0 ? w / h : 0;
+};
+function grokRatio(ratio) {
+  const want = ratioValue(ratio);
+  if (!want) return null;
+  return GROK_RATIOS.reduce((best, r) => (Math.abs(Math.log(ratioValue(r) / want)) < Math.abs(Math.log(ratioValue(best) / want)) ? r : best));
 }
 
 async function askGrok(endpoint, what, body) {
@@ -65,13 +78,22 @@ async function askGrok(endpoint, what, body) {
   } finally {
     clearTimeout(timer);
   }
-  const json = await res.json().catch(() => null);
+  // (a malformed request gets a plain-text answer, not JSON)
+  const raw = await res.text().catch(() => "");
+  let json = null;
+  try {
+    json = JSON.parse(raw);
+  } catch {
+    json = null;
+  }
   if (!res.ok) {
     // the reason stays in the server log only
-    const why = json?.error?.message || json?.error || json?.message || "";
+    const why = json?.error?.message || json?.error || json?.message || raw.slice(0, 300);
     console.error(`[ai:xai] ${what} failed:`, res.status, typeof why === "string" ? why : JSON.stringify(why));
-    const refused = res.status === 400 && /moderat|policy|safety|content|blocked|prohibited/i.test(JSON.stringify(json || ""));
-    throw Object.assign(new Error("The design maker had a problem. Please try again."), { status: refused ? 422 : res.status === 400 ? 400 : 502 });
+    const refused = res.status === 400 && /moderat|policy|safety|content|blocked|prohibited/i.test(raw);
+    // 400 / 422 that is not a refusal: Grok didn't take something in the request (e.g. the picture shape)
+    const badRequest = !refused && (res.status === 400 || res.status === 422);
+    throw Object.assign(new Error("The design maker had a problem. Please try again."), { status: refused ? 422 : 502, badRequest });
   }
   // the picture comes back as base64 or as a short-lived link
   const item = json?.data?.[0] || json;
