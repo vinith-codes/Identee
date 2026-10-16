@@ -141,7 +141,7 @@ export default function ProductsPage() {
       <style>{AW.css + RM_CSS + CSS}</style>
       <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "flex-end", flexWrap: "wrap" }}>
         <div>
-          <h1 style={AW.h1}>Ready-made products</h1>
+          <h1 style={AW.h1}>Shop your IDENTEE · products</h1>
           <p style={AW.lead}>Finished tees you keep in stock. Each card is one product with all its colours.</p>
         </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>

@@ -1,5 +1,7 @@
 // A calm "nothing here yet" block with a way forward (empty cart, favourites, checkout).
 import { Link } from "react-router-dom";
+import { SHOPS } from "../utils/shopNames";
+import { useShopOpen } from "../utils/shopOpen";
 
 const css = `
   .es { max-width: 460px; margin: 0 auto; padding: 64px 16px 72px; text-align: center; color: #15130F; }
@@ -16,12 +18,15 @@ const css = `
 `;
 
 const WAYS = {
-  design: { to: "/customizable", label: "Design your own" },
-  shop: { to: "/ready-made", label: "Shop ready-made" },
+  design: { to: SHOPS.create.to, label: SHOPS.create.name },
+  shop: { to: SHOPS.shop.to, label: SHOPS.shop.name },
+  team: { to: SHOPS.team.to, label: "For a team or group" },
 };
 
 export default function EmptyState({ title, text, first = "design" }) {
-  const order = first === "shop" ? ["shop", "design"] : ["design", "shop"];
+  // while "Shop your IDENTEE" is coming soon, the second way is team orders
+  const { open } = useShopOpen();
+  const order = first === "shop" && open ? ["shop", "design"] : ["design", open ? "shop" : "team"];
   return (
     <div className="es">
       <style>{css}</style>

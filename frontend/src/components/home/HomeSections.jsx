@@ -5,12 +5,13 @@ import { Link } from "react-router-dom";
 import { imageUrl } from "../../utils/imageUrl";
 import { colourHex, isLight } from "../../utils/colours";
 import { money } from "../../utils/money";
+import { SHOPS } from "../../utils/shopNames";
 
 const PRINTS = ["YOUR NAME", "TEAM 07", "BIRTHDAY SQUAD", "SAY IT LOUD"];
 const reduceMotion = () => typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 
 /* ---------- hero: the tee changes colour while a print is typed on it ---------- */
-export function HomeHero({ garment, colours, printCm }) {
+export function HomeHero({ garment, colours, printCm, shopOpen }) {
   const [cur, setCur] = useState(0);
   const [manual, setManual] = useState(false);
   const [pi, setPi] = useState(0); // which print
@@ -56,14 +57,18 @@ export function HomeHero({ garment, colours, printCm }) {
             </span>
           </h1>
           <p className="lead">
-            Design your own {garment ? garment.label.toLowerCase() : "tee"} in our 3D design room, or pick a ready-made one. Even a single piece, printed true to your size.
+            {shopOpen
+              ? `Create your own ${garment ? garment.label.toLowerCase() : "tee"} in our 3D design room, shop a finished one, or make one for your whole team.`
+              : `Create your own ${garment ? garment.label.toLowerCase() : "tee"} in our 3D design room, or make one for your whole team.`}{" "}
+            Even a single piece, printed true to your size.
           </p>
           <div className="ctas">
             <Link className="hm-btn ink" to={designHref}>
-              Design your own <span className="arr">→</span>
+              {SHOPS.create.name} <span className="arr">→</span>
             </Link>
-            <Link className="hm-btn outline" to="/ready-made">
-              Shop ready-made
+            {/* the second way that is open: the shop, or (while it is coming soon) team orders */}
+            <Link className="hm-btn outline" to={shopOpen ? SHOPS.shop.to : SHOPS.team.to}>
+              {shopOpen ? SHOPS.shop.name : "For a team or group"}
             </Link>
           </div>
           {colours.length > 1 && (
@@ -129,9 +134,10 @@ export function HomeHero({ garment, colours, printCm }) {
 }
 
 /* ---------- slim marquee ---------- */
-const WORDS = ["DESIGN YOUR OWN", "SINGLE PIECE ORDERS", "360° PREVIEW", "TRUE-TO-SIZE PRINTS", "READY-MADE COLLECTIONS", "PAN INDIA DELIVERY"];
-export function HomeMarquee() {
-  const all = [...WORDS, ...WORDS, ...WORDS, ...WORDS];
+const WORDS = ["CREATE YOUR IDENTEE", "SINGLE PIECE ORDERS", "360° PREVIEW", "TEAM & GROUP TEES", "TRUE-TO-SIZE PRINTS", "SHOP YOUR IDENTEE", "PAN INDIA DELIVERY"];
+export function HomeMarquee({ shopOpen }) {
+  const words = WORDS.map((w) => (w === "SHOP YOUR IDENTEE" && !shopOpen ? "SHOP YOUR IDENTEE · COMING SOON" : w));
+  const all = [...words, ...words, ...words, ...words];
   return (
     <div className="hm-mq" aria-hidden="true">
       <div className="track">
@@ -143,20 +149,20 @@ export function HomeMarquee() {
   );
 }
 
-/* ---------- two ways to shop ---------- */
-export function HomeWays({ garment, customPhoto, stackPhotos, custom, ready }) {
+/* ---------- three ways to shop ---------- */
+export function HomeWays({ garment, customPhoto, stackPhotos, custom, ready, shopOpen }) {
   return (
-    <section className="hm-sec" id="shop" aria-label="Two ways to shop">
+    <section className="hm-sec" id="shop" aria-label="Three ways to shop">
       <div className="hm-wrap">
         <div className="hm-head" data-reveal>
           <div>
             <p className="hm-eyebrow">Shop</p>
-            <h2>Two ways to wear IDENTEE</h2>
+            <h2>Three ways to wear IDENTEE</h2>
           </div>
-          <p>Make something that's only yours, or choose from finished designs ready to wear.</p>
+          <p>Make something that's only yours, choose a finished design ready to wear, or dress your whole team.</p>
         </div>
         <div className="hm-ways">
-          <Link className="hm-way custom" to="/customizable" data-reveal="draw"
+          <Link className="hm-way custom" to={SHOPS.create.to} data-reveal="draw"
             onMouseEnter={(e) => {
               const el = e.currentTarget;
               el.classList.remove("draw");
@@ -171,8 +177,8 @@ export function HomeWays({ garment, customPhoto, stackPhotos, custom, ready }) {
               <path d="M70 120 L 100 70 L 130 120 Z" />
             </svg>
             <div className="label">
-              <p className="hm-eyebrow">Customizable</p>
-              <h3>Design your own</h3>
+              <p className="hm-eyebrow">Design it yourself</p>
+              <h3>{SHOPS.create.name}</h3>
               <p>Your text, photos or artwork, placed exactly where you want and shown at its real size.</p>
               {custom.count > 0 && (
                 <div className="meta">
@@ -185,7 +191,7 @@ export function HomeWays({ garment, customPhoto, stackPhotos, custom, ready }) {
               </span>
             </div>
           </Link>
-          <Link className="hm-way ready" to="/ready-made" data-reveal="draw" style={{ "--i": 1 }}>
+          <Link className="hm-way ready" to={SHOPS.shop.to} data-reveal="draw" style={{ "--i": 1 }}>
             {stackPhotos.length > 0 && (
               <div className="hm-stack" aria-hidden="true">
                 {stackPhotos.slice(0, 3).map((src, i) => (
@@ -194,16 +200,43 @@ export function HomeWays({ garment, customPhoto, stackPhotos, custom, ready }) {
               </div>
             )}
             <div className="label">
-              <p className="hm-eyebrow">Ready-made</p>
-              <h3>Shop ready-made</h3>
-              <p>Finished designs in every size, ready to ship.</p>
-              {ready.categoryCount > 0 && (
+              <p className="hm-eyebrow">Ready to wear</p>
+              <h3>{SHOPS.shop.name}</h3>
+              <p>{shopOpen ? "Finished designs in every size, ready to ship." : "Finished designs in every size, ready to ship — on their way."}</p>
+              {shopOpen && ready.categoryCount > 0 && (
                 <div className="meta">
                   {ready.categoryCount} {ready.categoryCount === 1 ? "category" : "categories"} · {ready.productCount} {ready.productCount === 1 ? "product" : "products"}
                 </div>
               )}
-              <span className="hm-btn gold">
-                Shop now <span className="arr">→</span>
+              {shopOpen ? (
+                <span className="hm-btn gold">
+                  Shop now <span className="arr">→</span>
+                </span>
+              ) : (
+                <span className="hm-soon">Coming soon</span>
+              )}
+            </div>
+          </Link>
+          <Link className="hm-way team" to={SHOPS.team.to} data-reveal="draw" style={{ "--i": 2 }}>
+            <div className="hm-roster" aria-hidden="true">
+              <span>ARUN · 7 · L</span>
+              <span>KARTHIK · 10 · XL</span>
+              <span>DIVYA · 23 · M</span>
+            </div>
+            <div className="hm-jersey" aria-hidden="true">
+              <svg viewBox="0 0 200 210">
+                <path d="M62 14 L20 34 L4 84 L34 94 L40 74 L40 202 L160 202 L160 74 L166 94 L196 84 L180 34 L138 14 C 128 26, 72 26, 62 14 Z" fill="#15130F" />
+                <text x="100" y="64" textAnchor="middle" fill="#E6D3A3" style={{ font: "700 13px Inter, Arial, sans-serif", letterSpacing: "0.18em" }}>YOUR TEAM</text>
+                <text x="100" y="92" textAnchor="middle" fill="#FFFFFF" style={{ font: "800 19px Inter, Arial, sans-serif", letterSpacing: "0.08em" }}>ARUN</text>
+                <text x="100" y="172" textAnchor="middle" fill="#B8912F" style={{ font: "800 78px 'Bricolage Grotesque', Arial, sans-serif" }}>07</text>
+              </svg>
+            </div>
+            <div className="label">
+              <p className="hm-eyebrow">Teams &amp; groups</p>
+              <h3>{SHOPS.team.name}</h3>
+              <p>One design for everyone, with each person’s own name, number and size. For sports teams, colleges, offices, events and family trips.</p>
+              <span className="hm-btn ink">
+                Start your team order <span className="arr">→</span>
               </span>
             </div>
           </Link>
@@ -269,7 +302,7 @@ export function HomeSteps() {
       <div className="hm-wrap">
         <div className="hm-head" data-reveal>
           <div>
-            <p className="hm-eyebrow">Design your own</p>
+            <p className="hm-eyebrow">{SHOPS.create.name}</p>
             <h2>From idea to doorstep</h2>
           </div>
           <p>The design room walks you through it, one step at a time.</p>
@@ -298,10 +331,10 @@ export function HomeFeatured({ products }) {
       <div className="hm-wrap">
         <div className="hm-head" data-reveal>
           <div>
-            <p className="hm-eyebrow">Ready-made</p>
+            <p className="hm-eyebrow">{SHOPS.shop.name}</p>
             <h2>Featured tees</h2>
           </div>
-          <Link className="hm-btn outline" to="/ready-made">
+          <Link className="hm-btn outline" to={SHOPS.shop.to}>
             See everything <span className="arr">→</span>
           </Link>
         </div>
@@ -426,7 +459,7 @@ export function HomeFinal({ photos }) {
   const b = photos.slice(half).length ? photos.slice(half) : photos;
   const col = (list) => [...list, ...list, ...list].map((src, i) => <img key={src + i} src={imageUrl(src, 500)} alt="" loading="lazy" />);
   return (
-    <section className="hm-sec hm-final" aria-label="Design your own">
+    <section className="hm-sec hm-final" aria-label={SHOPS.create.name}>
       <div className="hm-wrap">
         <div data-reveal>
           <p className="hm-eyebrow">Your style, your story</p>
@@ -434,7 +467,7 @@ export function HomeFinal({ photos }) {
             Walk into the <em>design room.</em>
           </h2>
           <p>Drop in your artwork, place it, turn the tee around and see it exactly as it will be printed.</p>
-          <Link className="hm-btn gold" to="/customizable">
+          <Link className="hm-btn gold" to={SHOPS.create.to}>
             Start designing <span className="arr">→</span>
           </Link>
         </div>

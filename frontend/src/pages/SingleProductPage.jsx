@@ -17,6 +17,8 @@ import shopService from "../services/shopService";
 import { fetchCart } from "../redux/slices/cartWishlistSlice";
 import { imageUrl } from "../utils/imageUrl";
 import { colourHex, isLight } from "../utils/colours";
+import { useShopOpen } from "../utils/shopOpen";
+import ShopComingSoon from "../components/ShopComingSoon";
 
 const BACKEND_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 const LOW_LEFT = 5; // "Only N left" at or below this
@@ -47,6 +49,7 @@ export default function SingleProductPage() {
   const [fav, setFav] = useState(false);
   const [settings, setSettings] = useState({});
   const [related, setRelated] = useState([]);
+  const shop = useShopOpen(); // ready-made products open with "Shop your IDENTEE"
 
   // the product (+ its colours); switching colour keeps the group loaded
   useEffect(() => {
@@ -155,6 +158,7 @@ export default function SingleProductPage() {
     }
   };
 
+  if (!shop.open) return <Shell>{shop.known && <ShopComingSoon />}</Shell>;
   if (data.error && data.id === id) {
     return (
       <Shell>
@@ -195,7 +199,7 @@ export default function SingleProductPage() {
   return (
     <Shell>
       <nav className="pp-crumbs" aria-label="Breadcrumb">
-        <Link to="/">Home</Link> / <Link to="/ready-made">Ready-made</Link>
+        <Link to="/">Home</Link> / <Link to="/ready-made">Shop your IDENTEE</Link>
         {style && (
           <>
             {" "}
@@ -527,7 +531,7 @@ function Unavailable({ title, text }) {
       <h1 className="pp-title" style={{ fontSize: 24 }}>{title}</h1>
       <p style={{ color: "#71695B", margin: "8px 0 18px" }}>{text}</p>
       <Link to="/ready-made" className="pp-btn dark" style={{ display: "inline-flex", textDecoration: "none" }}>
-        Shop ready-made
+        Shop your IDENTEE
       </Link>
     </div>
   );

@@ -13,6 +13,7 @@ import { fetchPublicSettings } from "../redux/slices/publicSettingsSlice";
 import { TEE_MODELS } from "../studio/teeModel";
 import { POLICY_LINKS } from "../utils/policyLinks";
 import { isReadyMade } from "../utils/categoryKinds";
+import { SHOPS } from "../utils/shopNames";
 
 const CSS = `
   .sf { background: #fff; color: #15130F; font-family: "Inter", "Helvetica Neue", Arial, sans-serif; border-top: 1px solid #E2DED3; }
@@ -87,6 +88,7 @@ export default function SiteFooter() {
   const email = s["general.storeEmail"] || s["general.supportEmail"];
   const phone = s["general.phoneNumber"];
   const whatsapp = s["general.whatsappNumber"];
+  const shopOpen = s["general.shopOpen"] === true; // "Shop your IDENTEE" open, else coming soon (no category links)
   const address = s["general.businessAddress"];
   const digits = (n) => String(n || "").replace(/\D/g, "");
   const wa = digits(whatsapp);
@@ -132,9 +134,10 @@ export default function SiteFooter() {
           <nav className="sf-col" aria-label="Shop">
             <h3>Shop</h3>
             <ul>
-              <li><Link to="/customizable">Design your own</Link></li>
-              <li><Link to="/ready-made">Ready-made</Link></li>
-              {shopCats.map((c) => (
+              <li><Link to={SHOPS.create.to}>{SHOPS.create.name}</Link></li>
+              <li><Link to={SHOPS.shop.to}>{SHOPS.shop.name}{shopOpen ? "" : " · coming soon"}</Link></li>
+              <li><Link to={SHOPS.team.to}>{SHOPS.team.name}</Link></li>
+              {shopOpen && shopCats.map((c) => (
                 <li key={c._id || c.slug}><Link to={`/category/${c.slug}`}>{c.name}</Link></li>
               ))}
             </ul>
@@ -154,7 +157,7 @@ export default function SiteFooter() {
             <ul>
               <li><Link to="/about-us">About us</Link></li>
               <li><Link to="/contact-us">Contact us</Link></li>
-              <li><Link to="/contact-us">Bulk &amp; team orders</Link></li>
+              <li><Link to={SHOPS.team.to}>Bulk &amp; team orders</Link></li>
             </ul>
             {social.length > 0 && (
               <div className="sf-social">

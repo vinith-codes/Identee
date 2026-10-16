@@ -8,6 +8,9 @@ import { fetchCategories } from "../redux/slices/categorySlice";
 import { CategoryGrid } from "../components/CategoryTile";
 import ShopPageHeader from "../components/ShopPageHeader";
 import { isReadyMade } from "../utils/categoryKinds";
+import { SHOPS } from "../utils/shopNames";
+import { useShopOpen } from "../utils/shopOpen";
+import ShopComingSoon from "../components/ShopComingSoon";
 
 export default function ReadyMadePage() {
   const dispatch = useDispatch();
@@ -15,22 +18,26 @@ export default function ReadyMadePage() {
   // only the ready-made shop's categories (Design-your-own collections have their own page)
   const categories = all.filter(isReadyMade);
 
+  const shop = useShopOpen();
+
   useEffect(() => {
     dispatch(fetchCategories());
   }, [dispatch]);
+
+  if (!shop.open) return <div style={{ background: "#FFFFFF", minHeight: "70vh" }}>{shop.known && <ShopComingSoon />}</div>;
 
   return (
     <div style={{ background: "#FFFFFF", minHeight: "70vh" }}>
       <main style={{ maxWidth: 1280, margin: "0 auto", padding: "32px 20px 64px" }}>
         <ShopPageHeader
-          eyebrow="Ready-made"
-          title="Shop by category"
-          text="Finished designs, ready to wear."
-          switchTo={{ to: "/customizable", label: "Design your own instead →" }}
+          eyebrow="Ready to wear"
+          title={SHOPS.shop.name}
+          text="Finished designs, ready to wear. Pick a category."
+          switchTo={{ to: SHOPS.create.to, label: `${SHOPS.create.name} instead →` }}
         />
         <CategoryGrid categories={categories} loading={status === "loading" || status === "idle"} />
         {status === "succeeded" && categories.length === 0 && (
-          <p style={{ color: "#71695B" }}>Ready-made collections are coming soon.</p>
+          <p style={{ color: "#71695B" }}>New collections are coming soon.</p>
         )}
       </main>
     </div>

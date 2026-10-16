@@ -11,6 +11,12 @@ import Offer from "../models/OfferModel.js";
 import { applySubscriptionPrice } from "../utils/applySubscriptionPrice.js";
 import { addressProblem } from "../utils/address.js";
 import { SIZES } from "../data/printPositions.js";
+import Setting from "../models/settingModel.js";
+
+// "Shop your IDENTEE" (ready-made products) can be closed as Coming soon (Admin → Settings → General). Closed —
+// also when the setting doesn't exist yet — ready-made products can't be quoted or ordered.
+const SHOP_CLOSED = "Shop your IDENTEE is coming soon — ready-made tees can't be ordered yet.";
+const shopOpen = async () => (await Setting.findOne({ key: "general.shopOpen" }).select("value").lean())?.value === true;
 
 export const GST_PERCENT = { cgst: 2.5, sgst: 2.5 };
 const MAX_QTY_PER_LINE = 100;
@@ -116,6 +122,7 @@ const resolveLines = async (user, body) => {
   }
 
   if (buyNow?.productId) {
+    if (!(await shopOpen())) throw new HttpError(400, SHOP_CLOSED);
     if (!isId(buyNow.productId)) throw new HttpError(400, "Invalid product");
     const product = await Product.findById(buyNow.productId);
     if (!product) throw new HttpError(404, "Product not found");
@@ -132,6 +139,7 @@ const resolveLines = async (user, body) => {
   }
 
   if (!user.cartItems?.length) throw new HttpError(400, "Your cart is empty");
+  if (user.cartItems.some((i) => i.product && !i.customization) && !(await shopOpen())) throw new HttpError(400, `${SHOP_CLOSED} Please remove them from your cart.`);
 
   const products = await Product.find({
     _id: { $in: user.cartItems.filter((i) => i.product).map((i) => i.product) },

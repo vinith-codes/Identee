@@ -29,14 +29,15 @@ const sizeRange = (sizes) => {
   return [ages, span(adults)].filter(Boolean).join(" · ");
 };
 
-function GarmentCard({ garment, photos }) {
+function GarmentCard({ garment, photos, team }) {
   const navigate = useNavigate();
   // Colour is picked in the design room's first step — the card shows the
   // white tee (or the first colour with a photo) and opens the room in it.
   const colour = defaultColour(garment, photos);
   const photo = colour && photos.find((p) => p.colorSlug === colour.slug)?.front?.imageUrl;
   // new=1: always start an empty design (an unfinished one is offered inside)
-  const start = () => navigate(`/customize/${garment.key}?new=1${colour ? `&color=${colour.slug}` : ""}`);
+  // team=1 (the team / group page): the room starts with the Team jersey layout and asks for the players
+  const start = () => navigate(`/customize/${garment.key}?new=1${colour ? `&color=${colour.slug}` : ""}${team ? "&team=1" : ""}`);
 
   const colourCount = garment.colors?.length || 0;
   const facts = [
@@ -47,7 +48,7 @@ function GarmentCard({ garment, photos }) {
 
   return (
     <article className="identee-cust-card">
-      <button type="button" onClick={start} className="identee-cust-photo" aria-label={`Design your own ${garment.label}`}>
+      <button type="button" onClick={start} className="identee-cust-photo" aria-label={`Create your own ${garment.label}`}>
         {photo ? (
           <img src={imageUrl(photo, 640)} alt={garment.label} loading="lazy" />
         ) : (
@@ -67,7 +68,7 @@ function GarmentCard({ garment, photos }) {
           <p style={{ margin: "4px 0 0", fontSize: 13, color: C.muted }}>{facts.join("  ·  ")}</p>
         )}
         <button type="button" onClick={start} className="identee-cust-cta">
-          Start designing →
+          {team ? "Start the team design →" : "Start designing →"}
         </button>
       </div>
     </article>
@@ -103,7 +104,7 @@ function ComingSoonCard({ garment }) {
   );
 }
 
-export default function CustomizableGarments({ garments: all, images, loading, soon = [] }) {
+export default function CustomizableGarments({ garments: all, images, loading, soon = [], team = false }) {
   const garments = all.filter((g) => isSellable(g, images));
   if (loading && !garments.length) {
     return (
@@ -121,7 +122,7 @@ export default function CustomizableGarments({ garments: all, images, loading, s
   return (
     <div className="identee-cust-grid">
       {garments.map((g) => (
-        <GarmentCard key={g._id} garment={g} photos={images.filter((p) => p.garmentType === g.key)} />
+        <GarmentCard key={g._id} garment={g} photos={images.filter((p) => p.garmentType === g.key)} team={team} />
       ))}
       {soon.map((g) => (
         <ComingSoonCard key={g._id || g.key} garment={g} />

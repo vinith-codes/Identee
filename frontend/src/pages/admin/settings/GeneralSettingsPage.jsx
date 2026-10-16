@@ -234,6 +234,15 @@ export default function GeneralSettingsPage() {
         />
       </SettingCard>
 
+      <SettingCard title="Shop your IDENTEE">
+        <ToggleField
+          label="Shop your IDENTEE is open"
+          description="Off: the ready-made shop shows “Coming soon” everywhere (menu, home page, its categories and product pages) and ready-made products can't be ordered. On: customers can browse and buy them. Create your IDENTEE and team orders are not affected."
+          checked={form["general.shopOpen"] === true}
+          onChange={(v) => set("general.shopOpen", v)}
+        />
+      </SettingCard>
+
       <SettingCard
         title="Maintenance Mode"
         danger={!!form["general.maintenanceMode"]}

@@ -27,7 +27,7 @@ export const ADMIN_MENU = [
   },
   {
     key: "customizable",
-    label: "Customizable",
+    label: "Create your IDENTEE",
     icon: "customizable",
     to: "/admin/customizable",
     // the old editors stay reachable (linked from the Customizable page)
@@ -35,7 +35,7 @@ export const ADMIN_MENU = [
   },
   {
     key: "readymade",
-    label: "Ready-made",
+    label: "Shop your IDENTEE",
     icon: "readymade",
     to: "/admin/products",
     children: [
