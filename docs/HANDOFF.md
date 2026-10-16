@@ -219,6 +219,20 @@ IDENTEE_Measurements_Needed.pdf` (5 pages, every number still guessed, with draw
 (Downloads, recorded by a puppeteer script with ffmpeg at E:\tools\ffmpeg — headless Chrome needs `--use-angle=d3d11`
 for smooth 3D frames; swiftshader gives ~1 fps).
 
+**`fix-chat-image-and-words` — MERGED to `main` on 16 Oct 2026 (tested by the user):**
+- "I want the vijay image at the top and the text VIJAY As a Image at the bottom left" hit the words-as-lettering
+  shortcut ("as a image") and the whole sentence was lettered. assistantScript: when such a request names a picture
+  (image, photo, portrait, logo…) or a place (top, bottom left, below…), it offers "Improve my idea" first; plain
+  lettering ("God is my only belief as an image") is unchanged.
+- "✨ Improve my idea" in the Chat is always reachable: a button above the message box (`.dr-improve-row`; improves what
+  is typed — sent as "✨ Improve my idea: <idea>" — or asks for the idea, wait "idea"), a starting example
+  (`needs: "idea"` = image AI + text AI) and More help.
+- The preview card (IdeaPreview `areas` + `onArea`) has a Print area list in Chat and Draw: the AI only suggests one
+  (main front when the idea names none). Chat order: area the customer named → AI's suggestion → open area → main front,
+  free areas only (`chatImprove`); "Draw this" uses the choice; the list locks once drawn.
+- Chat rules can be tested without the browser or AI: node with a resolve hook that adds ".js" to the frontend's
+  extensionless imports, then call `replyTo(text, ctx, state)`.
+
 **`fix-phone-logged-in` — MERGED to `main` on 16 Oct 2026:** the logged-in pages at 375 px. Account: all 8 tabs in a
 2-column grid (a sideways row hid most), the page scrolls instead of the panel. Checkout address form: one field per row
 on phones (`.addr-row`). Empty cart / favourites / checkout-with-empty-cart show `components/EmptyState.jsx` (Design your
