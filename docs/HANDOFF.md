@@ -168,6 +168,12 @@ panel is 440 px (400 px on 761–1279 px screens) instead of the editor's 364 px
 about half the screen (`data-wide`, clamp 480–780 px; remembered in localStorage `identee:assistWide`). Wide: examples in two
 columns, AI pictures in three. Phones unchanged (the button is hidden).
 
+**NEXT PHASE (moved there by the user, 16 Oct 2026): WhatsApp order updates + the Meta setup.** The code is done on
+branch `feature-whatsapp-orders` (241724b, NOT merged; its own HANDOFF entry explains it; client guide
+identee-private-assets/IDENTEE_WhatsApp_Order_Updates_Guide.pdf). Meta: no app created yet; business verification waits
+for the new, separate IDENTEE GST (a draft for Makaliamman Traders sits "Pending submission" — don't submit it); rename
+the NAUTICREW portfolio to IDENTEE at the same time.
+
 **`feature-grok-drawings` — MERGED to `main` on 16 Oct 2026 (XAI_API_KEY is now set in server/.env):** Grok is the backup
 for EVERY AI picture Google refuses (well-known people): photo to art, a new typed drawing (Chat / Draw, Grok
 `/v1/images/generations` via `xaiNewImage`), "Change it" and fixes (sharpen / recolour / Photo Studio Enhance) — the
