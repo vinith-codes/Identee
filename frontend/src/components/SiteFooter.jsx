@@ -88,6 +88,7 @@ export default function SiteFooter() {
   const email = s["general.storeEmail"] || s["general.supportEmail"];
   const phone = s["general.phoneNumber"];
   const whatsapp = s["general.whatsappNumber"];
+  const shopOpen = s["general.shopOpen"] === true; // "Shop your IDENTEE" open, else coming soon (no category links)
   const address = s["general.businessAddress"];
   const digits = (n) => String(n || "").replace(/\D/g, "");
   const wa = digits(whatsapp);
@@ -134,9 +135,9 @@ export default function SiteFooter() {
             <h3>Shop</h3>
             <ul>
               <li><Link to={SHOPS.create.to}>{SHOPS.create.name}</Link></li>
-              <li><Link to={SHOPS.shop.to}>{SHOPS.shop.name}</Link></li>
+              <li><Link to={SHOPS.shop.to}>{SHOPS.shop.name}{shopOpen ? "" : " · coming soon"}</Link></li>
               <li><Link to={SHOPS.team.to}>{SHOPS.team.name}</Link></li>
-              {shopCats.map((c) => (
+              {shopOpen && shopCats.map((c) => (
                 <li key={c._id || c.slug}><Link to={`/category/${c.slug}`}>{c.name}</Link></li>
               ))}
             </ul>

@@ -119,6 +119,14 @@ export const GENERAL_SETTINGS_DEFAULTS = [
     description: "YouTube channel URL",
   },
   {
+    // off = "Shop your IDENTEE" (ready-made products) shows Coming soon and its products can't be ordered
+    key: "general.shopOpen",
+    value: false,
+    type: "boolean",
+    isPublic: true,
+    description: "Shop your IDENTEE is open (off: Coming soon)",
+  },
+  {
     key: "general.maintenanceMode",
     value: false,
     type: "boolean",

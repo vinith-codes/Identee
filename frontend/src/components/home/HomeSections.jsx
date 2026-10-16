@@ -11,7 +11,7 @@ const PRINTS = ["YOUR NAME", "TEAM 07", "BIRTHDAY SQUAD", "SAY IT LOUD"];
 const reduceMotion = () => typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 
 /* ---------- hero: the tee changes colour while a print is typed on it ---------- */
-export function HomeHero({ garment, colours, printCm }) {
+export function HomeHero({ garment, colours, printCm, shopOpen }) {
   const [cur, setCur] = useState(0);
   const [manual, setManual] = useState(false);
   const [pi, setPi] = useState(0); // which print
@@ -57,14 +57,18 @@ export function HomeHero({ garment, colours, printCm }) {
             </span>
           </h1>
           <p className="lead">
-            Create your own {garment ? garment.label.toLowerCase() : "tee"} in our 3D design room, shop a finished one, or make one for your whole team. Even a single piece, printed true to your size.
+            {shopOpen
+              ? `Create your own ${garment ? garment.label.toLowerCase() : "tee"} in our 3D design room, shop a finished one, or make one for your whole team.`
+              : `Create your own ${garment ? garment.label.toLowerCase() : "tee"} in our 3D design room, or make one for your whole team.`}{" "}
+            Even a single piece, printed true to your size.
           </p>
           <div className="ctas">
             <Link className="hm-btn ink" to={designHref}>
               {SHOPS.create.name} <span className="arr">→</span>
             </Link>
-            <Link className="hm-btn outline" to={SHOPS.shop.to}>
-              {SHOPS.shop.name}
+            {/* the second way that is open: the shop, or (while it is coming soon) team orders */}
+            <Link className="hm-btn outline" to={shopOpen ? SHOPS.shop.to : SHOPS.team.to}>
+              {shopOpen ? SHOPS.shop.name : "For a team or group"}
             </Link>
           </div>
           {colours.length > 1 && (
@@ -131,8 +135,9 @@ export function HomeHero({ garment, colours, printCm }) {
 
 /* ---------- slim marquee ---------- */
 const WORDS = ["CREATE YOUR IDENTEE", "SINGLE PIECE ORDERS", "360° PREVIEW", "TEAM & GROUP TEES", "TRUE-TO-SIZE PRINTS", "SHOP YOUR IDENTEE", "PAN INDIA DELIVERY"];
-export function HomeMarquee() {
-  const all = [...WORDS, ...WORDS, ...WORDS, ...WORDS];
+export function HomeMarquee({ shopOpen }) {
+  const words = WORDS.map((w) => (w === "SHOP YOUR IDENTEE" && !shopOpen ? "SHOP YOUR IDENTEE · COMING SOON" : w));
+  const all = [...words, ...words, ...words, ...words];
   return (
     <div className="hm-mq" aria-hidden="true">
       <div className="track">
@@ -145,7 +150,7 @@ export function HomeMarquee() {
 }
 
 /* ---------- three ways to shop ---------- */
-export function HomeWays({ garment, customPhoto, stackPhotos, custom, ready }) {
+export function HomeWays({ garment, customPhoto, stackPhotos, custom, ready, shopOpen }) {
   return (
     <section className="hm-sec" id="shop" aria-label="Three ways to shop">
       <div className="hm-wrap">
@@ -197,15 +202,19 @@ export function HomeWays({ garment, customPhoto, stackPhotos, custom, ready }) {
             <div className="label">
               <p className="hm-eyebrow">Ready to wear</p>
               <h3>{SHOPS.shop.name}</h3>
-              <p>Finished designs in every size, ready to ship.</p>
-              {ready.categoryCount > 0 && (
+              <p>{shopOpen ? "Finished designs in every size, ready to ship." : "Finished designs in every size, ready to ship — on their way."}</p>
+              {shopOpen && ready.categoryCount > 0 && (
                 <div className="meta">
                   {ready.categoryCount} {ready.categoryCount === 1 ? "category" : "categories"} · {ready.productCount} {ready.productCount === 1 ? "product" : "products"}
                 </div>
               )}
-              <span className="hm-btn gold">
-                Shop now <span className="arr">→</span>
-              </span>
+              {shopOpen ? (
+                <span className="hm-btn gold">
+                  Shop now <span className="arr">→</span>
+                </span>
+              ) : (
+                <span className="hm-soon">Coming soon</span>
+              )}
             </div>
           </Link>
           <Link className="hm-way team" to={SHOPS.team.to} data-reveal="draw" style={{ "--i": 2 }}>

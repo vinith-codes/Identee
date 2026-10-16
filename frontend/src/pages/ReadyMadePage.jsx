@@ -9,6 +9,8 @@ import { CategoryGrid } from "../components/CategoryTile";
 import ShopPageHeader from "../components/ShopPageHeader";
 import { isReadyMade } from "../utils/categoryKinds";
 import { SHOPS } from "../utils/shopNames";
+import { useShopOpen } from "../utils/shopOpen";
+import ShopComingSoon from "../components/ShopComingSoon";
 
 export default function ReadyMadePage() {
   const dispatch = useDispatch();
@@ -16,9 +18,13 @@ export default function ReadyMadePage() {
   // only the ready-made shop's categories (Design-your-own collections have their own page)
   const categories = all.filter(isReadyMade);
 
+  const shop = useShopOpen();
+
   useEffect(() => {
     dispatch(fetchCategories());
   }, [dispatch]);
+
+  if (!shop.open) return <div style={{ background: "#FFFFFF", minHeight: "70vh" }}>{shop.known && <ShopComingSoon />}</div>;
 
   return (
     <div style={{ background: "#FFFFFF", minHeight: "70vh" }}>

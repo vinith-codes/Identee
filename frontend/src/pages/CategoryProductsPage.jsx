@@ -8,6 +8,8 @@ import { useParams, useSearchParams, useNavigate, Link } from "react-router-dom"
 import categoryService from "../services/categoryService";
 import { imageUrl } from "../utils/imageUrl";
 import ShopGrid from "../components/shop/ShopGrid";
+import ShopComingSoon from "../components/ShopComingSoon";
+import { useShopOpen } from "../utils/shopOpen";
 
 const C = { ink: "#15130F", gold: "#C9A24B", goldBright: "#F0D585" };
 
@@ -17,6 +19,7 @@ export default function CategoryProductsPage() {
   const navigate = useNavigate();
   const [category, setCategory] = useState(null);
   const [categoryError, setCategoryError] = useState("");
+  const shop = useShopOpen();
 
   useEffect(() => {
     let cancelled = false;
@@ -44,6 +47,9 @@ export default function CategoryProductsPage() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [categoryName]);
+
+  // the shop's categories open with the shop (Coming soon until then)
+  if (!shop.open) return <div style={{ minHeight: "70vh", background: "#fff" }}>{shop.known && <ShopComingSoon />}</div>;
 
   if (categoryError) {
     return (

@@ -15,6 +15,13 @@ import { imageUrl } from "../utils/imageUrl";
 
 const slugify = (s) => s.toLowerCase().replace(/\s+/g, "-");
 
+// a small "Soon" tag after a menu link that isn't open yet
+const SoonTag = () => (
+  <span style={{ marginLeft: 6, padding: "2px 6px", borderRadius: 999, background: "#15130F", color: "#F0D585", fontSize: 9, fontWeight: 800, letterSpacing: "0.1em", verticalAlign: "2px" }}>
+    SOON
+  </span>
+);
+
 // ─── Static navigation links (the three ways to shop are added below) ─────
 const STATIC_NAV_LINKS = [
   { to: "/", label: "Home" },
@@ -80,6 +87,7 @@ export default function Navbar() {
     if (!settingsLoaded) dispatch(fetchPublicSettings());
   }, [dispatch, settingsLoaded]);
 
+  const shopOpen = publicSettings["general.shopOpen"] === true; // "Shop your IDENTEE" open, else Coming soon
   // Phone comes from Admin → Settings → General; hidden until it loads.
   const displayPhone = publicSettings["general.phoneNumber"];
   const phoneDigits = String(displayPhone || "").replace(/\D/g, "");
@@ -110,11 +118,13 @@ export default function Navbar() {
   const NAV_LINKS = useMemo(() => {
     const links = [STATIC_NAV_LINKS[0]]; // Home
     links.push({ to: SHOPS.create.to, label: SHOPS.create.name });
+    // closed (Admin → Settings → General): a "Soon" tag and no category dropdown; the page says Coming soon
     links.push({
       to: SHOPS.shop.to,
       label: SHOPS.shop.name,
+      soon: !shopOpen,
       subLinks:
-        productCategoryItems.length > 0
+        shopOpen && productCategoryItems.length > 0
           ? [
               {
                 category: "Shop by Category",
@@ -129,7 +139,7 @@ export default function Navbar() {
     links.push({ to: SHOPS.team.to, label: "Team / group IDENTEE" });
     links.push(STATIC_NAV_LINKS[1], STATIC_NAV_LINKS[2]); // About / Contact
     return links;
-  }, [productCategoryItems]);
+  }, [productCategoryItems, shopOpen]);
 
   const handleLogout = () => {
     localStorage.removeItem("userInfo");
@@ -565,7 +575,7 @@ export default function Navbar() {
                       `nav-link ${isActive ? "active" : ""}`
                     }
                   >
-                    {link.label}
+                    {link.label}{link.soon && <SoonTag />}
                   </NavLink>
                   {link.subLinks.length > 0 && (
                     <div className="mega-dropdown">
@@ -622,7 +632,7 @@ export default function Navbar() {
                   `nav-link ${isActive ? "active" : ""}`
                 }
               >
-                {link.label}
+                {link.label}{link.soon && <SoonTag />}
               </NavLink>
             );
           })}
@@ -664,7 +674,7 @@ export default function Navbar() {
                         cursor: "pointer",
                       }}
                     >
-                      {link.label}
+                      {link.label}{link.soon && <SoonTag />}
                       <span>{mobileProductsOpen ? "−" : "+"}</span>
                     </button>
 
@@ -805,7 +815,7 @@ export default function Navbar() {
                     fontSize: 17,
                   }}
                 >
-                  {link.label}
+                  {link.label}{link.soon && <SoonTag />}
                 </NavLink>
               );
             })}
