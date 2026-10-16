@@ -15,29 +15,36 @@ const FieldError = ({ msg }) =>
 const BACKEND_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
 const MENU = [
-  { key: "profile", label: "Profile", icon: "👤" },
-  { key: "subscriptions", label: "Subscriptions", icon: "🎟️" },
-  { key: "address", label: "Address", icon: "📍" },
-  { key: "orders", label: "My Orders", icon: "🛍️" },
-  { key: "return-policy", label: "Return Policy", icon: "↩️" },
-  { key: "about", label: "About", icon: "ℹ️" },
-  { key: "contact", label: "Contact Us", icon: "📞" },
+  { key: "profile", label: "Profile", icon: "M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM4 20c1.5-4 4.5-6 8-6s6.5 2 8 6" },
+  { key: "subscriptions", label: "Subscriptions", icon: "M4 7h16v3a2 2 0 0 0 0 4v3H4v-3a2 2 0 0 0 0-4V7ZM14 7v10" },
+  { key: "address", label: "Address", icon: "M12 21s-7-6.2-7-11a7 7 0 0 1 14 0c0 4.8-7 11-7 11ZM12 12.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z" },
+  { key: "orders", label: "My Orders", icon: "M5 8h14l-1 12H6L5 8ZM9 8a3 3 0 0 1 6 0" },
+  { key: "return-policy", label: "Return Policy", icon: "M9 14 4 9l5-5M4 9h10a6 6 0 0 1 0 12h-3" },
+  { key: "about", label: "About", icon: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18ZM12 11v5M12 8h.01" },
+  { key: "contact", label: "Contact Us", icon: "M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2Z" },
 ];
+const LOGOUT_ICON = "M15 4h4v16h-4M10 8l-4 4 4 4M6 12h10";
+// the site's line icons (as in the menu and the phones' bottom bar) — no emoji
+const LineIcon = ({ d, size = 18 }) => (
+  <svg viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ flexShrink: 0 }}>
+    <path d={d} />
+  </svg>
+);
 
 const TIERS = [
   {
     key: "explorer",
     label: "Explorer",
     sub: "Order 3 times to enroll",
-    icon: "⭐",
+    icon: "M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9L12 3Z",
   },
   {
     key: "trendsetter",
     label: "Trendsetter",
     sub: "Order 5 times to enroll",
-    icon: "🎖️",
+    icon: "M8 3h8l-2 6h-4L8 3ZM12 21a6 6 0 1 0 0-12 6 6 0 0 0 0 12ZM12 13v4",
   },
-  { key: "icon", label: "Icon", sub: "Order 10 times to enroll", icon: "👑" },
+  { key: "icon", label: "Icon", sub: "Order 10 times to enroll", icon: "M3 8l4.5 4L12 5l4.5 7L21 8l-2 11H5L3 8Z" },
 ];
 
 const emptyAddress = {
@@ -357,8 +364,8 @@ export default function Account() {
       {/* ── Left: tiers + menu ── */}
       <div
         style={{
-          border: "1px solid #E5E5E5",
-          borderRadius: 12,
+          border: "1px solid #E2DED3",
+          borderRadius: 16,
           overflow: "hidden",
           background: "#FFFFFF",
           height: "fit-content",
@@ -366,7 +373,7 @@ export default function Account() {
       >
         <div
           style={{
-            background: "#5C0F35",
+            background: "#15130F",
             padding: "20px 16px 14px",
             color: "#FFF",
           }}
@@ -386,15 +393,15 @@ export default function Account() {
                     width: 40,
                     height: 40,
                     borderRadius: "50%",
-                    background: "#E11D48",
+                    background: "#C9A24B",
+                    color: "#15130F",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
                     margin: "0 auto 6px",
-                    fontSize: 18,
                   }}
                 >
-                  {t.icon}
+                  <LineIcon d={t.icon} size={20} />
                 </div>
                 <div
                   style={{
@@ -417,9 +424,10 @@ export default function Account() {
               textAlign: "center",
               fontSize: 12,
               fontWeight: 600,
-              background: "#4A0C2A",
+              background: "#2A2620",
+              color: "#F0D585",
               padding: "8px 6px",
-              borderRadius: 6,
+              borderRadius: 999,
             }}
           >
             You are just 3 orders away from becoming <b>EXPLORER!</b>
@@ -446,17 +454,17 @@ export default function Account() {
                   alignItems: "center",
                   gap: 10,
                   padding: "12px 14px",
-                  borderRadius: 8,
-                  border: "none",
+                  borderRadius: 12,
+                  border: `1px solid ${isActive ? "#15130F" : "#E2DED3"}`,
                   cursor: "pointer",
                   fontSize: 14,
                   fontWeight: 600,
                   textAlign: "left",
-                  background: isActive ? "#111111" : "#EEF0F2",
-                  color: isActive ? "#FFFFFF" : "#1A1A1A",
+                  background: isActive ? "#15130F" : "#FFFFFF",
+                  color: isActive ? "#FFFFFF" : "#15130F",
                 }}
               >
-                <span>{item.icon}</span>
+                <LineIcon d={item.icon} />
                 {item.label}
               </button>
             );
@@ -470,18 +478,18 @@ export default function Account() {
               alignItems: "center",
               gap: 10,
               padding: "12px 14px",
-              borderRadius: 8,
-              border: "none",
+              borderRadius: 12,
+              border: "1px solid #EBC9BF",
               cursor: "pointer",
               fontSize: 14,
               fontWeight: 700,
               textAlign: "left",
-              background: "#EF4444",
-              color: "#FFFFFF",
+              background: "#FFFFFF",
+              color: "#A3341F",
               marginTop: 4,
             }}
           >
-            <span>🚪</span>
+            <LineIcon d={LOGOUT_ICON} />
             Logout
           </button>
         </div>
@@ -491,7 +499,7 @@ export default function Account() {
       <div
         className="account-content-panel"
         style={{
-          border: "1px solid #E5E5E5",
+          border: "1px solid #E2DED3",
           borderRadius: 12,
           background: "#FFFFFF",
           padding: 28,
@@ -528,13 +536,13 @@ export default function Account() {
                     width: 96,
                     height: 96,
                     borderRadius: "50%",
-                    background: "#CBD5E1",
+                    background: "#E6D3A3",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
                     fontSize: 36,
                     fontWeight: 700,
-                    color: "#FFFFFF",
+                    color: "#15130F",
                     overflow: "hidden",
                   }}
                 >
@@ -561,7 +569,7 @@ export default function Account() {
                     width: 30,
                     height: 30,
                     borderRadius: "50%",
-                    background: "#111111",
+                    background: "#15130F",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
@@ -569,7 +577,9 @@ export default function Account() {
                     border: "2px solid #FFFFFF",
                   }}
                 >
-                  📷
+                  <span style={{ color: "#FFFFFF", display: "flex" }}>
+                    <LineIcon d="M4 8h3l2-3h6l2 3h3v11H4zM12 16.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" size={15} />
+                  </span>
                   <input
                     id="avatar-upload"
                     type="file"
@@ -637,10 +647,10 @@ export default function Account() {
                 width: "100%",
                 padding: "14px 0",
                 marginTop: 8,
-                background: "#111111",
+                background: "#15130F",
                 color: "#FFFFFF",
                 border: "none",
-                borderRadius: 8,
+                borderRadius: 999,
                 fontSize: 15,
                 fontWeight: 700,
                 cursor: saving ? "wait" : "pointer",
@@ -681,7 +691,7 @@ export default function Account() {
                 <div
                   key={idx}
                   style={{
-                    border: "1px solid #E5E5E5",
+                    border: "1px solid #E2DED3",
                     borderRadius: 10,
                     padding: 14,
                     marginBottom: 12,
@@ -696,8 +706,8 @@ export default function Account() {
                         right: 10,
                         fontSize: 11,
                         fontWeight: 700,
-                        color: "#111111",
-                        background: "#EEF0F2",
+                        color: "#7A5B12",
+                        background: "#FBF5E6", border: "1px solid #EAD9A8",
                         padding: "2px 8px",
                         borderRadius: 999,
                       }}
@@ -767,7 +777,7 @@ export default function Account() {
             {editingAddress !== null && (
               <div
                 style={{
-                  border: "1px solid #E5E5E5",
+                  border: "1px solid #E2DED3",
                   borderRadius: 10,
                   padding: 16,
                 }}
@@ -925,10 +935,10 @@ export default function Account() {
                     style={{
                       flex: 1,
                       padding: "12px 0",
-                      background: "#111111",
+                      background: "#15130F",
                       color: "#FFFFFF",
                       border: "none",
-                      borderRadius: 8,
+                      borderRadius: 999,
                       fontWeight: 700,
                       cursor: saving ? "wait" : "pointer",
                     }}
@@ -941,10 +951,10 @@ export default function Account() {
                     style={{
                       flex: 1,
                       padding: "12px 0",
-                      background: "#EEF0F2",
-                      color: "#1A1A1A",
-                      border: "none",
-                      borderRadius: 8,
+                      background: "#FFFFFF",
+                      border: "1px solid #15130F",
+                      color: "#15130F",
+                      borderRadius: 999,
                       fontWeight: 700,
                       cursor: saving ? "wait" : "pointer",
                     }}
@@ -991,16 +1001,17 @@ function Field({ label, children }) {
 const inputStyle = {
   width: "100%",
   padding: "10px 12px",
-  border: "1px solid #D1D5DB",
-  borderRadius: 8,
+  border: "1px solid #E2DED3",
+  borderRadius: 10,
   fontSize: 14,
-  color: "#1A1A1A",
+  color: "#15130F",
+  background: "#FFFFFF",
   boxSizing: "border-box",
 };
 
 const smallBtnStyle = {
   padding: "8px 14px",
-  background: "#111111",
+  background: "#15130F",
   color: "#FFFFFF",
   border: "none",
   borderRadius: 999,
@@ -1015,7 +1026,7 @@ const linkBtnStyle = {
   padding: 0,
   fontSize: 13,
   fontWeight: 600,
-  color: "#1A2A4A",
+  color: "#7A5B12",
   textDecoration: "underline",
   cursor: "pointer",
 };

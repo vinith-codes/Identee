@@ -19,9 +19,9 @@ import vivekalayaLogo from "../assets/clients/vivekalaya-prakriya.png";
 const C = {
   bg: "#FFFFFF",
   bgAlt: "#FBF7EE",
-  yellow: "#F4C43C",
-  yellowDeep: "#E3A72E",
-  yellowSoft: "#FCEFC7",
+  yellow: "#C9A24B", // the site gold (was a brighter yellow, #F4C43C)
+  yellowDeep: "#B8912F",
+  yellowSoft: "#FBF5E6",
   gold: "#C9A24B",
   ink: "#15130F",
   text: "#221F1A",
@@ -435,7 +435,7 @@ export default function AboutUs() {
           onClick={() => navigate("/contact-us")}
           style={{
             padding: "15px 32px",
-            borderRadius: 10,
+            borderRadius: 999,
             border: "none",
             background: C.ink,
             color: C.bg,

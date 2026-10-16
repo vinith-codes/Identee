@@ -9,8 +9,8 @@ import { fetchPublicSettings } from "../redux/slices/publicSettingsSlice";
 const C = {
   bg: "#FFFFFF",
   bgAlt: "#FBF7EE",
-  yellow: "#F4C43C",
-  yellowDeep: "#E3A72E",
+  yellow: "#C9A24B", // the site gold (was a brighter yellow, #F4C43C)
+  yellowDeep: "#B8912F",
   ink: "#15130F",
   text: "#221F1A",
   muted: "#71695B",
@@ -298,7 +298,7 @@ function ContactForm() {
         style={{
           marginTop: 20,
           padding: "15px 32px",
-          borderRadius: 10,
+          borderRadius: 999,
           border: "none",
           background: status === "sending" ? C.yellowDeep : C.yellow,
           color: C.ink,
