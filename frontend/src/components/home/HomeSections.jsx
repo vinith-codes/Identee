@@ -245,13 +245,7 @@ export function HomeCreate({ garment, colours }) {
             <button type="submit">Create it <span className="arr">→</span></button>
           </form>
           {missing && <p className="hm-askmiss" role="alert">Type your idea first — a few words are enough. Or pick a way to start below.</p>}
-          <div className="hm-askor">
-            <span>Or start with:</span>
-            <Link to={go("&photo=1")}>My photo</Link>
-            <Link to={go("&start=text")}>My words</Link>
-            <Link to={go("&start=draw")}>A drawing</Link>
-            <Link to={go()}>A blank tee</Link>
-          </div>
+          {/* (the "Or start with" links were taken off: the six cards below do the same, bigger) */}
         </div>
 
         <div className="hm-head hm-head-6" data-reveal>
@@ -518,33 +512,6 @@ export function HomeFeatured({ products }) {
               </Link>
             );
           })}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-/* ---------- promises: only what the shop really does ---------- */
-export function HomePromises({ tight = false }) {
-  const items = [
-    [<><circle cx="14" cy="14" r="10" /><path d="M14 9v10M9 14h10" /></>, "No minimum", "Order one piece, or many in any mix of sizes."],
-    [<><rect x="5" y="5" width="18" height="18" rx="2" /><path d="M5 11h18M11 5v18" /></>, "True to size", "Each size printed at its own size from the chart."],
-    [<><rect x="3" y="7" width="22" height="14" rx="2" /><circle cx="14" cy="14" r="3" /></>, "Cash on delivery", "Or pay online, securely."],
-    [<><path d="M3 8h13v11H3zM16 12h5l4 4v3h-9z" /><circle cx="8" cy="20" r="2" /><circle cx="20" cy="20" r="2" /></>, "Pan-India delivery", "Follow every order in My orders."],
-  ];
-  return (
-    <section className={`hm-sec${tight ? " tight" : ""}`} aria-label="Why IDENTEE">
-      <div className="hm-wrap">
-        <div className="hm-promises" data-reveal>
-          {items.map(([icon, t, d]) => (
-            <div key={t} className="hm-promise">
-              <svg viewBox="0 0 28 28" aria-hidden="true">
-                {icon}
-              </svg>
-              <h3>{t}</h3>
-              <p>{d}</p>
-            </div>
-          ))}
         </div>
       </div>
     </section>

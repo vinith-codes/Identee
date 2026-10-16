@@ -25,7 +25,6 @@ import {
   HomeWays,
   HomeSteps,
   HomeFeatured,
-  HomePromises,
   HomeOutlook,
   HomeFinal,
   HomePhoto,
@@ -240,8 +239,9 @@ export default function Home() {
       <HomeWays garment={garment} customPhoto={garment ? coverPhoto(garment, garmentImages) : null} stackPhotos={stackPhotos} custom={custom} ready={ready} shopOpen={shopOpen} />
       <HomeSteps />
       {shopOpen && <HomeFeatured products={products} />}
-      <HomePromises tight={!shopOpen || products.length < 3} />
-      <HomeOutlook main={video("styleOutlookMain", subVideo1)} side1={video("styleOutlookSide1", hoodieVideo)} side2={video("styleOutlookSide2", polosVideo)} />
+      {/* "Why IDENTEE" (HomePromises) was taken off: the same four points as the hero's line under the tee.
+          "Style outlook" shows finished hoodies and polos, so it waits until Shop your IDENTEE opens. */}
+      {shopOpen && <HomeOutlook main={video("styleOutlookMain", subVideo1)} side1={video("styleOutlookSide1", hoodieVideo)} side2={video("styleOutlookSide2", polosVideo)} />}
       <HomeFinal garment={garment} photos={colours.map((c) => c.front)} />
 
     </div>
