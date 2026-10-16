@@ -166,7 +166,7 @@ export const makeAiDesign = asyncHandler(async (req, res) => {
   }
   let jobs;
   let banner = false;
-  let photoJob = null; // photo to art: what Grok needs if Google refuses the photo
+  let photoJob = null; // photo to art, or a change to a design: what Grok needs if Google refuses the picture
   let drawJob = null; // a new drawing: what Grok needs if Google refuses the words (a named person)
   const teeName = String(req.body.teeColour || "white").replace(/[^\w \-]/g, "").slice(0, 30) || "white";
   if (fixing) {
@@ -200,6 +200,7 @@ export const makeAiDesign = asyncHandler(async (req, res) => {
     // the stored design is a cut-out: put it back on its plain background for the AI
     const stored = await fetchOurImage(req.body.baseUrl, req);
     const image = { data: await onPlainBackground(stored.data, Boolean(req.body.teeIsDark)), mime: "image/jpeg" };
+    photoJob = { promptFor: () => changeDesignPrompt(text), image }; // Grok edits it if Google refuses
     jobs = [generateImage({ prompt: changeDesignPrompt(text), image, ratio: nearestRatio(req.body.ratio) })];
   } else {
     const style = AI_STYLES[req.body.style] ? req.body.style : "Bold mascot";
@@ -225,6 +226,7 @@ export const makeAiDesign = asyncHandler(async (req, res) => {
   // or quietly, with no picture in the answer: then Grok (xAI) makes it, when it is set up. One version only —
   // Grok costs about twice as much.
   const googleRefused = results[0].reason?.status === 422 || results[0].reason?.noImage === true;
+  if (!made.length && googleRefused) console.log(`[ai] Google refused; Grok: ${xaiConfigured() ? (photoJob ? (changing ? "change to a design" : "photo") : drawJob ? `drawing (${drawJob.ratio})` : "not for this kind of request") : "not set up"}`);
   if (!made.length && (photoJob || drawJob) && googleRefused && xaiConfigured()) {
     try {
       made = [
@@ -233,7 +235,8 @@ export const makeAiDesign = asyncHandler(async (req, res) => {
           : await xaiNewImage(drawJob),
       ];
       byGrok = true;
-    } catch {
+    } catch (err) {
+      console.error("[ai:xai] Grok didn't make it:", err?.status || "", err?.message || err, err?.cause?.message || err?.cause || "");
       made = [];
     }
   }
