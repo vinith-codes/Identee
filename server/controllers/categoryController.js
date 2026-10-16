@@ -32,6 +32,7 @@ const publicShape = (c, productCount) => ({
   bannerImage: c.bannerImage?.url || "",
   isCustomizable: c.isCustomizable,
   comingSoon: c.comingSoon,
+  kind: c.kind || null, // null = not sorted yet (the old behaviour)
   displayOrder: c.displayOrder,
   ...(productCount !== undefined ? { productCount } : {}),
 });
@@ -202,10 +203,11 @@ export const adminGetCategories = asyncHandler(async (req, res) => {
   const categories = await Category.find().sort({ displayOrder: 1, name: 1 });
   res.json(
     await Promise.all(
-      categories.map(async (c) => ({
-        ...c.toObject(),
-        productCount: await countProducts(c.styles),
-      })),
+      categories.map(async (c) => {
+        const used = await usersOf(c);
+        // garmentCount / garments: the designable garments in it (a Design-your-own category's contents)
+        return { ...c.toObject(), kind: c.kind || null, productCount: used.products, garmentCount: used.garments.length, garments: used.garments };
+      }),
     ),
   );
 });
@@ -233,6 +235,22 @@ const applyBody = (category, body) => {
   category.isActive = toBool(body.isActive, category.isActive);
   category.isCustomizable = toBool(body.isCustomizable, category.isCustomizable);
   category.comingSoon = toBool(body.comingSoon, category.comingSoon);
+  if (body.kind !== undefined) {
+    if (!["readymade", "customizable"].includes(body.kind)) {
+      throw Object.assign(new Error("A category is either ready-made or Design your own"), { status: 400 });
+    }
+    category.kind = body.kind;
+  }
+};
+
+// What still uses a category: its designable garments (by style, or "also shown in") and its ready-made products.
+const usersOf = async (category) => {
+  const garments = await GarmentType.find({
+    $or: [...(category.styles.length ? [{ category: styleMatcher(category.styles) }] : []), { alsoIn: category.slug }],
+  })
+    .select("label")
+    .lean();
+  return { garments: garments.map((g) => g.label), products: await countProducts(category.styles) };
 };
 
 const saveImages = async (category, files = {}, body = {}) => {
@@ -265,6 +283,7 @@ const saveCategory = async (category, res) => {
 export const createCategory = asyncHandler(async (req, res) => {
   const category = new Category();
   applyBody(category, req.body);
+  if (!category.kind) category.kind = "readymade"; // a new category always gets a tab
   if (req.body.displayOrder === undefined) {
     const last = await Category.findOne().sort({ displayOrder: -1 });
     category.displayOrder = (last?.displayOrder ?? -1) + 1;
@@ -292,13 +311,27 @@ export const reorderCategories = asyncHandler(async (req, res) => {
   res.json({ message: "Order saved" });
 });
 
-// @route  DELETE /api/categories/:id
-// Products are never deleted — they just stop showing under this category.
+// @route  DELETE /api/categories/:id   { confirm: "<the category's name>" }
+// Products and garments are never deleted. A category still in use can't be deleted (hide it instead), and the
+// name must be typed to confirm — three were deleted by accident on 16 Oct 2026, and with them their pictures.
 export const deleteCategory = asyncHandler(async (req, res) => {
   const category = await Category.findById(req.params.id);
   if (!category) {
     res.status(404);
     throw new Error("Category not found");
+  }
+  if (String(req.body?.confirm || "").trim().toLowerCase() !== category.name.trim().toLowerCase()) {
+    res.status(400);
+    throw new Error(`Type the category's name ("${category.name}") to delete it.`);
+  }
+  const used = await usersOf(category);
+  if (used.garments.length || used.products) {
+    const parts = [
+      used.garments.length && `${used.garments.length} designable garment${used.garments.length === 1 ? "" : "s"} (${used.garments.slice(0, 4).join(", ")}${used.garments.length > 4 ? "…" : ""})`,
+      used.products && `${used.products} ready-made product${used.products === 1 ? "" : "s"}`,
+    ].filter(Boolean);
+    res.status(409);
+    throw new Error(`"${category.name}" is still used by ${parts.join(" and ")}. Hide it instead, or move them to another category first.`);
   }
   await deleteImage(category.image);
   await deleteImage(category.bannerImage);

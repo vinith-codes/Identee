@@ -31,7 +31,8 @@ const updateCategory = async (id, formData) =>
   (await axios.put(`${API_URL}/${id}`, formData, auth())).data;
 const reorderCategories = async (ids) =>
   (await axios.put(`${API_URL}/reorder`, { ids }, auth())).data;
-const deleteCategory = async (id) => (await axios.delete(`${API_URL}/${id}`, auth())).data;
+// confirm: the category's name, typed by the admin (the server checks it, and refuses while the category is in use)
+const deleteCategory = async (id, confirm) => (await axios.delete(`${API_URL}/${id}`, { ...auth(), data: { confirm } })).data;
 
 export default {
   getCategories,

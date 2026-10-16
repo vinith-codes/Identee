@@ -21,6 +21,7 @@ import { AW } from "./garmentSetup/wizardStyles";
 import PhotosStep from "./garmentSetup/PhotosStep";
 import PrintAreasStep from "./garmentSetup/PrintAreasStep";
 import SaveRow from "./garmentSetup/SaveRow";
+import { isDesignYourOwn } from "../../utils/categoryKinds";
 
 const BACKEND_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 const VIEWS = ["front", "back", "left", "right"];
@@ -95,7 +96,8 @@ export default function GarmentSetupWizard() {
         setCatalog(g.printAreaCatalog);
         setImages(imgs);
         const list = Array.isArray(cats) ? cats : cats.categories || [];
-        setStyles(list.flatMap((c) => (c.styles || []).map((s) => ({ category: c.name, slug: c.slug, customizable: !!c.isCustomizable, style: s }))));
+        // a designable garment goes in a Design-your-own collection (Admin → Categories → Design your own)
+        setStyles(list.filter(isDesignYourOwn).flatMap((c) => (c.styles || []).map((s) => ({ category: c.name, slug: c.slug, customizable: true, style: s }))));
       })
       .catch((err) => alive && setLoadError(errMsg(err, "Could not load this garment.")));
     return () => {

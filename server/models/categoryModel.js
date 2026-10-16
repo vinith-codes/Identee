@@ -23,8 +23,14 @@ const categorySchema = new mongoose.Schema(
     bannerImage: { type: imageSchema, default: () => ({}) }, // 16:5 category header
     displayOrder: { type: Number, default: 0 },
     isActive: { type: Boolean, default: true },
-    isCustomizable: { type: Boolean, default: false }, // shows "Design your own"
+    isCustomizable: { type: Boolean, default: false }, // ready-made only: shows a "Design your own" button
     comingSoon: { type: Boolean, default: false },
+    // which shop it belongs to (Admin → Categories has a tab for each):
+    //   readymade    — the ready-made shop (/ready-made, /category/<slug>): products by style
+    //   customizable — "Design your own" (/customizable?category=<slug>): designable garments by style
+    // (no default: a category saved before 16 Oct 2026 has no kind until it is sorted — the site then treats it the
+    // old way: in Design your own when isCustomizable, and in the ready-made shop as well)
+    kind: { type: String, enum: ["readymade", "customizable"] },
   },
   { timestamps: true },
 );

@@ -8,6 +8,7 @@ import { getActiveOffer } from "../redux/slices/bannerSlice";
 import { fetchFavorites, fetchCart } from "../redux/slices/cartWishlistSlice";
 import { fetchPublicSettings } from "../redux/slices/publicSettingsSlice";
 import { fetchCategories } from "../redux/slices/categorySlice";
+import { isReadyMade } from "../utils/categoryKinds";
 import { imageUrl } from "../utils/imageUrl";
 
 
@@ -94,7 +95,7 @@ export default function Navbar() {
   const productCategoryItems = useMemo(
     () =>
       storeCategories
-        .filter((c) => !c.comingSoon)
+        .filter((c) => !c.comingSoon && isReadyMade(c)) // the ready-made shop's categories only
         .map((c) => ({
           label: c.name,
           to: `/category/${c.slug}`,

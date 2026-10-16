@@ -17,6 +17,7 @@ import { fetchAllGarmentImages } from "../redux/slices/garmentImageSlice";
 import CustomizableGarments from "../components/CustomizableGarments";
 import ShopPageHeader from "../components/ShopPageHeader";
 import { categoryOfGarment, coverPhoto, inCategory, isSellable } from "../utils/garments";
+import { isDesignYourOwn } from "../utils/categoryKinds";
 import { imageUrl } from "../utils/imageUrl";
 import garmentTypeService from "../services/garmentTypeService";
 
@@ -54,7 +55,9 @@ export default function CustomizablePage() {
   const dispatch = useDispatch();
   const [params] = useSearchParams();
   const only = params.get("category");
-  const { items: categories } = useSelector((s) => s.categories);
+  const { items: allCategories } = useSelector((s) => s.categories);
+  // only the Design-your-own collections (Admin → Categories → Design your own)
+  const categories = (allCategories || []).filter(isDesignYourOwn);
   const { items: garments, isLoading } = useSelector((s) => s.garmentType);
   const { items: images, isLoading: imagesLoading } = useSelector((s) => s.garmentImage);
   const [soon, setSoon] = useState([]); // drafts announced as "coming soon"
@@ -79,8 +82,7 @@ export default function CustomizablePage() {
 
   // Sellable garments, by their store category.
   const sellable = garments.filter((g) => isSellable(g, images));
-  const groups = (categories || [])
-    .filter((c) => c.isCustomizable)
+  const groups = categories
     .map((c) => ({
       key: c.slug,
       name: c.name,

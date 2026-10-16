@@ -7,10 +7,13 @@ import { useDispatch, useSelector } from "react-redux";
 import { fetchCategories } from "../redux/slices/categorySlice";
 import { CategoryGrid } from "../components/CategoryTile";
 import ShopPageHeader from "../components/ShopPageHeader";
+import { isReadyMade } from "../utils/categoryKinds";
 
 export default function ReadyMadePage() {
   const dispatch = useDispatch();
-  const { items: categories, status } = useSelector((s) => s.categories);
+  const { items: all, status } = useSelector((s) => s.categories);
+  // only the ready-made shop's categories (Design-your-own collections have their own page)
+  const categories = all.filter(isReadyMade);
 
   useEffect(() => {
     dispatch(fetchCategories());

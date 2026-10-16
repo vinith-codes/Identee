@@ -8,6 +8,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { fetchCategories } from "../redux/slices/categorySlice";
+import { isReadyMade } from "../utils/categoryKinds";
 import { fetchGarmentTypes } from "../redux/slices/garmentTypeSlice";
 import { fetchAllGarmentImages } from "../redux/slices/garmentImageSlice";
 import { getVideoBanner } from "../redux/slices/bannerSlice";
@@ -169,7 +170,8 @@ export default function Home() {
     count: sellable.length,
     fromPrice: sellable.length ? Math.min(...sellable.map((g) => g.basePrice)) : null,
   };
-  const liveCategories = categories.filter((c) => !c.comingSoon);
+  // "Shop ready-made: 7 categories · 10 products" counts the ready-made shop's categories only
+  const liveCategories = categories.filter((c) => !c.comingSoon && isReadyMade(c));
   const ready = {
     categoryCount: liveCategories.length,
     productCount: liveCategories.reduce((n, c) => n + (c.productCount || 0), 0),

@@ -12,6 +12,7 @@ import { fetchCategories } from "../redux/slices/categorySlice";
 import { fetchPublicSettings } from "../redux/slices/publicSettingsSlice";
 import { TEE_MODELS } from "../studio/teeModel";
 import { POLICY_LINKS } from "../utils/policyLinks";
+import { isReadyMade } from "../utils/categoryKinds";
 
 const CSS = `
   .sf { background: #fff; color: #15130F; font-family: "Inter", "Helvetica Neue", Arial, sans-serif; border-top: 1px solid #E2DED3; }
@@ -94,7 +95,7 @@ export default function SiteFooter() {
     ["Facebook", socialUrl(s["general.facebookUrl"], "facebook.com"), Icon.facebook],
     ["YouTube", socialUrl(s["general.youtubeUrl"], "youtube.com"), Icon.youtube],
   ].filter(([, url]) => url);
-  const shopCats = (categories || []).filter((c) => !c.comingSoon && c.productCount > 0).slice(0, 6);
+  const shopCats = (categories || []).filter((c) => !c.comingSoon && c.productCount > 0 && isReadyMade(c)).slice(0, 6);
 
   return (
     <footer className="sf">

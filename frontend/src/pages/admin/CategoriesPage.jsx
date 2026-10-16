@@ -13,7 +13,16 @@ const EMPTY = {
   isActive: true,
   isCustomizable: false,
   comingSoon: false,
+  kind: "readymade",
 };
+
+// The two shops, one tab each. A category saved before the split has no kind ("not sorted yet") and is listed in
+// both tabs until it is given one (Edit → Shop).
+const TABS = [
+  ["readymade", "Ready-made", "The ready-made shop: categories of finished products, by their Garment Style."],
+  ["customizable", "Design your own", "Collections on the Design your own page: the garments customers design, by their style."],
+];
+const inTab = (c, tab) => !c.kind || c.kind === tab;
 
 const card = {
   background: THEME.surface,
@@ -105,8 +114,10 @@ function ImagePicker({ label, hint, current, file, onFile, removed, onRemove, ra
   );
 }
 
-function CategoryForm({ initial, onCancel, onSaved }) {
-  const [form, setForm] = useState({ ...EMPTY, ...initial, styles: initial?.styles || [] });
+function CategoryForm({ initial, tab, onCancel, onSaved }) {
+  // a new category goes in the open tab; an unsorted one starts on the open tab too (saved when the admin saves)
+  const [form, setForm] = useState({ ...EMPTY, ...initial, kind: initial?.kind || tab, styles: initial?.styles || [] });
+  const designOwn = form.kind === "customizable";
   const [styleInput, setStyleInput] = useState("");
   const [files, setFiles] = useState({ image: null, bannerImage: null });
   const [removed, setRemoved] = useState({ image: false, bannerImage: false });
@@ -135,8 +146,9 @@ function CategoryForm({ initial, onCancel, onSaved }) {
       fd.append("description", form.description || "");
       fd.append("styles", JSON.stringify(form.styles));
       fd.append("isActive", form.isActive);
-      fd.append("isCustomizable", form.isCustomizable);
+      fd.append("isCustomizable", designOwn ? false : form.isCustomizable);
       fd.append("comingSoon", form.comingSoon);
+      fd.append("kind", form.kind);
       for (const field of ["image", "bannerImage"]) {
         if (files[field]) fd.append(field, files[field]);
         else if (removed[field]) fd.append(`remove_${field}`, "true");
@@ -155,16 +167,31 @@ function CategoryForm({ initial, onCancel, onSaved }) {
   return (
     <div style={{ ...card, padding: 24, marginBottom: 24 }}>
       <h3 style={{ margin: "0 0 18px", fontFamily: THEME.fontDisplay, fontSize: 22 }}>
-        {isEdit ? `Edit "${initial.name}"` : "New category"}
+        {isEdit ? `Edit "${initial.name}"` : designOwn ? "New Design-your-own collection" : "New ready-made category"}
       </h3>
+
+      <div style={{ marginBottom: 18 }}>
+        <label style={labelStyle}>Shop</label>
+        <div style={{ display: "flex", gap: 8, marginTop: 6, flexWrap: "wrap" }}>
+          {TABS.map(([key, label]) => (
+            <button key={key} type="button" onClick={() => setForm({ ...form, kind: key })} aria-pressed={form.kind === key} style={{ ...button(form.kind === key ? "primary" : "default"), padding: "7px 14px" }}>
+              {label}
+            </button>
+          ))}
+        </div>
+        <p style={{ margin: "4px 0 0", fontSize: 11, color: THEME.textMuted }}>
+          {designOwn ? "Shown on the Design your own page, with the garments customers can design." : "Shown in the ready-made shop and its menu, with finished products."}
+          {isEdit && !initial.kind && " This category isn't sorted yet — pick one and save."}
+        </p>
+      </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 18 }}>
         <div>
           <label style={labelStyle}>Name *</label>
-          <input value={form.name} maxLength={40} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. T-Shirts" style={{ ...inputStyle, marginTop: 6 }} />
+          <input value={form.name} maxLength={40} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder={designOwn ? "e.g. Girls Wear" : "e.g. T-Shirts"} style={{ ...inputStyle, marginTop: 6 }} />
           {isEdit && (
             <p style={{ margin: "4px 0 0", fontSize: 11, color: THEME.textMuted }}>
-              Page address: /category/{initial.slug}
+              Page address: {designOwn ? `/customizable?category=${initial.slug}` : `/category/${initial.slug}`}
             </p>
           )}
         </div>
@@ -177,8 +204,11 @@ function CategoryForm({ initial, onCancel, onSaved }) {
       <div style={{ marginTop: 18 }}>
         <label style={labelStyle}>Styles in this category</label>
         <p style={{ margin: "4px 0 8px", fontSize: 12, color: THEME.textMuted }}>
-          Products appear here when their <strong>Garment Style</strong> matches one of these (not case-sensitive).
-          The customizer's garment types match the same way.
+          {designOwn ? (
+            <>Designable garments appear here when their style (Customizable → step 1 "Shown in category") matches one of these.</>
+          ) : (
+            <>Products appear here when their <strong>Garment Style</strong> matches one of these (not case-sensitive).</>
+          )}
         </p>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 8 }}>
           {form.styles.map((s) => (
@@ -210,7 +240,7 @@ function CategoryForm({ initial, onCancel, onSaved }) {
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 18, marginTop: 20 }}>
         <ImagePicker
-          label="Tile image (home page)"
+          label={designOwn ? "Card picture (Design your own page)" : "Tile image (ready-made shop)"}
           hint="Portrait 4:5, e.g. 800×1000 px · JPG/PNG/WebP · max 5 MB"
           current={initial?.image?.url}
           file={files.image}
@@ -232,7 +262,9 @@ function CategoryForm({ initial, onCancel, onSaved }) {
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 14, marginTop: 20 }}>
         <Toggle label="Visible on the website" hint="Turn off to hide without deleting" checked={form.isActive} onChange={(v) => setForm({ ...form, isActive: v })} />
-        <Toggle label="Customizable" hint='Shows a "Design your own" button' checked={form.isCustomizable} onChange={(v) => setForm({ ...form, isCustomizable: v })} />
+        {!designOwn && (
+          <Toggle label='"Design your own" button' hint="Shows a button to the design room on this category's page" checked={form.isCustomizable} onChange={(v) => setForm({ ...form, isCustomizable: v })} />
+        )}
         <Toggle label="Coming soon" hint="Greyed-out tile, not clickable" checked={form.comingSoon} onChange={(v) => setForm({ ...form, comingSoon: v })} />
       </div>
 
@@ -246,11 +278,62 @@ function CategoryForm({ initial, onCancel, onSaved }) {
   );
 }
 
+// Deleting, made hard to do by accident: refused while anything still uses the category (hide it instead), and the
+// name must be typed. Products and garments are never deleted; the category's pictures are.
+function DeletePanel({ c, onHide, onCancel, onDeleted }) {
+  const [typed, setTyped] = useState("");
+  const [busy, setBusy] = useState(false);
+  const inUse = (c.garmentCount || 0) + (c.productCount || 0) > 0;
+  const match = typed.trim().toLowerCase() === c.name.trim().toLowerCase();
+  const del = async () => {
+    setBusy(true);
+    try {
+      await categoryService.deleteCategory(c._id, typed.trim());
+      toast.success(`"${c.name}" deleted`);
+      onDeleted();
+    } catch (err) {
+      toast.error(apiError(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div style={{ flexBasis: "100%", border: `1px solid ${THEME.dangerBorder}`, background: THEME.dangerBg || "#FDF1EF", borderRadius: 10, padding: "12px 14px", display: "grid", gap: 10 }}>
+      {inUse ? (
+        <p style={{ margin: 0, fontSize: 13, color: THEME.text }}>
+          <b>“{c.name}” can't be deleted while it's in use</b> —{" "}
+          {[c.garmentCount ? `${c.garmentCount} designable garment${c.garmentCount === 1 ? "" : "s"} (${(c.garments || []).slice(0, 4).join(", ")})` : "", c.productCount ? `${c.productCount} ready-made product${c.productCount === 1 ? "" : "s"}` : ""].filter(Boolean).join(" and ")}.
+          Hide it to take it off the website without losing anything.
+        </p>
+      ) : (
+        <>
+          <p style={{ margin: 0, fontSize: 13, color: THEME.text }}>
+            Deleting can't be undone, and it also deletes this category's pictures. To take it off the website for now, <b>hide</b> it instead.
+            To delete, type <b>{c.name}</b>:
+          </p>
+          <input value={typed} onChange={(e) => setTyped(e.target.value)} placeholder={c.name} aria-label={`Type ${c.name} to delete it`} style={{ ...inputStyle, maxWidth: 320 }} />
+        </>
+      )}
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        {c.isActive && <button type="button" onClick={onHide} style={button("primary")}>Hide instead</button>}
+        {!inUse && (
+          <button type="button" onClick={del} disabled={!match || busy} style={{ ...button("danger"), opacity: match && !busy ? 1 : 0.45, cursor: match && !busy ? "pointer" : "not-allowed" }}>
+            {busy ? "Deleting…" : "Delete for good"}
+          </button>
+        )}
+        <button type="button" onClick={onCancel} style={button()}>Cancel</button>
+      </div>
+    </div>
+  );
+}
+
 export default function CategoriesPage() {
   const dispatch = useDispatch();
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(null); // null | "new" | category
+  const [tab, setTab] = useState("readymade"); // which shop's categories are listed
+  const [deleting, setDeleting] = useState(null); // the category whose delete panel is open
 
   const load = async () => {
     try {
@@ -280,10 +363,18 @@ export default function CategoriesPage() {
     await load();
   };
 
+  // the categories of the open tab, in display order
+  const listed = categories.filter((c) => inTab(c, tab));
+
+  // move one up / down among its own tab's categories (the full order is saved)
   const move = async (index, delta) => {
+    const a = listed[index];
+    const b = listed[index + delta];
+    if (!a || !b) return;
     const next = [...categories];
-    const [item] = next.splice(index, 1);
-    next.splice(index + delta, 0, item);
+    const ia = next.indexOf(a);
+    const ib = next.indexOf(b);
+    [next[ia], next[ib]] = [next[ib], next[ia]];
     setCategories(next);
     try {
       await categoryService.reorderCategories(next.map((c) => c._id));
@@ -294,11 +385,13 @@ export default function CategoriesPage() {
     }
   };
 
-  const remove = async (c) => {
-    if (!window.confirm(`Delete "${c.name}"? Products are kept — they just won't show under this category. Tip: you can hide it instead.`)) return;
+  const hide = async (c) => {
     try {
-      await categoryService.deleteCategory(c._id);
-      toast.success("Category deleted");
+      const fd = new FormData();
+      fd.append("isActive", false);
+      await categoryService.updateCategory(c._id, fd);
+      toast.success(`"${c.name}" is hidden from the website (nothing was deleted)`);
+      setDeleting(null);
       refresh();
     } catch (err) {
       toast.error(apiError(err));
@@ -315,14 +408,32 @@ export default function CategoriesPage() {
           </button>
         )}
       </div>
+      <div role="tablist" aria-label="Which shop" style={{ display: "flex", gap: 6, margin: "14px 0 6px", borderBottom: `1px solid ${THEME.border}` }}>
+        {TABS.map(([key, label]) => {
+          const n = categories.filter((c) => inTab(c, key)).length;
+          return (
+            <button
+              key={key}
+              type="button"
+              role="tab"
+              aria-selected={tab === key}
+              onClick={() => { setTab(key); setEditing(null); setDeleting(null); }}
+              style={{ border: "none", background: "none", padding: "10px 14px", marginBottom: -1, cursor: "pointer", fontFamily: THEME.fontBody, fontSize: 14, fontWeight: 700, color: tab === key ? THEME.text : THEME.textMuted, borderBottom: `2px solid ${tab === key ? THEME.gold : "transparent"}` }}
+            >
+              {label} <span style={{ fontWeight: 500, color: THEME.textMuted }}>({n})</span>
+            </button>
+          );
+        })}
+      </div>
       <p style={{ margin: "0 0 22px", color: THEME.textMuted, fontSize: 13 }}>
-        These appear as tiles on the home page and in the Products menu, in this order.
+        {TABS.find(([key]) => key === tab)[2]} Shown in this order.
       </p>
 
       {editing && (
         <CategoryForm
-          key={editing === "new" ? "new" : editing._id}
+          key={editing === "new" ? `new-${tab}` : editing._id}
           initial={editing === "new" ? null : editing}
+          tab={tab}
           onCancel={() => setEditing(null)}
           onSaved={refresh}
         />
@@ -330,17 +441,17 @@ export default function CategoriesPage() {
 
       {loading ? (
         <p style={{ color: THEME.textMuted }}>Loading…</p>
-      ) : !categories.length ? (
+      ) : !listed.length ? (
         <div style={{ ...card, padding: 32, textAlign: "center", color: THEME.textMuted }}>
-          No categories yet. Click <strong>+ Add category</strong> to create the first one.
+          No categories here yet. Click <strong>+ Add category</strong> to create the first one.
         </div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {categories.map((c, i) => (
+          {listed.map((c, i) => (
             <div key={c._id} style={{ ...card, padding: 14, display: "flex", gap: 14, alignItems: "center", flexWrap: "wrap", opacity: c.isActive ? 1 : 0.6 }}>
               <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
                 <button type="button" aria-label="Move up" disabled={i === 0} onClick={() => move(i, -1)} style={{ ...button(), padding: "2px 8px", opacity: i === 0 ? 0.3 : 1 }}>▲</button>
-                <button type="button" aria-label="Move down" disabled={i === categories.length - 1} onClick={() => move(i, 1)} style={{ ...button(), padding: "2px 8px", opacity: i === categories.length - 1 ? 0.3 : 1 }}>▼</button>
+                <button type="button" aria-label="Move down" disabled={i === listed.length - 1} onClick={() => move(i, 1)} style={{ ...button(), padding: "2px 8px", opacity: i === listed.length - 1 ? 0.3 : 1 }}>▼</button>
               </div>
               <div style={{ width: 56, aspectRatio: "4 / 5", borderRadius: 8, overflow: "hidden", background: THEME.surface2, flexShrink: 0, display: "grid", placeItems: "center", fontSize: 10, color: THEME.textFaint }}>
                 {c.image?.url ? <img src={imageUrl(c.image.url, 120)} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : "No image"}
@@ -350,16 +461,23 @@ export default function CategoriesPage() {
                   {c.name}
                   {!c.isActive && <Badge text="Hidden" />}
                   {c.comingSoon && <Badge text="Coming soon" />}
-                  {c.isCustomizable && <Badge text="Customizable" gold />}
+                  {!c.kind && <Badge text="Not sorted yet — Edit to pick a shop" />}
+                  {c.kind !== "customizable" && c.isCustomizable && <Badge text='"Design your own" button' gold />}
                 </p>
                 <p style={{ margin: "4px 0 0", fontSize: 12, color: THEME.textMuted }}>
-                  {c.styles.length ? c.styles.join(" · ") : "No styles"} · {c.productCount} product{c.productCount === 1 ? "" : "s"}
+                  {c.styles.length ? c.styles.join(" · ") : "No styles"} ·{" "}
+                  {tab === "customizable"
+                    ? `${c.garmentCount || 0} garment${c.garmentCount === 1 ? "" : "s"}${c.garments?.length ? ` (${c.garments.join(", ")})` : ""}`
+                    : `${c.productCount} product${c.productCount === 1 ? "" : "s"}`}
                 </p>
               </div>
               <div style={{ display: "flex", gap: 8 }}>
-                <button type="button" onClick={() => setEditing(c)} style={button()}>Edit</button>
-                <button type="button" onClick={() => remove(c)} style={button("danger")}>Delete</button>
+                <button type="button" onClick={() => { setEditing(c); setDeleting(null); }} style={button()}>Edit</button>
+                <button type="button" onClick={() => setDeleting(deleting?._id === c._id ? null : c)} style={button("danger")}>Delete…</button>
               </div>
+              {deleting?._id === c._id && (
+                <DeletePanel key={c._id} c={c} onHide={() => hide(c)} onCancel={() => setDeleting(null)} onDeleted={() => { setDeleting(null); refresh(); }} />
+              )}
             </div>
           ))}
         </div>
