@@ -146,7 +146,14 @@ export default function DesignRoomPage() {
   const [photoLink] = useState(() => params.get("photo") === "1");
   // ?team=1 ("Create your team/group IDENTEE", /team-orders): entering the room puts the Team jersey layout on the
   // tee and the assistant asks for the player list.
-  const [teamLink] = useState(() => params.get("team") === "1");
+  // ?team=<layout> (picked in TeamLayoutPicker: team, team-back, team-office, team-event) or ?team=own (a blank tee);
+  // ?team=1 from older links = the Team jersey
+  const [teamLink] = useState(() => {
+    const t = params.get("team");
+    if (!t) return null;
+    if (t === "own") return "own";
+    return TEMPLATES.some((x) => x.key === t && x.team) ? t : "team";
+  });
   // The home page's ways in (read once): ?start=text | upload | art | draw opens that tool on entering the room, and
   // an idea typed in "What do you want on your tee?" (navigation state, not the address) is sent to the assistant.
   const [startLink] = useState(() => params.get("start"));
@@ -1336,12 +1343,22 @@ export default function DesignRoomPage() {
   };
   // the team page's way in: the Team jersey layout, then the assistant asks for the players
   const startTeam = () => {
-    applyTemplate("team", true);
+    const tpl = TEMPLATES.find((t) => t.key === teamLink && t.team);
+    if (tpl) applyTemplate(tpl.key, true);
+    // what the list needs: a number only when the layout has one
+    const numbers = !tpl || tpl.items.some((i) => i.role === "number");
+    const list = numbers
+      ? "send me your people as name, number and size, one per line or separated by commas, like this: Arun 7 L, Karthik 10 XL"
+      : "send me your people as name and size, one per line, like this: Arun L";
     openAiTab("chat");
     setChat((m) => [
       ...m.map((x) => (x.chips ? { ...x, done: true } : x)),
-      botSays("Your team layout is on the tee: a small team name on the chest, and the team name, player name and number on the back. Tap any text to change the words, font or colour. Then send me your players as name, number and size, one per line or separated by commas, like this: Arun 7 L, Karthik 10 XL. Every player gets their own tee. You can also fill the list in Review."),
-      chipRow(["Continue to review", "Something else"]),
+      botSays(
+        tpl
+          ? `Your “${tpl.label}” layout is on the tee: ${tpl.says.split(". Ordering")[0].replace(/\.$/, "")}. Tap any text to change the words, font or colour, or add your logo. Then ${list}. Everyone gets their own tee. You can also fill the list in Review.`
+          : `Your tee is blank: add your own words, logo or picture (Edit by hand → Add text or Upload), or tell me what you want. To give each person their own name or number, tap that text and use “Ordering for a team?” at the bottom of its settings. Then ${list}, or fill the list in Review.`,
+      ),
+      chipRow(tpl ? ["Continue to review", "Something else"] : ["Something else"]),
     ]);
   };
   const applyFix = (issue) => {
