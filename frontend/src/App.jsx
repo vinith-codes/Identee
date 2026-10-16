@@ -57,6 +57,7 @@ import ArtCategoriesPage from "./pages/admin/ArtCategoriesPage";
 import ArtDesignsPage from "./pages/admin/ArtDesignsPage";
 
 import AdminInvoicesPage from "./pages/admin/AdminInvoicesPage";
+import PrintSheetsPage from "./pages/admin/PrintSheetsPage";
 import InvoicePreviewPage from "./pages/admin/InvoicePreviewPage";
 import AdminOrdersPage from "./pages/admin/AdminOrdersPage";
 import ProductBulkUploadPage from "./pages/admin/ProductBulkUploadPage";
@@ -370,6 +371,7 @@ export default function App() {
             element={<ArtBulkUploadPage />}
           />
           <Route path="invoices" element={<AdminInvoicesPage />} />
+          <Route path="print-sheets" element={<PrintSheetsPage />} />
           <Route path="invoices/:orderId" element={<InvoicePreviewPage />} />
           <Route
             path="/admin/subscriptions"

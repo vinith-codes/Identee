@@ -20,6 +20,7 @@ export const ADMIN_MENU = [
     to: "/admin/orders",
     children: [
       { to: "/admin/orders", label: "All orders" },
+      { to: "/admin/print-sheets", label: "Print sheets" },
       { to: "/admin/invoices", label: "Invoices" },
       { to: "/admin/shipping", label: "Shipping rates" },
     ],
