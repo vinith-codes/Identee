@@ -403,6 +403,7 @@ export default function DesignRoomPage() {
   /* ---------- 3D textures: render each area with Konva ---------- */
   const renderers = useRef(new Map()); // key -> { r, W, H }
   const lastSig = useRef(new Map());
+  const paintedEls = useRef(new Map()); // key -> the items the area was last painted with
   useEffect(() => {
     if (!positions.length) return;
     let alive = true;
@@ -419,6 +420,7 @@ export default function DesignRoomPage() {
         let els = live?.key === pos.key ? live.elements : elements.filter((e) => e.position === pos.key);
         // Review of a team order: the tee of the player being looked at
         if (previewPlayer) els = playerElements(els, previewPlayer, W, H);
+        paintedEls.current.set(pos.key, els); // what this area shows now (the mockup pictures repaint it without the border)
         const outline = active === pos.key;
         const sig = JSON.stringify([W, H, outline, els, [...document.fonts].filter((f) => f.status === "loaded").length]);
         if (lastSig.current.get(pos.key) === sig && textures[pos.key]) continue;
@@ -1356,6 +1358,14 @@ export default function DesignRoomPage() {
     for (let tries = 0; tries < 12 && !roomApi.current; tries++) await wait(300);
     const api = roomApi.current;
     if (!api) return null;
+    // Paint every print area again without its dashed border right now. (Waiting for the page to redraw
+    // after closing the area was a race: with a big picture the border was still there and got saved in
+    // the My designs picture.) The page draws its usual pictures again afterwards.
+    for (const [key, entry] of renderers.current) {
+      entry.r.render(paintedEls.current.get(key) || [], { outline: false });
+      lastSig.current.delete(key);
+      api.touch?.(key);
+    }
     const out = {};
     for (const [v] of SIDES) out[v] = await cropMockup(api.snapshot(v));
     return out;
