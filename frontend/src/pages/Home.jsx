@@ -29,6 +29,7 @@ import {
   HomeOutlook,
   HomeFinal,
   HomePhoto,
+  HomeCreate,
 } from "../components/home/HomeSections";
 import useReveal from "../components/home/useReveal";
 import "../components/home/home.css";
@@ -224,8 +225,9 @@ export default function Home() {
         }
         /* phones: on the left the buttons covered the start of every line of text — the corner on the
            right only touches the ends of a few lines, like a chat button */
-        @media (max-width: 720px) {
-          .identee-floating-social { left: auto; right: 10px; bottom: calc(14px + env(safe-area-inset-bottom, 0px)); gap: 10px; }
+        @media (max-width: 760px) {
+          /* above the phones' bottom bar (MobileTabBar) */
+          .identee-floating-social { left: auto; right: 10px; bottom: calc(76px + env(safe-area-inset-bottom, 0px)); gap: 10px; }
           .identee-floating-btn { width: 40px; height: 40px; }
         }
       `}</style>
@@ -233,6 +235,7 @@ export default function Home() {
 
       <HomeHero garment={garment} colours={colours.slice(0, 6)} printCm={printCm} shopOpen={shopOpen} />
       <HomeMarquee shopOpen={shopOpen} />
+      <HomeCreate garment={garment} colours={colours} />
       <HomePhoto garment={garment} />
       <HomeWays garment={garment} customPhoto={garment ? coverPhoto(garment, garmentImages) : null} stackPhotos={stackPhotos} custom={custom} ready={ready} shopOpen={shopOpen} />
       <HomeSteps />

@@ -1,7 +1,7 @@
 // components/home/HomeSections.jsx — the sections of the storefront home page.
 // Data comes from pages/Home.jsx (garment photos, shop products, videos).
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { imageUrl } from "../../utils/imageUrl";
 import { colourHex, isLight } from "../../utils/colours";
 import { money } from "../../utils/money";
@@ -149,6 +149,84 @@ export function HomeMarquee({ shopOpen }) {
   );
 }
 
+/* ---------- "What do you want on your tee?" + every way to make it ----------
+   Open-ended on purpose (not a list of themes, which reads as "only these"): type any idea → the design room opens
+   and the assistant takes it from there (navigation state, see DesignRoomPage `ideaLink`); or start with a tool. */
+const IDEA_EXAMPLE = "Messi on the back, my name on the front";
+export function HomeCreate({ garment, colours }) {
+  const navigate = useNavigate();
+  const [idea, setIdea] = useState("");
+  const [missing, setMissing] = useState(false);
+  const base = garment ? `/customize/${garment.key}?new=1` : null;
+  const go = (extra = "", color = "white") => (base ? `${base}&color=${color}${extra}` : SHOPS.create.to);
+  const photo = (slug, i) => (colours.find((c) => c.slug === slug) || colours[i % Math.max(1, colours.length)])?.front;
+  const submit = (e) => {
+    e.preventDefault();
+    const text = idea.trim();
+    if (text.length < 3) return setMissing(true);
+    navigate(go(), { state: { idea: text } });
+  };
+  const WAYS6 = [
+    { title: "Your photo", text: "As it is, or turned into art.", to: go("&photo=1"), slug: "white", ov: <span className="ov box">YOUR<br />PHOTO</span> },
+    { title: "Your words", text: "Names, quotes, dates — in any font.", to: go("&start=text", "black"), slug: "black", ov: <span className="ov" style={{ color: "#F0D585", fontSize: 15 }}>SAY IT<br />LOUD</span> },
+    { title: "Describe it", text: "We draw what you describe.", to: go("&start=draw", "navy"), slug: "navy", ov: <span className="ov" style={{ color: "#fff" }}>✦ DRAWN<br />FOR YOU</span> },
+    { title: "Ready art", text: "Designs from our art library.", to: go("&start=art", "cream"), slug: "cream", ov: <span className="ov" style={{ color: "#7A5B12" }}>◆ ART<br />LIBRARY</span> },
+    { title: "Names & numbers", text: "A different one on every tee.", to: SHOPS.team.to, slug: "bottle-green", ov: <span className="ov" style={{ color: "#fff" }}>ARUN<br /><span style={{ fontSize: 22 }}>07</span></span> },
+    { title: "Your logo", text: "For a shop, college or office.", to: go("&start=upload", "red"), slug: "red", ov: <span className="ov dash">YOUR LOGO</span> },
+  ];
+  return (
+    <section className="hm-sec hm-create" aria-label="What do you want on your tee?">
+      <div className="hm-wrap">
+        <div className="hm-ask" data-reveal>
+          <p className="hm-eyebrow">{SHOPS.create.name}</p>
+          <h2>What do you want on your tee?</h2>
+          <p className="sub">Type it in your own words: a name, a quote, a photo idea, your team. The design room opens with it, and the assistant helps you finish it.</p>
+          <form className={`hm-askbox${missing ? " bad" : ""}`} onSubmit={submit}>
+            <input
+              value={idea}
+              onChange={(e) => {
+                setIdea(e.target.value);
+                if (missing) setMissing(false);
+              }}
+              placeholder={`Try: “${IDEA_EXAMPLE}”`}
+              aria-label="Describe what you want on your tee"
+              maxLength={400}
+            />
+            <button type="submit">Create it <span className="arr">→</span></button>
+          </form>
+          {missing && <p className="hm-askmiss" role="alert">Type your idea first — a few words are enough. Or pick a way to start below.</p>}
+          <div className="hm-askor">
+            <span>Or start with:</span>
+            <Link to={go("&photo=1")}>My photo</Link>
+            <Link to={go("&start=text")}>My words</Link>
+            <Link to={go("&start=draw")}>A drawing</Link>
+            <Link to={go()}>A blank tee</Link>
+          </div>
+        </div>
+
+        <div className="hm-head hm-head-6" data-reveal>
+          <div>
+            <h2>Anything you can imagine</h2>
+          </div>
+          <p>Six ways to make it — mix them on one tee: front, back and sleeves.</p>
+        </div>
+        <div className="hm-six" data-reveal>
+          {WAYS6.map((w, i) => (
+            <Link key={w.title} className="hm-six-card" to={w.to}>
+              <span className="art">
+                {photo(w.slug, i) && <img src={imageUrl(photo(w.slug, i), 420)} alt="" loading="lazy" />}
+                {w.ov}
+              </span>
+              <b>{w.title}</b>
+              <small>{w.text}</small>
+            </Link>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 /* ---------- three ways to shop ---------- */
 export function HomeWays({ garment, customPhoto, stackPhotos, custom, ready, shopOpen }) {
   return (
@@ -226,15 +304,19 @@ export function HomeWays({ garment, customPhoto, stackPhotos, custom, ready, sho
             <div className="hm-jersey" aria-hidden="true">
               <svg viewBox="0 0 200 210">
                 <path d="M62 14 L20 34 L4 84 L34 94 L40 74 L40 202 L160 202 L160 74 L166 94 L196 84 L180 34 L138 14 C 128 26, 72 26, 62 14 Z" fill="#15130F" />
-                <text x="100" y="64" textAnchor="middle" fill="#E6D3A3" style={{ font: "700 13px Inter, Arial, sans-serif", letterSpacing: "0.18em" }}>YOUR TEAM</text>
+                {/* the team's / company's own logo goes here */}
+                <rect x="58" y="40" width="84" height="30" rx="6" fill="rgba(240,213,133,0.08)" stroke="#E6D3A3" strokeWidth="1.6" strokeDasharray="5 4" />
+                <circle cx="69" cy="55" r="6" fill="#C9A24B" />
+                <text x="69" y="59" textAnchor="middle" fill="#15130F" style={{ font: "800 11px Inter, Arial, sans-serif" }}>+</text>
+                <text x="79" y="58.5" textAnchor="start" fill="#E6D3A3" style={{ font: "700 9.5px Inter, Arial, sans-serif", letterSpacing: "0.05em" }}>YOUR LOGO</text>
                 <text x="100" y="92" textAnchor="middle" fill="#FFFFFF" style={{ font: "800 19px Inter, Arial, sans-serif", letterSpacing: "0.08em" }}>ARUN</text>
                 <text x="100" y="172" textAnchor="middle" fill="#B8912F" style={{ font: "800 78px 'Bricolage Grotesque', Arial, sans-serif" }}>07</text>
               </svg>
             </div>
             <div className="label">
-              <p className="hm-eyebrow">Teams &amp; groups</p>
+              <p className="hm-eyebrow">Teams, offices &amp; groups</p>
               <h3>{SHOPS.team.name}</h3>
-              <p>One design for everyone, with each person’s own name, number and size. For sports teams, colleges, offices, events and family trips.</p>
+              <p>One design for everyone: your logo, and each person’s own name, number and size. For sports teams, colleges, offices, events and family trips.</p>
               <span className="hm-btn ink">
                 Start your team order <span className="arr">→</span>
               </span>

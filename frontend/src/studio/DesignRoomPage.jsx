@@ -147,6 +147,11 @@ export default function DesignRoomPage() {
   // ?team=1 ("Create your team/group IDENTEE", /team-orders): entering the room puts the Team jersey layout on the
   // tee and the assistant asks for the player list.
   const [teamLink] = useState(() => params.get("team") === "1");
+  // The home page's ways in (read once): ?start=text | upload | art | draw opens that tool on entering the room, and
+  // an idea typed in "What do you want on your tee?" (navigation state, not the address) is sent to the assistant.
+  const [startLink] = useState(() => params.get("start"));
+  const [ideaLink] = useState(() => (typeof location.state?.idea === "string" ? location.state.idea.trim().slice(0, 400) : ""));
+  const [chatAuto, setChatAuto] = useState(""); // the idea, waiting for the chat to send it
   // was the room opened from another page of the site? (read once: tidying the address below changes location.key)
   const [cameFromSite] = useState(() => location.key !== "default");
   const stored = useMemo(() => readJSON(DRAFT_KEY(type)), [type]);
@@ -329,11 +334,12 @@ export default function DesignRoomPage() {
   // the address is only where a new design starts; left there, a reload brought it back over the colour
   // the customer had picked since.)
   useEffect(() => {
-    if (!fresh && !params.get("color") && !params.get("team")) return;
+    if (!fresh && !params.get("color") && !params.get("team") && !params.get("start")) return;
     const next = new URLSearchParams(params);
     next.delete("new");
     next.delete("color");
     next.delete("team");
+    next.delete("start");
     navigate(`${location.pathname}${next.toString() ? `?${next}` : ""}`, { replace: true });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -1316,6 +1322,18 @@ export default function DesignRoomPage() {
     setSelectedId(null);
     if (skipped.length) say(`Left out ${[...new Set(skipped)].join(", ")}: this ${garment?.label || "garment"} has no free print area for ${skipped.length === 1 ? "it" : "them"}.`);
   };
+  // the home page's ways in, on entering the room: the idea to the assistant, or straight to a tool
+  const startWith = () => {
+    if (ideaLink) {
+      openAiTab("chat");
+      return setChatAuto(ideaLink);
+    }
+    if (startLink === "draw") return openAiTab("draw");
+    if (["text", "upload", "art"].includes(startLink)) {
+      startAdding();
+      setAddTab(startLink);
+    }
+  };
   // the team page's way in: the Team jersey layout, then the assistant asks for the players
   const startTeam = () => {
     applyTemplate("team", true);
@@ -2000,7 +2018,7 @@ export default function DesignRoomPage() {
               ))}
             </div>
             <div className="dr-aipane" hidden={aiTab !== "chat"}>
-              <Assistant messages={chat} setMessages={setChat} state={chatState} setState={setChatState} ctx={assistantCtx} onAct={assistantAct} onFix={applyFix} placed={aiOn} fabric={fabricHex} />
+              <Assistant messages={chat} setMessages={setChat} state={chatState} setState={setChatState} ctx={assistantCtx} onAct={assistantAct} onFix={applyFix} placed={aiOn} fabric={fabricHex} autoSay={chatAuto} onAutoSaid={() => setChatAuto("")} />
               {elements.length > 0 && (
                 <button type="button" className="dr-handoff" onClick={editByHand}>
                   Not quite right? Edit it by hand →
@@ -2236,12 +2254,14 @@ export default function DesignRoomPage() {
               enterRoom();
               if (photoLink) openPhotoStudio();
               if (teamLink) startTeam();
+              startWith();
             }}
             onAssistant={() => {
               setEarlier(null);
               enterRoom();
               if (teamLink) startTeam();
-              else openAiTab("chat");
+              else if (!ideaLink) openAiTab("chat");
+              startWith();
             }}
             onPhoto={() => {
               setEarlier(null);
