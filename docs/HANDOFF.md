@@ -168,6 +168,19 @@ panel is 440 px (400 px on 761–1279 px screens) instead of the editor's 364 px
 about half the screen (`data-wide`, clamp 480–780 px; remembered in localStorage `identee:assistWide`). Wide: examples in two
 columns, AI pictures in three. Phones unchanged (the button is hidden).
 
+**`feature-grok-drawings` — MERGED to `main` on 16 Oct 2026 (XAI_API_KEY is now set in server/.env):** Grok is the backup
+for EVERY AI picture Google refuses (well-known people): photo to art, a new typed drawing (Chat / Draw, Grok
+`/v1/images/generations` via `xaiNewImage`), "Change it" and fixes (sharpen / recolour / Photo Studio Enhance) — the
+last three are edits (`xaiEditImage`, the picture + the same prompt; `photoJob` in `aiController.design`). One picture
+per Grok request, ~₹6. Grok has no 4:5 / 5:4: `grokRatio` takes the nearest shape it has, and asks again without a
+shape on a 400/422 that isn't a refusal (Grok answers a bad shape with a plain-text 422). Grok time limit 120 s (a
+celebrity took ~60 s; ~70–80 s in all with Google's refusal first). The server log says "[ai] Google refused; Grok: …"
+and Grok's reason when it fails. Admin "Enlarge for print" (Google 4K only) on a refused picture now says it prints from
+the original. Also: Draw and Photo tabs got "Other area" (like Chat), Chat says "It's on your tee" for one picture, and a
+slow AI wait card says well-known people can take up to two minutes. Tested with real requests (16 Oct, user's
+go-ahead): Grok photo→art (13 s), Messi drawing, a "Change it" to Vijay + LEO — all made by Grok. Fixes / Enhance via
+Grok not run for real yet (same route as Change it).
+
 **`feature-try-another` — MERGED to `main` on 15 Oct 2026:** AI pictures are now ONE per request (the user
 set Admin → AI designs → Pictures per request = 1, daily limit 5), so the newest AI picture in the Assistant gets a
 "↻ Try another" button (`tryAnother` in `Assistant.jsx`): it repeats the same request (`again` on the designs message,
