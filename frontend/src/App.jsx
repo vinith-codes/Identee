@@ -41,6 +41,7 @@ import CustomizablePage from "./pages/CustomizablePage";
 import ReadyMadePage from "./pages/ReadyMadePage";
 import TeamOrdersPage from "./pages/TeamOrdersPage";
 import MobileTabBar from "./components/MobileTabBar";
+import ScrollToTop from "./components/ScrollToTop";
 import ChooseColorPage from "./pages/ChooseColorPage";
 import AdminShippingPage from "./pages/admin/AdminShippingPage";
 import OffersPage from "./pages/admin/OffersPage";
@@ -174,6 +175,7 @@ const NotFound = () => (
 // ── Customer layout: Navbar + page content (+ the phones' bottom bar) ──────
 const CustomerLayout = () => (
   <>
+    <ScrollToTop />
     <Navbar />
     <Outlet />
     <SiteFooter />
