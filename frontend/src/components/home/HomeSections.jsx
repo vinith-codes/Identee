@@ -400,14 +400,17 @@ export function HomeWays({ garment, customPhoto, stackPhotos, custom, ready, sho
 export function HomePhoto({ garment }) {
   // straight into the design room, which opens the Photo Studio (?photo=1)
   const href = garment ? `/customize/${garment.key}?new=1&photo=1` : "/customizable";
-  const looks = [
-    ["Cartoon", "linear-gradient(135deg,#FFB547,#FF6B6B)"],
-    ["Sketch", "linear-gradient(135deg,#E9E4D8,#8A8172)"],
-    ["Sticker", "linear-gradient(135deg,#7FD1FF,#B57BFF)"],
-    ["Pop art", "linear-gradient(135deg,#FFE14D,#FF3EA5)"],
-    ["Watercolour", "linear-gradient(135deg,#9FE3C7,#F7B2C4)"],
-    ["Print-ready photo", "linear-gradient(135deg,#2A2622,#C9A24B)"],
+  // a big tee with a face on it, made in our own design room (3D previews, saved in public/home): they take turns
+  const tees = [
+    ["/home/photo-tee-leo.jpg", "Vijay · LEO", "on the back of a navy oversized tee"],
+    ["/home/photo-tee-messi.jpg", "Messi", "on the front of a navy oversized tee"],
   ];
+  const [on, setOn] = useState(0);
+  useEffect(() => {
+    if (reduceMotion()) return;
+    const t = setInterval(() => setOn((n) => (n + 1) % tees.length), 4200);
+    return () => clearInterval(t);
+  }, [tees.length]);
   return (
     <section className="hm-photo" aria-label="Your photo on a tee">
       <div className="hm-wrap hm-photo-in">
@@ -427,14 +430,15 @@ export function HomePhoto({ garment }) {
             Start with your photo <span className="arr">→</span>
           </Link>
         </div>
-        <ul className="hm-photo-looks" data-reveal aria-label="Looks your photo can have">
-          {looks.map(([name, bg], i) => (
-            <li key={name} style={{ "--i": i }}>
-              <i style={{ background: bg }} aria-hidden="true" />
-              {name}
-            </li>
+        <Link className="hm-photo-show" to={href} data-reveal aria-label="Start with your photo">
+          {tees.map(([src], i) => (
+            <img key={src} src={src} alt="" className={i === on ? "on" : ""} loading="lazy" />
           ))}
-        </ul>
+          <span className="hm-photo-tag" key={on}>
+            <b>{tees[on][1]}</b>
+            <small>{tees[on][2]}</small>
+          </span>
+        </Link>
       </div>
     </section>
   );

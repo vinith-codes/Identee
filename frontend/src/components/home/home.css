@@ -283,17 +283,17 @@
 .hm-photo ol b { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: var(--gold); color: var(--ink); font-size: 13px; }
 .hm-photo .hm-btn.gold { background: linear-gradient(135deg, #C9A24B, #EBCB7A); }
 .hm-photo .hm-btn.gold:hover { filter: brightness(1.06); background: linear-gradient(135deg, #C9A24B, #EBCB7A); }
-.hm-photo-looks { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
-/* align-content: start — a two-line name ("Print-ready photo") must not stretch the squares of its row */
-.hm-photo-looks li { display: grid; align-content: start; gap: 10px; font-weight: 600; font-size: 13.5px; color: #E9E2D2; }
-.hm-photo-looks i { width: 100%; aspect-ratio: 1; border-radius: 18px; box-shadow: 0 18px 36px -22px rgba(0, 0, 0, .8); }
-.hm-photo-looks li:last-child i { outline: 2px solid var(--gold); outline-offset: 3px; }
+/* a big tee with a face on it (made in our design room), the pictures taking turns with a slow zoom */
+.hm-photo-show { position: relative; display: block; width: 100%; max-width: 520px; justify-self: center; aspect-ratio: 4 / 5; border-radius: 28px; overflow: hidden; background: #EDE8DD; box-shadow: 0 40px 80px -40px rgba(0, 0, 0, .9); }
+.hm-photo-show img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transform: scale(1.06); transition: opacity 1.2s var(--ease), transform 5s ease-out; }
+.hm-photo-show img.on { opacity: 1; transform: scale(1); }
+.hm-photo-show:hover img.on { transform: scale(1.03); }
+.hm-photo-tag { position: absolute; left: 18px; bottom: 18px; display: grid; gap: 2px; padding: 10px 16px; border-radius: 16px; background: rgba(255, 255, 255, .92); color: var(--ink); box-shadow: 0 12px 24px -14px rgba(0, 0, 0, .5); animation: hm-tag-in .6s var(--ease) both; }
+.hm-photo-tag b { font: 700 15px/1.2 var(--display); }
+.hm-photo-tag small { font-size: 12px; color: var(--muted); }
+@keyframes hm-tag-in { from { opacity: 0; transform: translateY(8px); } }
 @media (max-width: 900px) {
   .hm-photo { padding-block: 64px; }
   .hm-photo-in { grid-template-columns: minmax(0, 1fr); gap: 36px; }
-  .hm-photo-looks { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
-}
-@media (prefers-reduced-motion: no-preference) {
-  .hm-photo-looks.hm-in li { animation: hm-photo-pop .6s var(--ease) backwards; animation-delay: calc(var(--i) * 70ms); }
-  @keyframes hm-photo-pop { from { opacity: 0; transform: translateY(12px) scale(.96); } }
+  .hm-photo-show { max-width: 420px; }
 }
