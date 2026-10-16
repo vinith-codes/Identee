@@ -254,7 +254,8 @@ export const buildQuote = async (user, body = {}) => {
   let coupon = null;
   const offer = await validateCoupon(body.couponCode, user);
   if (offer) {
-    discount = round2(Math.min((subtotal * offer.offerPercentage) / 100, subtotal + shipping - 1));
+    // whole rupees (the checkout screen shows it rounded too), so totals have no paise
+    discount = Math.round(Math.min((subtotal * offer.offerPercentage) / 100, subtotal + shipping - 1));
     coupon = { code: offer.code, percentage: offer.offerPercentage, discountAmount: discount };
   }
 
