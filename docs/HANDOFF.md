@@ -219,6 +219,34 @@ IDENTEE_Measurements_Needed.pdf` (5 pages, every number still guessed, with draw
 (Downloads, recorded by a puppeteer script with ffmpeg at E:\tools\ffmpeg — headless Chrome needs `--use-angle=d3d11`
 for smooth 3D frames; swiftshader gives ~1 fps).
 
+**`feature-home-ideas` + `fix-gst-igst` + `feature-legal-name` — MERGED to `main` on 18 Oct 2026:**
+- **Home** (ideas from dudeme.in, in our own look): "What do you want on your tee?" box (HomeCreate; the idea goes to the
+  Design Room as navigation state → the assistant gets it, Assistant `autoSay`; the box types examples by itself) and
+  "Anything you can imagine" (six ways; the room opens on that tool, `?start=text|upload|art|draw`). Theme cards were
+  dropped (read as "only these"). OfferStrip.jsx (coupon shown on site + free shipping + the Admin Offer banner text;
+  turns on phones). Team card: "+ Your logo" box; its jersey cycles through people. Photo section: a big tee with a
+  face (Vijay LEO / Messi, copies in frontend/public/home) instead of style chips. Hero tee tilts to the mouse; the six
+  cards rise in. Removed: "Why IDENTEE" (repeated the hero facts), "Or start with" links; "Style outlook" videos hidden
+  while the shop is coming soon. Phones: MobileTabBar (Home · Create · Team · Cart). ScrollToTop: new pages start at
+  the top.
+- **Team orders**: TeamLayoutPicker after the tee (Team jersey, Name & number, Office & company, Event & group, Create
+  your own; drawn on the tee's real photos) → colour & size → room (`?team=<layout|own>`, startTeam; "Design it
+  myself" opens the editor, "Design with the Assistant" the chat). New team templates (designTemplates `team: true`);
+  names-only lists accepted for office/event tees. Review: TeamModeChoice.jsx (two picture cards for "the same on
+  every tee" / "each person's own").
+- **One theme on every customer page** (checked all 21 pages): Inter set site-wide (index.css), Account restyled
+  (ink/gold, line icons, no emoji), My Orders empty state = EmptyState, About/Contact use the site gold, pill buttons.
+- **GST**: utils/gstState.js — delivery inside the business's state → CGST + SGST, other states → IGST 5% (Order
+  `igstPrice`; checkout, order page, invoice PDF and admin invoice). Business state from the GSTIN in Admin → Settings
+  (first two digits), else BUSINESS_STATE in .env, else Tamil Nadu. Order shippingRates currency default INR.
+- **Legal name**: utils/legalEntity.js = Makaliamman Traders (Proprietorship), the business Razorpay approved (KYC on
+  17 Oct, brand "Identee"). Footer "IDENTEE, a brand of Makaliamman Traders"; Terms + policy contact boxes name it.
+  Terms prices line fixed (prices include GST). Still to do: invoices don't show the seller's name/address/GSTIN or
+  the place of supply.
+- **Razorpay**: live keys generated in the Makaliamman Traders account — they go only on the deployed server with
+  the webhook (`/api/orders/razorpay/webhook`, payment.captured + order.paid, RAZORPAY_WEBHOOK_SECRET). Local .env
+  keeps test keys (from another account; fine for testing).
+
 **`feature-print-sheets` + `feature-colour-photo-maker` — MERGED to `main` on 16 Oct 2026 (tested by the user):**
 - **Print sheets** (Admin → Orders → Print sheets): the print team prints on 58 × 100 cm sheets, a day at once. Pick a
   date (orders placed that day, IST, not cancelled) → every print drawn at 300 DPI with the same code as one order's
