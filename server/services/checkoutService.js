@@ -12,6 +12,7 @@ import { applySubscriptionPrice } from "../utils/applySubscriptionPrice.js";
 import { addressProblem } from "../utils/address.js";
 import { SIZES } from "../data/printPositions.js";
 import Setting from "../models/settingModel.js";
+import { splitGst } from "../utils/gstState.js";
 
 // "Shop your IDENTEE" (ready-made products) can be closed as Coming soon (Admin → Settings → General). Closed —
 // also when the setting doesn't exist yet — ready-made products can't be quoted or ordered.
@@ -270,8 +271,8 @@ export const buildQuote = async (user, body = {}) => {
   const goods = round2(subtotal - discount);
   const rate = (GST_PERCENT.cgst + GST_PERCENT.sgst) / 100;
   const tax = round2(goods - goods / (1 + rate));
-  const cgst = round2(tax / 2);
-  const sgst = round2(tax - cgst);
+  // inside the business's state: CGST + SGST; to another state: IGST (utils/gstState.js)
+  const { interState, cgst, sgst, igst } = await splitGst(tax, shippingAddress.state);
   const total = round2(goods + shipping);
   if (total < 1) throw new HttpError(400, "Final amount too low");
 
@@ -286,6 +287,8 @@ export const buildQuote = async (user, body = {}) => {
       subtotal,
       cgstAmount: cgst,
       sgstAmount: sgst,
+      igstAmount: igst,
+      interState,
       taxAmount: tax,
       shippingAmount: shipping,
       discountAmount: discount,

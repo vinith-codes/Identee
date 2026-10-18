@@ -411,12 +411,15 @@ export default function PaymentStep({ shippingAddress, coupon, onBack, buyNow })
           <>
             {/* prices include GST (gstIncluded): the tax is shown as a note, not added */}
             <PriceRow label={quote.priceBreakdown.gstIncluded ? "Subtotal (incl. GST)" : "Subtotal"} value={quote.priceBreakdown.subtotal} />
-            {!quote.priceBreakdown.gstIncluded && (
-              <>
-                <PriceRow label="CGST (2.5%)" value={quote.priceBreakdown.cgstAmount} />
-                <PriceRow label="SGST (2.5%)" value={quote.priceBreakdown.sgstAmount} />
-              </>
-            )}
+            {!quote.priceBreakdown.gstIncluded &&
+              (quote.priceBreakdown.igstAmount > 0 ? (
+                <PriceRow label="IGST (5%)" value={quote.priceBreakdown.igstAmount} />
+              ) : (
+                <>
+                  <PriceRow label="CGST (2.5%)" value={quote.priceBreakdown.cgstAmount} />
+                  <PriceRow label="SGST (2.5%)" value={quote.priceBreakdown.sgstAmount} />
+                </>
+              ))}
             {quote.priceBreakdown.discountAmount > 0 && (
               <PriceRow
                 label={`Discount (${quote.coupon?.code})`}
@@ -441,7 +444,11 @@ export default function PaymentStep({ shippingAddress, coupon, onBack, buyNow })
             />
             {quote.priceBreakdown.gstIncluded && (
               <p style={{ margin: "4px 0 0", fontSize: 11, color: THEME.textMuted, fontFamily: THEME.fontBody }}>
-                Includes GST ₹{quote.priceBreakdown.taxAmount} (CGST ₹{quote.priceBreakdown.cgstAmount} + SGST ₹{quote.priceBreakdown.sgstAmount})
+                {/* delivery to another state: IGST; inside the business's state: CGST + SGST */}
+                Includes GST ₹{quote.priceBreakdown.taxAmount}{" "}
+                {quote.priceBreakdown.igstAmount > 0
+                  ? `(IGST ₹${quote.priceBreakdown.igstAmount})`
+                  : `(CGST ₹${quote.priceBreakdown.cgstAmount} + SGST ₹${quote.priceBreakdown.sgstAmount})`}
               </p>
             )}
           </>

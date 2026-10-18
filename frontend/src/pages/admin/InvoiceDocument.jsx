@@ -351,8 +351,9 @@ const InvoiceDocument = forwardRef(({ invoice }, ref) => {
             >
               <SummaryRow label={pricing.gstIncluded ? "Subtotal (incl. GST)" : "Subtotal"} value={pricing.subtotal} />
               {/* prices that include GST: the tax is shown under the total, not added (orders from 16 Oct 2026) */}
-              {!pricing.gstIncluded && <SummaryRow label="CGST (2.5%)" value={pricing.cgstPrice} />}
-              {!pricing.gstIncluded && <SummaryRow label="SGST (2.5%)" value={pricing.sgstPrice} />}
+              {!pricing.gstIncluded && pricing.igstPrice > 0 && <SummaryRow label="IGST (5%)" value={pricing.igstPrice} />}
+              {!pricing.gstIncluded && !(pricing.igstPrice > 0) && <SummaryRow label="CGST (2.5%)" value={pricing.cgstPrice} />}
+              {!pricing.gstIncluded && !(pricing.igstPrice > 0) && <SummaryRow label="SGST (2.5%)" value={pricing.sgstPrice} />}
               {pricing.discountAmount > 0 && (
                 <SummaryRow
                   label={`Coupon (${invoice.coupon?.code || ""})`}
@@ -382,7 +383,7 @@ const InvoiceDocument = forwardRef(({ invoice }, ref) => {
               </div>
               {pricing.gstIncluded && (
                 <div style={{ marginTop: 8, fontSize: 11.5, color: "#7A7062", lineHeight: 1.5 }}>
-                  Includes GST: CGST 2.5% ₹{pricing.cgstPrice} · SGST 2.5% ₹{pricing.sgstPrice}
+                  Includes GST: {pricing.igstPrice > 0 ? `IGST 5% ₹${pricing.igstPrice}` : `CGST 2.5% ₹${pricing.cgstPrice} · SGST 2.5% ₹${pricing.sgstPrice}`}
                 </div>
               )}
             </div>

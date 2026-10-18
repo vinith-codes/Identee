@@ -423,6 +423,7 @@ const generateInvoice = asyncHandler(async (req, res) => {
       subtotal: order.orderItems.reduce((sum, i) => sum + i.price, 0),
       cgstPrice: order.cgstPrice,
       sgstPrice: order.sgstPrice,
+      igstPrice: order.igstPrice || 0, // another state than the business's: the whole GST is IGST
       taxPrice: order.taxPrice,
       shippingPrice: order.shippingPrice,
       discountAmount: order.coupon?.discountAmount || 0,
@@ -570,7 +571,7 @@ const getTransactions = asyncHandler(async (req, res) => {
   }
 
   const transactions = await Order.find(query).select(
-    "createdAt paymentMethod isPaid isDelivered totalPrice taxPrice shippingPrice orderItems cgstPrice sgstPrice",
+    "createdAt paymentMethod isPaid isDelivered totalPrice taxPrice shippingPrice orderItems cgstPrice sgstPrice igstPrice",
   );
 
   res.json(transactions);
