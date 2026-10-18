@@ -9,6 +9,7 @@ import { useDispatch, useSelector } from "react-redux";
 import axios from "axios";
 import { logout } from "../redux/slices/authSlice";
 import logo from "../assets/logo.png";
+import { useBrandLogo } from "../utils/brandLogo";
 import { imageUrl } from "../utils/imageUrl";
 import { ADMIN_MENU, findMenuSection } from "../utils/adminMenu";
 
@@ -74,6 +75,7 @@ function useNewOrderCount() {
 
 export default function AdminSidebar({ collapsed, onToggle }) {
   const dispatch = useDispatch();
+  const brandLogo = useBrandLogo(logo, 120); // Admin → Settings → General, else the built-in file
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const { user } = useSelector((state) => state.auth);
@@ -122,7 +124,7 @@ export default function AdminSidebar({ collapsed, onToggle }) {
         {!collapsed && (
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <img
-              src={logo}
+              src={brandLogo || logo}
               alt=""
               style={{ height: 34, width: 34, objectFit: "contain" }}
             />

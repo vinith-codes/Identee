@@ -3,6 +3,7 @@ import { useState, useEffect, useMemo } from "react";
 import { Link, NavLink, useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import logo from "../assets/identee-logo.png"; // adjust path
+import { useBrandLogo } from "../utils/brandLogo";
 import { THEME } from "../theme/theme";
 import { getActiveOffer } from "../redux/slices/bannerSlice";
 import { fetchFavorites, fetchCart } from "../redux/slices/cartWishlistSlice";
@@ -65,6 +66,7 @@ export default function Navbar() {
   const { values: publicSettings, isLoaded: settingsLoaded } = useSelector(
     (s) => s.publicSettings,
   );
+  const brandLogo = useBrandLogo(logo); // Admin → Settings → General, else the built-in file
 
   useEffect(() => {
     const handleStorage = () => setUser(getUserInfo());
@@ -251,12 +253,17 @@ export default function Navbar() {
               gridColumn: "2",
             }}
           >
-            <img
-              className="navbar-logo"
-              src={logo}
-              alt="IDENTEE"
-              style={{ height: 100, width: 150, objectFit: "contain" }}
-            />
+            {/* (space kept while the settings load, so the bar doesn't jump) */}
+            {brandLogo ? (
+              <img
+                className="navbar-logo"
+                src={brandLogo}
+                alt="IDENTEE"
+                style={{ height: 100, width: 150, objectFit: "contain" }}
+              />
+            ) : (
+              <span className="navbar-logo" style={{ display: "block", height: 100, width: 150 }} />
+            )}
           </Link>
 
           {/* Right: search, shop link, cart, sign in */}
