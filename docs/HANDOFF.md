@@ -219,6 +219,25 @@ IDENTEE_Measurements_Needed.pdf` (5 pages, every number still guessed, with draw
 (Downloads, recorded by a puppeteer script with ffmpeg at E:\tools\ffmpeg — headless Chrome needs `--use-angle=d3d11`
 for smooth 3D frames; swiftshader gives ~1 fps).
 
+**`feature-separate-ai-caps` + `feature-admin-logo-favicon` + `feature-size-finder` — MERGED to `main` on 18 Oct 2026 (later):**
+- **AI caps**: Google and Grok each have their own monthly cap (Admin → Settings → AI designs). Google's cap
+  (`ai.monthlyCapInr`, key kept; saved ₹350) pauses the design maker and the print enlarger; Grok's cap
+  (`ai.grokMonthlyCapInr`, default ₹500, not saved yet) only stops Grok standing in for refused pictures (photos then get
+  the free art filters). The admin page shows what is left of each. Not opened by me (needs an admin login).
+- **Logo + favicon**: utils/brandLogo.js — `useBrandLogo(fallback)` (Navbar, AdminSidebar, admin InvoiceDocument) and
+  `<BrandFavicon />` (App) use the pictures in Admin → Settings → General; the invoice PDF reads the uploaded logo too.
+  Built-in fallbacks: assets/identee-logo.png and public/favicon.png (the gold ID mark; the old favicon.svg was Vite's
+  logo). The shared DB had white-tee test photos as logo/favicon — replaced (user's request) with the IDENTEE logo and the
+  ID mark (Cloudinary identee/settings; the old photos were left there). Uploads can't be removed in the admin yet.
+- **Find my size** (idea from a velvetica.studio reel): studio/SizeFinder.jsx + sizeMatch.js + sizeMatch.css. Height +
+  weight (Men / Women / Kids when the chart has kids' sizes), then chest / stomach / hips shape, then a result drawn on a
+  figure (tee to scale in the chosen colour), fit %, snug–ideal–roomy tracks, compare any size, Snug / Just right / Roomy.
+  Opens from the room's first screen, the top colour & size menu and Review (Review: the default single tee becomes that
+  size). Body sizes are ESTIMATES (chest ∝ √(weight ÷ height)); the client should try it on 5–10 people and we tune the
+  numbers in sizeMatch.js. Not yet in team player rows or the ready-made shop. Windows gotcha: `SizeFinder.jsx` and a
+  `sizeFinder.js` clash (same name ignoring case) — hence sizeMatch.js.
+- Found: invoice PDFs can't be made on this laptop (Puppeteer's Chrome isn't installed) — must be set up on the server.
+
 **`feature-home-ideas` + `fix-gst-igst` + `feature-legal-name` — MERGED to `main` on 18 Oct 2026:**
 - **Home** (ideas from dudeme.in, in our own look): "What do you want on your tee?" box (HomeCreate; the idea goes to the
   Design Room as navigation state → the assistant gets it, Assistant `autoSay`; the box types examples by itself) and
