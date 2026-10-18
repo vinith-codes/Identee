@@ -120,12 +120,14 @@ export function replyTo(text, ctx, st, { tapped = false } = {}) {
 
   /* ----- team order: one tee per player, each with their own name and number ----- */
   const list = tapped ? [] : parsePlayers(t, ctx.sizes, ctx.sizeNow);
-  if (list.length >= 2 && list.every((p) => p.name && p.number)) {
+  // a name and a number each — or only names when the tee has a name but no number (office / event layouts)
+  const namesOnly = ctx.roles?.name && !ctx.roles?.number;
+  if (list.length >= 2 && list.every((p) => p.name && (p.number || namesOnly))) {
     if (!ctx.hasRoles) {
       return done([bot("That looks like a team list. First the tee needs a place for the name and the number: start with the Team jersey layout, then send me the list again."), chips(["Team jersey"])]);
     }
     // the list has names (or numbers) but the tee has no text set to carry them
-    const lacks = [!ctx.roles?.name && "name", !ctx.roles?.number && "number"].filter(Boolean);
+    const lacks = [!ctx.roles?.name && "name", !ctx.roles?.number && list.some((p) => p.number) && "number"].filter(Boolean);
     const missing = lacks.length && ctx.roles ? ` Note: no text on the tee is set as the player’s ${lacks[0]}, so the ${lacks[0]}s won’t be printed. Tap that text and use “Ordering for a team?” at the bottom of its settings.` : "";
     const names = list.slice(0, 4).map((p) => `${playerLabel(p)} (${p.size})`).join(", ");
     return done([

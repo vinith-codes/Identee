@@ -34,6 +34,7 @@ import PhotoStudio from "./PhotoStudio";
 import DrawStudio from "./DrawStudio";
 import { checkDesign, inksFor, printSharpness } from "./designCheck";
 import { TEMPLATES } from "./designTemplates";
+import TeamModeChoice from "./TeamModeChoice";
 import { FONTS, addStudioFonts } from "./fonts";
 import "./designRoom.css";
 
@@ -146,7 +147,19 @@ export default function DesignRoomPage() {
   const [photoLink] = useState(() => params.get("photo") === "1");
   // ?team=1 ("Create your team/group IDENTEE", /team-orders): entering the room puts the Team jersey layout on the
   // tee and the assistant asks for the player list.
-  const [teamLink] = useState(() => params.get("team") === "1");
+  // ?team=<layout> (picked in TeamLayoutPicker: team, team-back, team-office, team-event) or ?team=own (a blank tee);
+  // ?team=1 from older links = the Team jersey
+  const [teamLink] = useState(() => {
+    const t = params.get("team");
+    if (!t) return null;
+    if (t === "own") return "own";
+    return TEMPLATES.some((x) => x.key === t && x.team) ? t : "team";
+  });
+  // The home page's ways in (read once): ?start=text | upload | art | draw opens that tool on entering the room, and
+  // an idea typed in "What do you want on your tee?" (navigation state, not the address) is sent to the assistant.
+  const [startLink] = useState(() => params.get("start"));
+  const [ideaLink] = useState(() => (typeof location.state?.idea === "string" ? location.state.idea.trim().slice(0, 400) : ""));
+  const [chatAuto, setChatAuto] = useState(""); // the idea, waiting for the chat to send it
   // was the room opened from another page of the site? (read once: tidying the address below changes location.key)
   const [cameFromSite] = useState(() => location.key !== "default");
   const stored = useMemo(() => readJSON(DRAFT_KEY(type)), [type]);
@@ -329,11 +342,12 @@ export default function DesignRoomPage() {
   // the address is only where a new design starts; left there, a reload brought it back over the colour
   // the customer had picked since.)
   useEffect(() => {
-    if (!fresh && !params.get("color") && !params.get("team")) return;
+    if (!fresh && !params.get("color") && !params.get("team") && !params.get("start")) return;
     const next = new URLSearchParams(params);
     next.delete("new");
     next.delete("color");
     next.delete("team");
+    next.delete("start");
     navigate(`${location.pathname}${next.toString() ? `?${next}` : ""}`, { replace: true });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -1316,14 +1330,38 @@ export default function DesignRoomPage() {
     setSelectedId(null);
     if (skipped.length) say(`Left out ${[...new Set(skipped)].join(", ")}: this ${garment?.label || "garment"} has no free print area for ${skipped.length === 1 ? "it" : "them"}.`);
   };
+  // the home page's ways in, on entering the room: the idea to the assistant, or straight to a tool
+  const startWith = () => {
+    if (ideaLink) {
+      openAiTab("chat");
+      return setChatAuto(ideaLink);
+    }
+    if (startLink === "draw") return openAiTab("draw");
+    if (["text", "upload", "art"].includes(startLink)) {
+      startAdding();
+      setAddTab(startLink);
+    }
+  };
   // the team page's way in: the Team jersey layout, then the assistant asks for the players
-  const startTeam = () => {
-    applyTemplate("team", true);
-    openAiTab("chat");
+  // withAssistant: "Design with the Assistant" opens it; "Design it myself" doesn't (the editor opens on the layout,
+  // and the assistant's note about the list is there if they open it later — or they fill the list in Review)
+  const startTeam = (withAssistant = false) => {
+    const tpl = TEMPLATES.find((t) => t.key === teamLink && t.team);
+    if (tpl) applyTemplate(tpl.key, true);
+    // what the list needs: a number only when the layout has one
+    const numbers = !tpl || tpl.items.some((i) => i.role === "number");
+    const list = numbers
+      ? "send me your people as name, number and size, one per line or separated by commas, like this: Arun 7 L, Karthik 10 XL"
+      : "send me your people as name and size, one per line, like this: Arun L";
+    if (withAssistant) openAiTab("chat");
     setChat((m) => [
       ...m.map((x) => (x.chips ? { ...x, done: true } : x)),
-      botSays("Your team layout is on the tee: a small team name on the chest, and the team name, player name and number on the back. Tap any text to change the words, font or colour. Then send me your players as name, number and size, one per line or separated by commas, like this: Arun 7 L, Karthik 10 XL. Every player gets their own tee. You can also fill the list in Review."),
-      chipRow(["Continue to review", "Something else"]),
+      botSays(
+        tpl
+          ? `Your “${tpl.label}” layout is on the tee: ${tpl.says.split(". Ordering")[0].replace(/\.$/, "")}. Tap any text to change the words, font or colour, or add your logo. Then ${list}. Everyone gets their own tee. You can also fill the list in Review.`
+          : `Your tee is blank: add your own words, logo or picture (Edit by hand → Add text or Upload), or tell me what you want. To give each person their own name or number, tap that text and use “Ordering for a team?” at the bottom of its settings. Then ${list}, or fill the list in Review.`,
+      ),
+      chipRow(tpl ? ["Continue to review", "Something else"] : ["Something else"]),
     ]);
   };
   const applyFix = (issue) => {
@@ -2000,7 +2038,7 @@ export default function DesignRoomPage() {
               ))}
             </div>
             <div className="dr-aipane" hidden={aiTab !== "chat"}>
-              <Assistant messages={chat} setMessages={setChat} state={chatState} setState={setChatState} ctx={assistantCtx} onAct={assistantAct} onFix={applyFix} placed={aiOn} fabric={fabricHex} />
+              <Assistant messages={chat} setMessages={setChat} state={chatState} setState={setChatState} ctx={assistantCtx} onAct={assistantAct} onFix={applyFix} placed={aiOn} fabric={fabricHex} autoSay={chatAuto} onAutoSaid={() => setChatAuto("")} />
               {elements.length > 0 && (
                 <button type="button" className="dr-handoff" onClick={editByHand}>
                   Not quite right? Edit it by hand →
@@ -2163,13 +2201,14 @@ export default function DesignRoomPage() {
                 ))}
               </div>
               {roles && (
-                <div className="dr-teamswitch">
-                  <div className="eyebrow">What is printed on each tee?</div>
-                  <div className="dr-seg" role="group" aria-label="What is printed on each tee">
-                    <button type="button" className={!teamMode ? "on" : ""} aria-pressed={!teamMode} onClick={() => setTeamOn(false)}>The same on every tee</button>
-                    <button type="button" className={teamMode ? "on" : ""} aria-pressed={teamMode} onClick={() => setTeamOn(true)}>A name &amp; number per tee</button>
-                  </div>
-                </div>
+                <TeamModeChoice
+                  teamMode={teamMode}
+                  onChange={setTeamOn}
+                  roles={rolesIn(elements)}
+                  sample={{ name: elements.find((e) => e.type === "text" && e.role === "name")?.text, number: elements.find((e) => e.type === "text" && e.role === "number")?.text }}
+                  fabric={fabricHex}
+                  ink={inkDefault}
+                />
               )}
               {teamMode && (
                 <TeamList players={players} setPlayers={setPlayers} sizes={sizes} sizeNow={sizeNow} roles={rolesIn(elements)} shownId={previewId} onShow={showPlayer} />
@@ -2236,12 +2275,14 @@ export default function DesignRoomPage() {
               enterRoom();
               if (photoLink) openPhotoStudio();
               if (teamLink) startTeam();
+              startWith();
             }}
             onAssistant={() => {
               setEarlier(null);
               enterRoom();
-              if (teamLink) startTeam();
-              else openAiTab("chat");
+              if (teamLink) startTeam(true);
+              else if (!ideaLink) openAiTab("chat");
+              startWith();
             }}
             onPhoto={() => {
               setEarlier(null);

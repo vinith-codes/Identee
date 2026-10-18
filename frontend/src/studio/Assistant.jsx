@@ -40,7 +40,8 @@ const waitFor = (a) =>
  * The act "generate" (the image AI) takes a while: onAct returns a promise of
  * the messages to show when the pictures are ready.
  */
-export default function Assistant({ messages, setMessages, state, setState, ctx, onAct, onFix, placed = {}, fabric }) {
+// autoSay: a message to send as if typed, once (the home page's "What do you want on your tee?" box); onAutoSaid clears it
+export default function Assistant({ messages, setMessages, state, setState, ctx, onAct, onFix, placed = {}, fabric, autoSay, onAutoSaid }) {
   const [draft, setDraft] = useState("");
   // false | true (a short "Thinking…") | { label, expect, hint } for the AI: a card with a live seconds count
   const [thinking, setThinking] = useState(false);
@@ -99,6 +100,14 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
     }, 450);
     return true;
   };
+  // the idea typed on the home page: sent once the chat is open (a moment later, so the room is ready)
+  useEffect(() => {
+    if (!autoSay) return;
+    const t = setTimeout(() => {
+      if (say(autoSay)) onAutoSaid?.();
+    }, 400);
+    return () => clearTimeout(t);
+  }, [autoSay]); // eslint-disable-line react-hooks/exhaustive-deps
   // "Change" on a design: the next thing typed is the change to make
   const startChange = (url) => {
     if (thinking) return;

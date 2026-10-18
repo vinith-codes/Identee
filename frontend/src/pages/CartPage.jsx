@@ -10,6 +10,7 @@ import {
 } from "../redux/slices/cartWishlistSlice";
 import { imageUrl } from "../utils/imageUrl";
 import EmptyState from "../components/EmptyState";
+import { useShopOpen } from "../utils/shopOpen";
 
 
 const C = {
@@ -50,6 +51,7 @@ export default function CartPage() {
   const navigate = useNavigate();
   const { cartItems, loading } = useSelector((s) => s.cartWishlist);
   const user = getUserInfo();
+  const shop = useShopOpen(); // the empty cart's words follow "Shop your IDENTEE" (coming soon or open)
 
   useEffect(() => {
     if (user?.token) dispatch(fetchCart(user.token));
@@ -96,7 +98,7 @@ export default function CartPage() {
     );
   }
   if (cartItems.length === 0) {
-    return <EmptyState title="Your cart is empty" text="Create a tee of your own, or shop a finished one." />;
+    return <EmptyState title="Your cart is empty" text={shop.open ? "Create a tee of your own, or shop a finished one." : "Create a tee of your own, or one for your whole team."} />;
   }
 
   const total = cartItems.reduce((sum, item) => sum + item.price, 0);

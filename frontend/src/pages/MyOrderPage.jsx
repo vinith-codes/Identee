@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { useSelector } from "react-redux";
 import { THEME } from "../theme/theme";
 import { imageUrl } from "../utils/imageUrl";
+import EmptyState from "../components/EmptyState";
 import orderService from "../services/orderService"; // your existing service (getMyOrders → GET /orders/myorders)
 
 
@@ -123,8 +124,9 @@ export default function MyOrdersPage() {
           <h1
             style={{
               margin: "4px 0 0",
-              fontSize: 26,
-              fontWeight: 600,
+              fontSize: 30,
+              fontWeight: 800,
+              letterSpacing: "-0.01em",
               color: THEME.text,
               fontFamily: THEME.fontDisplay,
             }}
@@ -154,10 +156,9 @@ export default function MyOrdersPage() {
                 style={{
                   padding: "8px 18px",
                   borderRadius: 999,
-                  border: `1px solid ${THEME.border}`,
-                  background:
-                    activeTab === tab.key ? THEME.gold : THEME.surface,
-                  color: activeTab === tab.key ? "#0B0B0C" : THEME.textMuted,
+                  border: `1px solid ${activeTab === tab.key ? THEME.ink : THEME.border}`,
+                  background: activeTab === tab.key ? THEME.ink : THEME.surface,
+                  color: activeTab === tab.key ? "#FFFFFF" : THEME.textMuted,
                   fontWeight: 700,
                   fontSize: 12,
                   fontFamily: THEME.fontBody,
@@ -170,45 +171,9 @@ export default function MyOrdersPage() {
           </div>
         )}
 
+        {/* the same empty state as the cart (it went to the shop, which may be coming soon) */}
         {!loading && !error && orders.length === 0 && (
-          <div
-            style={{
-              background: THEME.surface,
-              border: `1px solid ${THEME.border}`,
-              borderRadius: 12,
-              padding: 40,
-              textAlign: "center",
-              boxShadow: THEME.shadow,
-            }}
-          >
-            <p
-              style={{
-                margin: 0,
-                color: THEME.textMuted,
-                fontFamily: THEME.fontBody,
-                marginBottom: 16,
-              }}
-            >
-              You haven't placed any orders yet.
-            </p>
-            <Link
-              to="/products"
-              style={{
-                display: "inline-block",
-                padding: "10px 24px",
-                borderRadius: 8,
-                border: "none",
-                background: `linear-gradient(135deg, ${THEME.gold}, ${THEME.goldBright})`,
-                color: "#0B0B0C",
-                fontSize: 13,
-                fontWeight: 700,
-                fontFamily: THEME.fontBody,
-                textDecoration: "none",
-              }}
-            >
-              Start Shopping
-            </Link>
-          </div>
+          <EmptyState title="No orders yet" text="When you order a tee, you'll find it here with its status." />
         )}
 
         {!loading &&

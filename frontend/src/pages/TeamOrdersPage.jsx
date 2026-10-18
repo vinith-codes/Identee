@@ -4,8 +4,10 @@
 // and size. Pick a garment → the design room opens with the Team jersey layout and the assistant asks for the
 // player list (DesignRoomPage ?team=1). In Review every player gets their own tee; the print files make one
 // print per player. A big or special order can go to the shop directly (WhatsApp / phone from Admin → Settings).
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
+import TeamLayoutPicker from "../components/TeamLayoutPicker";
 import { fetchGarmentTypes } from "../redux/slices/garmentTypeSlice";
 import { fetchAllGarmentImages } from "../redux/slices/garmentImageSlice";
 import { fetchPublicSettings } from "../redux/slices/publicSettingsSlice";
@@ -42,6 +44,8 @@ export default function TeamOrdersPage() {
   const { items: images, isLoading: imagesLoading } = useSelector((s) => s.garmentImage);
   const { values: settings = {}, isLoaded } = useSelector((s) => s.publicSettings);
   const ship = useShippingRule();
+  const navigate = useNavigate();
+  const [picking, setPicking] = useState(null); // { garment, colour } — the layout picker is open for this tee
 
   useEffect(() => {
     dispatch(fetchGarmentTypes());
@@ -50,6 +54,12 @@ export default function TeamOrdersPage() {
   }, [dispatch, isLoaded]);
 
   const sellable = garments.filter((g) => isSellable(g, images));
+  // the layouts are drawn on the tee's own photos — a dark one looks most like a jersey (navy, black…), else any
+  const pickerPhotos = (garment) => {
+    const mine = images.filter((p) => p.garmentType === garment.key && p.front?.imageUrl && p.back?.imageUrl);
+    const doc = ["navy", "black", "bottle-green", "maroon"].map((s) => mine.find((p) => p.colorSlug === s)).find(Boolean) || mine[0];
+    return doc ? { front: doc.front, back: doc.back, light: !["navy", "black", "bottle-green", "maroon"].includes(doc.colorSlug) } : null;
+  };
   const loading = (isLoading || imagesLoading) && !sellable.length;
   const digits = (n) => String(n || "").replace(/\D/g, "");
   const wa = digits(settings["general.whatsappNumber"]);
@@ -69,8 +79,8 @@ export default function TeamOrdersPage() {
         <ol className="tm-steps">
           <li className="tm-step">
             <b>1</b>
-            <h2>Pick your tee</h2>
-            <p>Choose the garment below. The design room opens with a team layout ready: a small team name on the chest, and the team name, name and number on the back.</p>
+            <h2>Pick your tee and layout</h2>
+            <p>Choose the garment below, then a layout: team jersey, name &amp; number, office, event — or create your own. Then the colour and your size.</p>
           </li>
           <li className="tm-step">
             <b>2</b>
@@ -97,7 +107,15 @@ export default function TeamOrdersPage() {
         <p className="tm-sub">
           Same price per tee as a single order{ship?.freeFrom ? `, and free shipping from ${ship.freeFrom} pieces` : ""}.
         </p>
-        <CustomizableGarments garments={sellable} images={images} loading={loading} team />
+        <CustomizableGarments garments={sellable} images={images} loading={loading} team onStart={(garment, colour) => setPicking({ garment, colour })} />
+        {picking && (
+          <TeamLayoutPicker
+            garment={picking.garment}
+            photos={pickerPhotos(picking.garment)}
+            onClose={() => setPicking(null)}
+            onChoose={(layout) => navigate(`/customize/${picking.garment.key}?new=1${picking.colour ? `&color=${picking.colour.slug}` : ""}&team=${layout}`)}
+          />
+        )}
 
         {(wa || phone) && (
           <section className="tm-talk" aria-label="Talk to us about a big order">
