@@ -11,15 +11,16 @@ import aiService from "../../../services/aiService";
 const FIELDS = [
   ["dailyPerUser", "Requests per customer per day", "How many times one customer can ask for designs in a day.", 1, 50, 1],
   ["imagesPerRequest", "Pictures per request", "How many options the customer sees each time (each one is paid for).", 1, 4, 1],
-  ["monthlyCapInr", "Monthly spending cap (₹)", "When this month's spend reaches it, the feature pauses until next month. Keep it a little below the spend cap set in Google AI Studio. 0 = no cap.", 0, 1000000, 50],
+  ["monthlyCapInr", "Google: monthly spending cap (₹)", "When this month's Google spend reaches it, the feature pauses until next month. Keep it a little below the spend cap set in Google AI Studio. 0 = no cap.", 0, 1000000, 50],
   ["pricePerImageInr", "Cost of one Google picture (₹)", "Used only for the spending figures here. Include GST: Google’s spend page shows about ₹3.50 a picture.", 0, 100, 0.1],
+  ["grokMonthlyCapInr", "Grok: monthly spending cap (₹)", "When this month's Grok spend reaches it, Grok stops standing in until next month: refused photos get the free art filters, and Google keeps working. Keep it a little below your xAI credit. 0 = no cap.", 0, 1000000, 50],
   ["grokPricePerImageInr", "Cost of one Grok picture (₹)", "Grok redraws a customer's photo only when Google refuses it (well-known people). $5 of xAI credit ≈ 71 pictures ≈ ₹6 each — check console.x.ai → Billing.", 0, 100, 0.1],
   ["designAddOnInr", "Extra price per tee with a picture (₹)", "What the CUSTOMER pays on top of the garment's price for each tee whose design has a picture — AI-made, from the art library, or their own upload. Once per tee, however many pictures. A text-only design costs just the garment's price.", 0, 5000, 10],
 ];
 const WHY = {
   setup: "Not working yet: no AI key is set on the server (IDENTEE_GEMINI_API_KEY).",
   off: "Switched off. Customers see “coming soon”.",
-  cap: "Paused: this month's spending cap has been reached.",
+  cap: "Paused: this month's Google spending cap has been reached.",
 };
 const rupees = (n) => `₹${Number(n || 0).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
 
@@ -63,7 +64,10 @@ export default function AiSettingsPage() {
   const input = { width: 140, padding: "9px 10px", border: `1px solid ${t.border}`, borderRadius: 8, font: "inherit", background: "#fff", color: t.text };
 
   if (!form) return <p style={{ color: t.textMuted }}>{note || "Loading…"}</p>;
-  const capLeft = form.monthlyCapInr > 0 ? Math.max(0, form.monthlyCapInr - data.month.cost) : null;
+  // each service has its own cap
+  const capLeft = form.monthlyCapInr > 0 ? Math.max(0, form.monthlyCapInr - (data.month.google?.cost || 0)) : null;
+  const grokCapLeft = form.grokMonthlyCapInr > 0 ? Math.max(0, form.grokMonthlyCapInr - (data.month.grok?.cost || 0)) : null;
+  const grokInCap = Number(form.grokPricePerImageInr) > 0 && Number(form.grokMonthlyCapInr) > 0 ? Math.floor(Number(form.grokMonthlyCapInr) / Number(form.grokPricePerImageInr)) : null;
   // what the numbers in the form add up to
   const perRequest = Number(form.imagesPerRequest || 0) * Number(form.pricePerImageInr || 0);
   const perChange = Number(form.pricePerImageInr || 0);
@@ -85,21 +89,23 @@ export default function AiSettingsPage() {
       <div style={{ ...card, display: "grid", gap: 10 }}>
         <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap", alignItems: "baseline" }}>
           <b style={{ fontSize: 14 }}>Grok — for photos Google refuses</b>
-          <span style={{ fontSize: 12, fontWeight: 700, padding: "3px 10px", borderRadius: 999, background: data.grok?.configured ? t.goldBg : t.surface2, border: `1px solid ${data.grok?.configured ? t.goldBorder : t.border}` }}>
-            {data.grok?.configured ? "Connected" : "Not set up"}
+          <span style={{ fontSize: 12, fontWeight: 700, padding: "3px 10px", borderRadius: 999, background: data.grok?.capped ? t.dangerBg : data.grok?.configured ? t.goldBg : t.surface2, border: `1px solid ${data.grok?.capped ? t.dangerBorder : data.grok?.configured ? t.goldBorder : t.border}` }}>
+            {!data.grok?.configured ? "Not set up" : data.grok.capped ? "Paused — cap reached" : "Connected"}
           </span>
         </div>
         <div style={help}>
-          {data.grok?.configured
+          {data.grok?.configured && data.grok.capped
+            ? "This month's Grok spending cap has been reached. Until next month, photos Google refuses get the free art filters. Google keeps working."
+            : data.grok?.configured
             ? `When Google refuses a customer's photo (usually a well-known person), Grok (${data.grok.model}) redraws it — one picture per request.`
             : "Not working yet: add XAI_API_KEY to the server's settings file (key from console.x.ai). Until then, refused photos get the free art filters."}
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 10 }}>
           {[
             ["Grok spend this month", rupees(data.month.grok?.cost)],
+            ["Left before Grok's cap", grokCapLeft === null ? "No cap" : rupees(grokCapLeft)],
             ["Grok requests", data.month.grok?.requests || 0],
             ["Grok pictures", data.month.grok?.images || 0],
-            ["Google spend this month", rupees(data.month.google?.cost)],
           ].map(([k, v]) => (
             <div key={k} style={{ background: t.surface2, border: `1px solid ${t.border}`, borderRadius: 10, padding: "10px 12px" }}>
               <div style={{ fontSize: 12, color: t.textMuted }}>{k}</div>
@@ -109,10 +115,11 @@ export default function AiSettingsPage() {
         </div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 12 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 12 }}>
         {[
           ["Spent this month (all)", rupees(data.month.cost)],
-          ["Left before the cap", capLeft === null ? "No cap" : rupees(capLeft)],
+          ["Google spend this month", rupees(data.month.google?.cost)],
+          ["Left before Google's cap", capLeft === null ? "No cap" : rupees(capLeft)],
           ["Requests this month", data.month.requests],
           ["Pictures made", data.month.images],
         ].map(([k, v]) => (
@@ -141,7 +148,8 @@ export default function AiSettingsPage() {
           <span>One “change it” request: <b>{rupees(perChange)}</b> (1 picture)</span>
           <span>One celebrity photo redrawn by Grok: <b>{rupees(form.grokPricePerImageInr)}</b> (1 picture)</span>
           <span>One customer using all {form.dailyPerUser} requests in a day: up to <b>{rupees(worstDay)}</b></span>
-          {requestsInCap !== null && <span>The monthly cap covers about <b>{requestsInCap}</b> new design requests</span>}
+          {requestsInCap !== null && <span>Google's monthly cap covers about <b>{requestsInCap}</b> new design requests</span>}
+          {grokInCap !== null && <span>Grok's monthly cap covers about <b>{grokInCap}</b> Grok pictures</span>}
         </div>
         <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
           <button type="submit" disabled={saving} style={{ padding: "10px 22px", border: 0, borderRadius: 999, background: t.ink, color: "#fff", fontWeight: 700, cursor: "pointer" }}>

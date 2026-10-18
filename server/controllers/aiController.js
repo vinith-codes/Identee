@@ -7,7 +7,9 @@
 // Kept in check by three limits the admin can change (Admin → Settings → AI):
 //   • requests per customer per day
 //   • pictures per request
-//   • a monthly spending cap — past it, the feature pauses until next month
+//   • a monthly spending cap for Google — past it, the feature pauses until next month
+//   • a separate monthly spending cap for Grok — past it, Grok stops standing in for
+//     pictures Google refuses (refused photos get the free art filters instead)
 //
 // Customers may ask for anything (the shop owner's decision, 12 Oct 2026): this
 // code does not filter subjects. The image AI still applies its own rules and
@@ -33,14 +35,16 @@ const DEFAULTS = {
   "ai.enabled": { value: true, type: "boolean", description: "Customers can make designs with AI" },
   "ai.dailyPerUser": { value: 5, type: "number", description: "Design requests one customer may make per day" },
   "ai.imagesPerRequest": { value: 1, type: "number", description: "Pictures shown for each new design request" },
-  "ai.monthlyCapInr": { value: 2000, type: "number", description: "Monthly spending cap in rupees" },
+  // (the key keeps its old name: before 18 Oct 2026 it was one cap for both services)
+  "ai.monthlyCapInr": { value: 2000, type: "number", description: "Monthly spending cap for Google, in rupees" },
+  "ai.grokMonthlyCapInr": { value: 500, type: "number", description: "Monthly spending cap for Grok, in rupees" },
   "ai.pricePerImageInr": { value: 2.9, type: "number", description: "What one picture costs, in rupees (for the spending figures)" },
   // Grok (xAI) redraws photos Google refuses; $5 of credit ≈ 71 pictures
   "ai.grokPricePerImageInr": { value: 6, type: "number", description: "What one Grok picture costs, in rupees (for the spending figures)" },
   // what the CUSTOMER pays extra per tee with a picture — AI-made, art library or upload (utils/aiPricing.js)
   [AI_ADDON_KEY]: { value: AI_ADDON_DEFAULT, type: "number", description: "Extra price per tee with a picture (₹)" },
 };
-const LIMITS = { "ai.dailyPerUser": [1, 50], "ai.imagesPerRequest": [1, 4], "ai.monthlyCapInr": [0, 1000000], "ai.pricePerImageInr": [0, 100], "ai.grokPricePerImageInr": [0, 100], [AI_ADDON_KEY]: [0, 5000] };
+const LIMITS = { "ai.dailyPerUser": [1, 50], "ai.imagesPerRequest": [1, 4], "ai.monthlyCapInr": [0, 1000000], "ai.grokMonthlyCapInr": [0, 1000000], "ai.pricePerImageInr": [0, 100], "ai.grokPricePerImageInr": [0, 100], [AI_ADDON_KEY]: [0, 5000] };
 
 
 const startOfDay = () => {
@@ -63,6 +67,7 @@ async function readSettings() {
     dailyPerUser: Number(get("ai.dailyPerUser")),
     imagesPerRequest: Number(get("ai.imagesPerRequest")),
     monthlyCapInr: Number(get("ai.monthlyCapInr")),
+    grokMonthlyCapInr: Number(get("ai.grokMonthlyCapInr")),
     pricePerImageInr: Number(get("ai.pricePerImageInr")),
     grokPricePerImageInr: Number(get("ai.grokPricePerImageInr")),
     designAddOnInr: Number(get(AI_ADDON_KEY)),
@@ -79,11 +84,15 @@ async function monthSpend() {
   const google = part(rows.find((r) => r._id === false));
   return { cost: grok.cost + google.cost, images: grok.images + google.images, requests: grok.requests + google.requests, grok, google };
 }
-// Why the feature is off (null = it is on).
+// Each service has its own cap (0 = no cap).
+const googleCapped = (settings, month) => settings.monthlyCapInr > 0 && month.google.cost >= settings.monthlyCapInr;
+const grokCapped = (settings, month) => settings.grokMonthlyCapInr > 0 && month.grok.cost >= settings.grokMonthlyCapInr;
+// Why the feature is off (null = it is on). Google makes every picture, so its cap pauses the feature;
+// Grok's cap only stops Grok standing in for refused pictures.
 async function whyOff(settings) {
   if (!aiImageConfigured()) return "setup";
   if (!settings.enabled) return "off";
-  if (settings.monthlyCapInr > 0 && (await monthSpend()).cost >= settings.monthlyCapInr) return "cap";
+  if (googleCapped(settings, await monthSpend())) return "cap";
   return null;
 }
 const usedToday = (userId) => AiUsage.countDocuments({ user: userId, createdAt: { $gte: startOfDay() } });
@@ -229,8 +238,10 @@ export const makeAiDesign = asyncHandler(async (req, res) => {
   // or quietly, with no picture in the answer: then Grok (xAI) makes it, when it is set up. One version only —
   // Grok costs about twice as much.
   const googleRefused = results[0].reason?.status === 422 || results[0].reason?.noImage === true;
-  if (!made.length && googleRefused) console.log(`[ai] Google refused; Grok: ${xaiConfigured() ? (photoJob ? (changing ? "change to a design" : fixing ? `fix (${req.body.fixKind})` : "photo") : drawJob ? `drawing (${drawJob.ratio})` : "not for this kind of request") : "not set up"}`);
-  if (!made.length && (photoJob || drawJob) && googleRefused && xaiConfigured()) {
+  // Grok's own monthly cap: once reached, refused pictures are handled as if Grok were not set up
+  const grokReady = !made.length && googleRefused && xaiConfigured() && !grokCapped(settings, await monthSpend());
+  if (!made.length && googleRefused) console.log(`[ai] Google refused; Grok: ${!xaiConfigured() ? "not set up" : !grokReady ? "monthly cap reached" : (photoJob ? (changing ? "change to a design" : fixing ? `fix (${req.body.fixKind})` : "photo") : drawJob ? `drawing (${drawJob.ratio})` : "not for this kind of request")}`);
+  if (grokReady && (photoJob || drawJob)) {
     try {
       made = [
         photoJob
@@ -392,7 +403,7 @@ export const getAiAdmin = asyncHandler(async (req, res) => {
     configured: aiImageConfigured(),
     model: aiImageModel(),
     // the second picture service, for photos Google refuses
-    grok: { configured: xaiConfigured(), model: xaiModel() },
+    grok: { configured: xaiConfigured(), model: xaiModel(), capped: grokCapped(settings, month) },
     reason: await whyOff(settings),
     settings,
     month,
@@ -400,13 +411,14 @@ export const getAiAdmin = asyncHandler(async (req, res) => {
   });
 });
 
-// PUT /api/ai/admin  (admin only): { enabled, dailyPerUser, imagesPerRequest, monthlyCapInr, pricePerImageInr, grokPricePerImageInr }
+// PUT /api/ai/admin  (admin only): { enabled, dailyPerUser, imagesPerRequest, monthlyCapInr, grokMonthlyCapInr, pricePerImageInr, grokPricePerImageInr }
 export const saveAiAdmin = asyncHandler(async (req, res) => {
   const incoming = {
     "ai.enabled": req.body.enabled,
     "ai.dailyPerUser": req.body.dailyPerUser,
     "ai.imagesPerRequest": req.body.imagesPerRequest,
     "ai.monthlyCapInr": req.body.monthlyCapInr,
+    "ai.grokMonthlyCapInr": req.body.grokMonthlyCapInr,
     "ai.pricePerImageInr": req.body.pricePerImageInr,
     "ai.grokPricePerImageInr": req.body.grokPricePerImageInr,
     [AI_ADDON_KEY]: req.body.designAddOnInr,
@@ -460,9 +472,10 @@ export const makePrintPicture = asyncHandler(async (req, res) => {
     res.status(503);
     throw new Error("The picture service is not set up.");
   }
-  if (settings.monthlyCapInr > 0 && (await monthSpend()).cost >= settings.monthlyCapInr) {
+  // enlarging is done by Google, so Google's cap applies
+  if (googleCapped(settings, await monthSpend())) {
     res.status(503);
-    throw new Error("This month's AI budget is used up. Raise it in Settings → AI designs to enlarge more pictures.");
+    throw new Error("This month's Google AI budget is used up. Raise it in Settings → AI designs to enlarge more pictures.");
   }
   let found;
   try {
