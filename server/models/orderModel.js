@@ -5,7 +5,7 @@ const shippingRateSchema = mongoose.Schema(
     serviceType: { type: String, required: true },
     totalNetCharge: { type: Number, required: true },
     estimatedDeliveryDate: { type: String, default: "N/A" },
-    currency: { type: String, default: "USD" },
+    currency: { type: String, default: "INR" }, // the shop sells in rupees only (was "USD")
   },
   { timestamps: true },
 );
@@ -119,6 +119,8 @@ const orderSchema = mongoose.Schema(
 
     cgstPrice: { type: Number, default: 0 },
     sgstPrice: { type: Number, default: 0 },
+    // delivery to another state than the business's: the whole GST is IGST (CGST/SGST are 0) — from 18 Oct 2026
+    igstPrice: { type: Number, default: 0 },
     // true: prices include GST (from 16 Oct 2026) — cgst/sgst are the part of the price that is tax, not added on top
     gstIncluded: { type: Boolean, default: false },
 

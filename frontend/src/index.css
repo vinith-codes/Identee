@@ -1,1 +1,8 @@
 @import "tailwindcss";
+
+/* the site's body font everywhere (headings set Bricolage Grotesque themselves); without this, text a page
+   doesn't style itself falls back to the device's own font (Tailwind's ui-sans-serif) */
+@layer base {
+  html, body { font-family: Inter, "Helvetica Neue", Arial, sans-serif; }
+  button, input, select, textarea { font-family: inherit; }
+}

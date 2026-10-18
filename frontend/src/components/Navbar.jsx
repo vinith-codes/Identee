@@ -10,6 +10,7 @@ import { fetchPublicSettings } from "../redux/slices/publicSettingsSlice";
 import { fetchCategories } from "../redux/slices/categorySlice";
 import { isReadyMade } from "../utils/categoryKinds";
 import { SHOPS } from "../utils/shopNames";
+import OfferStrip from "./OfferStrip";
 import { imageUrl } from "../utils/imageUrl";
 
 
@@ -151,22 +152,8 @@ export default function Navbar() {
 
   return (
     <>
-      {/* ─── Announcement Bar — text is admin-managed, see /admin/offer-banner ─── */}
-      {activeOffer?.offerText && (
-        <div
-          style={{
-            background: THEME.ink,
-            color: "#FFFFFF",
-            textAlign: "center",
-            padding: "10px 16px",
-            fontSize: 15,
-            fontWeight: 600,
-            fontFamily: THEME.fontBody,
-          }}
-        >
-          {activeOffer.offerText}
-        </div>
-      )}
+      {/* ─── Offer strip: the live coupon + free shipping, and the Offer banner text (/admin/offer-banner) ─── */}
+      <OfferStrip adminText={activeOffer?.offerText} />
 
       <header
         style={{

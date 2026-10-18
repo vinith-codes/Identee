@@ -25,10 +25,10 @@ import {
   HomeWays,
   HomeSteps,
   HomeFeatured,
-  HomePromises,
   HomeOutlook,
   HomeFinal,
   HomePhoto,
+  HomeCreate,
 } from "../components/home/HomeSections";
 import useReveal from "../components/home/useReveal";
 import "../components/home/home.css";
@@ -224,8 +224,9 @@ export default function Home() {
         }
         /* phones: on the left the buttons covered the start of every line of text — the corner on the
            right only touches the ends of a few lines, like a chat button */
-        @media (max-width: 720px) {
-          .identee-floating-social { left: auto; right: 10px; bottom: calc(14px + env(safe-area-inset-bottom, 0px)); gap: 10px; }
+        @media (max-width: 760px) {
+          /* above the phones' bottom bar (MobileTabBar) */
+          .identee-floating-social { left: auto; right: 10px; bottom: calc(76px + env(safe-area-inset-bottom, 0px)); gap: 10px; }
           .identee-floating-btn { width: 40px; height: 40px; }
         }
       `}</style>
@@ -233,12 +234,14 @@ export default function Home() {
 
       <HomeHero garment={garment} colours={colours.slice(0, 6)} printCm={printCm} shopOpen={shopOpen} />
       <HomeMarquee shopOpen={shopOpen} />
+      <HomeCreate garment={garment} colours={colours} />
       <HomePhoto garment={garment} />
       <HomeWays garment={garment} customPhoto={garment ? coverPhoto(garment, garmentImages) : null} stackPhotos={stackPhotos} custom={custom} ready={ready} shopOpen={shopOpen} />
       <HomeSteps />
       {shopOpen && <HomeFeatured products={products} />}
-      <HomePromises tight={!shopOpen || products.length < 3} />
-      <HomeOutlook main={video("styleOutlookMain", subVideo1)} side1={video("styleOutlookSide1", hoodieVideo)} side2={video("styleOutlookSide2", polosVideo)} />
+      {/* "Why IDENTEE" (HomePromises) was taken off: the same four points as the hero's line under the tee.
+          "Style outlook" shows finished hoodies and polos, so it waits until Shop your IDENTEE opens. */}
+      {shopOpen && <HomeOutlook main={video("styleOutlookMain", subVideo1)} side1={video("styleOutlookSide1", hoodieVideo)} side2={video("styleOutlookSide2", polosVideo)} />}
       <HomeFinal garment={garment} photos={colours.map((c) => c.front)} />
 
     </div>

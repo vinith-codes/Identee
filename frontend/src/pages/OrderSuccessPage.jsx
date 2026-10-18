@@ -425,8 +425,15 @@ export default function OrderSuccessPage() {
 
         {/* Price breakdown */}
         <Section title="Payment Summary">
-          <Row label="CGST" value={order.cgstPrice} />
-          <Row label="SGST" value={order.sgstPrice} />
+          {/* another state than the business's: the GST is IGST */}
+          {order.igstPrice > 0 ? (
+            <Row label="IGST" value={order.igstPrice} />
+          ) : (
+            <>
+              <Row label="CGST" value={order.cgstPrice} />
+              <Row label="SGST" value={order.sgstPrice} />
+            </>
+          )}
           {order.coupon?.code && (
             <Row
               label={`Discount (${order.coupon.code})`}

@@ -89,7 +89,7 @@ export default function MyDesignsPage() {
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 16, flexWrap: "wrap", marginBottom: 22 }}>
           <div>
             <p style={{ margin: 0, fontSize: 12, letterSpacing: ".2em", textTransform: "uppercase", fontWeight: 800, color: THEME.gold }}>Your account</p>
-            <h1 style={{ margin: "6px 0 4px", fontSize: "clamp(26px, 3.4vw, 36px)", fontWeight: 800, color: THEME.text }}>My designs</h1>
+            <h1 style={{ margin: "6px 0 4px", fontSize: "clamp(26px, 3.4vw, 36px)", fontWeight: 800, letterSpacing: "-0.01em", color: THEME.text, fontFamily: THEME.fontDisplay }}>My designs</h1>
             <p style={{ margin: 0, color: THEME.textMuted }}>Designs you saved in the design room. Open one to keep editing or to order it.</p>
           </div>
           <Link to="/customizable" style={{ background: THEME.ink, color: "#fff", borderRadius: 999, padding: "11px 18px", fontWeight: 700, textDecoration: "none" }}>
