@@ -1,5 +1,6 @@
 import { forwardRef } from "react";
 import logo from "../../assets/identee-logo.png";
+import { useBrandLogo } from "../../utils/brandLogo";
 import { THEME } from "../../theme/theme";
 import { imageUrl } from "../../utils/imageUrl";
 
@@ -56,6 +57,7 @@ function BackArrowIcon() {
 }
 
 const InvoiceDocument = forwardRef(({ invoice }, ref) => {
+  const brandLogo = useBrandLogo(logo); // Admin → Settings → General, else the built-in file
   if (!invoice) return null;
 
   const { pricing = {} } = invoice;
@@ -116,7 +118,7 @@ const InvoiceDocument = forwardRef(({ invoice }, ref) => {
         >
           <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
             <img
-              src={logo}
+              src={brandLogo || logo}
               alt="IDENTEE"
               style={{ height: 58, objectFit: "contain" }}
             />

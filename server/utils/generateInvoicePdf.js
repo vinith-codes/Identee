@@ -2,6 +2,7 @@ import puppeteer from "puppeteer";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
+import Setting from "../models/settingModel.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:5000";
@@ -44,9 +45,9 @@ function getImageUrl(imgPath) {
   return `${BACKEND_URL}/${imgPath.replace(/^\/+/, "")}`;
 }
 
-// Reads the logo once and inlines it as base64 so Puppeteer doesn't
-// depend on network access to render it.
-function getLogoDataUri() {
+// The logo is inlined as base64 so Puppeteer doesn't depend on network access to render it.
+// The one uploaded in Admin → Settings → General comes first; else the built-in file.
+function builtInLogoDataUri() {
   try {
     const logoPath = path.join(__dirname, "../assets/identee-logo.png");
     const buf = fs.readFileSync(logoPath);
@@ -55,10 +56,25 @@ function getLogoDataUri() {
     return null; // header still renders fine without a logo
   }
 }
+async function getLogoDataUri() {
+  try {
+    const row = await Setting.findOne({ key: "general.storeLogo" }).select("value").lean();
+    const stored = String(row?.value || "").trim();
+    if (stored) {
+      const r = await fetch(getImageUrl(stored), { signal: AbortSignal.timeout(8000) });
+      const type = r.headers.get("content-type") || "";
+      if (r.ok && type.startsWith("image/")) {
+        return `data:${type};base64,${Buffer.from(await r.arrayBuffer()).toString("base64")}`;
+      }
+    }
+  } catch {
+    // the uploaded logo couldn't be read: the built-in one is used
+  }
+  return builtInLogoDataUri();
+}
 
-function buildInvoiceHtml(invoice) {
+function buildInvoiceHtml(invoice, logo) {
   const pricing = invoice.pricing || {};
-  const logo = getLogoDataUri();
 
   const rows = (invoice.orderItems || [])
     .map(
@@ -230,7 +246,7 @@ function buildInvoiceHtml(invoice) {
  * html2pdf — avoids a leftover blank second page).
  */
 export async function generateInvoicePdfBuffer(invoice) {
-  const html = buildInvoiceHtml(invoice);
+  const html = buildInvoiceHtml(invoice, await getLogoDataUri());
 
   const browser = await puppeteer.launch({
     headless: "new",

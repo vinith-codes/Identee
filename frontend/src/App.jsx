@@ -42,6 +42,7 @@ import ReadyMadePage from "./pages/ReadyMadePage";
 import TeamOrdersPage from "./pages/TeamOrdersPage";
 import MobileTabBar from "./components/MobileTabBar";
 import ScrollToTop from "./components/ScrollToTop";
+import { BrandFavicon } from "./utils/brandLogo";
 import ChooseColorPage from "./pages/ChooseColorPage";
 import AdminShippingPage from "./pages/admin/AdminShippingPage";
 import OffersPage from "./pages/admin/OffersPage";
@@ -234,6 +235,7 @@ const PrivateRoute = ({ children }) => {
 export default function App() {
   return (
     <Router>
+      <BrandFavicon />
       <Routes>
         {/* Public: auth pages (only for guests) */}
         <Route
