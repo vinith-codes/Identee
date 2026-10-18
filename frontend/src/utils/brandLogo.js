@@ -21,7 +21,7 @@ export function useBrandLogo(fallback, width = 400) {
   return isLoaded ? fallback : null;
 }
 
-// Puts the uploaded favicon on the browser tab (index.html's /favicon.svg otherwise).
+// Puts the uploaded favicon on the browser tab (index.html's /favicon.png otherwise).
 export function BrandFavicon() {
   const { value } = useBrandSetting("general.favicon");
   useEffect(() => {
@@ -29,10 +29,10 @@ export function BrandFavicon() {
     if (!link) return;
     if (!link.dataset.builtIn) link.dataset.builtIn = link.getAttribute("href") || "";
     if (value) {
-      link.removeAttribute("type"); // the upload may be a PNG, not the built-in SVG
+      link.removeAttribute("type"); // the browser reads the upload's own type
       link.setAttribute("href", imageUrl(value, 64));
     } else {
-      link.setAttribute("type", "image/svg+xml");
+      link.setAttribute("type", "image/png");
       link.setAttribute("href", link.dataset.builtIn);
     }
   }, [value]);
