@@ -12,8 +12,9 @@ import { Link, useLocation } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { fetchPublicSettings } from "../redux/slices/publicSettingsSlice";
 import { POLICY_LINKS } from "../utils/policyLinks";
+import { LEGAL_ENTITY } from "../utils/legalEntity";
 
-const UPDATED = "16 October 2026";
+const UPDATED = "18 October 2026";
 
 // The rules in one place, so a change is made once.
 const RULES = {
@@ -74,7 +75,7 @@ const PAGES = {
     lead: (b) => `These terms apply when you use the ${b.name} website and when you buy from us. By placing an order you agree to them.`,
     sections: (b) => [
       ["Who we are", <>
-        <p>This website is run by <strong>{b.name}</strong>{b.address ? <>, {b.address.replace(/\s*,?\s*\n\s*/g, ", ")}</> : null}. When these terms say “we” or “us”, they mean {b.name}; “you” means the person using the site or placing the order.</p>
+        <p>This website is run by <strong>{b.legal}</strong> ({b.legalType}), trading under the brand <strong>{b.name}</strong>{b.address ? <>, {b.address.replace(/\s*,?\s*\n\s*/g, ", ")}</> : null}. When these terms say “we” or “us”, they mean {b.legal} ({b.name}); “you” means the person using the site or placing the order.</p>
       </>],
       ["Your account", <>
         <p>You sign in with a one-time code sent to your email. Keep your email account safe — anyone who can read it can sign in as you. Please give us correct details (name, phone, delivery address), as we use them to make and deliver your order.</p>
@@ -93,7 +94,7 @@ const PAGES = {
         <p>Our design assistant can make pictures for you using AI services (Google, and xAI’s Grok for some pictures). These pictures are made for you to print on your order. Because they are made by a computer, they may now and then look like existing artwork or contain small mistakes — please check the picture, including any spelling, before you order. We may decline to print an AI picture that breaks the rules above.</p>
       </>],
       ["Prices and payment", <>
-        <p>All prices are in Indian Rupees (₹). Any GST is shown at checkout before you pay. Delivery charges depend on your state and are shown at checkout.</p>
+        <p>All prices are in Indian Rupees (₹) and include GST. Delivery charges, if any, are shown at checkout before you pay.</p>
         <p>You can pay online through <strong>Razorpay</strong> (cards, UPI, net banking, wallets) or, where offered, by <strong>cash on delivery</strong>. We do not see or store your card or bank details — Razorpay handles them.</p>
         <p>If a price on the site is clearly wrong because of a mistake, we will tell you before printing and you can cancel for a full refund.</p>
       </>],
@@ -101,7 +102,7 @@ const PAGES = {
         <p>Your order is confirmed when you receive our confirmation email. Custom items are made only for you, so please check your design, size and quantity carefully before paying. Cancellations, returns and refunds follow our <Link to="/refund-policy">Refunds & Cancellations</Link> policy; delivery follows our <Link to="/shipping-policy">Shipping & Delivery</Link> policy.</p>
       </>],
       ["Our designs and website", <>
-        <p>The website, our logo, our ready-made designs and our art library belong to {b.name} or to the people who licensed them to us. You may use art-library designs on the products you buy from us, but not copy them for other uses.</p>
+        <p>The website, our logo, our ready-made designs and our art library belong to {b.legal} ({b.name}) or to the people who licensed them to us. You may use art-library designs on the products you buy from us, but not copy them for other uses.</p>
       </>],
       ["Liability", <>
         <p>We do our best to make and deliver every order correctly. If something goes wrong, our responsibility is limited to reprinting the item or refunding what you paid for it. We are not responsible for delays caused by events outside our control, such as courier disruptions, strikes or natural events.</p>
@@ -257,6 +258,8 @@ export default function PolicyPage() {
     email: s["general.storeEmail"] || s["general.supportEmail"] || "",
     phone: s["general.phoneNumber"] || "",
     address: s["general.businessAddress"] || "",
+    legal: LEGAL_ENTITY.name, // the business that runs the shop (utils/legalEntity.js)
+    legalType: LEGAL_ENTITY.type,
   };
   useEffect(() => {
     document.title = `${page.title} · ${b.name}`;
@@ -294,7 +297,11 @@ export default function PolicyPage() {
             <p>Questions about this policy or an order? We’re happy to help.</p>
             <dl>
               <dt>Business</dt>
-              <dd>{b.name}</dd>
+              <dd>
+                {b.legal} ({b.legalType})
+                <br />
+                <span style={{ color: "#6B6559" }}>Brand: {b.name}</span>
+              </dd>
               {b.email && (
                 <>
                   <dt>Email</dt>

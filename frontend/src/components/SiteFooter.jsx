@@ -12,6 +12,7 @@ import { fetchCategories } from "../redux/slices/categorySlice";
 import { fetchPublicSettings } from "../redux/slices/publicSettingsSlice";
 import { TEE_MODELS } from "../studio/teeModel";
 import { POLICY_LINKS } from "../utils/policyLinks";
+import { LEGAL_ENTITY } from "../utils/legalEntity";
 import { isReadyMade } from "../utils/categoryKinds";
 import { SHOPS } from "../utils/shopNames";
 
@@ -182,7 +183,8 @@ export default function SiteFooter() {
           )}
         </div>
         <div className="sf-bottom">
-          <span>© {new Date().getFullYear()} {storeName}. All rights reserved.</span>
+          {/* the legal business behind the brand (utils/legalEntity.js) — shown for Razorpay and customers */}
+          <span>© {new Date().getFullYear()} {storeName}, a brand of {LEGAL_ENTITY.name}. All rights reserved.</span>
           <nav className="sf-policies" aria-label="Policies">
             {POLICY_LINKS.map(([to, label]) => (
               <Link key={to} to={to}>{label}</Link>
