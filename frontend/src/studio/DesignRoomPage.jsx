@@ -35,6 +35,7 @@ import DrawStudio from "./DrawStudio";
 import { checkDesign, inksFor, printSharpness } from "./designCheck";
 import { TEMPLATES } from "./designTemplates";
 import TeamModeChoice from "./TeamModeChoice";
+import SizeFinder from "./SizeFinder.jsx";
 import { FONTS, addStudioFonts } from "./fonts";
 import "./designRoom.css";
 
@@ -212,6 +213,7 @@ export default function DesignRoomPage() {
   const ackIssues = useRef(""); // design-check findings the customer has already been shown before Review
   const [areasOpen, setAreasOpen] = useState(false); // phones: the "where to print" sheet
   const [pickOpen, setPickOpen] = useState(false); // colour & size menu in the top bar
+  const [finder, setFinder] = useState(null); // "Find my size" open from: "fit" | "pick" | "review"
   const [live, setLive] = useState(null); // { key, elements } while dragging
   const [textures, setTextures] = useState({}); // key -> { canvas, version }
   // returning to a saved design starts at the front view; new visits fly in after the fitting step
@@ -1714,6 +1716,7 @@ export default function DesignRoomPage() {
                     })}
                   </div>
                   <p className="dr-qnote">Chest / length in inches. Every print is shown at its true size for {sizeNow}.</p>
+                  {garment.sizeChart?.length > 0 && <FindSizeLink onClick={() => { setPickOpen(false); setFinder("pick"); }} />}
                   <button type="button" className="dr-chip on" onClick={() => setPickOpen(false)}>Done</button>
                 </div>
               </>
@@ -2214,7 +2217,10 @@ export default function DesignRoomPage() {
                 <TeamList players={players} setPlayers={setPlayers} sizes={sizes} sizeNow={sizeNow} roles={rolesIn(elements)} shownId={previewId} onShow={showPlayer} />
               )}
               <div className="dr-qty" aria-label="Sizes and quantity" hidden={teamMode}>
-                <div className="eyebrow">Sizes &amp; quantity</div>
+                <div className="dr-qhead">
+                  <div className="eyebrow">Sizes &amp; quantity</div>
+                  {garment.sizeChart?.length > 0 && <FindSizeLink onClick={() => setFinder("review")} />}
+                </div>
                 {sizes.map((sz) => {
                   const r = garment.sizeChart?.find((x) => x.size === sz);
                   const n = qtys[sz] || 0;
@@ -2261,6 +2267,25 @@ export default function DesignRoomPage() {
           </>
         )}
 
+        {finder && (
+          <SizeFinder
+            garment={garment}
+            teeHex={fabricHex}
+            pickLabel={finder === "review" ? "Order" : "Choose"}
+            onClose={() => setFinder(null)}
+            onPick={(sz) => {
+              setSize(sz);
+              writeJSON(SIZE_KEY, sz);
+              // in Review: the one tee picked by default becomes this size; with more picked, this size is added
+              if (finder === "review")
+                setQtys((q) => {
+                  const total = Object.values(q).reduce((n, v) => n + (v || 0), 0);
+                  return total <= 1 ? { [sz]: 1 } : q[sz] ? q : { ...q, [sz]: 1 };
+                });
+            }}
+          />
+        )}
+
         {step === "fit" && (
           <Fitting
             garment={garment}
@@ -2270,6 +2295,7 @@ export default function DesignRoomPage() {
             sizes={sizes}
             size={sizeNow}
             onSize={setSize}
+            onFindSize={garment.sizeChart?.length ? () => setFinder("fit") : null}
             onEnter={() => {
               setEarlier(null);
               enterRoom();
@@ -2412,7 +2438,19 @@ function TeamList({ players, setPlayers, sizes, sizeNow, roles, shownId, onShow 
   );
 }
 
-function Fitting({ garment, colours, colour, onColour, sizes, size, onSize, onEnter, onAssistant, onPhoto, credit, earlier, onContinue }) {
+// opens "Find my size"
+function FindSizeLink({ onClick }) {
+  return (
+    <button type="button" className="dr-findsize" onClick={onClick}>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M3 8h18v8H3z M7 8v3 M11 8v4 M15 8v3 M19 8v4" />
+      </svg>
+      Not sure? <b>Find my size</b>
+    </button>
+  );
+}
+
+function Fitting({ garment, colours, colour, onColour, sizes, size, onSize, onFindSize, onEnter, onAssistant, onPhoto, credit, earlier, onContinue }) {
   return (
     <div className="dr-overlay fit">
       <div className="dr-fit">
@@ -2454,6 +2492,7 @@ function Fitting({ garment, colours, colour, onColour, sizes, size, onSize, onEn
               );
             })}
           </div>
+          {onFindSize && <FindSizeLink onClick={onFindSize} />}
         </div>
         {/* the highlighted way in: the customer's own photo, as art or print-ready */}
         <button type="button" className="dr-photoenter" onClick={onPhoto}>

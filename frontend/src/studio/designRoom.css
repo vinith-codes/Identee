@@ -1074,3 +1074,13 @@ button.dr-back { padding: 0; font: inherit; font-weight: 700; cursor: pointer; }
 .ip-prompt p { margin: 6px 0 0; line-height: 1.45; color: var(--ink-soft); }
 .ip-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .dr-chatlog .ip { margin: 2px 0; }
+
+/* "Not sure? Find my size" (opens studio/SizeFinder.jsx) */
+.dr-findsize { display: inline-flex; align-items: center; gap: 7px; margin-top: 10px; padding: 7px 12px 7px 10px; border: 1px dashed var(--gold); border-radius: 999px;
+  background: color-mix(in srgb, var(--gold-soft) 45%, #fff); color: var(--ink-soft); font-size: 12.5px; transition: background .2s, border-color .2s; }
+.dr-findsize:hover { background: var(--gold-soft); border-style: solid; }
+.dr-findsize b { color: var(--ink); }
+.dr-findsize svg { width: 17px; height: 17px; color: var(--gold-deep); }
+.dr-qhead { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+.dr-qhead .dr-findsize { margin-top: 0; }
+.dr-pickpop .dr-findsize { margin: 0 0 4px; }
