@@ -219,6 +219,36 @@ IDENTEE_Measurements_Needed.pdf` (5 pages, every number still guessed, with draw
 (Downloads, recorded by a puppeteer script with ffmpeg at E:\tools\ffmpeg — headless Chrome needs `--use-angle=d3d11`
 for smooth 3D frames; swiftshader gives ~1 fps).
 
+**`fix-undo-confirm` (part C) + `fix-stop-buttons` (part B) + `fix-back-retry` (part D) + `fix-admin-safety` (part E) —
+MERGED to `main` on 19 Oct 2026 (the user merged by hand). The whole "way back" list (A–E) is now built; nothing of it
+was click-tested by me where a login / an order / a paid AI call was needed — the user tests:**
+- **C, undo/confirm (customer)**: cart Remove → "Removed … · Undo" (9 s; re-adds product/size/qty or the design,
+  team order as its player list); Design Room Delete → "Deleted. Undo" (the room's `say(text, { label, onClick })`
+  can carry a button); removed player → Undo; quick repeated changes to one setting join into one Undo step
+  (`commit(fn, { soft: key })`, 1.5 s); address delete asks Yes / Keep; deleting a design also removes its cart
+  lines (server) and refreshes the cart; the review box asks "Discard what you've written?" on backdrop / Esc /
+  Cancel. Tee colour/size are still NOT in Undo (deliberate).
+- **B, Stop**: sharpen / recolour / remove background have Stop (`startBusy` / `endBusy` / `stopBusy`; a stopped job
+  leaves the picture as it was); a chat edit merges onto hand edits made meanwhile (`mergeAiChanges`, tested on 5
+  cases); leaving/reloading the room during an AI request or picture job asks (beforeunload; Assistant reports
+  `onWorking`); admin print-files ZIP + print sheets have Cancel (the builders' `onStep` may return false → an
+  error marked `stopped`); the Review size finder button says Choose.
+- **D, back/retry**: checkout step in the URL (`?step=2`, browser Back = previous step), address + coupon kept in
+  sessionStorage `identee:checkout:v1` (cleared when the order is placed); price check Try again; Razorpay closed /
+  failed messages; customers cancel CREATED/CONFIRMED orders (`PUT /orders/:id/cancel`, owner only, stock back,
+  shop emailed with a refund reminder for paid orders) after Yes / Keep my order; CANCELLED banner on the order
+  page; Try again on My Orders / Favourites / checkout addresses (+ "Add a new address"); login name step
+  "Not you? Start again"; Esc closes the room's open menu/box; a chat request cut off by a reload shows
+  "cut off — Try again" (a `{ pending }` message kept with the chat).
+- **E, admin**: unsaved-changes guard (`utils/unsavedChanges.js`, `UnsavedChangesProvider` in AdminLayout; pages call
+  `useReportUnsaved(dirty, "…")`; the sidebar, settings tabs and the product wizard's Back link call
+  `confirmLeave()`; reload warns) — wired on Store Branding, AI designs (+ Reset) and the product wizard, NOT the
+  garment wizard's steps; invoice page only looks (`?existing=1` → 404) and "Generate the invoice" is a button;
+  Enlarge for print / Print the original / replace a garment photo / remove admin access / change a customer's
+  email / maintenance mode ON ask first; coupons `isActive` (Switch off / on; refused + hidden when off); offer
+  banner Turn off; a customer with orders can't be deleted; logo/favicon Remove + Use previous (until saved).
+  Not built: undo a whole bulk upload.
+
 **`fix-footer-overlap` + `fix-assistant-way-back` (incl. `fix-safety-part1`) + `fix-size-finder` — MERGED to `main` on
 19 Oct 2026 (the user merged by hand):**
 - **"Way back" audit** (three read-only sweeps: Design Room, customer pages, admin). The list is in the chat of 19 Oct;
