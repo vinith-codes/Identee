@@ -41,21 +41,28 @@ const app = express();
 if (process.env.TRUST_PROXY) {
   app.set("trust proxy", Number(process.env.TRUST_PROXY) || 1);
 }
-app.use(
-  cors({
-    origin: [
-      "https://new-vyavarclient-3f1f.vercel.app",
-      "http://localhost:5174",
-      "http://localhost:5173",
-    ], // Adjust for your frontend's URL
-    methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
-    allowedHeaders: ["Content-Type", "Authorization"],
-    credentials: true,
-  }),
-);
-// https://ecom.vercel.app
-
-app.options("*", cors());
+// Which website addresses may call this API. On the live server: CORS_ORIGIN in .env, comma-separated, e.g.
+//   CORS_ORIGIN=https://identee.co.in,https://www.identee.co.in
+// The local dev addresses are always allowed while NODE_ENV is not "production".
+const DEV_ORIGINS = ["http://localhost:5173", "http://localhost:5174"];
+const allowedOrigins = [
+  ...String(process.env.CORS_ORIGIN || "")
+    .split(",")
+    .map((s) => s.trim().replace(/\/$/, ""))
+    .filter(Boolean),
+  ...(process.env.NODE_ENV === "production" ? [] : DEV_ORIGINS),
+];
+if (process.env.NODE_ENV === "production" && !process.env.CORS_ORIGIN) {
+  console.warn("⚠️  CORS_ORIGIN is not set — the website will not be able to call the API. Set it in .env.");
+}
+const corsOptions = {
+  origin: allowedOrigins,
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+  credentials: true,
+};
+app.use(cors(corsOptions));
+app.options("*", cors(corsOptions));
 
 // Razorpay webhook needs the exact raw body for its signature, so it is
 // mounted before express.json.
