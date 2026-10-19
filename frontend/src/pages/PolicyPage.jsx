@@ -29,38 +29,38 @@ const RULES = {
 const CSS = `
   .pp { --ink: #15130F; --text: #2B2722; --muted: #6F6A60; --line: #E6E0D3; --soft: #FBF7EE; --gold: #B8912F;
         background: #fff; color: var(--text); font-family: "Inter", "Helvetica Neue", Arial, sans-serif; }
-  .pp-hero { background: var(--soft); border-bottom: 1px solid var(--line); padding-block: 56px 40px; }
-  .pp-wrap { max-width: 1120px; margin: 0 auto; padding-inline: 24px; }
-  .pp-kicker { margin: 0; font: 700 11.5px/1 "Inter", sans-serif; letter-spacing: .2em; text-transform: uppercase; color: var(--gold); }
+  .pol-hero { background: var(--soft); border-bottom: 1px solid var(--line); padding-block: 56px 40px; }
+  .pol-wrap { max-width: 1120px; margin: 0 auto; padding-inline: 24px; }
+  .pol-kicker { margin: 0; font: 700 11.5px/1 "Inter", sans-serif; letter-spacing: .2em; text-transform: uppercase; color: var(--gold); }
   .pp h1 { margin: 12px 0 0; font: 700 clamp(30px, 4.4vw, 46px)/1.08 "Bricolage Grotesque", "Helvetica Neue", Arial, sans-serif; letter-spacing: -0.02em; color: var(--ink); text-wrap: balance; }
-  .pp-lead { margin: 14px 0 0; max-width: 64ch; font-size: 16.5px; line-height: 1.6; color: var(--muted); }
-  .pp-updated { margin: 18px 0 0; font-size: 13px; color: var(--muted); }
-  .pp-body { display: grid; grid-template-columns: 230px minmax(0, 1fr); gap: 56px; padding-block: 48px 80px; }
-  .pp-nav { position: sticky; top: 96px; align-self: start; display: grid; gap: 4px; }
-  .pp-nav h2 { margin: 0 0 10px; font: 700 11px/1 "Inter", sans-serif; letter-spacing: .2em; text-transform: uppercase; color: var(--muted); }
-  .pp-nav a { display: block; padding: 9px 12px; border-radius: 10px; font-size: 14.5px; color: var(--text); text-decoration: none; }
-  .pp-nav a:hover { background: var(--soft); }
-  .pp-nav a.on { background: var(--ink); color: #fff; font-weight: 600; }
-  .pp-main { min-width: 0; max-width: 72ch; }
-  .pp-main section + section { margin-top: 38px; }
-  .pp-main h2 { margin: 0 0 12px; font: 700 21px/1.25 "Bricolage Grotesque", "Helvetica Neue", Arial, sans-serif; color: var(--ink); }
-  .pp-main p, .pp-main li { font-size: 15.5px; line-height: 1.7; }
-  .pp-main p { margin: 0 0 12px; }
-  .pp-main ul { margin: 0 0 12px; padding-left: 20px; display: grid; gap: 6px; }
-  .pp-main strong { color: var(--ink); }
-  .pp-main a { color: var(--ink); text-decoration: underline; text-underline-offset: 3px; }
-  .pp-note { margin-top: 12px; padding: 14px 16px; border-radius: 12px; background: var(--soft); border: 1px solid var(--line); font-size: 15px; }
-  .pp-contact { margin-top: 44px; padding: 22px 24px; border-radius: 16px; border: 1px solid var(--line); }
-  .pp-contact h2 { margin-bottom: 8px; }
-  .pp-contact dl { margin: 12px 0 0; display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 8px 18px; font-size: 15px; }
-  .pp-contact dt { color: var(--muted); }
-  .pp-contact dd { margin: 0; white-space: pre-line; overflow-wrap: anywhere; }
+  .pol-lead { margin: 14px 0 0; max-width: 64ch; font-size: 16.5px; line-height: 1.6; color: var(--muted); }
+  .pol-updated { margin: 18px 0 0; font-size: 13px; color: var(--muted); }
+  .pol-body { display: grid; grid-template-columns: 230px minmax(0, 1fr); gap: 56px; padding-block: 48px 80px; }
+  .pol-nav { position: sticky; top: 96px; align-self: start; display: grid; gap: 4px; }
+  .pol-nav h2 { margin: 0 0 10px; font: 700 11px/1 "Inter", sans-serif; letter-spacing: .2em; text-transform: uppercase; color: var(--muted); }
+  .pol-nav a { display: block; padding: 9px 12px; border-radius: 10px; font-size: 14.5px; color: var(--text); text-decoration: none; }
+  .pol-nav a:hover { background: var(--soft); }
+  .pol-nav a.on { background: var(--ink); color: #fff; font-weight: 600; }
+  .pol-main { min-width: 0; max-width: 72ch; }
+  .pol-main section + section { margin-top: 38px; }
+  .pol-main h2 { margin: 0 0 12px; font: 700 21px/1.25 "Bricolage Grotesque", "Helvetica Neue", Arial, sans-serif; color: var(--ink); }
+  .pol-main p, .pol-main li { font-size: 15.5px; line-height: 1.7; }
+  .pol-main p { margin: 0 0 12px; }
+  .pol-main ul { margin: 0 0 12px; padding-left: 20px; display: grid; gap: 6px; }
+  .pol-main strong { color: var(--ink); }
+  .pol-main a { color: var(--ink); text-decoration: underline; text-underline-offset: 3px; }
+  .pol-note { margin-top: 12px; padding: 14px 16px; border-radius: 12px; background: var(--soft); border: 1px solid var(--line); font-size: 15px; }
+  .pol-contact { margin-top: 44px; padding: 22px 24px; border-radius: 16px; border: 1px solid var(--line); }
+  .pol-contact h2 { margin-bottom: 8px; }
+  .pol-contact dl { margin: 12px 0 0; display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 8px 18px; font-size: 15px; }
+  .pol-contact dt { color: var(--muted); }
+  .pol-contact dd { margin: 0; white-space: pre-line; overflow-wrap: anywhere; }
   .pp a:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; border-radius: 6px; }
   @media (max-width: 860px) {
-    .pp-body { grid-template-columns: minmax(0, 1fr); gap: 28px; padding-block: 28px 60px; }
-    .pp-nav { position: static; display: flex; flex-wrap: wrap; gap: 8px; }
-    .pp-nav h2 { width: 100%; }
-    .pp-nav a { border: 1px solid var(--line); }
+    .pol-body { grid-template-columns: minmax(0, 1fr); gap: 28px; padding-block: 28px 60px; }
+    .pol-nav { position: static; display: flex; flex-wrap: wrap; gap: 8px; }
+    .pol-nav h2 { width: 100%; }
+    .pol-nav a { border: 1px solid var(--line); }
   }
 `;
 
@@ -221,7 +221,7 @@ const PAGES = {
           <li><strong>Ready-made products</strong> are usually dispatched within 1–2 working days.</li>
           <li><strong>Delivery:</strong> {RULES.deliveryDays} after dispatch, depending on your location.</li>
         </ul>
-        <p className="pp-note">Working days are Monday to Saturday, excluding public holidays. These times are estimates; we will keep you updated if there is a delay.</p>
+        <p className="pol-note">Working days are Monday to Saturday, excluding public holidays. These times are estimates; we will keep you updated if there is a delay.</p>
       </>],
       ["Delivery charges", <>
         <p>Delivery charges depend on your state and are shown at checkout before you pay. Orders above a certain amount may ship free — the checkout shows it when your order qualifies.</p>
@@ -268,16 +268,16 @@ export default function PolicyPage() {
   return (
     <div className="pp">
       <style>{CSS}</style>
-      <header className="pp-hero">
-        <div className="pp-wrap">
-          <p className="pp-kicker">Policies</p>
+      <header className="pol-hero">
+        <div className="pol-wrap">
+          <p className="pol-kicker">Policies</p>
           <h1>{page.title}</h1>
-          <p className="pp-lead">{page.lead(b)}</p>
-          <p className="pp-updated">Last updated: {UPDATED}</p>
+          <p className="pol-lead">{page.lead(b)}</p>
+          <p className="pol-updated">Last updated: {UPDATED}</p>
         </div>
       </header>
-      <div className="pp-wrap pp-body">
-        <nav className="pp-nav" aria-label="Policies">
+      <div className="pol-wrap pol-body">
+        <nav className="pol-nav" aria-label="Policies">
           <h2>Policies</h2>
           {POLICY_LINKS.map(([to, label]) => (
             <Link key={to} to={to} className={to === pathname ? "on" : undefined} aria-current={to === pathname ? "page" : undefined}>
@@ -285,14 +285,14 @@ export default function PolicyPage() {
             </Link>
           ))}
         </nav>
-        <main className="pp-main">
+        <main className="pol-main">
           {page.sections(b).map(([title, body]) => (
             <section key={title}>
               <h2>{title}</h2>
               {body}
             </section>
           ))}
-          <div className="pp-contact">
+          <div className="pol-contact">
             <h2>Contact us</h2>
             <p>Questions about this policy or an order? We’re happy to help.</p>
             <dl>
