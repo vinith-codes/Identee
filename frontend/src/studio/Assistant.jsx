@@ -6,7 +6,7 @@
 // print-area / size help). The paid AI parts can replace those scripted
 // replies later (see docs/AI_PLAN.md).
 import { useEffect, useRef, useState } from "react";
-import { EXAMPLES, IMPROVE, replyTo } from "./assistantScript";
+import { CANCEL, EXAMPLES, IMPROVE, replyTo } from "./assistantScript";
 import { imageUrl } from "../utils/imageUrl";
 import WaitCard from "./WaitCard";
 import IdeaPreview from "./IdeaPreview";
@@ -49,6 +49,7 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
   const log = useRef(null);
   const box = useRef(null);
   const timer = useRef(null);
+  const job = useRef(null); // the AI request running now: { act, stopped }
 
   useEffect(() => {
     if (log.current) log.current.scrollTop = log.current.scrollHeight;
@@ -59,17 +60,42 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
   // "Try again" (the same request — nothing to type again), and while it runs the chat says so.
   const run = (act, wait, after = []) => {
     setThinking(wait);
+    const me = { act, wait, stopped: false };
+    job.current = me;
     // the page may say what it is doing now (a chat request that turned into drawing two pictures)
     Promise.resolve()
-      .then(() => onAct(act, (now) => setThinking(now)))
+      .then(() => onAct(act, (now) => !me.stopped && setThinking(now), me))
       .then((made) => made || [])
       .catch(() => [{ from: "bot", text: "Something went wrong on my side." }, { failed: true }])
       .then((made) => {
+        if (me.stopped) {
+          // Stopped, but a picture finished anyway: it was already counted, so it is offered (not put on the tee)
+          const pics = made.filter((x) => x.designs);
+          if (pics.length) setMessages((m) => [...m, { from: "bot", text: "The picture you stopped finished anyway, so it’s here if you want it. Nothing was added to your tee." }, ...pics.map((x) => ({ ...x, again: null }))]);
+          return;
+        }
+        job.current = null;
         setThinking(false);
         // { failed: true } from the page = this request can simply be tried again; { retry: act } = try that one
         const out = made.map((x) => (x.failed ? { retry: act, wait } : x.retry && !x.wait ? { ...x, wait: waitFor(x.retry) } : x));
         setMessages((m) => [...m, ...out, ...after]);
       });
+  };
+  // Stop: the customer stops waiting at once. A chat edit changes nothing on the tee (the page checks "stopped").
+  // A picture already being drawn may still count as one of today's requests — said plainly.
+  const stop = () => {
+    const now = job.current;
+    if (!now) return;
+    now.stopped = true;
+    job.current = null;
+    setThinking(false);
+    const drawing = now.act.type === "generate" || now.act.type === "edit";
+    setMessages((m) => [
+      ...m,
+      { from: "me", text: "Stop" },
+      { from: "bot", text: drawing ? "Stopped. Nothing was changed on your tee. (If the picture was already being drawn, it may still count as one of today’s requests.)" : "Stopped." },
+      { retry: now.act, wait: now.wait },
+    ]);
   };
   const retry = (i, m) => {
     if (thinking) return;
@@ -84,7 +110,12 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
     setMessages((m) => [...m.map((x) => (x.chips || x.retry ? { ...x, done: true } : x)), { from: "me", text }]);
     const { out, st } = replyTo(text, ctx(), state, { tapped });
     setState(st);
-    const reply = out.filter((o) => !o.act);
+    const fill = out.find((o) => o.fill);
+    if (fill) {
+      setDraft(fill.fill);
+      setTimeout(() => box.current?.focus(), 500);
+    }
+    const reply = out.filter((o) => !o.act && !o.fill);
     const slow = out.find((o) => ["generate", "slogans", "edit", "improve"].includes(o.act?.type));
     if (slow) {
       // the AI: wait for the answer, then show what the page hands back
@@ -112,7 +143,7 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
   const startChange = (url) => {
     if (thinking) return;
     setState({ ...state, wait: "aiChange", changeUrl: url });
-    setMessages((m) => [...m.map((x) => (x.chips ? { ...x, done: true } : x)), { from: "bot", text: "What should I change? For example: make it angrier, remove the crown, add the team name under it." }]);
+    setMessages((m) => [...m.map((x) => (x.chips ? { ...x, done: true } : x)), { from: "bot", text: "What should I change? For example: make it angrier, remove the crown, add the team name under it." }, { chips: [CANCEL] }]);
   };
   // "Try another": the same request again — a new picture (it uses one of the customer's requests for today)
   const tryAnother = (act) => {
@@ -256,10 +287,10 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
           return <div key={i} className={`dr-msg ${m.from}`}>{m.text}</div>;
         })}
         {thinking === true && <div className="dr-typing">Thinking…</div>}
-        {thinking && thinking !== true && <WaitCard key={`${messages.length}-${thinking.label}`} {...thinking} />}
+        {thinking && thinking !== true && <WaitCard key={`${messages.length}-${thinking.label}`} {...thinking} onStop={stop} />}
       </div>
       {/* while the assistant works, the customer can type the next message; it is sent when it's done */}
-      {thinking && thinking !== true && <p className="dr-busynote">I’m still on your last request. You can type your next one; Send works again as soon as I’m done.</p>}
+      {thinking && thinking !== true && <p className="dr-busynote">I’m still on your last request. Changed your mind? Press Stop. You can also type your next one; Send works again as soon as I’m done.</p>}
       {/* always here (the examples list is only at the start of a chat): what is typed is made clear first, free */}
       {ctx().ai.available && ctx().ai.text && (
         <div className="dr-improve-row">

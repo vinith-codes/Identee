@@ -10,8 +10,9 @@ import { useEffect, useState } from "react";
  * @param label   what is happening ("Drawing your design…")
  * @param expect  the usual time in seconds (0 = no bar)
  * @param hint    a line under it ("Usually 20–40 seconds…")
+ * @param onStop  shows a Stop button (the customer changed their mind — never made to wait it out)
  */
-export default function WaitCard({ label, expect = 0, hint = "" }) {
+export default function WaitCard({ label, expect = 0, hint = "", onStop }) {
   const [secs, setSecs] = useState(0);
   useEffect(() => {
     const start = Date.now();
@@ -30,6 +31,11 @@ export default function WaitCard({ label, expect = 0, hint = "" }) {
         </span>
         <b>{label}</b>
         <span className="dr-waitsecs" aria-label={`${secs} seconds so far`}>{secs} s</span>
+        {onStop && (
+          <button type="button" className="dr-waitstop" onClick={onStop}>
+            Stop
+          </button>
+        )}
       </div>
       {pct != null && (
         <div className="dr-waitbar" aria-hidden="true">

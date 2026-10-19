@@ -1089,3 +1089,7 @@ button.dr-back { padding: 0; font: inherit; font-weight: 700; cursor: pointer; }
 .dr-resume.ask { border-color: var(--ink); background: #fff; }
 .dr-resume-btns { display: flex; gap: 8px; flex-wrap: wrap; }
 .dr-resume button.alt { background: #fff; color: var(--ink); border: 1px solid var(--line); }
+
+/* Stop on a wait card (the assistant's AI requests) */
+.dr-waitstop { margin-left: 8px; border: 1px solid var(--line); background: #fff; border-radius: 999px; padding: 3px 11px; font-size: 12px; font-weight: 700; color: var(--ink); }
+.dr-waitstop:hover { border-color: var(--ink); }
