@@ -3,6 +3,7 @@ import { deleteStoredFile } from "../utils/imageStorage.js";
 import path from "path";
 import fs from "fs";
 import ArtCategory from "../models/artCategoryModel.js";
+import ArtDesign from "../models/artDesignModel.js";
 
 // GET /api/art-categories
 export const getArtCategories = asyncHandler(async (req, res) => {
@@ -43,6 +44,12 @@ export const deleteArtCategory = asyncHandler(async (req, res) => {
   if (!category) {
     res.status(404);
     throw new Error("Category not found");
+  }
+  // its designs would be left in no group
+  const inside = await ArtDesign.countDocuments({ category: category._id });
+  if (inside) {
+    res.status(409);
+    throw new Error(`"${category.name}" still has ${inside} design${inside === 1 ? "" : "s"}. Delete or hide them first.`);
   }
   if (category.thumbnail) await deleteStoredFile(category.thumbnail);
   await category.deleteOne();

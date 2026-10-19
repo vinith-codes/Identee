@@ -19,11 +19,27 @@ export const createArtDesign = createAsyncThunk(
     artDesignService.createArtDesign(name, category, price, imageFile),
 );
 
+// the server refuses to delete a picture customer designs use — its reason comes back to the page
 export const deleteArtDesign = createAsyncThunk(
   "artDesign/delete",
-  async (id) => {
-    await artDesignService.deleteArtDesign(id);
-    return id;
+  async (id, { rejectWithValue }) => {
+    try {
+      await artDesignService.deleteArtDesign(id);
+      return id;
+    } catch (err) {
+      return rejectWithValue(err.response?.data?.message || err.message);
+    }
+  },
+);
+
+export const setArtDesignVisibility = createAsyncThunk(
+  "artDesign/visibility",
+  async ({ id, isActive }, { rejectWithValue }) => {
+    try {
+      return await artDesignService.setArtDesignVisibility(id, isActive);
+    } catch (err) {
+      return rejectWithValue(err.response?.data?.message || err.message);
+    }
   },
 );
 
@@ -55,6 +71,10 @@ const artDesignSlice = createSlice({
       })
       .addCase(deleteArtDesign.fulfilled, (state, action) => {
         state.adminItems = state.adminItems.filter((i) => i._id !== action.payload);
+      })
+      .addCase(setArtDesignVisibility.fulfilled, (state, action) => {
+        const i = state.adminItems.findIndex((d) => d._id === action.payload._id);
+        if (i !== -1) state.adminItems[i] = action.payload;
       });
   },
 });
