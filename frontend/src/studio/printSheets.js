@@ -30,6 +30,10 @@ const SIDE_ORDER = { front: 0, back: 1, left: 2, right: 3, shorts: 4 };
  *   pieces: one per tee — { art, tag, k, of }
  */
 export async function collectPieces(packs, onStep = () => {}) {
+  // onStep may return false to stop the job (the admin pressed Cancel); the error is marked `stopped`
+  const tick = (...a) => {
+    if (onStep(...a) === false) throw Object.assign(new Error("Stopped."), { stopped: true });
+  };
   const arts = [];
   const pieces = [];
   const warnings = [];
@@ -52,7 +56,7 @@ export async function collectPieces(packs, onStep = () => {}) {
       }
       if (d.players?.length && !d.playersMatch) warnings.push(`Order ${no}: the player list of “${title}” doesn't match the sizes ordered — check before printing.`);
 
-      onStep(done, total, `Loading pictures for order ${no}…`);
+      tick(done, total, `Loading pictures for order ${no}…`);
       const elements = d.elements.map((e) => (e.type === "image" && e.printSrc ? { ...e, src: e.printSrc } : e));
       const failed = [];
       await Promise.all(imageSrcs(elements).map((s) => loadImage(s, { full: true }).catch(() => failed.push(s))));
@@ -65,7 +69,7 @@ export async function collectPieces(packs, onStep = () => {}) {
         const n = k + 1;
         const els = elements.filter((e) => e.position === area.key).map((e, m) => ({ ...e, id: e.id ?? `${area.key}-${m}` }));
         for (const f of area.files) {
-          onStep(done, total, `Drawing ${area.label} (${f.player ? playerLabel(f.player) : f.sizes.join(", ")}) for order ${no}…`);
+          tick(done, total, `Drawing ${area.label} (${f.player ? playerLabel(f.player) : f.sizes.join(", ")}) for order ${no}…`);
           const [w, h] = f.cm;
           const drawn = f.player ? playerElements(els, f.player, cmToPx(w), cmToPx(h)) : els;
           const box = artworkBox(drawn, f.cm);
@@ -96,7 +100,7 @@ export async function collectPieces(packs, onStep = () => {}) {
     p.tag = tagOf(p);
     fitTag(p);
   }
-  onStep(total, total, "Laying out the sheets…");
+  tick(total, total, "Laying out the sheets…");
   return { arts, pieces, warnings, orders: packs.length, tees };
 }
 
@@ -293,6 +297,10 @@ const where = (art, size) => {
  * @returns {{ blob, fileName }}
  */
 export async function buildSheetsZip(day, layout, { orders, tees, warnings }, onStep = () => {}) {
+  // onStep may return false to stop the job (the admin pressed Cancel); the error is marked `stopped`
+  const tick = (...a) => {
+    if (onStep(...a) === false) throw Object.assign(new Error("Stopped."), { stopped: true });
+  };
   const { default: JSZip } = await import("jszip");
   const zip = new JSZip();
   const root = zip.folder(`IDENTEE-print-sheets-${day}`);
@@ -310,7 +318,7 @@ export async function buildSheetsZip(day, layout, { orders, tees, warnings }, on
   ];
   for (const [i, s] of layout.sheets.entries()) {
     const name = `SHEET-${String(i + 1).padStart(2, "0")}.png`;
-    onStep(i, layout.sheets.length, `Drawing sheet ${i + 1} of ${layout.sheets.length} at 300 DPI…`);
+    tick(i, layout.sheets.length, `Drawing sheet ${i + 1} of ${layout.sheets.length} at 300 DPI…`);
     const c = drawSheet(s, pxPerCm);
     root.file(name, setPngDpi(await toPng(c)));
     c.width = 0; // free the big canvas now
@@ -326,7 +334,7 @@ export async function buildSheetsZip(day, layout, { orders, tees, warnings }, on
   if (layout.tooBig.length) list.push(`! Not on any sheet (bigger than ${SHEET.w} × ${SHEET.h} cm): ${layout.tooBig.map((p) => p.tag).join("; ")}`, "");
   if (warnings.length) list.push("CHECK BEFORE PRINTING", ...warnings.map((w) => `  ! ${w}`), "");
   root.file("SHEET-LIST.txt", list.join("\r\n"));
-  onStep(layout.sheets.length, layout.sheets.length, "Packing the ZIP…");
+  tick(layout.sheets.length, layout.sheets.length, "Packing the ZIP…");
   const blob = await zip.generateAsync({ type: "blob" });
   return { blob, fileName: `IDENTEE-print-sheets-${day}.zip` };
 }

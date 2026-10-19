@@ -248,8 +248,16 @@ export default function OrderDesignsModal({ orderId, onClose }) {
     };
   }, [orderId]);
 
+  // Cancel while the ZIP is being made: the builder stops at its next step, nothing is downloaded
+  const cancelRef = useRef(false);
+  const [stopping, setStopping] = useState(false);
+  const cancel = () => {
+    cancelRef.current = true;
+    setStopping(true);
+    setProgress((p) => (p ? { ...p, label: "Stopping…" } : p));
+  };
   useEffect(() => {
-    const onKey = (e) => e.key === "Escape" && !progress && onClose();
+    const onKey = (e) => e.key === "Escape" && (progress ? cancel() : onClose());
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose, progress]);
@@ -257,10 +265,12 @@ export default function OrderDesignsModal({ orderId, onClose }) {
   const download = async () => {
     setError("");
     setResult(null);
+    cancelRef.current = false;
+    setStopping(false);
     setProgress({ done: 0, total: 1, label: "Starting…" });
     try {
       const { buildPrintPack } = await import("../../studio/printFiles");
-      const { blob, fileName, warnings } = await buildPrintPack(pack, (done, total, label) => setProgress({ done, total, label }));
+      const { blob, fileName, warnings } = await buildPrintPack(pack, (done, total, label) => (cancelRef.current ? false : setProgress({ done, total, label })));
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -271,7 +281,7 @@ export default function OrderDesignsModal({ orderId, onClose }) {
       setTimeout(() => URL.revokeObjectURL(url), 60_000);
       setResult({ fileName, warnings });
     } catch (err) {
-      setError(err.message || "Couldn't make the print files.");
+      if (!err?.stopped) setError(err.message || "Couldn't make the print files.");
     } finally {
       setProgress(null);
     }
@@ -300,7 +310,7 @@ export default function OrderDesignsModal({ orderId, onClose }) {
             </h2>
             {pack && <p style={{ margin: 0, fontSize: 13, color: THEME.textMuted }}>{pack.order.customer}</p>}
           </div>
-          <button type="button" onClick={onClose} disabled={!!progress} aria-label="Close" style={{ background: "none", border: "none", fontSize: 24, cursor: "pointer", color: THEME.textMuted }}>
+          <button type="button" onClick={progress ? cancel : onClose} aria-label={progress ? "Stop making the print files" : "Close"} title={progress ? "Stop making the print files" : "Close"} style={{ background: "none", border: "none", fontSize: 24, cursor: "pointer", color: THEME.textMuted }}>
             ×
           </button>
         </div>
@@ -385,7 +395,10 @@ export default function OrderDesignsModal({ orderId, onClose }) {
           <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 14, marginTop: 18, flexWrap: "wrap" }}>
             {progress && (
               <span style={{ fontSize: 12.5, color: THEME.textMuted }} aria-live="polite">
-                {progress.label} ({progress.done}/{progress.total})
+                {progress.label} ({progress.done}/{progress.total}){" "}
+                <button type="button" onClick={cancel} disabled={stopping} style={{ marginLeft: 8, border: `1px solid ${THEME.border}`, background: "#fff", borderRadius: 999, padding: "3px 10px", fontSize: 12, fontWeight: 700, cursor: "pointer", color: THEME.text }}>
+                  Cancel
+                </button>
               </span>
             )}
             <button

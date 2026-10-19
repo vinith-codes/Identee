@@ -462,6 +462,10 @@ export const fmtCm = (n) => String(Math.round(n * 10) / 10);
  * @returns {{ blob: Blob, fileName: string, warnings: string[] }}
  */
 export async function buildPrintPack(pack, onStep = () => {}) {
+  // onStep may return false to stop the job (the admin pressed Cancel); the error is marked `stopped`
+  const tick = (...a) => {
+    if (onStep(...a) === false) throw Object.assign(new Error("Stopped."), { stopped: true });
+  };
   const { default: JSZip } = await import("jszip");
   const zip = new JSZip();
   const root = zip.folder(`IDENTEE-${safe(pack.order.number)}-print-files`);
@@ -496,7 +500,7 @@ export async function buildPrintPack(pack, onStep = () => {}) {
     }
 
     // pictures (originals) and fonts must be ready before drawing
-    onStep(done, total, `Loading pictures for “${title}”…`);
+    tick(done, total, `Loading pictures for “${title}”…`);
     // a picture the admin had enlarged for printing is used in place of the small one the customer chose
     const elements = d.elements.map((e) => (e.type === "image" && e.printSrc ? { ...e, src: e.printSrc } : e));
     const srcs = imageSrcs(elements);
@@ -523,7 +527,7 @@ export async function buildPrintPack(pack, onStep = () => {}) {
         const who = f.player ? `P${String(f.player.n).padStart(2, "0")}-${safe(playerLabel(f.player))}` : f.sizes.join("-");
         const drawn = f.player ? playerElements(els, f.player, cmToPx(w), cmToPx(h)) : els;
         const name = `${n}-${safe(area.label)}_${who}.png`;
-        onStep(done, total, `Drawing ${area.label} (${f.player ? playerLabel(f.player) : f.sizes.join(", ")}) for “${title}”…`);
+        tick(done, total, `Drawing ${area.label} (${f.player ? playerLabel(f.player) : f.sizes.join(", ")}) for “${title}”…`);
         folder.file(name, await renderPrintFile(drawn, f.cm));
         files.push(name);
         done += 1;
@@ -569,7 +573,7 @@ export async function buildPrintPack(pack, onStep = () => {}) {
         }));
     for (const b of blocks) {
       const file = `JOB-CARD_${b.key}.jpg`;
-      onStep(done, total, `Making the job card (${b.short}) for “${title}”…`);
+      tick(done, total, `Making the job card (${b.short}) for “${title}”…`);
       try {
         const bRows = [...b.rows].sort((x, y) => x.n - y.n);
         folder.file(file, await jobCard({ heading: b.heading, sub: `${title} · ${d.garment.label} · ${colour} · ${pack.order.customer || ""} · ${date}`, rows: bRows, tee: d.colour.hex, checks, notes: [...notesFor(bRows), fonts].filter(Boolean) }));
@@ -596,9 +600,9 @@ export async function buildPrintPack(pack, onStep = () => {}) {
     sheet.push("");
   }
 
-  onStep(done, total, "Packing the ZIP…");
+  tick(done, total, "Packing the ZIP…");
   root.file("ORDER-SHEET.txt", sheet.join("\r\n"));
   const blob = await zip.generateAsync({ type: "blob" }); // PNGs are already compressed
-  onStep(total, total, "Done");
+  tick(total, total, "Done");
   return { blob, fileName: `IDENTEE-${safe(pack.order.number)}-print-files.zip`, warnings };
 }
