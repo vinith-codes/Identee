@@ -41,7 +41,8 @@ const waitFor = (a) =>
  * the messages to show when the pictures are ready.
  */
 // autoSay: a message to send as if typed, once (the home page's "What do you want on your tee?" box); onAutoSaid clears it
-export default function Assistant({ messages, setMessages, state, setState, ctx, onAct, onFix, placed = {}, fabric, autoSay, onAutoSaid }) {
+// onWorking(bool): an AI request is running (the page warns before the tab is closed meanwhile)
+export default function Assistant({ messages, setMessages, state, setState, ctx, onAct, onFix, placed = {}, fabric, autoSay, onAutoSaid, onWorking }) {
   const [draft, setDraft] = useState("");
   // false | true (a short "Thinking…") | { label, expect, hint } for the AI: a card with a live seconds count
   const [thinking, setThinking] = useState(false);
@@ -60,6 +61,7 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
   // "Try again" (the same request — nothing to type again), and while it runs the chat says so.
   const run = (act, wait, after = []) => {
     setThinking(wait);
+    onWorking?.(true);
     const me = { act, wait, stopped: false };
     job.current = me;
     // the page may say what it is doing now (a chat request that turned into drawing two pictures)
@@ -76,6 +78,7 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
         }
         job.current = null;
         setThinking(false);
+        onWorking?.(false);
         // { failed: true } from the page = this request can simply be tried again; { retry: act } = try that one
         const out = made.map((x) => (x.failed ? { retry: act, wait } : x.retry && !x.wait ? { ...x, wait: waitFor(x.retry) } : x));
         setMessages((m) => [...m, ...out, ...after]);
@@ -89,6 +92,7 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
     now.stopped = true;
     job.current = null;
     setThinking(false);
+    onWorking?.(false);
     const drawing = now.act.type === "generate" || now.act.type === "edit";
     setMessages((m) => [
       ...m,

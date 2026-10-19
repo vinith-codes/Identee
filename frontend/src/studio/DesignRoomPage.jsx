@@ -73,6 +73,21 @@ const ASSIST_WIDE_KEY = "identee:assistWide";
 const DARK_KEY = "identee:room-dark"; // the customer's light / dark studio choice
 const HISTORY_CAP = 50;
 
+// The chat worked from a snapshot of the design (base) and made next; the customer may have edited by hand
+// meanwhile (now). Keep their edits: the chat's new items are added, the items it changed take its version
+// (unless the customer deleted them), the items it removed go.
+const mergeAiChanges = (now, base, next) => {
+  const baseById = new Map(base.map((e) => [e.id, e]));
+  const nextById = new Map(next.map((e) => [e.id, e]));
+  const kept = now
+    .filter((e) => !baseById.has(e.id) || nextById.has(e.id))
+    .map((e) => {
+      const b = baseById.get(e.id);
+      const n = nextById.get(e.id);
+      return b && n && n !== b ? n : e;
+    });
+  return [...kept, ...next.filter((e) => !baseById.has(e.id))];
+};
 const readJSON = (key) => {
   try {
     return JSON.parse(localStorage.getItem(key) || "null");
@@ -281,6 +296,41 @@ export default function DesignRoomPage() {
   const unsaved = useRef(Boolean(draft?.dirty)); // changed since the last save / load from My designs
   const [toast, setToast] = useState(keepLocal ? "These are your latest changes. Press Save to keep them in My designs." : "");
   const [busy, setBusy] = useState("");
+  // A slow job the customer may stop (a picture fix, removing a background): startBusy gives it a token;
+  // Stop marks the token, clears the overlay and the job then leaves the design alone when it finishes.
+  const busyRun = useRef(null);
+  const startBusy = (info) => {
+    const me = { stopped: false };
+    busyRun.current = me;
+    setBusy({ ...(typeof info === "string" ? { label: info } : info), stoppable: true });
+    return me;
+  };
+  const endBusy = (me) => {
+    if (busyRun.current === me) {
+      busyRun.current = null;
+      setBusy("");
+    }
+  };
+  const stopBusy = () => {
+    const me = busyRun.current;
+    if (!me) return;
+    me.stopped = true;
+    busyRun.current = null;
+    setBusy("");
+    say("Stopped. Nothing was changed.");
+  };
+  // the chat's AI request in progress (the Assistant reports it), for the leave-page warning below
+  const [aiWorking, setAiWorking] = useState(false);
+  useEffect(() => {
+    if (!busy && !aiWorking) return;
+    // leaving now would lose the result (and a paid picture)
+    const warn = (e) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [busy, aiWorking]);
   // the saved design this is (My designs); locked = already ordered → saving makes a copy
   const [designId, setDesignId] = useState(params.get("design") || draft?.designId || null);
   const [designName, setDesignName] = useState(draft?.name || "");
@@ -784,11 +834,12 @@ export default function DesignRoomPage() {
     if (!el || el.type !== "image" || !pos || busy) return;
     if (!ai.available) return say("That isn’t available right now.");
     if (!isLoggedIn()) return say("Log in to use this.");
-    setBusy({ label: kind === "recolour" ? "Recolouring your picture…" : "Redrawing your picture sharper…", expect: 25, hint: "Usually 20–40 seconds." });
+    const me = startBusy({ label: kind === "recolour" ? "Recolouring your picture…" : "Redrawing your picture sharper…", expect: 25, hint: "Usually 20–40 seconds." });
     try {
       const { W, H } = areaPx(pos);
       const res = await aiService.design({ fixUrl: el.src, fixKind: kind, teeColour: colour?.name || "white", teeIsDark: lum(fabricHex) < 0.55, ratio: W / H });
       setAi((cur) => ({ ...cur, left: res.left }));
+      if (me.stopped) return; // Stop was pressed: the picture stays as it was (the request was still counted)
       const im = res.images[0];
       aiCuts.current.set(im.url, { path: im.url, w: im.width, h: im.height });
       // same width and middle as before; the height follows the new picture's shape
@@ -796,29 +847,33 @@ export default function DesignRoomPage() {
       commit((prev) => prev.map((e) => (e.id === el.id ? { ...e, src: im.url, pxW: im.width, height, y: e.y + (e.height - height) / 2 } : e)));
       say(`${kind === "recolour" ? "Recoloured" : "Redrawn sharper"}. Not right? Press Undo (↶). ${res.left} request${res.left === 1 ? "" : "s"} left today.`);
     } catch (err) {
-      say(err.response?.data?.message || "That didn’t work. Please try again.");
+      if (!me.stopped) say(err.response?.data?.message || "That didn’t work. Please try again.");
     } finally {
-      setBusy("");
+      endBusy(me);
     }
   };
   const removeBg = async () => {
     const el = elements.find((e) => e.id === selectedId);
     if (!el || el.type !== "image" || busy) return;
-    setBusy("Removing the background…");
+    const me = startBusy("Removing the background…");
+    const progress = (label) => !me.stopped && setBusy({ label, stoppable: true });
     try {
       const img = await loadImage(el.src, { full: true });
+      if (me.stopped) return;
       const { removeBackground } = await import("./removeBackground");
-      const out = await removeBackground(img, setBusy);
+      const out = await removeBackground(img, progress);
+      if (me.stopped) return;
       if (out.already) return say("This picture already has a see-through background.");
-      setBusy("Saving the cut-out…");
+      progress("Saving the cut-out…");
       const res = await dispatch(uploadDesignImage(new File([out.blob], "cut-out.png", { type: "image/png" })));
+      if (me.stopped) return;
       if (!uploadDesignImage.fulfilled.match(res)) return say(res.payload || "The cut-out could not be saved. Please try again.");
       commit((prev) => prev.map((e) => (e.id === el.id ? { ...e, src: res.payload.path, pxW: out.width } : e)));
       say(out.method === "ai" ? "Background removed. Not right? Press Undo (↶) to get the original back." : "Background colour removed. Not right? Press Undo (↶).");
     } catch {
-      say("The background could not be removed. Check your internet connection and try again.");
+      if (!me.stopped) say("The background could not be removed. Check your internet connection and try again.");
     } finally {
-      setBusy("");
+      endBusy(me);
     }
   };
   // the quick tool bar by the tee: bigger / smaller around the item's middle, and centre it left-to-right
@@ -1050,7 +1105,8 @@ export default function DesignRoomPage() {
       if (run?.stopped) return [];
       if (newTee) changeColour(newTee.slug);
       if (!changed && !extra.length) return [botSays("I couldn’t do that one. Tap the item on the print area and tell me again, or use its settings."), chipRow(["What can you do?", "Something else"])];
-      if (els !== elements) commit(() => els);
+      // the customer may have edited by hand while the chat worked: their edits stay, the chat's are added on top
+      if (els !== elements) commit((now) => (now === elements ? els : mergeAiChanges(now, elements, els)));
       if (Object.keys(placed).length) setAiPlaced((cur) => ({ ...cur, ...placed }));
       if (focus && focus !== active) openArea(focus, { force: true });
       setSelectedId(null);
@@ -2082,7 +2138,7 @@ export default function DesignRoomPage() {
               ))}
             </div>
             <div className="dr-aipane" hidden={aiTab !== "chat"}>
-              <Assistant messages={chat} setMessages={setChat} state={chatState} setState={setChatState} ctx={assistantCtx} onAct={assistantAct} onFix={applyFix} placed={aiOn} fabric={fabricHex} autoSay={chatAuto} onAutoSaid={() => setChatAuto("")} />
+              <Assistant messages={chat} setMessages={setChat} state={chatState} setState={setChatState} ctx={assistantCtx} onAct={assistantAct} onFix={applyFix} placed={aiOn} fabric={fabricHex} autoSay={chatAuto} onAutoSaid={() => setChatAuto("")} onWorking={setAiWorking} />
               {elements.length > 0 && (
                 <button type="button" className="dr-handoff" onClick={editByHand}>
                   Not quite right? Edit it by hand →
@@ -2312,7 +2368,7 @@ export default function DesignRoomPage() {
           <SizeFinder
             garment={garment}
             teeHex={fabricHex}
-            pickLabel={finder === "review" ? "Order" : "Choose"}
+            pickLabel="Choose"
             onClose={() => setFinder(null)}
             onPick={(sz) => {
               setSize(sz);
@@ -2392,7 +2448,7 @@ export default function DesignRoomPage() {
         {/* busy: a line of text, or { label, expect, hint } for the AI (a card with a live seconds count) */}
         {busy && (
           <div className="dr-busy">
-            <WaitCard key={typeof busy === "string" ? busy : busy.label} {...(typeof busy === "string" ? { label: busy } : busy)} />
+            <WaitCard key={typeof busy === "string" ? busy : busy.label} {...(typeof busy === "string" ? { label: busy } : busy)} onStop={busy.stoppable ? stopBusy : undefined} />
           </div>
         )}
       </main>

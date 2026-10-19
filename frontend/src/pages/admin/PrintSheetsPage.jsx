@@ -2,7 +2,7 @@
 // The print team prints on 58 × 100 cm sheets, a whole day's orders at once. Pick a date: every custom-design order
 // placed that day (India time, cancelled ones left out) is laid out on as few sheets as possible, previewed here,
 // and downloaded as 300-DPI PNGs + a sheet list (studio/printSheets.js, made in this browser).
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import customizationService from "../../services/customizationService";
 import { collectPieces, layOut, drawSheet, buildSheetsZip, SHEET, GAP } from "../../studio/printSheets";
 
@@ -77,26 +77,39 @@ export default function PrintSheetsPage() {
   const lay = async () => {
     setError("");
     setSaved("");
+    cancelRef.current = false;
+    setStopping(false);
     setBusy("Getting ready…");
     try {
-      const info = await collectPieces(packs, (done, total, label) => setBusy(`${label} (${done} of ${total})`));
+      const info = await collectPieces(packs, (done, total, label) => (cancelRef.current ? false : setBusy(`${label} (${done} of ${total})`)));
       const layout = layOut(info.pieces);
       const previews = layout.sheets.map((s) => drawSheet(s, 8, { preview: true }).toDataURL("image/png"));
       setMade({ day, layout, previews, info });
     } catch (err) {
-      setError(err.message || "Couldn't lay out the sheets.");
+      setError(err?.stopped ? "Stopped — nothing was made." : err.message || "Couldn't lay out the sheets.");
     } finally {
       setBusy("");
     }
   };
 
+  // Cancel while laying out or packing: the builder stops at its next step, nothing is downloaded
+  const cancelRef = useRef(false);
+  const [stopping, setStopping] = useState(false);
+  const cancel = () => {
+    cancelRef.current = true;
+    setStopping(true);
+    setBusy("Stopping…");
+  };
+
   const download = async () => {
     if (!sheetsNow) return;
     setError("");
+    cancelRef.current = false;
+    setStopping(false);
     setBusy("Getting ready…");
     try {
       const { layout, info } = sheetsNow;
-      const { blob, fileName } = await buildSheetsZip(day, layout, info, (done, total, label) => setBusy(label));
+      const { blob, fileName } = await buildSheetsZip(day, layout, info, (done, total, label) => (cancelRef.current ? false : setBusy(label)));
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -111,7 +124,7 @@ export default function PrintSheetsPage() {
         .then((r) => setData((d) => (d?.day === day ? { ...d, downloads: r.downloads } : d)))
         .catch(() => {});
     } catch (err) {
-      setError(err.message || "Couldn't make the sheets.");
+      setError(err?.stopped ? "Stopped — nothing was downloaded." : err.message || "Couldn't make the sheets.");
     } finally {
       setBusy("");
     }
@@ -154,7 +167,14 @@ export default function PrintSheetsPage() {
       )}
       {error && <p className="psh-note bad" role="alert">{error}</p>}
       {saved && <p className="psh-note ok" role="status">{saved} Open SHEET-LIST.txt inside for what is on each sheet and where each print goes on the tee.</p>}
-      {busy && <p className="psh-progress" role="status">{busy}</p>}
+      {busy && (
+        <p className="psh-progress" role="status">
+          {busy}{" "}
+          <button type="button" onClick={cancel} disabled={stopping} style={{ marginLeft: 8, border: "1px solid #D9CFB4", background: "#fff", borderRadius: 999, padding: "3px 10px", fontSize: 12, fontWeight: 700, cursor: "pointer", color: "#15130F" }}>
+            Cancel
+          </button>
+        </p>
+      )}
 
       {loading ? (
         <p className="psh-progress">Loading the day’s orders…</p>
