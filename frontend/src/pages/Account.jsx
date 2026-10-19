@@ -64,6 +64,9 @@ export default function Account() {
   const [activeTab, setActiveTab] = useState("profile");
 
   const [loading, setLoading] = useState(true);
+  // the profile didn't load: nothing may be saved (a save would send empty fields and wipe the addresses)
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState(null);
 
@@ -156,8 +159,10 @@ export default function Account() {
           setAvatarPreview(imageUrl(data.profilePicture));
         }
       })
-      .catch((err) => {
-        if (!cancelled) setMsg({ type: "error", text: err.message });
+      .catch(() => {
+        if (cancelled) return;
+        setLoadFailed(true);
+        setMsg(null);
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -166,7 +171,7 @@ export default function Account() {
     return () => {
       cancelled = true;
     };
-  }, [authToken]);
+  }, [authToken, reloadKey]);
 
   const handleChange = (field) => (e) =>
     setForm((f) => ({ ...f, [field]: e.target.value }));
@@ -185,6 +190,7 @@ export default function Account() {
       setMsg({ type: "error", text: "Please log in again." });
       return null;
     }
+    if (loadFailed) throw new Error("Your details didn't load, so nothing was saved. Tap Try again first.");
     const fd = new FormData();
     fd.append("name", form.name);
     fd.append("lastName", form.lastName);
@@ -261,9 +267,13 @@ export default function Account() {
     setMsg(null);
     setSaving(true);
     try {
+      if (loadFailed) throw new Error("Your details didn't load, so nothing was saved. Tap Try again first.");
       const fd = new FormData();
       fd.append("addresses", JSON.stringify(nextAddresses));
-      const updated = await saveToBackend(fd);
+      // only the addresses: unsaved profile edits or a new photo aren't saved along with them
+      const res = await fetch(`${BACKEND_URL}/api/users/profile`, { method: "PUT", headers: { Authorization: `Bearer ${authToken}` }, body: fd });
+      const updated = await res.json();
+      if (!res.ok) throw new Error(updated.message || "Could not save address.");
       setAddresses(updated?.addresses || nextAddresses);
       setMsg({ type: "ok", text: "Address saved." });
       cancelAddressEdit();
@@ -509,6 +519,14 @@ export default function Account() {
       >
         {loading && <p style={{ color: "#71695B" }}>Loading…</p>}
 
+        {!loading && loadFailed && (
+          <div role="alert" style={{ border: "1px solid #E7C9C0", background: "#FBF1EE", borderRadius: 12, padding: "16px 18px", marginBottom: 16 }}>
+            <p style={{ margin: "0 0 4px", fontWeight: 700, color: "#B3432B" }}>We couldn’t load your details.</p>
+            <p style={{ margin: "0 0 12px", color: "#71695B", fontSize: 13 }}>Nothing has been changed. Check your connection and try again.</p>
+            <button type="button" onClick={() => { setLoading(true); setLoadFailed(false); setReloadKey((k) => k + 1); }} style={{ padding: "9px 18px", border: 0, borderRadius: 999, background: "#141110", color: "#fff", fontWeight: 700, cursor: "pointer" }}>Try again</button>
+          </div>
+        )}
+
         {!loading && msg && (
           <p
             style={{
@@ -521,7 +539,7 @@ export default function Account() {
           </p>
         )}
 
-        {!loading && activeTab === "profile" && (
+        {!loading && !loadFailed && activeTab === "profile" && (
           <>
             <div
               style={{
@@ -662,7 +680,7 @@ export default function Account() {
           </>
         )}
 
-        {!loading && activeTab === "address" && (
+        {!loading && !loadFailed && activeTab === "address" && (
           <div>
             <div
               style={{

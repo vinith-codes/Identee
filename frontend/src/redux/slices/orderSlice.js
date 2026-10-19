@@ -64,12 +64,24 @@ export const updateOrderStatus = createAsyncThunk(
   async ({ id, status }, thunkAPI) => {
     try {
       const token = thunkAPI.getState().auth.user.token;
-      await orderService.updateOrderStatus(id, status, token);
-      return { id, status };
+      const data = await orderService.updateOrderStatus(id, status, token);
+      return { id, status, message: data?.message, statusUndo: data?.statusUndo || null, isPaid: data?.isPaid };
     } catch (err) {
       return thunkAPI.rejectWithValue(
         err.response?.data?.message || err.message,
       );
+    }
+  },
+);
+
+export const undoOrderStatus = createAsyncThunk(
+  "orders/undoOrderStatus",
+  async ({ id }, thunkAPI) => {
+    try {
+      const token = thunkAPI.getState().auth.user.token;
+      return { id, ...(await orderService.undoOrderStatus(id, token)) };
+    } catch (err) {
+      return thunkAPI.rejectWithValue(err.response?.data?.message || err.message);
     }
   },
 );
@@ -153,13 +165,32 @@ const orderSlice = createSlice({
       })
       .addCase(updateOrderStatus.fulfilled, (state, action) => {
         state.updatingStatusId = null;
-        const { id, status } = action.payload;
+        const { id, status, statusUndo, isPaid } = action.payload;
         const order = state.allOrders.find((o) => o._id === id);
-        if (order) order.orderStatus = status;
+        if (order) {
+          order.orderStatus = status;
+          order.statusUndo = statusUndo;
+          if (isPaid !== undefined) order.isPaid = isPaid;
+        }
       })
-      .addCase(updateOrderStatus.rejected, (state, action) => {
+      // a refused change keeps the table (the page shows the reason in a toast)
+      .addCase(updateOrderStatus.rejected, (state) => {
         state.updatingStatusId = null;
-        state.allOrdersError = action.payload;
+      })
+      .addCase(undoOrderStatus.pending, (state, action) => {
+        state.updatingStatusId = action.meta.arg.id;
+      })
+      .addCase(undoOrderStatus.fulfilled, (state, action) => {
+        state.updatingStatusId = null;
+        const order = state.allOrders.find((o) => o._id === action.payload.id);
+        if (order) {
+          order.orderStatus = action.payload.status;
+          order.statusUndo = null;
+          order.isPaid = action.payload.isPaid;
+        }
+      })
+      .addCase(undoOrderStatus.rejected, (state) => {
+        state.updatingStatusId = null;
       });
   },
 });

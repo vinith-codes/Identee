@@ -4,6 +4,7 @@ import {
   getAllArtDesignsAdmin,
   createArtDesign,
   deleteArtDesign,
+  setArtDesignVisibility,
   bulkUploadArtDesigns,
 } from "../controllers/artDesignController.js";
 import zipUpload from "../multer/zipUpload.js";
@@ -28,5 +29,6 @@ router.post(
 // adding/removing needs an admin or seller login (uploads go to Cloudinary)
 router.post("/", protect, adminOrSeller, uploadArtImage, createArtDesign);
 router.delete("/:id", protect, adminOrSeller, deleteArtDesign);
+router.put("/:id/visibility", protect, adminOrSeller, setArtDesignVisibility);
 
 export default router;

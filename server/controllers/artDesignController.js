@@ -7,6 +7,7 @@ import AdmZip from "adm-zip";
 import XLSX from "xlsx";
 import ArtDesign from "../models/artDesignModel.js";
 import ArtCategory from "../models/artCategoryModel.js";
+import Customization from "../models/customizationModel.js";
 
 // GET /api/art-designs?category=<categoryId>
 export const getArtDesigns = asyncHandler(async (req, res) => {
@@ -55,9 +56,27 @@ export const deleteArtDesign = asyncHandler(async (req, res) => {
     res.status(404);
     throw new Error("Design not found");
   }
+  // customer designs (and orders) point at this picture: deleting it would leave them blank
+  const used = await Customization.countDocuments({ $or: [{ "elements.artDesignId": design._id }, ...(design.imageUrl ? [{ "elements.src": design.imageUrl }] : [])] });
+  if (used) {
+    res.status(409);
+    throw new Error(`"${design.name}" is used in ${used} customer design${used === 1 ? "" : "s"}, so it can't be deleted. Hide it instead — those designs and their print files keep the picture.`);
+  }
   if (design.imageUrl) await deleteStoredFile(design.imageUrl);
   await design.deleteOne();
   res.json({ message: "Design deleted" });
+});
+
+// PUT /api/art-designs/:id/visibility  { isActive }  — hide from customers / show again (nothing is lost)
+export const setArtDesignVisibility = asyncHandler(async (req, res) => {
+  const design = await ArtDesign.findById(req.params.id);
+  if (!design) {
+    res.status(404);
+    throw new Error("Design not found");
+  }
+  design.isActive = Boolean(req.body.isActive);
+  await design.save();
+  res.json(await design.populate("category", "name"));
 });
 
 // ============================================================

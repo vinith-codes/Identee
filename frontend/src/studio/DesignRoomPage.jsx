@@ -24,7 +24,7 @@ import { areaCm, blockersOf, clashesIn, modelForGarment, placeArea } from "./tee
 import AreaThumb from "./AreaThumb";
 import Rolling from "./Rolling";
 import Assistant from "./Assistant";
-import { AFTER_AI_SLOGANS, AFTER_DESIGN_CHIPS, DRAW_MINE, DRAW_THIS, IN_DRAW_TAB, bot as botSays, checkMessages, chips as chipRow, firstMessages, firstState } from "./assistantScript";
+import { AFTER_AI_SLOGANS, AFTER_DESIGN_CHIPS, BACK, CHANGE_IDEA, DRAW_MINE, DRAW_THIS, IN_DRAW_TAB, bot as botSays, checkMessages, chips as chipRow, firstMessages, firstState } from "./assistantScript";
 import aiService from "../services/aiService";
 import { applyAiOps, areaFor, describeDesign } from "./aiOps";
 import WaitCard from "./WaitCard";
@@ -85,6 +85,28 @@ const writeJSON = (key, v) => {
     localStorage.setItem(key, JSON.stringify(v));
   } catch {
     // storage blocked — the design just isn't kept after a reload
+  }
+};
+// The Draw / Photo tab's state for this browser tab (sessionStorage). A step that was running isn't
+// running any more after a reload, so it opens on what was there before it (results, the choices or the form).
+const TAB_SESSION_KEY = (tab, type) => `identee:${tab}:v1:${type}`;
+const readTabSession = (tab, type) => {
+  try {
+    const s = JSON.parse(sessionStorage.getItem(TAB_SESSION_KEY(tab, type)) || "null");
+    if (!s || typeof s !== "object") return {};
+    const busy = s.view === "working" || s.view === "error";
+    return { ...s, wait: null, ...(busy ? { view: s.results?.length ? "results" : s.photo ? "choose" : undefined, error: null } : {}) };
+  } catch {
+    return {};
+  }
+};
+const saveTabSession = (tab, type, session) => {
+  try {
+    // functions (the "Try again" step) can't be kept
+    const plain = Object.fromEntries(Object.entries(session).filter(([k, v]) => k !== "last" && typeof v !== "function"));
+    sessionStorage.setItem(TAB_SESSION_KEY(tab, type), JSON.stringify(plain));
+  } catch {
+    // storage blocked — the tab just starts fresh after a reload
   }
 };
 const isLoggedIn = () => !!readJSON("userInfo")?.token;
@@ -184,8 +206,12 @@ export default function DesignRoomPage() {
   // the Photo Studio (PhotoStudio.jsx): the customer's photo as art, or print-ready. Its panel takes the
   // editor's place like the assistant's; its state stays while it is closed (results are still there)
   const [aiTab, setAiTab] = useState("chat"); // the AI panel's tab: chat | draw | photo
-  const [drawSession, setDrawSession] = useState({}); // the Draw tab's state (DrawStudio.jsx)
-  const [photoSession, setPhotoSession] = useState({});
+  // the Draw tab's state (DrawStudio.jsx) and the Photo tab's: kept for this browser tab, so what was typed and
+  // made is still there after a reload or a trip to the login page ("Your design stays here")
+  const [drawSession, setDrawSession] = useState(() => readTabSession("draw", type));
+  const [photoSession, setPhotoSession] = useState(() => readTabSession("photo", type));
+  useEffect(() => saveTabSession("draw", type, drawSession), [type, drawSession]);
+  useEffect(() => saveTabSession("photo", type, photoSession), [type, photoSession]);
   // the assistant made wide (about half the screen) with its Expand button — remembered on this device
   const [assistWide, setAssistWide] = useState(() => readJSON(ASSIST_WIDE_KEY) === true);
   const toggleAssistWide = () => {
@@ -933,17 +959,19 @@ export default function DesignRoomPage() {
     hasText: elements.some((e) => e.type === "text"),
     hasRoles: roles, // a text is marked as the player's name / number (team orders)
     roles: rolesIn(elements), // { name, number }: which of the two the tee has a place for
+    players: players.filter(filled).length, // a pasted list is added to these, never replaces them
     // an uploaded picture on the tee (not library art, not an AI design) — "photo to art" can use it
     photoOnTee: [...elements].reverse().find((e) => e.type === "image" && !e.artDesignId && !aiCuts.current.has(e.src))?.src || null,
   });
   // Edit the tee by chat: the text AI suggests changes, aiOps checks and applies them (one Undo step).
   // progress(now): tells the assistant's wait card what is happening now (drawing the pictures asked for)
-  const chatEdit = async (a, progress) => {
+  const chatEdit = async (a, progress, run) => {
     try {
       const res = await aiService.edit({
         message: a.message,
         design: describeDesign({ elements, positions, active, selectedId, fonts: FONTS, teeName: colour?.name || "", teeColours: colours.map((c) => c.name), areaPx }),
       });
+      if (run?.stopped) return []; // stopped while the AI was thinking: nothing changes
       const all = Array.isArray(res.ops) ? res.ops : [];
       if (!all.length) return [botSays(res.reply || "I’m not sure what to change. Tell me which item, and what to do with it."), chipRow(["What can you do?", "Something else"])];
 
@@ -952,9 +980,10 @@ export default function DesignRoomPage() {
       let changed = 0;
       const colourOp = all.find((o) => o?.op === "set_tee_colour");
       const wanted = colourOp && colours.find((c) => c.name.toLowerCase() === String(colourOp.colour || "").toLowerCase());
-      if (wanted && wanted.slug !== colour?.slug) {
-        changeColour(wanted.slug);
-        tee = wanted;
+      // (the colour itself changes at the end, with everything else — so Stop leaves the tee as it was)
+      const newTee = wanted && wanted.slug !== colour?.slug ? wanted : null;
+      if (newTee) {
+        tee = newTee;
         changed++;
       }
       // 2. changes to what is on the tee
@@ -973,13 +1002,14 @@ export default function DesignRoomPage() {
       const pictures = asked.slice(0, MAX_PICTURES);
       const leftOut = asked.slice(MAX_PICTURES);
       if (pictures.length && !ai.available) extra.push(botSays("Pictures can’t be made right now. You can pick from the art library or upload your own."));
-      else if (pictures.length && !isLoggedIn()) extra.push(botSays("Log in and I’ll draw the pictures for you."), chipRow(["Log in"]));
+      else if (pictures.length && !isLoggedIn()) extra.push(botSays("Log in and I’ll draw the pictures for you."), chipRow(["Log in", "Something else"]));
       else {
         if (pictures.length) {
           // one after the other, about 20–40 seconds each
           progress?.({ label: pictures.length > 1 ? `Drawing ${pictures.length} pictures…` : "Drawing your picture…", expect: 25 * pictures.length, hint: `Usually 20–40 seconds${pictures.length > 1 ? " for each" : ""}. You can look around the room meanwhile.` });
         }
         for (const pic of pictures) {
+          if (run?.stopped) return []; // stopped between pictures: nothing is put on the tee
           const used = [...new Set(els.map((e) => e.position))];
           // that area, or the biggest free one on the same side (e.g. "the back" on a crop top with only Top Back)
           const pos = areaFor(pic.area, positions, used);
@@ -1017,6 +1047,8 @@ export default function DesignRoomPage() {
         const names = leftOut.map((o) => `${o.subject.trim()}${positions.find((p) => p.key === o.area) ? ` on ${positions.find((p) => p.key === o.area).label}` : ""}`).join(", ");
         extra.push(botSays(`I can draw up to three pictures from one message, so I left out: ${names}. Ask me for ${leftOut.length === 1 ? "it" : "them"} in your next message and I’ll add ${leftOut.length === 1 ? "it" : "them"}.`));
       }
+      if (run?.stopped) return [];
+      if (newTee) changeColour(newTee.slug);
       if (!changed && !extra.length) return [botSays("I couldn’t do that one. Tap the item on the print area and tell me again, or use its settings."), chipRow(["What can you do?", "Something else"])];
       if (els !== elements) commit(() => els);
       if (Object.keys(placed).length) setAiPlaced((cur) => ({ ...cur, ...placed }));
@@ -1044,8 +1076,8 @@ export default function DesignRoomPage() {
     const res = await dispatch(uploadDesignImage(file));
     setBusy("");
     if (!uploadDesignImage.fulfilled.match(res)) return say(res.payload || "Upload failed. Please try again.");
-    setChatState((st) => ({ ...st, photoUrl: res.payload.path, wait: "photoStyle" }));
-    setChat((m) => [...m.map((x) => (x.chips ? { ...x, done: true } : x)), botSays("Got it. Which style?"), chipRow(ai.photoStyles)]);
+    setChatState((st) => ({ ...st, photoUrl: res.payload.path, wait: "photoStyle", backTo: "photo" }));
+    setChat((m) => [...m.map((x) => (x.chips ? { ...x, done: true } : x)), botSays("Got it. Which style?"), chipRow([...ai.photoStyles, BACK])]);
   };
   // Ask the image AI for designs (or for a change to one). Returns the chat messages to show.
   const generateDesigns = async (a) => {
@@ -1283,9 +1315,10 @@ export default function DesignRoomPage() {
     }
   };
   // the same in the chat: the preview, then Draw this / Open in the Draw tab / Draw my words (never a dead end)
-  const chatImprove = async (a) => {
+  const chatImprove = async (a, run) => {
     try {
       const got = await improveIdea(a.idea);
+      if (run?.stopped) return [];
       // the print area it will be drawn for, shown in the card and changeable there: the one the customer named,
       // else the AI's suggestion, else the open area, else the main front area (only areas that are free)
       const freeKey = (k) => k && positions.some((p) => p.key === k && (usedKeys.includes(k) || !blockersOf(k, positions, usedKeys).length));
@@ -1293,9 +1326,9 @@ export default function DesignRoomPage() {
       const res = { ...got, area };
       const areaLabel = positions.find((p) => p.key === area)?.label;
       setChatState((st) => ({ ...st, idea: { ...(st.idea || { subject: a.idea, areaKey: a.areaKey }), improved: res } }));
-      return [botSays("Here’s what I’ll draw. Change the print area in the card if you like, then tap “Draw this”."), { preview: { ...res, areaLabel } }, chipRow([DRAW_THIS, IN_DRAW_TAB, DRAW_MINE])];
+      return [botSays("Here’s what I’ll draw. Change the print area in the card if you like, then tap “Draw this”."), { preview: { ...res, areaLabel } }, chipRow([DRAW_THIS, IN_DRAW_TAB, DRAW_MINE, CHANGE_IDEA, "Something else"])];
     } catch (err) {
-      return [botSays(err.message), chipRow([DRAW_MINE, IN_DRAW_TAB])];
+      return [botSays(err.message), chipRow([DRAW_MINE, IN_DRAW_TAB, "Something else"])];
     }
   };
   const studioPlace = async (r, areaKey) => {
@@ -1370,11 +1403,12 @@ export default function DesignRoomPage() {
     const pos = positions.find((p) => p.key === issue.position);
     commit((prev) => prev.map((e) => (e.id !== issue.elId ? e : issue.measure && pos ? textBox({ ...e, ...issue.patch }, pos) : { ...e, ...issue.patch })));
   };
-  const assistantAct = (a, progress) => {
+  // run: { stopped } — the customer pressed Stop in the chat; nothing may change the tee after that
+  const assistantAct = (a, progress, run) => {
     if (a.type === "generate") return generateDesigns(a);
     if (a.type === "slogans") return writeSlogans(a);
-    if (a.type === "improve") return chatImprove(a);
-    if (a.type === "edit") return chatEdit(a, progress);
+    if (a.type === "improve") return chatImprove(a, run);
+    if (a.type === "edit") return chatEdit(a, progress, run);
     if (a.type === "photoPick") return openPhotoStudio();
     if (a.type === "aiTab") {
       // "Draw a picture for me", a drawing typed in the chat, "Turn my photo into art": over to that tab
@@ -1402,8 +1436,15 @@ export default function DesignRoomPage() {
     }
     if (a.type === "review") return toReview(true);
     if (a.type === "players") {
-      // a pasted team list: one tee per player
-      setPlayers(a.players.slice(0, MAX_PLAYERS).map((p) => ({ id: makeId(), ...p })));
+      // a pasted team list: one tee per player. It is ADDED to the players already entered (the same
+      // name and number twice is skipped), so a second paste can't wipe the first list.
+      setPlayers((list) => {
+        const kept = list.filter(filled);
+        const key = (p) => `${String(p.name || "").trim().toLowerCase()}|${String(p.number || "").trim()}`;
+        const seen = new Set(kept.map(key));
+        const fresh = a.players.filter((p) => !seen.has(key(p)) && seen.add(key(p)));
+        return [...kept, ...fresh.map((p) => ({ id: makeId(), ...p }))].slice(0, MAX_PLAYERS);
+      });
       return setTeam(true);
     }
     if (a.type === "ink") {
@@ -2450,17 +2491,35 @@ function FindSizeLink({ onClick }) {
   );
 }
 
-function Fitting({ garment, colours, colour, onColour, sizes, size, onSize, onFindSize, onEnter, onAssistant, onPhoto, credit, earlier, onContinue }) {
+function Fitting({ garment, colours, colour, onColour, sizes, size, onSize, onFindSize, onEnter: enter, onAssistant: assistant, onPhoto: photo, credit, earlier, onContinue }) {
+  // with an unfinished design waiting, starting a new one replaces it — so ask first
+  const [asking, setAsking] = useState(null); // the way in that was pressed
+  const guard = (go) => () => (earlier ? setAsking(() => go) : go());
+  const onEnter = guard(enter);
+  const onAssistant = guard(assistant);
+  const onPhoto = guard(photo);
   return (
     <div className="dr-overlay fit">
       <div className="dr-fit">
         {earlier && (
-          <div className="dr-resume">
-            <span>
-              You have an unfinished design ({earlier.elements.length} item{earlier.elements.length === 1 ? "" : "s"}
-              {earlier.name ? ` · ${earlier.name}` : ""}).
-            </span>
-            <button type="button" onClick={onContinue}>Continue it</button>
+          <div className={`dr-resume${asking ? " ask" : ""}`} role={asking ? "alertdialog" : undefined} aria-label={asking ? "Start a new design?" : undefined}>
+            {asking ? (
+              <>
+                <span>Start a new design? Your unfinished design ({earlier.elements.length} item{earlier.elements.length === 1 ? "" : "s"}) will be replaced.</span>
+                <span className="dr-resume-btns">
+                  <button type="button" onClick={onContinue}>Continue my design</button>
+                  <button type="button" className="alt" onClick={() => { const go = asking; setAsking(null); go(); }}>Start new</button>
+                </span>
+              </>
+            ) : (
+              <>
+                <span>
+                  You have an unfinished design ({earlier.elements.length} item{earlier.elements.length === 1 ? "" : "s"}
+                  {earlier.name ? ` · ${earlier.name}` : ""}).
+                </span>
+                <button type="button" onClick={onContinue}>Continue it</button>
+              </>
+            )}
           </div>
         )}
         <div>

@@ -40,7 +40,15 @@ const updateOrderStatus = async (id, status, token) => {
   return data;
 };
 
+// Undo the last status change (the server allows it for 15 minutes, never for a cancel).
+const undoOrderStatus = async (id, token) => {
+  const config = { headers: { Authorization: `Bearer ${token}` } };
+  const { data } = await api.put(`/orders/${id}/undostatus`, {}, config);
+  return data;
+};
+
 const orderService = {
+  undoOrderStatus,
   createOrder,
   getMyOrders,
   getOrderById,

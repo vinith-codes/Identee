@@ -5,6 +5,7 @@ import {
   fetchAllArtDesignsAdmin,
   createArtDesign,
   deleteArtDesign,
+  setArtDesignVisibility,
 } from "../../redux/slices/artDesignSlice";
 import { imageUrl } from "../../utils/imageUrl";
 
@@ -110,7 +111,9 @@ export default function ArtDesignsPage() {
         {[...designs]
           .sort((x, y) => Number(y.isActive !== false) - Number(x.isActive !== false))
           .map((d) => (
-            <ArtCard key={d._id} d={d} onDelete={() => dispatch(deleteArtDesign(d._id))} />
+            <ArtCard key={d._id} d={d}
+              onDelete={() => dispatch(deleteArtDesign(d._id)).unwrap()}
+              onVisible={(isActive) => dispatch(setArtDesignVisibility({ id: d._id, isActive })).unwrap()} />
           ))}
       </div>
     </div>
@@ -120,9 +123,27 @@ export default function ArtDesignsPage() {
 // One art design. Hidden ones (not shown to customers) are marked, and a
 // picture that no longer exists shows a "Picture missing" tile instead of
 // a broken image (files saved before the move to Cloudinary were lost).
-function ArtCard({ d, onDelete }) {
+// Delete asks first; the server refuses when customer designs use the picture, and Hide is offered instead.
+function ArtCard({ d, onDelete, onVisible }) {
   const [missing, setMissing] = useState(false);
+  const [asking, setAsking] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState("");
   const hidden = d.isActive === false;
+  const run = async (job) => {
+    setBusy(true);
+    setNote("");
+    try {
+      await job();
+      setAsking(false);
+    } catch (err) {
+      setNote(typeof err === "string" ? err : "That didn't work. Please try again.");
+      setAsking(false);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const btn = { width: "100%", padding: "6px 0", borderRadius: 6, fontSize: 11, cursor: busy ? "wait" : "pointer", background: "none" };
   return (
     <div style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 12, padding: 12, textAlign: "center", opacity: hidden ? 0.75 : 1 }}>
       {missing || !d.imageUrl ? (
@@ -139,12 +160,23 @@ function ArtCard({ d, onDelete }) {
       <p style={{ margin: "0 0 10px", fontSize: 10.5, fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", color: hidden ? C.danger : "#7BC59A" }}>
         {hidden ? "Hidden from customers" : "Shown in the Design Room"}
       </p>
-      <button
-        onClick={onDelete}
-        style={{ width: "100%", padding: "6px 0", borderRadius: 6, border: `1px solid ${C.danger}`, background: "none", color: C.danger, fontSize: 11, cursor: "pointer" }}
-      >
-        Delete
-      </button>
+      {note && <p role="alert" style={{ margin: "0 0 8px", fontSize: 11, color: C.ink, textAlign: "left", lineHeight: 1.35 }}>{note}</p>}
+      {asking ? (
+        <div style={{ display: "grid", gap: 6 }}>
+          <span style={{ fontSize: 11, color: C.ink }}>Delete for good? This can't be undone.</span>
+          <button type="button" disabled={busy} onClick={() => run(onDelete)} style={{ ...btn, border: "none", background: C.danger, color: "#fff", fontWeight: 700 }}>Yes, delete</button>
+          <button type="button" disabled={busy} onClick={() => setAsking(false)} style={{ ...btn, border: `1px solid ${C.border}`, color: C.ink }}>Keep</button>
+        </div>
+      ) : (
+        <div style={{ display: "grid", gap: 6 }}>
+          <button type="button" disabled={busy} onClick={() => run(() => onVisible(hidden))} style={{ ...btn, border: `1px solid ${C.border}`, color: C.ink }}>
+            {hidden ? "Show to customers" : "Hide from customers"}
+          </button>
+          <button type="button" disabled={busy} onClick={() => { setNote(""); setAsking(true); }} style={{ ...btn, border: `1px solid ${C.danger}`, color: C.danger }}>
+            Delete
+          </button>
+        </div>
+      )}
     </div>
   );
 }

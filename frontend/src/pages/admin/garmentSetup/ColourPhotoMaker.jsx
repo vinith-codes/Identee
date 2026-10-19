@@ -37,6 +37,9 @@ export default function ColourPhotoMaker({ garment, images, reloadImages, save }
   const [colourSlug, setColourSlug] = useState(null);
   const [replace, setReplace] = useState(false);
   const [saving, setSaving] = useState(null); // { done, total }
+  const [confirmReplace, setConfirmReplace] = useState(false); // "This replaces N photos…" shown first
+  const [stopping, setStopping] = useState(false);
+  const stopRef = useRef(false); // Stop pressed: finish the photo being saved, then stop
   const [sides, setSides] = useState(null); // the standard side drawing, once loaded
   const [drag, setDrag] = useState(null); // "top" | "hem" while a line is dragged
 
@@ -101,13 +104,29 @@ export default function ColourPhotoMaker({ garment, images, reloadImages, save }
   const docFor = (slug) => images.find((d) => d.garmentType === garment.key && d.colorSlug === slug);
   const plannedViews = parts ? VIEWS.filter(([v]) => parts[v]).map(([v]) => v) : [];
   const toMake = colours.flatMap((c) => plannedViews.filter((v) => replace || !docFor(c.slug)?.[v]?.imageUrl).map((v) => [c, v]));
+  // existing photos that would be overwritten (their old files are deleted)
+  const replacing = toMake.filter(([c, v]) => docFor(c.slug)?.[v]?.imageUrl).length;
+
+  const askOrMake = () => {
+    if (replacing > 0) return setConfirmReplace(true);
+    makeAll();
+  };
 
   const makeAll = async () => {
+    setConfirmReplace(false);
     if (!toMake.length) return setError(replace ? "Nothing to make." : "Every photo is already there — tick “Replace the existing photos” to make them again.");
     setError("");
+    stopRef.current = false;
+    setStopping(false);
     setSaving({ done: 0, total: toMake.length });
     try {
       for (let i = 0; i < toMake.length; i++) {
+        if (stopRef.current) {
+          // the photo ruler is only saved once every photo is made (it belongs to the new set)
+          setError(`Stopped after ${i} of ${toMake.length}. The finished photos are kept — press the button again to make the rest.`);
+          await reloadImages();
+          return;
+        }
         const [c, v] = toMake[i];
         const file = await toJpegFile(recolour(parts[v], c.hex, shadows), `${garment.key}-${c.slug}-${v}.jpg`);
         await garmentImageService.uploadGarmentViewPhoto(garment.key, c.slug, c.name, c.hex, v, file);
@@ -119,6 +138,7 @@ export default function ColourPhotoMaker({ garment, images, reloadImages, save }
     } catch (err) {
       setError(err.response?.data?.message || err.message || "Saving stopped. Press the button again to go on — finished photos are kept.");
     } finally {
+      setStopping(false);
       setSaving(null);
     }
   };
@@ -256,9 +276,24 @@ export default function ColourPhotoMaker({ garment, images, reloadImages, save }
           <span className="cpm-help">
             {saving ? `Saving ${saving.done} of ${saving.total}…` : `Makes ${toMake.length} photo${toMake.length === 1 ? "" : "s"} (${colours.length} colours × ${plannedViews.length} views${replace ? "" : ", missing ones only"}) and saves the photo ruler.`}
           </span>
-          <button type="button" className="aw-btn dark" onClick={makeAll} disabled={!!saving}>
-            {saving ? "Saving…" : `Make ${toMake.length} photos`}
-          </button>
+          {saving ? (
+            <button type="button" className="aw-btn" onClick={() => { stopRef.current = true; setStopping(true); }} disabled={stopping}>
+              {stopping ? "Stopping…" : "Stop"}
+            </button>
+          ) : confirmReplace ? (
+            <span role="group" aria-label="Replace photos?" style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+              <span className="cpm-help" style={{ color: "#141110" }}>
+                This replaces {replacing} existing photo{replacing === 1 ? "" : "s"} and deletes the old files
+                {garment.isActive ? " — this garment is live, so customers see the new photos straight away" : ""}.
+              </span>
+              <button type="button" className="aw-btn dark" onClick={makeAll}>Yes, replace</button>
+              <button type="button" className="aw-btn" onClick={() => setConfirmReplace(false)}>Back</button>
+            </span>
+          ) : (
+            <button type="button" className="aw-btn dark" onClick={askOrMake}>
+              {`Make ${toMake.length} photos`}
+            </button>
+          )}
         </div>
       )}
     </section>

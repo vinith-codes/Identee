@@ -32,9 +32,13 @@ const createArtDesign = async (name, category, price, imageFile) => {
 
 const deleteArtDesign = async (id) => (await axios.delete(`${API_URL}/${id}`, auth())).data;
 
+// hide from customers / show again
+const setArtDesignVisibility = async (id, isActive) => (await axios.put(`${API_URL}/${id}/visibility`, { isActive }, auth())).data;
+
 export default {
   getArtDesigns,
   getAllArtDesignsAdmin,
   createArtDesign,
   deleteArtDesign,
+  setArtDesignVisibility,
 };

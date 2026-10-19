@@ -1,6 +1,6 @@
 // Route this at: <Route path="/cart" element={<CartPage />} />
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import {
@@ -81,6 +81,13 @@ export default function CartPage() {
 
   const handleRemove = (item) => {
     dispatch(removeCartItem({ cartItemId: item._id, token: user.token }));
+  };
+
+  // a team order goes as a whole (every size line of the design), after a Yes
+  const [confirmTeam, setConfirmTeam] = useState(null); // the design's id
+  const removeTeam = (g) => {
+    setConfirmTeam(null);
+    dispatch(updateCartItemQty({ productId: null, cartItemId: g.items[0]._id, size: g.items[0].size, qty: 0, token: user.token }));
   };
 
   if (!user) {
@@ -170,10 +177,24 @@ export default function CartPage() {
                       <span style={{ marginLeft: "auto", fontWeight: 700, color: C.ink }}>₹ {item.price}</span>
                     </div>
                   ))}
-                  <button type="button" onClick={() => handleRemove(g.items[0])}
-                    style={{ background: "none", border: "none", color: C.danger, fontSize: 12, cursor: "pointer", textDecoration: "underline", padding: 0, marginTop: 4 }}>
-                    Remove this team order
-                  </button>
+                  {confirmTeam === g.design._id ? (
+                    <div role="group" aria-label="Remove this team order?" style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginTop: 6, fontSize: 12.5 }}>
+                      <span style={{ color: C.ink }}>Remove all {g.items.reduce((n, it) => n + (it.qty || 0), 0)} tees of this team order?</span>
+                      <button type="button" onClick={() => removeTeam(g)}
+                        style={{ border: 0, borderRadius: 999, padding: "5px 12px", background: C.danger, color: "#fff", fontWeight: 700, cursor: "pointer", fontSize: 12 }}>
+                        Yes, remove
+                      </button>
+                      <button type="button" onClick={() => setConfirmTeam(null)}
+                        style={{ border: `1px solid ${C.border}`, borderRadius: 999, padding: "5px 12px", background: "#fff", color: C.ink, fontWeight: 600, cursor: "pointer", fontSize: 12 }}>
+                        Keep
+                      </button>
+                    </div>
+                  ) : (
+                    <button type="button" onClick={() => setConfirmTeam(g.design._id)}
+                      style={{ background: "none", border: "none", color: C.danger, fontSize: 12, cursor: "pointer", textDecoration: "underline", padding: 0, marginTop: 4 }}>
+                      Remove this team order
+                    </button>
+                  )}
                 </div>
               )}
               {!g.design.players?.length && g.items.map((item) => (

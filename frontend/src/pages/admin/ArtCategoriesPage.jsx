@@ -28,6 +28,16 @@ export default function ArtCategoriesPage() {
   const dispatch = useDispatch();
   const { items, isLoading } = useSelector((s) => s.artCategory);
   const [name, setName] = useState("");
+  const [asking, setAsking] = useState(null); // the group waiting for "Yes, delete"
+  const [deleteNote, setDeleteNote] = useState({}); // group id → why it can't be deleted
+  const removeGroup = async (id) => {
+    setAsking(null);
+    try {
+      await dispatch(deleteArtCategory(id)).unwrap();
+    } catch (err) {
+      setDeleteNote((n) => ({ ...n, [id]: typeof err === "string" ? err : "That didn't work. Please try again." }));
+    }
+  };
   const [file, setFile] = useState(null);
   const [preview, setPreview] = useState(null);
   const fileRef = useRef(null);
@@ -84,12 +94,21 @@ export default function ArtCategoriesPage() {
           <div key={c._id} style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 12, padding: 12, textAlign: "center" }}>
             <img src={imgUrl(c.thumbnail)} alt={c.name} style={{ width: "100%", aspectRatio: "1/1", objectFit: "cover", borderRadius: 8, marginBottom: 10 }} />
             <p style={{ margin: "0 0 10px", fontSize: 13, fontWeight: 600 }}>{c.name}</p>
-            <button
-              onClick={() => dispatch(deleteArtCategory(c._id))}
-              style={{ width: "100%", padding: "6px 0", borderRadius: 6, border: `1px solid ${C.danger}`, background: "none", color: C.danger, fontSize: 11, cursor: "pointer" }}
-            >
-              Delete
-            </button>
+            {deleteNote[c._id] && <p role="alert" style={{ margin: "0 0 8px", fontSize: 11, color: C.ink, textAlign: "left", lineHeight: 1.35 }}>{deleteNote[c._id]}</p>}
+            {asking === c._id ? (
+              <div style={{ display: "grid", gap: 6 }}>
+                <span style={{ fontSize: 11, color: C.ink }}>Delete this group for good?</span>
+                <button type="button" onClick={() => removeGroup(c._id)} style={{ width: "100%", padding: "6px 0", borderRadius: 6, border: "none", background: C.danger, color: "#fff", fontWeight: 700, fontSize: 11, cursor: "pointer" }}>Yes, delete</button>
+                <button type="button" onClick={() => setAsking(null)} style={{ width: "100%", padding: "6px 0", borderRadius: 6, border: `1px solid ${C.border}`, background: "none", color: C.ink, fontSize: 11, cursor: "pointer" }}>Keep</button>
+              </div>
+            ) : (
+              <button type="button"
+                onClick={() => { setDeleteNote((n) => ({ ...n, [c._id]: "" })); setAsking(c._id); }}
+                style={{ width: "100%", padding: "6px 0", borderRadius: 6, border: `1px solid ${C.danger}`, background: "none", color: C.danger, fontSize: 11, cursor: "pointer" }}
+              >
+                Delete
+              </button>
+            )}
           </div>
         ))}
       </div>

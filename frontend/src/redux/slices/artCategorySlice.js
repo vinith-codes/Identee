@@ -14,11 +14,16 @@ export const createArtCategory = createAsyncThunk(
     artCategoryService.createArtCategory(name, thumbnailFile),
 );
 
+// refused while the group still has designs — the reason comes back to the page
 export const deleteArtCategory = createAsyncThunk(
   "artCategory/delete",
-  async (id) => {
-    await artCategoryService.deleteArtCategory(id);
-    return id;
+  async (id, { rejectWithValue }) => {
+    try {
+      await artCategoryService.deleteArtCategory(id);
+      return id;
+    } catch (err) {
+      return rejectWithValue(err.response?.data?.message || err.message);
+    }
   },
 );
 

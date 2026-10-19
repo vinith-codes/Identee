@@ -336,7 +336,8 @@ const updateUserProfile = asyncHandler(async (req, res) => {
   /* ---------- BASIC FIELDS ---------- */
   // email/phone are login identifiers verified by OTP, so they can't be
   // changed here (that would let anyone claim an unverified address).
-  user.name = req.body.name ?? user.name;
+  // a blank name never replaces a real one (a page that failed to load would send "")
+  if (typeof req.body.name === "string" && req.body.name.trim()) user.name = req.body.name;
   user.lastName = req.body.lastName ?? user.lastName;
   user.gender = req.body.gender ?? user.gender;
   user.dateOfBirth = req.body.dateOfBirth ?? user.dateOfBirth;
