@@ -8,7 +8,7 @@
 // and has a live garment, a coming-soon garment, or is marked "coming soon". Garments come
 // from Admin → Customizable: live, sellable ones can be designed; drafts marked "coming soon"
 // show as cards with their catalogue photo (nothing to click into yet).
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { fetchCategories } from "../redux/slices/categorySlice";
@@ -71,8 +71,9 @@ export default function CustomizablePage() {
       alive = false;
     };
   }, [dispatch]);
-  // opening a collection (or going back) starts at the top of the page
-  useEffect(() => {
+  // opening a collection (or going back) starts at the top of the page — before it is painted, so the
+  // browser never draws the collection at the old scroll position (the footer) and then jumps
+  useLayoutEffect(() => {
     window.scrollTo(0, 0);
   }, [only]);
 
