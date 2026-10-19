@@ -134,9 +134,24 @@ export default function OfferBannerPage() {
               <span style={{ flex: 1, fontSize: 14 }}>
                 {o.offerText}
                 {o.isActive && (
-                  <span style={{ marginLeft: 10, fontSize: 11, color: THEME.goldDeep, fontWeight: 700 }}>
-                    ● LIVE
-                  </span>
+                  <>
+                    <span style={{ marginLeft: 10, fontSize: 11, color: THEME.goldDeep, fontWeight: 700 }}>
+                      ● LIVE
+                    </span>
+                    {/* no offer live at all, without deleting this one */}
+                    <button
+                      type="button"
+                      onClick={() =>
+                        dispatch(updateOffer({ id: o._id, data: { isActive: false } }))
+                          .unwrap()
+                          .then(() => toast.success("Offer turned off — no offer is live now"))
+                          .catch((err) => toast.error(err || "Couldn't turn the offer off"))
+                      }
+                      style={{ marginLeft: 10, fontSize: 11, fontWeight: 700, border: `1px solid ${THEME.border}`, background: "none", borderRadius: 999, padding: "3px 10px", cursor: "pointer", color: THEME.textMuted }}
+                    >
+                      Turn off
+                    </button>
+                  </>
                 )}
               </span>
             )}

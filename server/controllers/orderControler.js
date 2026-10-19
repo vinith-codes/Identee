@@ -356,6 +356,11 @@ const generateInvoice = asyncHandler(async (req, res) => {
   if (order.invoiceDetails) {
     return res.json(order.invoiceDetails);
   }
+  // ?existing=1: only look — the admin's invoice page asks before an invoice number is assigned
+  if (req.query.existing) {
+    res.status(404);
+    throw new Error("No invoice has been made for this order yet");
+  }
 
   // Separate numbering series (IDT-YYYY-NNNNNN) from order.invoiceNumber
   // (VF-YYYY-NNNN), which is already assigned automatically at order

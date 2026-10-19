@@ -15,6 +15,7 @@ import { imageUrl } from "../../../utils/imageUrl";
 import { ALL_SIZES, SHEET_COLOURS, SHEET_FABRICS } from "../../../utils/productSheet";
 import { AW } from "../garmentSetup/wizardStyles";
 import { colourHex, RM_CSS } from "./readymadeUi";
+import { useReportUnsaved, useUnsavedChanges } from "../../../utils/unsavedChanges";
 
 const STEPS = ["Basics", "Colours & photos", "Sizes, price & stock", "More details", "Review & publish"];
 const MAX_PHOTOS = 8;
@@ -177,7 +178,9 @@ export default function ProductWizard() {
     };
   }, [editing, groupId]);
 
-  // leaving with unsaved changes
+  // leaving with unsaved changes: the sidebar, the settings tabs and the Back link ask first
+  useReportUnsaved(dirty, "this product");
+  const { confirmLeave } = useUnsavedChanges();
   useEffect(() => {
     if (!dirty) return;
     const warn = (e) => {
@@ -271,7 +274,7 @@ export default function ProductWizard() {
     return (
       <div style={AW.page}>
         <p style={{ color: "#A3341F" }}>{loadError}</p>
-        <Link to="/admin/products" className="aw-link">← Back to all products</Link>
+        <Link to="/admin/products" className="aw-link" onClick={(e) => { if (!confirmLeave()) e.preventDefault(); }}>← Back to all products</Link>
       </div>
     );
   }

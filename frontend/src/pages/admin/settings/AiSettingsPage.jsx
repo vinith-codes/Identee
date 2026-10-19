@@ -7,6 +7,7 @@
 import { useEffect, useState } from "react";
 import { THEME } from "../../../theme/theme";
 import aiService from "../../../services/aiService";
+import { useReportUnsaved } from "../../../utils/unsavedChanges";
 
 const FIELDS = [
   ["dailyPerUser", "Requests per customer per day", "How many times one customer can ask for designs in a day.", 1, 50, 1],
@@ -62,6 +63,10 @@ export default function AiSettingsPage() {
   const label = { fontSize: 13, fontWeight: 600, color: t.text };
   const help = { fontSize: 12, color: t.textMuted, margin: "2px 0 6px" };
   const input = { width: 140, padding: "9px 10px", border: `1px solid ${t.border}`, borderRadius: 8, font: "inherit", background: "#fff", color: t.text };
+
+  // unsaved changes: the sidebar and the settings tabs ask before leaving; Reset puts the saved values back
+  const dirty = Boolean(data && form && JSON.stringify(form) !== JSON.stringify(data.settings));
+  useReportUnsaved(dirty, "AI designs");
 
   if (!form) return <p style={{ color: t.textMuted }}>{note || "Loading…"}</p>;
   // each service has its own cap
@@ -155,6 +160,11 @@ export default function AiSettingsPage() {
           <button type="submit" disabled={saving} style={{ padding: "10px 22px", border: 0, borderRadius: 999, background: t.ink, color: "#fff", fontWeight: 700, cursor: "pointer" }}>
             {saving ? "Saving…" : "Save"}
           </button>
+          {dirty && !saving && (
+            <button type="button" onClick={() => { setForm(data.settings); setNote(""); }} style={{ padding: "10px 18px", borderRadius: 999, border: `1px solid ${t.border}`, background: "#fff", color: t.text, fontWeight: 600, cursor: "pointer" }}>
+              Reset
+            </button>
+          )}
           {note && <span role="status" style={{ fontSize: 13, color: t.textMuted }}>{note}</span>}
         </div>
       </form>

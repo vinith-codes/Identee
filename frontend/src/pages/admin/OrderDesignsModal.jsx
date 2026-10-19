@@ -125,6 +125,8 @@ function PrintPictures({ design, price, onChanged }) {
   if (!rows.length) return null;
 
   const enlarge = async (index) => {
+    // a paid AI request: ask first
+    if (!window.confirm(`Enlarge this picture for print?${price ? ` It costs about ₹${price}` : ""} (one AI request). You can compare it with the original afterwards, and go back to the original if it isn't right.`)) return;
     setError("");
     setBusy(index);
     try {
@@ -137,6 +139,7 @@ function PrintPictures({ design, price, onChanged }) {
     }
   };
   const printOriginal = async (index) => {
+    if (!window.confirm("Print the original instead?\n\nThe enlarged copy (already paid for) will be deleted. Enlarging again later costs another request.")) return;
     setError("");
     try {
       await aiService.dropPrintPicture({ designId: design._id, index });

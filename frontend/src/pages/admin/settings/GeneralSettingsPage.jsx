@@ -9,6 +9,7 @@ import {
 import settingService from "../../../services/settingService";
 import { fetchPublicSettings } from "../../../redux/slices/publicSettingsSlice";
 import { imageUrl } from "../../../utils/imageUrl";
+import { useReportUnsaved } from "../../../utils/unsavedChanges";
 
 
 export default function GeneralSettingsPage() {
@@ -19,6 +20,9 @@ export default function GeneralSettingsPage() {
 
   const [form, setForm] = useState({});
   const [dirty, setDirty] = useState(false);
+  useReportUnsaved(dirty, "Store Branding"); // the sidebar and the settings tabs ask before leaving
+  // the picture each logo/favicon upload replaced, so "Use previous" can bring it back before saving
+  const [prevImage, setPrevImage] = useState({});
   const [uploadingKey, setUploadingKey] = useState(null);
 
   useEffect(() => {
@@ -53,6 +57,7 @@ export default function GeneralSettingsPage() {
 
   const handleImageUpload = async (key, file) => {
     if (!file) return;
+    setPrevImage((p) => ({ ...p, [key]: form[key] || "" }));
     setUploadingKey(key);
     try {
       const { path } = await settingService.uploadSettingAsset(
@@ -155,12 +160,18 @@ export default function GeneralSettingsPage() {
           value={form["general.storeLogo"]}
           uploading={uploadingKey === "general.storeLogo"}
           onUpload={(file) => handleImageUpload("general.storeLogo", file)}
+          onRemove={() => set("general.storeLogo", "")}
+          previous={prevImage["general.storeLogo"]}
+          onRevert={() => set("general.storeLogo", prevImage["general.storeLogo"])}
         />
         <ImageField
           label="Favicon"
           value={form["general.favicon"]}
           uploading={uploadingKey === "general.favicon"}
           onUpload={(file) => handleImageUpload("general.favicon", file)}
+          onRemove={() => set("general.favicon", "")}
+          previous={prevImage["general.favicon"]}
+          onRevert={() => set("general.favicon", prevImage["general.favicon"])}
         />
       </SettingCard>
 
@@ -251,7 +262,11 @@ export default function GeneralSettingsPage() {
           label="Enable Maintenance Mode"
           description="Blocks all customer-facing storefront traffic with a 503 response. Admins can still browse and turn this back off."
           checked={!!form["general.maintenanceMode"]}
-          onChange={(v) => set("general.maintenanceMode", v)}
+          onChange={(v) => {
+            // turning it on closes the shop to customers the moment it is saved
+            if (v && !window.confirm("Turn on maintenance mode?\n\nAs soon as you save, customers will see a 'closed for maintenance' page instead of the shop. Admins can still browse and turn it off.")) return;
+            set("general.maintenanceMode", v);
+          }}
         />
       </SettingCard>
 
@@ -361,7 +376,9 @@ function TextField({ label, value, onChange, textarea }) {
   );
 }
 
-function ImageField({ label, value, uploading, onUpload }) {
+// onRemove: clear the picture (the site falls back to its built-in one); previous/onRevert: the picture this
+// upload replaced, until the page is saved
+function ImageField({ label, value, uploading, onUpload, onRemove, previous, onRevert }) {
   return (
     <div>
       <label style={labelStyle}>{label}</label>
@@ -401,6 +418,16 @@ function ImageField({ label, value, uploading, onUpload }) {
             onChange={(e) => onUpload(e.target.files?.[0])}
           />
         </label>
+        {value && onRemove && (
+          <button type="button" onClick={onRemove} disabled={uploading} style={{ padding: "8px 14px", borderRadius: 8, border: `1px solid ${THEME.border}`, background: "none", fontSize: 12, cursor: "pointer", color: THEME.textMuted }}>
+            Remove
+          </button>
+        )}
+        {previous !== undefined && previous !== value && onRevert && (
+          <button type="button" onClick={onRevert} disabled={uploading} style={{ padding: "8px 14px", borderRadius: 8, border: `1px solid ${THEME.border}`, background: "none", fontSize: 12, cursor: "pointer", color: THEME.textMuted }}>
+            Use previous
+          </button>
+        )}
       </div>
     </div>
   );

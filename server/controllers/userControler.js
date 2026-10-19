@@ -544,6 +544,12 @@ const deleteUser = asyncHandler(async (req, res) => {
       res.status(400);
       throw new Error("This person is an admin. Remove their admin access first, then delete.");
     }
+    // their orders would lose their customer (no name on the order, no status emails)
+    const orders = await Order.countDocuments({ user: user._id });
+    if (orders) {
+      res.status(400);
+      throw new Error(`This customer has ${orders} order${orders === 1 ? "" : "s"}, so the account can't be deleted. Remove their admin or seller access instead if that's the concern.`);
+    }
     await user.deleteOne({ _id: req.params.id });
     res.json({ message: "User removed" });
   } else {

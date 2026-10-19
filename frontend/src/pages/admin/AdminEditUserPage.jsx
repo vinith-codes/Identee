@@ -81,6 +81,9 @@ They will be able to see every order and customer, change products and prices, a
       );
       if (!ok) return;
     }
+    // taking admin access away, or changing the address they log in with: ask once
+    if (!form.isAdmin && selectedUser.isAdmin && !window.confirm(`Remove admin access from ${form.name || form.email || "this person"}?\n\nThey will no longer see the admin area. You can give it back later.`)) return;
+    if (form.email && selectedUser.email && form.email.trim().toLowerCase() !== String(selectedUser.email).toLowerCase() && !window.confirm(`Change this customer's login email from ${selectedUser.email} to ${form.email.trim()}?\n\nThey will need the new address to log in.`)) return;
     try {
       await dispatch(editUser({ id, userData: form })).unwrap();
       toast.success("User updated successfully");

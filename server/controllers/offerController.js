@@ -13,6 +13,10 @@ const getOfferByCouponCode = asyncHandler(async (req, res) => {
     res.status(404);
     throw new Error("Invalid coupon code");
   }
+  if (offer.isActive === false) {
+    res.status(400);
+    throw new Error("This coupon is not active right now");
+  }
 
   const currentDate = new Date();
 
@@ -67,7 +71,7 @@ const createOffer = asyncHandler(async (req, res) => {
 
 const updateOffer = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const { code, offerPercentage, startDate, expiryDate, maxUsage, onePerCustomer, showOnSite } = req.body;
+  const { code, offerPercentage, startDate, expiryDate, maxUsage, onePerCustomer, showOnSite, isActive } = req.body;
 
   const offer = await Offer.findById(id);
 
@@ -83,6 +87,7 @@ const updateOffer = asyncHandler(async (req, res) => {
   if (maxUsage !== undefined) offer.maxUsage = maxUsage;
   if (onePerCustomer !== undefined) offer.onePerCustomer = onePerCustomer !== false;
   if (showOnSite !== undefined) offer.showOnSite = showOnSite === true;
+  if (isActive !== undefined) offer.isActive = isActive !== false;
 
   const updatedOffer = await offer.save();
   res.status(200).json(updatedOffer);
@@ -91,7 +96,7 @@ const updateOffer = asyncHandler(async (req, res) => {
 // GET /api/offers/on-site (public): the coupon shown next to prices ("Extra 10% off with code …"), or null
 const getOnSiteOffer = asyncHandler(async (req, res) => {
   const now = new Date();
-  const offer = await Offer.findOne({ showOnSite: true, startDate: { $lte: now }, expiryDate: { $gte: now } })
+  const offer = await Offer.findOne({ showOnSite: true, isActive: { $ne: false }, startDate: { $lte: now }, expiryDate: { $gte: now } })
     .sort({ offerPercentage: -1 })
     .select("code offerPercentage maxUsage usedCount")
     .lean();

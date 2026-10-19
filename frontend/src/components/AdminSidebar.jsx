@@ -10,6 +10,7 @@ import axios from "axios";
 import { logout } from "../redux/slices/authSlice";
 import logo from "../assets/logo.png";
 import { useBrandLogo } from "../utils/brandLogo";
+import { useUnsavedChanges } from "../utils/unsavedChanges";
 import { imageUrl } from "../utils/imageUrl";
 import { ADMIN_MENU, findMenuSection } from "../utils/adminMenu";
 
@@ -92,7 +93,12 @@ export default function AdminSidebar({ collapsed, onToggle }) {
     navigate("/login", { replace: true });
   };
 
-  const onSection = (section) => navigate(section.to);
+  // a page with unsaved changes asks before the menu takes the admin away
+  const { confirmLeave } = useUnsavedChanges();
+  const onSection = (section) => {
+    if (!confirmLeave()) return;
+    navigate(section.to);
+  };
 
   return (
     <aside
@@ -186,6 +192,9 @@ export default function AdminSidebar({ collapsed, onToggle }) {
                       to={child.to}
                       end
                       className={({ isActive }) => `adm-sub${isActive ? " on" : ""}`}
+                      onClick={(e) => {
+                        if (!confirmLeave()) e.preventDefault();
+                      }}
                     >
                       {child.label}
                     </NavLink>

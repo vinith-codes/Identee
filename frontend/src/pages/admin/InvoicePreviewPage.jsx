@@ -17,16 +17,20 @@ export default function InvoicePreviewPage() {
   const [showEmailConfirm, setShowEmailConfirm] = useState(false);
   const printRef = useRef(null);
 
+  // Opening the page only LOOKS for an invoice. Making one assigns the next invoice number and freezes
+  // the details, so that is a button the admin presses on purpose.
+  const [noInvoice, setNoInvoice] = useState(false);
   useEffect(() => {
     let cancelled = false;
     invoiceService
-      .generateInvoice(orderId, user.token)
+      .getExistingInvoice(orderId, user.token)
       .then((data) => {
         if (!cancelled) setInvoice(data);
       })
       .catch((err) => {
-        if (!cancelled)
-          setError(err.response?.data?.message || "Couldn't load this invoice");
+        if (cancelled) return;
+        if (err.response?.status === 404) setNoInvoice(true);
+        else setError(err.response?.data?.message || "Couldn't load this invoice");
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -35,6 +39,18 @@ export default function InvoicePreviewPage() {
       cancelled = true;
     };
   }, [orderId, user.token]);
+  const generate = () => {
+    setLoading(true);
+    setError("");
+    invoiceService
+      .generateInvoice(orderId, user.token)
+      .then((data) => {
+        setInvoice(data);
+        setNoInvoice(false);
+      })
+      .catch((err) => setError(err.response?.data?.message || "Couldn't make the invoice"))
+      .finally(() => setLoading(false));
+  };
 
   const handleDownloadPdf = () => {
     if (!printRef.current) return;
@@ -140,6 +156,16 @@ export default function InvoicePreviewPage() {
 
   if (loading) return <PageWrap>Loading invoice…</PageWrap>;
   if (error) return <PageWrap error>{error}</PageWrap>;
+  if (noInvoice)
+    return (
+      <PageWrap>
+        <p style={{ margin: "0 0 6px", fontWeight: 700 }}>No invoice has been made for this order yet.</p>
+        <p style={{ margin: "0 0 18px", fontSize: 14, color: "#6B6559" }}>
+          Making it assigns the next invoice number (IDT-…) and freezes the invoice details as they are now. That can't be undone.
+        </p>
+        <ActionButton onClick={generate}>Generate the invoice</ActionButton>
+      </PageWrap>
+    );
 
   return (
     <div

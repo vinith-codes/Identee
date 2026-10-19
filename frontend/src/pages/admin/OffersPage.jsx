@@ -166,8 +166,25 @@ export default function OffersPage() {
     }
   };
 
+  // Switch a coupon off (or on again) instead of deleting it: customers can't use it, the site stops
+  // showing it, and its usage history stays.
+  const handleToggle = async (offer) => {
+    setError("");
+    const isActive = offer.isActive === false;
+    try {
+      const { data } = await axios.put(
+        `${BACKEND_URL}/api/offers/${offer._id}`,
+        { isActive },
+        { headers: { Authorization: `Bearer ${getToken()}` } },
+      );
+      setOffers((prev) => prev.map((o) => (o._id === offer._id ? { ...o, ...data } : o)));
+    } catch (err) {
+      setError(err?.response?.data?.message || "Couldn't change the coupon");
+    }
+  };
+
   const handleDelete = async (id) => {
-    if (!window.confirm("Delete this coupon? This cannot be undone.")) return;
+    if (!window.confirm("Delete this coupon? This cannot be undone — switching it off keeps its history instead.")) return;
     try {
       await axios.delete(`${BACKEND_URL}/api/offers/${id}`, {
         headers: { Authorization: `Bearer ${getToken()}` },
@@ -462,6 +479,21 @@ export default function OffersPage() {
                     }}
                   >
                     Edit
+                  </button>
+                  <button
+                    onClick={() => handleToggle(offer)}
+                    title={offer.isActive === false ? "Customers can't use it now. Switch it on again." : "Stop customers using it, without deleting it"}
+                    style={{
+                      padding: "6px 14px",
+                      borderRadius: 6,
+                      border: `1px solid ${C.border}`,
+                      background: offer.isActive === false ? C.ink : "transparent",
+                      color: offer.isActive === false ? "#fff" : C.ink,
+                      fontSize: 12,
+                      cursor: "pointer",
+                    }}
+                  >
+                    {offer.isActive === false ? "Switch on" : "Switch off"}
                   </button>
                   <button
                     onClick={() => handleDelete(offer._id)}

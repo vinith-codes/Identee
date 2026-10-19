@@ -3,8 +3,19 @@ import { useState } from "react";
 import { Outlet } from "react-router-dom";
 import AdminSidebar from "../components/AdminSidebar";
 import AdminTopbar from "../components/AdminTopbar";
+import UnsavedChangesProvider from "./UnsavedChangesProvider";
 
+// The admin area knows when the open page has unsaved changes (utils/unsavedChanges.js): the sidebar, the
+// settings tabs and Back links ask before leaving, and so does a reload.
 export default function AdminLayout() {
+  return (
+    <UnsavedChangesProvider>
+      <AdminLayoutInner />
+    </UnsavedChangesProvider>
+  );
+}
+
+function AdminLayoutInner() {
   // Start with the menu folded on small screens so the page has room.
   const [collapsed, setCollapsed] = useState(
     () => typeof window !== "undefined" && window.innerWidth < 900,

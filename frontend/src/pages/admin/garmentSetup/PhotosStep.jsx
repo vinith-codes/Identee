@@ -22,7 +22,9 @@ export default function PhotosStep({ garment, images, reloadImages, progress, ne
 
   const docFor = (slug) => images.find((d) => d.garmentType === garment.key && d.colorSlug === slug);
 
-  const pick = (colour, view) => {
+  const pick = (colour, view, existing) => {
+    // replacing deletes the current photo's file
+    if (existing && !window.confirm(`Replace the ${colour.name} ${VIEWS.find(([v]) => v === view)?.[1] || view} photo?\n\nThe current photo is deleted when the new one is saved.`)) return;
     setTarget({ colour, view });
     setError("");
     inputRef.current.value = "";
@@ -91,7 +93,7 @@ export default function PhotosStep({ garment, images, reloadImages, progress, ne
                           <button
                             type="button"
                             className={`aw-cell ${url ? "has" : "miss"}`}
-                            onClick={() => pick(c, view)}
+                            onClick={() => pick(c, view, url)}
                             disabled={!!busy}
                             title={url ? `Replace ${c.name} ${label}` : `Upload ${c.name} ${label}`}
                             aria-label={url ? `Replace ${c.name} ${label} photo` : `Upload ${c.name} ${label} photo`}

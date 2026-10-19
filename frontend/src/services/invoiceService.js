@@ -31,5 +31,11 @@ const emailInvoice = async (orderId, token) => {
   return res.data;
 };
 
-const invoiceService = { generateInvoice, getAllInvoices, emailInvoice };
+// Only looks: the invoice if one was made already, else a 404 (no invoice number is assigned).
+const getExistingInvoice = async (orderId, token) => {
+  const res = await axios.get(`${API_URL}/admin/order/${orderId}/invoice?existing=1`, authHeader(token));
+  return res.data;
+};
+
+const invoiceService = { generateInvoice, getExistingInvoice, getAllInvoices, emailInvoice };
 export default invoiceService;

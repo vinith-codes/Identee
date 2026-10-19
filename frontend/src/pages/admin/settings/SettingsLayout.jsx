@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { THEME } from "../../../theme/theme";
+import { useUnsavedChanges } from "../../../utils/unsavedChanges";
 import GeneralSettingsPage from "./GeneralSettingsPage";
 import ProfileSettingsPage from "./ProfileSettingsPage";
 import AiSettingsPage from "./AiSettingsPage";
@@ -38,6 +39,7 @@ const PAGES = {
 
 export default function SettingsLayout() {
   const [active, setActive] = useState("general");
+  const { confirmLeave } = useUnsavedChanges();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const theme = THEME; // was: const { theme } = useTheme();
   const ActivePage = PAGES[active];
@@ -151,7 +153,11 @@ export default function SettingsLayout() {
               return (
                 <button
                   key={s.key}
-                  onClick={() => setActive(s.key)}
+                  onClick={() => {
+                    // the open tab may have unsaved changes
+                    if (active !== s.key && !confirmLeave()) return;
+                    setActive(s.key);
+                  }}
                   className="settings-nav-item"
                   style={{
                     position: "relative",
