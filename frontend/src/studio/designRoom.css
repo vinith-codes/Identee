@@ -1093,3 +1093,13 @@ button.dr-back { padding: 0; font: inherit; font-weight: 700; cursor: pointer; }
 /* Stop on a wait card (the assistant's AI requests) */
 .dr-waitstop { margin-left: 8px; border: 1px solid var(--line); background: #fff; border-radius: 999px; padding: 3px 11px; font-size: 12px; font-weight: 700; color: var(--ink); }
 .dr-waitstop:hover { border-color: var(--ink); }
+
+/* Draw / Photo tabs: earlier results kept (studio/EarlierResults.jsx) and the way back to them */
+.ps-back { justify-self: start; }
+.ps-earlier { border-top: 1px solid var(--line); padding-top: 10px; }
+.ps-earlier summary { cursor: pointer; font-size: 12.5px; font-weight: 700; color: var(--ink-soft); list-style-position: inside; }
+.ps-earlier-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 8px; margin-top: 8px; }
+.ps-earlier-item { display: grid; gap: 4px; justify-items: center; border: 1px solid var(--line); border-radius: 10px; padding: 5px; background: #fff; }
+.ps-earlier-item img { width: 100%; aspect-ratio: 1; object-fit: contain; border-radius: 7px; }
+.ps-earlier-item .ps-on, .ps-earlier-item .ps-link { font-size: 11px; text-align: center; }
+.ds-change .ps-link { align-self: center; }

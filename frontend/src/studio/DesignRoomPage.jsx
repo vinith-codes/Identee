@@ -87,6 +87,28 @@ const writeJSON = (key, v) => {
     // storage blocked — the design just isn't kept after a reload
   }
 };
+// The Draw / Photo tab's state for this browser tab (sessionStorage). A step that was running isn't
+// running any more after a reload, so it opens on what was there before it (results, the choices or the form).
+const TAB_SESSION_KEY = (tab, type) => `identee:${tab}:v1:${type}`;
+const readTabSession = (tab, type) => {
+  try {
+    const s = JSON.parse(sessionStorage.getItem(TAB_SESSION_KEY(tab, type)) || "null");
+    if (!s || typeof s !== "object") return {};
+    const busy = s.view === "working" || s.view === "error";
+    return { ...s, wait: null, ...(busy ? { view: s.results?.length ? "results" : s.photo ? "choose" : undefined, error: null } : {}) };
+  } catch {
+    return {};
+  }
+};
+const saveTabSession = (tab, type, session) => {
+  try {
+    // functions (the "Try again" step) can't be kept
+    const plain = Object.fromEntries(Object.entries(session).filter(([k, v]) => k !== "last" && typeof v !== "function"));
+    sessionStorage.setItem(TAB_SESSION_KEY(tab, type), JSON.stringify(plain));
+  } catch {
+    // storage blocked — the tab just starts fresh after a reload
+  }
+};
 const isLoggedIn = () => !!readJSON("userInfo")?.token;
 const lum = (hex) => {
   const n = parseInt(String(hex || "#000000").slice(1), 16);
@@ -184,8 +206,12 @@ export default function DesignRoomPage() {
   // the Photo Studio (PhotoStudio.jsx): the customer's photo as art, or print-ready. Its panel takes the
   // editor's place like the assistant's; its state stays while it is closed (results are still there)
   const [aiTab, setAiTab] = useState("chat"); // the AI panel's tab: chat | draw | photo
-  const [drawSession, setDrawSession] = useState({}); // the Draw tab's state (DrawStudio.jsx)
-  const [photoSession, setPhotoSession] = useState({});
+  // the Draw tab's state (DrawStudio.jsx) and the Photo tab's: kept for this browser tab, so what was typed and
+  // made is still there after a reload or a trip to the login page ("Your design stays here")
+  const [drawSession, setDrawSession] = useState(() => readTabSession("draw", type));
+  const [photoSession, setPhotoSession] = useState(() => readTabSession("photo", type));
+  useEffect(() => saveTabSession("draw", type, drawSession), [type, drawSession]);
+  useEffect(() => saveTabSession("photo", type, photoSession), [type, photoSession]);
   // the assistant made wide (about half the screen) with its Expand button — remembered on this device
   const [assistWide, setAssistWide] = useState(() => readJSON(ASSIST_WIDE_KEY) === true);
   const toggleAssistWide = () => {

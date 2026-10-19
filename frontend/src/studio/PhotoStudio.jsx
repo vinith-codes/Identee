@@ -5,11 +5,14 @@
 // print-ready (background removed — free, in the browser — and, if they like, enhanced by the image AI).
 // The results go on the tee with one tap, with a print-quality check for photos.
 //
-// Never stuck: every step has a way back, a slow step shows the wait card, and a failed step says why and
-// offers Try again. What the panel needs from the page comes in as functions (upload, art, printReady, place).
+// Never stuck: every step has a way back, a slow step shows the wait card with a Stop button, a failed step
+// says why and offers Try again, and nothing made is thrown away (a new style or a different photo moves the
+// results under "Earlier results"). What the panel needs from the page comes in as functions.
 import { useRef, useState } from "react";
 import { imageUrl } from "../utils/imageUrl";
 import WaitCard from "./WaitCard";
+import EarlierResults from "./EarlierResults";
+import { keepEarlier } from "./keepEarlier";
 
 // What each photo style looks like, in a few words, and a little colour swatch for its card.
 const STYLE_INFO = {
@@ -21,6 +24,7 @@ const STYLE_INFO = {
 };
 const FREE_INFO = ["4 instant looks: sketch, stencil, poster, pop art", "linear-gradient(135deg,#2A2622,#C9A24B)"];
 const isFree = (s) => /free/i.test(s);
+const STOPPED = "Stopped. Nothing was added to your tee. (If the AI was already working on it, it may still count as one of today’s requests.)";
 
 /**
  * @param ai        { available, loggedIn, left, photoStyles }
@@ -33,10 +37,11 @@ const isFree = (s) => /free/i.test(s);
  * @param onPlace   (result, areaKey?) => Promise<boolean>  put a result on the tee (on target unless areaKey)
  */
 export default function PhotoStudio({ ai, target, areas = [], fabric, session, setSession, onLogin, onUpload, onArt, onPrintReady, onPlace, onClose }) {
-  const { photo = null, view = "pick", results = [], resultKind = null, placed = {}, error = null, wait = null, last = null } = session;
+  const { photo = null, view = "pick", results = [], earlier = [], resultKind = null, placed = {}, error = null, wait = null, last = null, stopNote = null } = session;
   const set = (patch) => setSession((s) => ({ ...s, ...patch }));
   const fileRef = useRef(null);
   const steps = useRef(0); // numbers each step, so its wait card keeps one count
+  const running = useRef(null); // the step running now: { stopped, back }
   const [cutOut, setCutOut] = useState(true);
   const [enhance, setEnhance] = useState(false);
   const [dragOver, setDragOver] = useState(false);
@@ -44,33 +49,55 @@ export default function PhotoStudio({ ai, target, areas = [], fabric, session, s
   const aiOk = ai.available && ai.loggedIn && ai.left !== 0;
   const styles = (ai.photoStyles || []).filter((s) => isFree(s) || ai.available);
 
-  // runs one step; the panel shows the wait card meanwhile, and the step's error (with Try again) if it fails
-  const step = async (waitInfo, job, retry) => {
+  // new results are shown; the ones shown before move to "Earlier results"
+  const showResults = (patch) => setSession((s) => ({ ...s, ...patch, view: "results", earlier: keepEarlier(s.results, s.earlier, patch.results) }));
+  // runs one step; the panel shows the wait card (with Stop) meanwhile, and the step's error (with Try again) if it
+  // fails. job() returns what to show; after Stop nothing is shown (results that arrive anyway go to Earlier).
+  const step = async (waitInfo, job, retry, apply = showResults) => {
     steps.current += 1;
     const id = steps.current;
-    set({ view: "working", wait: { ...waitInfo, id }, error: null, last: retry });
+    const me = { stopped: false, back: view === "working" || view === "error" ? (photo ? "choose" : "pick") : view };
+    running.current = me;
+    set({ view: "working", wait: { ...waitInfo, id }, error: null, last: retry, stopNote: null });
     try {
-      await job((label) => set({ wait: { ...waitInfo, id, label } }));
+      const patch = await job((label) => !me.stopped && set({ wait: { ...waitInfo, id, label } }));
+      if (me.stopped) {
+        if (patch?.results?.length) setSession((st) => ({ ...st, earlier: keepEarlier(patch.results, st.earlier), stopNote: "What you stopped finished anyway — it’s under Earlier results if you want it." }));
+        return;
+      }
+      apply(patch);
     } catch (err) {
-      set({ view: "error", error: err?.message || "That didn’t work." });
+      if (!me.stopped) set({ view: "error", error: err?.message || "That didn’t work." });
+    } finally {
+      if (running.current === me) running.current = null;
     }
+  };
+  const stop = () => {
+    const me = running.current;
+    if (!me) return;
+    me.stopped = true;
+    running.current = null;
+    set({ view: me.back, wait: null, stopNote: STOPPED });
   };
 
   const pickFile = (file) => {
     if (!file) return;
     if (!/^image\/(png|jpe?g|webp)$/.test(file.type)) return set({ view: "error", error: "Please choose a JPG, PNG or WebP photo.", last: null });
     if (file.size > 10 * 1024 * 1024) return set({ view: "error", error: "That photo is over 10 MB. Please choose a smaller one.", last: null });
-    step({ label: "Uploading your photo…" }, async () => {
-      const up = await onUpload(file);
-      set({ photo: { ...up, name: file.name }, view: "choose", results: [], placed: {} });
-    }, () => pickFile(file));
+    step(
+      { label: "Uploading your photo…" },
+      async () => ({ photo: { ...(await onUpload(file)), name: file.name } }),
+      () => pickFile(file),
+      // a different photo: the results so far move to "Earlier results" (still one tap from the tee)
+      (patch) => setSession((st) => ({ ...st, ...patch, view: "choose", results: [], earlier: keepEarlier(st.results, st.earlier) })),
+    );
   };
   const makeArt = (style) =>
     step(
       isFree(style) ? { label: "Making 4 art looks…", expect: 6 } : { label: `Turning your photo into ${style.toLowerCase()} art…`, expect: 35, hint: "Usually 20–40 seconds. You can look around the room meanwhile." },
       async () => {
         const res = await onArt(photo.url, style);
-        set({ view: "results", resultKind: "art", results: res.images.map((im) => ({ url: im.url, w: im.width, h: im.height, label: im.label || style })), note: res.refused ? "The AI wouldn’t redraw this photo (it refuses some photos, well-known faces among them), so here are free art looks made another way." : null });
+        return { resultKind: "art", results: res.images.map((im) => ({ url: im.url, w: im.width, h: im.height, label: im.label || style })), note: res.refused ? "The AI wouldn’t redraw this photo (it refuses some photos, well-known faces among them), so here are free art looks made another way." : null };
       },
       () => makeArt(style),
     );
@@ -79,7 +106,7 @@ export default function PhotoStudio({ ai, target, areas = [], fabric, session, s
       enhance ? { label: "Enhancing your photo…", expect: 30, hint: "Usually 20–40 seconds." } : { label: "Removing the background…", expect: 8, hint: "Done here in your browser, free." },
       async (progress) => {
         const r = await onPrintReady(photo, { cutOut, enhance }, progress);
-        set({ view: "results", resultKind: "photo", results: [{ ...r, label: [r.enhanced && "Enhanced", r.cut && "Background removed"].filter(Boolean).join(" · ") || "Your photo" }], note: null });
+        return { resultKind: "photo", results: [{ ...r, label: [r.enhanced && "Enhanced", r.cut && "Background removed"].filter(Boolean).join(" · ") || "Your photo" }], note: null };
       },
       makePhoto,
     );
@@ -93,6 +120,9 @@ export default function PhotoStudio({ ai, target, areas = [], fabric, session, s
       return { ...s, placed: { ...s.placed, [r.url]: was.includes(label) ? was : [...was, label] } };
     });
   };
+
+  const earlierStrip = <EarlierResults title="Earlier results" items={earlier} onIt={onIt} onAdd={(r) => place(r)} fabric={fabric} />;
+  const stopLine = stopNote && <p className="ps-note" role="status">{stopNote}</p>;
 
   // print quality of a photo at this area's size: pixels per inch when it fills the area
   const quality = (r) => {
@@ -109,6 +139,7 @@ export default function PhotoStudio({ ai, target, areas = [], fabric, session, s
 
       {view === "pick" && (
         <div className="ps-body">
+          {stopLine}
           {ai.loggedIn ? (
             <button
               type="button"
@@ -139,6 +170,10 @@ export default function PhotoStudio({ ai, target, areas = [], fabric, session, s
 
       {view === "choose" && photo && (
         <div className="ps-body">
+          {stopLine}
+          {results.length > 0 && (
+            <button type="button" className="ps-link ps-back" onClick={() => set({ view: "results", stopNote: null })}>← Back to my results</button>
+          )}
           <div className="ps-photo">
             <img src={imageUrl(photo.url, 300)} alt="Your photo" />
             <div>
@@ -178,13 +213,14 @@ export default function PhotoStudio({ ai, target, areas = [], fabric, session, s
             <button type="button" className="ps-btn gold" onClick={makePhoto}>Make it print-ready</button>
           </div>
           {ai.left != null && ai.available && <p className="ps-small">{ai.left} AI request{ai.left === 1 ? "" : "s"} left today.</p>}
+          {earlierStrip}
         </div>
       )}
 
       {view === "working" && wait && (
         <div className="ps-body">
           {photo && <img className="ps-ghost" src={imageUrl(photo.url, 300)} alt="" />}
-          <WaitCard key={wait.id} label={wait.label} expect={wait.expect} hint={wait.hint} />
+          <WaitCard key={wait.id} label={wait.label} expect={wait.expect} hint={wait.hint} onStop={stop} />
         </div>
       )}
 
@@ -203,6 +239,7 @@ export default function PhotoStudio({ ai, target, areas = [], fabric, session, s
 
       {view === "results" && (
         <div className="ps-body">
+          {stopLine}
           {session.note && <p className="ps-note">{session.note}</p>}
           <div className={`ps-results${results.length === 1 ? " one" : ""}`}>
             {results.map((r) => {
@@ -235,10 +272,11 @@ export default function PhotoStudio({ ai, target, areas = [], fabric, session, s
             })}
           </div>
           <div className="ps-actions">
-            <button type="button" className="ps-btn" onClick={() => set({ view: "choose" })}>{resultKind === "art" ? "Try another style" : "Other options"}</button>
+            <button type="button" className="ps-btn" onClick={() => set({ view: "choose", stopNote: null })}>{resultKind === "art" ? "Try another style" : "Other options"}</button>
             <button type="button" className="ps-btn" onClick={() => fileRef.current?.click()}>A different photo</button>
             <button type="button" className="ps-btn dark" onClick={onClose}>Done</button>
           </div>
+          {earlierStrip}
         </div>
       )}
     </div>
