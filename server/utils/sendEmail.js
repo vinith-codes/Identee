@@ -1,6 +1,6 @@
 import { mailer, fromAddress, shopInbox } from "./mailer.js";
 
-const sendEmail = async ({ email, status, order, invoice, attachments }) => {
+const sendEmail = async ({ email, status, order, invoice, attachments, correction }) => {
   // Users who signed up with a mobile number have no email on file.
   if (!email) return;
 
@@ -34,6 +34,31 @@ const sendEmail = async ({ email, status, order, invoice, attachments }) => {
     };
 
     await mailer().sendMail(mailOptions);
+    return;
+  }
+
+  // CORRECTION: the shop undid a status change after its email went out (e.g. "out for delivery"
+  // by mistake) — tell the customer the earlier message was wrong, so the email and the site agree.
+  if (status === "CORRECTION") {
+    const label = (s) => ({ CREATED: "Order placed", CONFIRMED: "Confirmed", PACKED: "Packed", OUT_FOR_DELIVERY: "Out for delivery", DELIVERED: "Delivered" })[s] || s;
+    const now = label(order?.orderStatus);
+    const next = order?.orderStatus === "PACKED" ? "out for delivery" : order?.orderStatus === "OUT_FOR_DELIVERY" ? "delivered" : "packed";
+    await mailer().sendMail({
+      from: fromAddress(),
+      to: email,
+      cc: await shopInbox(), // the shop keeps a copy
+      subject: "Correction: your IDENTEE order update",
+      html: `
+        <div style="font-family:Arial, sans-serif; max-width:600px; margin:auto;">
+          <h2 style="color:#8A6F2E;">A quick correction</h2>
+          <p>Hi ${order?.user?.name || "there"},</p>
+          <p>Sorry — our earlier message saying your order is <strong>${label(correction?.wrongStatus).toLowerCase()}</strong> was sent by mistake.</p>
+          <p>Your order is <strong>${now}</strong>. We'll email you again when it's ${next}.</p>
+          <p><b>Order ID:</b> ${order?._id}</p>
+          <p style="color:gray; font-size:12px;">Thank you for shopping with IDENTEE ❤️</p>
+        </div>
+      `,
+    });
     return;
   }
 

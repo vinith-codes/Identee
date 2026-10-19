@@ -808,8 +808,9 @@ const updateOrderStatus = asyncHandler(async (req, res) => {
 // @route   PUT /api/orders/:id/undostatus
 // @access  Private/Admin
 const UNDO_MINUTES = 15;
+const EMAILED = ["PACKED", "OUT_FOR_DELIVERY"]; // statuses whose change emails the customer
 const undoOrderStatus = asyncHandler(async (req, res) => {
-  const order = await Order.findById(req.params.id);
+  const order = await Order.findById(req.params.id).populate("user", "email name");
   if (!order) {
     res.status(404);
     throw new Error("Order not found");
@@ -830,10 +831,22 @@ const undoOrderStatus = asyncHandler(async (req, res) => {
   order.orderStatus = undo.from;
   order.statusUndo = undefined;
   await order.save();
+  // the customer was emailed about the mistaken status: send a short correction so the email and the site agree
+  let note = "";
+  if (EMAILED.includes(was)) {
+    if (!order.user?.email) note = " The customer has no email on file.";
+    else
+      note = await sendEmail({ email: order.user.email, status: "CORRECTION", order, correction: { wrongStatus: was } })
+        .then(() => " The customer has been sent a correction email.")
+        .catch((e) => {
+          console.error("[order] correction email failed:", e.message);
+          return " The correction email couldn't be sent — please contact the customer.";
+        });
+  }
   res.json({
     status: order.orderStatus,
     isPaid: order.isPaid,
-    message: `Back to ${order.orderStatus} (was ${was}).${["PACKED", "OUT_FOR_DELIVERY"].includes(was) ? " The customer already got the email for it." : ""}`,
+    message: `Back to ${order.orderStatus} (was ${was}).${note}`,
   });
 });
 

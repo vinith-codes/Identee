@@ -67,7 +67,7 @@ const warningFor = (order, to) => {
     return `Cancel this order? Its stock goes back on sale and it can't be reopened.${order.isPaid ? " It was paid online — refund it from the Razorpay dashboard." : ""}`;
   if (to === "DELIVERED")
     return `Mark as delivered? The customer can then review it${order.paymentMethod === "COD" && !order.isPaid ? ", and this cash-on-delivery order counts as paid" : ""}. You can undo it for ${UNDO_MINUTES} minutes.`;
-  if (to === "PACKED" || to === "OUT_FOR_DELIVERY") return `Change to ${to}? The customer is emailed straight away (an email can't be taken back).`;
+  if (to === "PACKED" || to === "OUT_FOR_DELIVERY") return `Change to ${to}? The customer is emailed straight away. If you undo it later, they get a short correction email.`;
   if (to.startsWith("RETURN")) return `Change to ${to}?`;
   return null;
 };
@@ -156,6 +156,10 @@ export default function AdminOrdersPage() {
   }, [dispatch]);
 
   const handleUndo = async (id) => {
+    // undoing an emailed status sends the customer a correction — say so first
+    const order = allOrders.find((o) => o._id === id);
+    if (["PACKED", "OUT_FOR_DELIVERY"].includes(order?.orderStatus) &&
+      !window.confirm(`The customer was already emailed that the order is ${order.orderStatus.replace(/_/g, " ").toLowerCase()}.\n\nUndo it and send them a short correction email?`)) return;
     try {
       const res = await dispatch(undoOrderStatus({ id })).unwrap();
       toast.success(res.message || "Change undone");
