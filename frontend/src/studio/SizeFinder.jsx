@@ -136,29 +136,29 @@ function Figure({ who, heightCm, body, tee, teeHex }) {
   }
 
   return (
-    <svg className="sf-figure" viewBox={`0 0 200 ${VIEW_H}`} role="img" aria-label={`Figure, ${heightCm} cm tall`}>
+    <svg className="szf-figure" viewBox={`0 0 200 ${VIEW_H}`} role="img" aria-label={`Figure, ${heightCm} cm tall`}>
       <defs>
-        <linearGradient id="sf-body" x1="0" x2="0" y1="0" y2="1">
+        <linearGradient id="szf-body" x1="0" x2="0" y1="0" y2="1">
           <stop offset="0" stopColor="#3B342B" />
           <stop offset="1" stopColor="#141110" />
         </linearGradient>
       </defs>
-      <ellipse cx={cx} cy={VIEW_H - 11} rx={hipW * 0.75 + 14} ry="5" className="sf-floor" />
+      <ellipse cx={cx} cy={VIEW_H - 11} rx={hipW * 0.75 + 14} ry="5" className="szf-floor" />
       {/* height bracket */}
-      <g className="sf-ruler">
+      <g className="szf-ruler">
         <line x1="22" x2="22" y1={top} y2={VIEW_H - 12} />
         <line x1="17" x2="27" y1={top} y2={top} />
         <line x1="17" x2="27" y1={VIEW_H - 12} y2={VIEW_H - 12} />
       </g>
-      <path className="sf-limb" d={arm(-1)} strokeWidth={armW} />
-      <path className="sf-limb" d={arm(1)} strokeWidth={armW} />
-      <path className="sf-shape" d={smooth(outline)} fill="url(#sf-body)" />
-      <circle className="sf-shape" cx={cx} cy={top + headR} r={headR} fill="url(#sf-body)" />
+      <path className="szf-limb" d={arm(-1)} strokeWidth={armW} />
+      <path className="szf-limb" d={arm(1)} strokeWidth={armW} />
+      <path className="szf-shape" d={smooth(outline)} fill="url(#szf-body)" />
+      <circle className="szf-shape" cx={cx} cy={top + headR} r={headR} fill="url(#szf-body)" />
       {teeBody && (
-        <g className="sf-tee" style={{ "--tee": teeHex || "#F4E7C4" }}>
-          {sleeves.d.map((d) => <path key={`o${d}`} className="sf-sleeve-edge" d={d} strokeWidth={sleeves.w + 2.6} />)}
-          {sleeves.d.map((d) => <path key={`f${d}`} className="sf-sleeve" d={d} strokeWidth={sleeves.w} />)}
-          <path className="sf-tee-body" d={teeBody} />
+        <g className="szf-tee" style={{ "--tee": teeHex || "#F4E7C4" }}>
+          {sleeves.d.map((d) => <path key={`o${d}`} className="szf-sleeve-edge" d={d} strokeWidth={sleeves.w + 2.6} />)}
+          {sleeves.d.map((d) => <path key={`f${d}`} className="szf-sleeve" d={d} strokeWidth={sleeves.w} />)}
+          <path className="szf-tee-body" d={teeBody} />
         </g>
       )}
     </svg>
@@ -184,7 +184,7 @@ function ShapeIcon({ part, v }) {
           return `M12,6 C14,13 15.5,16 15.5,19 C15.5,23 ${20 - h},27 ${20 - h},34 M28,6 C26,13 24.5,16 24.5,19 C24.5,23 ${20 + h},27 ${20 + h},34`;
         })();
   return (
-    <svg viewBox="0 0 40 40" className="sf-icon" aria-hidden="true">
+    <svg viewBox="0 0 40 40" className="szf-icon" aria-hidden="true">
       <path d={d} />
     </svg>
   );
@@ -193,17 +193,17 @@ function ShapeIcon({ part, v }) {
 function Stepper({ label, value, display, min, max, onChange, unitButtons }) {
   const pct = ((value - min) / (max - min)) * 100;
   return (
-    <div className="sf-measure">
-      <div className="sf-measure-top">
-        <span className="sf-eyebrow">{label}</span>
+    <div className="szf-measure">
+      <div className="szf-measure-top">
+        <span className="szf-eyebrow">{label}</span>
         {unitButtons}
       </div>
-      <div className="sf-value" aria-hidden="true">{display}</div>
-      <div className="sf-slide">
-        <button type="button" className="sf-round" onClick={() => onChange(clamp(value - 1, min, max))} aria-label={`Less ${label.toLowerCase()}`}>−</button>
+      <div className="szf-value" aria-hidden="true">{display}</div>
+      <div className="szf-slide">
+        <button type="button" className="szf-round" onClick={() => onChange(clamp(value - 1, min, max))} aria-label={`Less ${label.toLowerCase()}`}>−</button>
         <input type="range" min={min} max={max} step="1" value={value} onChange={(e) => onChange(Number(e.target.value))}
           aria-label={label} aria-valuetext={display} style={{ "--p": `${pct}%` }} />
-        <button type="button" className="sf-round" onClick={() => onChange(clamp(value + 1, min, max))} aria-label={`More ${label.toLowerCase()}`}>+</button>
+        <button type="button" className="szf-round" onClick={() => onChange(clamp(value + 1, min, max))} aria-label={`More ${label.toLowerCase()}`}>+</button>
       </div>
     </div>
   );
@@ -211,7 +211,7 @@ function Stepper({ label, value, display, min, max, onChange, unitButtons }) {
 
 function Units({ options, value, onChange, label }) {
   return (
-    <div className="sf-units" role="radiogroup" aria-label={label}>
+    <div className="szf-units" role="radiogroup" aria-label={label}>
       {options.map((o) => (
         <button key={o} type="button" role="radio" aria-checked={value === o} className={value === o ? "on" : ""} onClick={() => onChange(o)}>{o}</button>
       ))}
@@ -239,12 +239,12 @@ function Ring({ score, size }) {
   }, [score]);
   const C = 2 * Math.PI * 54;
   return (
-    <div className="sf-ring">
+    <div className="szf-ring">
       <svg viewBox="0 0 128 128" aria-hidden="true">
-        <circle cx="64" cy="64" r="54" className="sf-ring-bg" />
-        <circle cx="64" cy="64" r="54" className="sf-ring-on" strokeDasharray={C} strokeDashoffset={C * (1 - score / 100)} />
+        <circle cx="64" cy="64" r="54" className="szf-ring-bg" />
+        <circle cx="64" cy="64" r="54" className="szf-ring-on" strokeDasharray={C} strokeDashoffset={C * (1 - score / 100)} />
       </svg>
-      <div className="sf-ring-in">
+      <div className="szf-ring-in">
         <b key={size}>{size}</b>
         <small><span>{shown}</span>% fit</small>
       </div>
@@ -297,23 +297,23 @@ export default function SizeFinder({ garment, teeHex, onPick, onClose, pickLabel
   const teeFor = (x) => ({ teeCm: x.teeCm, lengthCm: x.lengthCm || ranked.body.idealLengthCm, shoulderCm: x.row.shoulder ? x.row.shoulder * 2.54 : null, oversized: garment?.fit === "oversized" });
 
   return (
-    <div className="sf-wrap" role="presentation">
-      <div className="sf-scrim" onClick={onClose} />
-      <div className="sf-panel" role="dialog" aria-modal="true" aria-labelledby="sf-title" tabIndex={-1} ref={panel}>
-        <aside className="sf-stage">
+    <div className="szf-wrap" role="presentation">
+      <div className="szf-scrim" onClick={onClose} />
+      <div className="szf-panel" role="dialog" aria-modal="true" aria-labelledby="szf-title" tabIndex={-1} ref={panel}>
+        <aside className="szf-stage">
           <Figure who={a.who} heightCm={a.heightCm} body={ranked.body} tee={step === 2 ? teeFor(shown) : null} teeHex={teeHex} />
-          <div className="sf-stage-tag">
+          <div className="szf-stage-tag">
             <b>{heightText}</b> · {weightText}
           </div>
           {step === 2 && (
-            <div className="sf-live on-you">
+            <div className="szf-live on-you">
               <span>On you</span>
               <b key={shown.size}>{shown.size}</b>
               <small>{shown === best ? "Your best match" : "Comparing"}</small>
             </div>
           )}
           {step < 2 && (
-            <div className="sf-live" aria-live="polite">
+            <div className="szf-live" aria-live="polite">
               <span>Live estimate</span>
               <b key={best.size}>{best.size}</b>
               <small>{step === 0 ? "Refined in the next step" : "Updates as you pick"}</small>
@@ -321,26 +321,26 @@ export default function SizeFinder({ garment, teeHex, onPick, onClose, pickLabel
           )}
         </aside>
 
-        <section className="sf-main">
-          <header className="sf-head">
+        <section className="szf-main">
+          <header className="szf-head">
             <div>
-              <div className="sf-eyebrow">Find your perfect size</div>
-              <div className="sf-garment">{garment?.label || "Your tee"}</div>
+              <div className="szf-eyebrow">Find your perfect size</div>
+              <div className="szf-garment">{garment?.label || "Your tee"}</div>
             </div>
-            <button type="button" className="sf-close" onClick={onClose} aria-label="Close">×</button>
+            <button type="button" className="szf-close" onClick={onClose} aria-label="Close">×</button>
           </header>
-          <div className="sf-progress" aria-hidden="true">
+          <div className="szf-progress" aria-hidden="true">
             {[0, 1, 2].map((i) => <i key={i} className={i <= step ? "on" : ""} />)}
             <span>0{step + 1} / 03</span>
           </div>
 
-          <div className="sf-body" key={step}>
+          <div className="szf-body" key={step}>
             {step === 0 && (
               <>
-                <h2 id="sf-title">Let’s find your fit</h2>
-                <p className="sf-sub">Two measurements are all it takes. Drag to adjust.</p>
+                <h2 id="szf-title">Let’s find your fit</h2>
+                <p className="szf-sub">Two measurements are all it takes. Drag to adjust.</p>
                 {whos.length > 1 && (
-                  <div className="sf-who" role="radiogroup" aria-label="Sizing for">
+                  <div className="szf-who" role="radiogroup" aria-label="Sizing for">
                     {whos.map((w) => (
                       <button key={w} type="button" role="radio" aria-checked={a.who === w} className={a.who === w ? "on" : ""} onClick={() => setWho(w)}>{WHO[w].label}</button>
                     ))}
@@ -355,12 +355,12 @@ export default function SizeFinder({ garment, teeHex, onPick, onClose, pickLabel
 
             {step === 1 && (
               <>
-                <h2 id="sf-title">Your shape</h2>
-                <p className="sf-sub">Clothes fit bodies, not numbers. Not sure? Leave it at average.</p>
+                <h2 id="szf-title">Your shape</h2>
+                <p className="szf-sub">Clothes fit bodies, not numbers. Not sure? Leave it at average.</p>
                 {SHAPES.map((sh) => (
-                  <div key={sh.key} className="sf-shape-row">
-                    <span className="sf-eyebrow">{sh.label}</span>
-                    <div className="sf-cards" role="radiogroup" aria-label={sh.label}>
+                  <div key={sh.key} className="szf-shape-row">
+                    <span className="szf-eyebrow">{sh.label}</span>
+                    <div className="szf-cards" role="radiogroup" aria-label={sh.label}>
                       {sh.options.map((label, i) => {
                         const v = i - 1;
                         return (
@@ -378,16 +378,16 @@ export default function SizeFinder({ garment, teeHex, onPick, onClose, pickLabel
 
             {step === 2 && (
               <>
-                <h2 id="sf-title" className="sr-only">Your size</h2>
-                <div className="sf-result-top">
+                <h2 id="szf-title" className="sr-only">Your size</h2>
+                <div className="szf-result-top">
                   <Ring score={shown.score} size={shown.size} />
                   <div>
-                    <div className="sf-eyebrow">{shown === best ? "Best match" : `Comparing ${shown.size}`}</div>
-                    <p className="sf-match">{shown === best ? matchWord(best.score) : `${best.size} is your best match (${best.score}%).`}</p>
+                    <div className="szf-eyebrow">{shown === best ? "Best match" : `Comparing ${shown.size}`}</div>
+                    <p className="szf-match">{shown === best ? matchWord(best.score) : `${best.size} is your best match (${best.score}%).`}</p>
                   </div>
                 </div>
 
-                <div className="sf-scale" role="radiogroup" aria-label="Compare sizes">
+                <div className="szf-scale" role="radiogroup" aria-label="Compare sizes">
                   {ranked.sizes.map((x) => (
                     <button key={x.size} type="button" role="radio" aria-checked={x === shown} className={`${x === shown ? "on" : ""}${x === best ? " best" : ""}`} onClick={() => setView(x.size)}>
                       {x.size}
@@ -395,54 +395,54 @@ export default function SizeFinder({ garment, teeHex, onPick, onClose, pickLabel
                     </button>
                   ))}
                 </div>
-                <p className="sf-hint">Tap a size to see how it would fit.</p>
+                <p className="szf-hint">Tap a size to see how it would fit.</p>
 
-                <div className="sf-tracks">
+                <div className="szf-tracks">
                   {shown.tracks.map((t) => (
-                    <div key={t.key} className="sf-track">
-                      <span className="sf-track-label">{t.label}</span>
-                      <div className={`sf-line${t.neutral ? " neutral" : ""}`}>
+                    <div key={t.key} className="szf-track">
+                      <span className="szf-track-label">{t.label}</span>
+                      <div className={`szf-line${t.neutral ? " neutral" : ""}`}>
                         <span>{t.ends[0]}</span>
                         <i style={{ left: `${50 + t.value * 42}%` }} />
                         <span>{t.ends[1]}</span>
                       </div>
-                      <b className={`sf-word ${t.word === "Ideal" ? "ok" : ""}`}>{t.word}</b>
+                      <b className={`szf-word ${t.word === "Ideal" ? "ok" : ""}`}>{t.word}</b>
                     </div>
                   ))}
                 </div>
 
-                <div className="sf-feel">
-                  <span className="sf-eyebrow">How do you like it?</span>
-                  <div className="sf-units wide" role="radiogroup" aria-label="How do you like it">
+                <div className="szf-feel">
+                  <span className="szf-eyebrow">How do you like it?</span>
+                  <div className="szf-units wide" role="radiogroup" aria-label="How do you like it">
                     {FEELS.map((f, i) => (
                       <button key={f} type="button" role="radio" aria-checked={a.feel === i - 1} className={a.feel === i - 1 ? "on" : ""} onClick={() => { setView(null); set({ feel: i - 1 }); }}>{f}</button>
                     ))}
                   </div>
                 </div>
 
-                <p className="sf-note">{fitNote(garment, ranked, shown)}</p>
+                <p className="szf-note">{fitNote(garment, ranked, shown)}</p>
               </>
             )}
           </div>
 
-          <footer className="sf-foot">
+          <footer className="szf-foot">
             {step === 0 && (
-              <button type="button" className="sf-primary" onClick={() => setStep(1)}>Next: your shape →</button>
+              <button type="button" className="szf-primary" onClick={() => setStep(1)}>Next: your shape →</button>
             )}
             {step === 1 && (
               <>
-                <button type="button" className="sf-ghost" onClick={() => setStep(0)}>← Back</button>
-                <button type="button" className="sf-primary" onClick={() => { setView(null); setStep(2); }}>See my size →</button>
+                <button type="button" className="szf-ghost" onClick={() => setStep(0)}>← Back</button>
+                <button type="button" className="szf-primary" onClick={() => { setView(null); setStep(2); }}>See my size →</button>
               </>
             )}
             {step === 2 && (
               <>
-                <button type="button" className="sf-ghost" onClick={() => setStep(0)}>Change answers</button>
-                <button type="button" className="sf-primary" onClick={() => { onPick(shown.size); onClose(); }}>{pickLabel} {shown.size}</button>
+                <button type="button" className="szf-ghost" onClick={() => setStep(0)}>Change answers</button>
+                <button type="button" className="szf-primary" onClick={() => { onPick(shown.size); onClose(); }}>{pickLabel} {shown.size}</button>
               </>
             )}
           </footer>
-          <p className="sf-private">Your answers stay on this device. Sizes are an estimate from our size chart.</p>
+          <p className="szf-private">Your answers stay on this device. Sizes are an estimate from our size chart.</p>
         </section>
       </div>
     </div>
