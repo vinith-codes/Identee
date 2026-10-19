@@ -132,7 +132,11 @@ export function replyTo(text, ctx, st, { tapped = false } = {}) {
     const names = list.slice(0, 4).map((p) => `${playerLabel(p)} (${p.size})`).join(", ");
     return done([
       act({ type: "players", players: list }),
-      bot(`Done. ${list.length} players, one tee each: ${names}${list.length > 4 ? " and more" : ""}. In Review, tap a player to see their tee.${missing}`),
+      bot(
+        ctx.players > 0
+          ? `Added ${list.length} players to the ${ctx.players} already on your list (anyone listed twice is skipped): ${names}${list.length > 4 ? " and more" : ""}. Remove anyone you don’t want in the player list.${missing}`
+          : `Done. ${list.length} players, one tee each: ${names}${list.length > 4 ? " and more" : ""}. In Review, tap a player to see their tee.${missing}`,
+      ),
       chips(["Continue to review", "Check my design"]),
     ]);
   }

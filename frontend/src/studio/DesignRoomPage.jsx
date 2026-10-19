@@ -933,6 +933,7 @@ export default function DesignRoomPage() {
     hasText: elements.some((e) => e.type === "text"),
     hasRoles: roles, // a text is marked as the player's name / number (team orders)
     roles: rolesIn(elements), // { name, number }: which of the two the tee has a place for
+    players: players.filter(filled).length, // a pasted list is added to these, never replaces them
     // an uploaded picture on the tee (not library art, not an AI design) — "photo to art" can use it
     photoOnTee: [...elements].reverse().find((e) => e.type === "image" && !e.artDesignId && !aiCuts.current.has(e.src))?.src || null,
   });
@@ -1402,8 +1403,15 @@ export default function DesignRoomPage() {
     }
     if (a.type === "review") return toReview(true);
     if (a.type === "players") {
-      // a pasted team list: one tee per player
-      setPlayers(a.players.slice(0, MAX_PLAYERS).map((p) => ({ id: makeId(), ...p })));
+      // a pasted team list: one tee per player. It is ADDED to the players already entered (the same
+      // name and number twice is skipped), so a second paste can't wipe the first list.
+      setPlayers((list) => {
+        const kept = list.filter(filled);
+        const key = (p) => `${String(p.name || "").trim().toLowerCase()}|${String(p.number || "").trim()}`;
+        const seen = new Set(kept.map(key));
+        const fresh = a.players.filter((p) => !seen.has(key(p)) && seen.add(key(p)));
+        return [...kept, ...fresh.map((p) => ({ id: makeId(), ...p }))].slice(0, MAX_PLAYERS);
+      });
       return setTeam(true);
     }
     if (a.type === "ink") {
@@ -2450,17 +2458,35 @@ function FindSizeLink({ onClick }) {
   );
 }
 
-function Fitting({ garment, colours, colour, onColour, sizes, size, onSize, onFindSize, onEnter, onAssistant, onPhoto, credit, earlier, onContinue }) {
+function Fitting({ garment, colours, colour, onColour, sizes, size, onSize, onFindSize, onEnter: enter, onAssistant: assistant, onPhoto: photo, credit, earlier, onContinue }) {
+  // with an unfinished design waiting, starting a new one replaces it — so ask first
+  const [asking, setAsking] = useState(null); // the way in that was pressed
+  const guard = (go) => () => (earlier ? setAsking(() => go) : go());
+  const onEnter = guard(enter);
+  const onAssistant = guard(assistant);
+  const onPhoto = guard(photo);
   return (
     <div className="dr-overlay fit">
       <div className="dr-fit">
         {earlier && (
-          <div className="dr-resume">
-            <span>
-              You have an unfinished design ({earlier.elements.length} item{earlier.elements.length === 1 ? "" : "s"}
-              {earlier.name ? ` · ${earlier.name}` : ""}).
-            </span>
-            <button type="button" onClick={onContinue}>Continue it</button>
+          <div className={`dr-resume${asking ? " ask" : ""}`} role={asking ? "alertdialog" : undefined} aria-label={asking ? "Start a new design?" : undefined}>
+            {asking ? (
+              <>
+                <span>Start a new design? Your unfinished design ({earlier.elements.length} item{earlier.elements.length === 1 ? "" : "s"}) will be replaced.</span>
+                <span className="dr-resume-btns">
+                  <button type="button" onClick={onContinue}>Continue my design</button>
+                  <button type="button" className="alt" onClick={() => { const go = asking; setAsking(null); go(); }}>Start new</button>
+                </span>
+              </>
+            ) : (
+              <>
+                <span>
+                  You have an unfinished design ({earlier.elements.length} item{earlier.elements.length === 1 ? "" : "s"}
+                  {earlier.name ? ` · ${earlier.name}` : ""}).
+                </span>
+                <button type="button" onClick={onContinue}>Continue it</button>
+              </>
+            )}
           </div>
         )}
         <div>
