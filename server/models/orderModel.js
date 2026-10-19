@@ -107,6 +107,12 @@ const orderSchema = mongoose.Schema(
       default: "CREATED",
     },
     cancelledAt: { type: Date },
+    // the admin's last status change, so a wrong pick can be undone for a short while (not a cancel)
+    statusUndo: {
+      from: { type: String },
+      at: { type: Date },
+      autoPaid: { type: Boolean }, // DELIVERED marked a cash-on-delivery order paid
+    },
     size: { type: String, required: false },
     paymentResult: {
       id: { type: String },

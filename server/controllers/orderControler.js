@@ -766,11 +766,14 @@ const updateOrderStatus = asyncHandler(async (req, res) => {
   }
 
   order.orderStatus = newStatus;
+  // remembered so a wrong pick can be undone for UNDO_MINUTES (a cancel can't: its stock is back on sale)
+  order.statusUndo = newStatus === "CANCELLED" ? undefined : { from: previousStatus, at: new Date(), autoPaid: false };
   if (newStatus === "DELIVERED") {
     order.deliveredAt = Date.now();
     if (order.paymentMethod === "COD" && !order.isPaid) {
       order.isPaid = true;
       order.paidAt = Date.now();
+      order.statusUndo.autoPaid = true;
     }
   }
   if (newStatus === "CANCELLED") {
@@ -796,6 +799,41 @@ const updateOrderStatus = asyncHandler(async (req, res) => {
       newStatus === "CANCELLED" && order.isPaid
         ? "Order cancelled. It was paid online — issue the refund from the Razorpay dashboard."
         : "Order status updated successfully",
+    statusUndo: order.statusUndo || null,
+    isPaid: order.isPaid,
+  });
+});
+
+// @desc    Undo the admin's last status change (within UNDO_MINUTES; never a cancel)
+// @route   PUT /api/orders/:id/undostatus
+// @access  Private/Admin
+const UNDO_MINUTES = 15;
+const undoOrderStatus = asyncHandler(async (req, res) => {
+  const order = await Order.findById(req.params.id);
+  if (!order) {
+    res.status(404);
+    throw new Error("Order not found");
+  }
+  const undo = order.statusUndo;
+  if (!undo?.from || !undo.at || order.orderStatus === "CANCELLED" || Date.now() - new Date(undo.at).getTime() > UNDO_MINUTES * 60_000) {
+    res.status(400);
+    throw new Error(`Only the last change, within ${UNDO_MINUTES} minutes, can be undone.`);
+  }
+  if (order.orderStatus === "DELIVERED") {
+    order.deliveredAt = undefined;
+    if (undo.autoPaid) {
+      order.isPaid = false;
+      order.paidAt = undefined;
+    }
+  }
+  const was = order.orderStatus;
+  order.orderStatus = undo.from;
+  order.statusUndo = undefined;
+  await order.save();
+  res.json({
+    status: order.orderStatus,
+    isPaid: order.isPaid,
+    message: `Back to ${order.orderStatus} (was ${was}).${["PACKED", "OUT_FOR_DELIVERY"].includes(was) ? " The customer already got the email for it." : ""}`,
   });
 });
 
@@ -987,6 +1025,7 @@ export {
   getTransactions,
   getOrderStatusCounts,
   updateOrderStatus,
+  undoOrderStatus,
   getCheckoutQuote,
   createBillingInvoice,
   getBillingInvoiceByNumber,

@@ -21,6 +21,7 @@ import {
   getCheckoutQuote,
   getUndeliveredOrders,
   updateOrderStatus,
+  undoOrderStatus,
   getOrderStatusCounts,
   createBillingInvoice,
   getBillingInvoiceByNumber,
@@ -96,6 +97,7 @@ router.route("/razorpay/verify").post(protect, verifyRazorpayPayment);
 router.route("/:id/pay").put(protect, admin, updateOrderToPaid);
 router.route("/:id/deliver").put(protect, admin, updateOrderToDelivered);
 router.route("/:id/updateorderstatus").put(protect, admin, updateOrderStatus);
+router.route("/:id/undostatus").put(protect, admin, undoOrderStatus);
 
 router.route("/:id").get(protect, getOrderById);
 
