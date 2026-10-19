@@ -1,7 +1,8 @@
 // "Find my size": height, weight and body shape → the best size on a garment's own size chart.
 //
-// The body is estimated, not measured: chest girth grows with √(weight ÷ height) (a body is
-// roughly a cylinder), waist and hips follow from BMI and the shape the customer picks. The
+// The body is estimated, not measured: chest girth from weight and height (a straight line fitted to
+// typical bodies — weight counts most, a taller frame adds a little), waist and hips from BMI and the
+// shape the customer picks. The
 // garment's chart gives its chest (flat × 2) and length in inches; each size is scored by how
 // close its room around the body is to what this fit is meant to have (oversized ≈ twice a
 // regular tee's room), and its length to what suits the height. All in cm inside.
@@ -10,9 +11,10 @@
 const IN = 2.54;
 
 export const WHO = {
-  men: { label: "Men", height: [140, 210, 170], weight: [35, 160, 68], k: 15.0, waist: 0.8, lenK: 0.415 },
-  women: { label: "Women", height: [135, 200, 158], weight: [30, 150, 56], k: 14.6, waist: 0.76, lenK: 0.405 },
-  kids: { label: "Kids", height: [95, 175, 125], weight: [12, 70, 25], k: 14.2, waist: 0.85, lenK: 0.42 },
+  // chestK: chest cm = a × weight kg + b × height cm + c
+  men: { label: "Men", height: [140, 210, 170], weight: [35, 160, 68], chestK: [0.45, 0.12, 43.9], waist: 0.8, lenK: 0.415 },
+  women: { label: "Women", height: [135, 200, 158], weight: [30, 150, 56], chestK: [0.6, 0.08, 40], waist: 0.76, lenK: 0.405 },
+  kids: { label: "Kids", height: [95, 175, 125], weight: [12, 70, 25], chestK: [0.6, 0.15, 26.25], waist: 0.85, lenK: 0.42 },
 };
 
 // the customer's picks: -1 · 0 · +1
@@ -35,7 +37,9 @@ export function estimateBody({ who = "men", heightCm, weightKg, chest = 0, stoma
   const w = WHO[who] || WHO.men;
   const m = heightCm / 100;
   const bmi = weightKg / (m * m);
-  const chestCm = w.k * Math.sqrt(weightKg / m) * (1 + 0.05 * chest);
+  // (19 Oct: the first rule, √(weight ÷ height), made tall slim people far too narrow — 185 cm / 76 kg came out S, not L)
+  const [perKg, perCm, base] = w.chestK;
+  const chestCm = (perKg * weightKg + perCm * heightCm + base) * (1 + pick(chest, [-0.04, 0, 0.05]));
   const waistRatio = who === "kids" ? w.waist : clamp(w.waist + 0.012 * (bmi - 20), 0.7, 1.1);
   const waistCm = chestCm * waistRatio * (1 + pick(stomach, [-0.05, 0, 0.08]));
   const hipsCm = chestCm * (who === "women" ? 1.06 : 0.97) * (1 + pick(hips, [-0.04, 0, 0.06]));
@@ -47,7 +51,8 @@ export function estimateBody({ who = "men", heightCm, weightKg, chest = 0, stoma
 // The room (cm around the body) a fit is meant to have; the customer's "feel" moves it.
 function idealRoom(garment, who, feel) {
   const oversized = garment?.fit === "oversized";
-  const base = who === "kids" ? 9 : oversized ? 21 : 8;
+  // (tuned 19 Oct on 17 people of known size: 29 of 34 exact, the rest one size off)
+  const base = who === "kids" ? 9 : oversized ? 23 : 8;
   return base + feel * (oversized ? 6 : 5);
 }
 
@@ -71,7 +76,7 @@ export function rankSizes(garment, answers) {
   const room = idealRoom(garment, who, feel);
   const crop = isCrop(garment);
   const oversized = garment?.fit === "oversized";
-  const lenTarget = body.idealLengthCm + (oversized ? 3 : 0);
+  const lenTarget = body.idealLengthCm + (oversized ? 4 : 0); // an oversized tee is meant to be longer
   const sized = sizesFor(garment, who).map((r) => {
     const teeCm = r.chest * IN;
     const lengthCm = (r.length || 0) * IN;
@@ -79,9 +84,12 @@ export function rankSizes(garment, answers) {
     const tummyRoom = teeCm - (body.waistCm + 3);
     const roomNow = teeCm - body.needCm;
     const lenDiff = lengthCm ? lengthCm - lenTarget : 0;
-    let score = 98 - 2 * Math.abs(roomNow - room);
-    if (roomNow < room - 8) score -= (room - 8 - roomNow) * 1.5; // tight is worse than loose
-    if (!crop && lengthCm) score -= 0.8 * Math.max(0, Math.abs(lenDiff) - 3);
+    const off = roomNow - room;
+    // tight is worse than loose (and an oversized tee forgives extra room more)
+    let score = 98 - (off < 0 ? 2 * -off : (oversized ? 1.3 : 1.6) * off);
+    if (off < -8) score -= (-off - 8) * 1.5;
+    // too short is a real problem (tall people); a little long is fine
+    if (!crop && lengthCm) score -= lenDiff < 0 ? 3 * Math.max(0, -lenDiff - 1.5) : 0.6 * Math.max(0, lenDiff - 4);
     const raw = score; // ranks sizes even when all are far off
     score = Math.round(clamp(score, 35, 98));
     const word = (d, lo, hi, [a, b, c]) => (d < lo ? a : d > hi ? c : b);
@@ -97,7 +105,7 @@ export function rankSizes(garment, answers) {
         { key: "stomach", label: "Stomach", value: marker(tummyRoom - (room - 2), 12), word: word(tummyRoom - (room - 2), -4, 6, ["Snug", "Ideal", "Roomy"]), ends: ["Snug", "Roomy"] },
         crop
           ? { key: "length", label: "Length", value: 0, word: "Cropped style", ends: ["Short", "Long"], neutral: true }
-          : { key: "length", label: "Length", value: marker(lenDiff, 9), word: lengthCm ? word(lenDiff, -4, 5, ["Short", "Ideal", "Long"]) : "—", ends: ["Short", "Long"] },
+          : { key: "length", label: "Length", value: marker(lenDiff, 9), word: lengthCm ? word(lenDiff, -3, 5, ["Short", "Ideal", "Long"]) : "—", ends: ["Short", "Long"] },
       ],
     };
   });
