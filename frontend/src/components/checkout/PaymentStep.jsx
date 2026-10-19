@@ -81,6 +81,11 @@ export default function PaymentStep({ shippingAddress, coupon, onBack, buyNow })
   const [quoteError, setQuoteError] = useState("");
   const [method, setMethod] = useState("UPI");
   const [placing, setPlacing] = useState(false);
+  // Paid, but the order couldn't be confirmed yet: never offer "Place Order" again (it would charge twice).
+  // The check is safe to repeat — the server finds the order already made for this payment.
+  const [paidPending, setPaidPending] = useState(null); // { razorpay_order_id, razorpay_payment_id, razorpay_signature }
+  const [rechecking, setRechecking] = useState(false);
+  const [recheckNote, setRecheckNote] = useState("");
 
   const checkout = {
     shippingAddress,
@@ -109,7 +114,23 @@ export default function PaymentStep({ shippingAddress, coupon, onBack, buyNow })
   const onOrderPlaced = (order) => {
     if (!buyNow) dispatch(fetchCart(user.token)); // server emptied the cart
     toast.success("Order placed successfully!");
-    navigate(`/order-success/${order._id}`);
+    // replace: the browser's back button can't return here and place the same order again
+    navigate(`/order-success/${order._id}`, { replace: true });
+  };
+
+  const confirmPaid = (payment) =>
+    checkoutService.verifyRazorpayPayment(payment, user.token).then(onOrderPlaced);
+
+  const recheck = async () => {
+    setRechecking(true);
+    setRecheckNote("");
+    try {
+      await confirmPaid(paidPending);
+    } catch (err) {
+      setRecheckNote(err.response?.data?.message || "Still confirming. Please wait a minute and check again, or look in My Orders.");
+    } finally {
+      setRechecking(false);
+    }
   };
 
   const placeCodOrder = async () => {
@@ -154,23 +175,16 @@ export default function PaymentStep({ shippingAddress, coupon, onBack, buyNow })
         description: "Order Payment",
         order_id: rzpOrder.id,
         handler: async (response) => {
+          const payment = {
+            razorpay_order_id: response.razorpay_order_id,
+            razorpay_payment_id: response.razorpay_payment_id,
+            razorpay_signature: response.razorpay_signature,
+          };
           try {
             // Server verifies with Razorpay and creates the order.
-            const order = await checkoutService.verifyRazorpayPayment(
-              {
-                razorpay_order_id: response.razorpay_order_id,
-                razorpay_payment_id: response.razorpay_payment_id,
-                razorpay_signature: response.razorpay_signature,
-              },
-              user.token,
-            );
-            onOrderPlaced(order);
-          } catch (err) {
-            toast.error(
-              err.response?.data?.message ||
-                "We received your payment but couldn't confirm the order yet. It will appear in My Orders shortly — contact support if it doesn't.",
-              { autoClose: 10000 },
-            );
+            await confirmPaid(payment);
+          } catch {
+            setPaidPending(payment); // the money is taken: show "Payment received", not "Place Order"
           } finally {
             setPlacing(false);
           }
@@ -196,10 +210,33 @@ export default function PaymentStep({ shippingAddress, coupon, onBack, buyNow })
   };
 
   const handlePlaceOrder = () => {
-    if (!quote) return;
+    if (!quote || paidPending) return;
     if (method === "COD") placeCodOrder();
     else placeOnlineOrder();
   };
+
+  if (paidPending) {
+    return (
+      <div role="status" style={{ background: THEME.surface, border: `1px solid ${THEME.goldBorder}`, borderRadius: 12, padding: "28px 24px", boxShadow: THEME.shadow, maxWidth: 560, margin: "0 auto", textAlign: "center", fontFamily: THEME.fontBody }}>
+        <div style={{ width: 52, height: 52, borderRadius: "50%", margin: "0 auto 12px", display: "grid", placeItems: "center", background: THEME.goldBg, color: THEME.goldDeep, fontSize: 24, fontWeight: 700 }} aria-hidden="true">✓</div>
+        <h2 style={{ margin: "0 0 8px", fontFamily: THEME.fontDisplay, fontSize: 22 }}>Payment received</h2>
+        <p style={{ margin: "0 0 6px", color: THEME.text, fontSize: 14 }}>We’re confirming your order. <b>Please don’t pay again.</b></p>
+        <p style={{ margin: "0 0 18px", color: THEME.textMuted, fontSize: 13 }}>
+          It usually takes a few seconds. Payment ID: <span style={{ fontVariantNumeric: "tabular-nums" }}>{paidPending.razorpay_payment_id}</span>
+        </p>
+        <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
+          <button type="button" onClick={recheck} disabled={rechecking} style={{ padding: "11px 22px", border: 0, borderRadius: 999, background: THEME.ink, color: "#fff", fontWeight: 700, cursor: rechecking ? "wait" : "pointer", fontFamily: THEME.fontBody }}>
+            {rechecking ? "Checking…" : "Check again"}
+          </button>
+          <button type="button" onClick={() => navigate("/orders", { replace: true })} style={{ padding: "11px 22px", borderRadius: 999, border: `1px solid ${THEME.border}`, background: "#fff", color: THEME.text, fontWeight: 600, cursor: "pointer", fontFamily: THEME.fontBody }}>
+            Go to My Orders
+          </button>
+        </div>
+        {recheckNote && <p style={{ margin: "14px 0 0", color: THEME.textMuted, fontSize: 13 }}>{recheckNote}</p>}
+        <p style={{ margin: "16px 0 0", color: THEME.textMuted, fontSize: 12 }}>If it doesn’t appear in My Orders within a few minutes, contact us with the payment ID above. You won’t be charged twice.</p>
+      </div>
+    );
+  }
 
   return (
     <div
