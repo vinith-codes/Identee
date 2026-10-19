@@ -27,6 +27,12 @@ const offerModel = new mongoose.Schema(
       required: true,
     },
 
+    // switched off by the admin: not accepted, not shown on the site, but its history is kept
+    isActive: {
+      type: Boolean,
+      default: true,
+    },
+
     // 🔹 TOTAL usage limit (0 = unlimited)
     maxUsage: {
       type: Number,
