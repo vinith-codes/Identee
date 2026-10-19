@@ -219,6 +219,34 @@ IDENTEE_Measurements_Needed.pdf` (5 pages, every number still guessed, with draw
 (Downloads, recorded by a puppeteer script with ffmpeg at E:\tools\ffmpeg — headless Chrome needs `--use-angle=d3d11`
 for smooth 3D frames; swiftshader gives ~1 fps).
 
+**`fix-footer-overlap` + `fix-assistant-way-back` (incl. `fix-safety-part1`) + `fix-size-finder` — MERGED to `main` on
+19 Oct 2026 (the user merged by hand):**
+- **"Way back" audit** (three read-only sweeps: Design Room, customer pages, admin). The list is in the chat of 19 Oct;
+  parts B–E (Stop buttons elsewhere, customer undo/confirm, back/retry, admin unsaved-changes) are NOT built yet.
+- **Part 1, real bugs (A1–A9)**: paid-but-unconfirmed checkout shows "Payment received / Check again" (never Place
+  Order again; order success replaces history); Account blocks saves until the profile loaded, address saves send
+  only addresses, server ignores a blank name; "Remove this team order" removes all lines after Yes/Keep; admin order
+  status lists only allowed next steps, confirms Delivered/Cancelled/emailed steps, 15-minute Undo
+  (`PUT /orders/:id/undostatus`, `order.statusUndo`), undoing an emailed status sends a CORRECTION email
+  (sendEmail status "CORRECTION"); art designs can't be deleted while customer designs use them, Hide/Show added
+  (`PUT /art-designs/:id/visibility`), art groups can't be deleted while they hold designs, Yes/Keep confirms;
+  colour photo maker confirms "replace" and has Stop; a pasted team list ADDS players; an unfinished design asks
+  "Continue my design / Start new".
+- **Assistant chat**: a way back from every question (Something else / ← Back / Cancel / Keep my design / Keep
+  editing / Change my idea), Stop on the wait card (a stopped chat edit changes nothing; the tee colour now changes
+  at the end). Checked by walking 51,327 chat replies (scratch script, not in the repo). Draw + Photo tabs: Stop,
+  "Earlier designs / results" (studio/EarlierResults.jsx + keepEarlier.js), Back to my words, Cancel on Change it,
+  ← Back to my designs/results; both tabs kept in sessionStorage per garment.
+- **Find my size** fix: 185 cm / 76 kg (slimmer) got S/M, now L — chest from a straight line in weight+height,
+  short tees penalised, tuned on 17 people (sizeMatch.js).
+- **Footer drawn over the page after the Design Room**: the size finder's `.sf-wrap` (position: fixed) clashed with
+  the footer's `.sf-wrap` → size finder classes renamed `szf-…`; Policy pages renamed `pp-` → `pol-` (shared with the
+  product page). A scan of all 38 style sources found no other clashing class names / keyframes / :root variables.
+  RULE: every component gets its own class prefix; check before adding one. Unused leftover: pages/AdminDashboard.jsx.
+- ScrollToTop + the collections page scroll in a layout effect (no flash of the page bottom).
+- Not click-tested by me (needs admin login / a real payment / a paid AI call): A1 flow, admin status Undo +
+  correction email, art Hide/Show, colour photo maker Stop, chat/Draw/Photo Stop buttons.
+
 **`feature-separate-ai-caps` + `feature-admin-logo-favicon` + `feature-size-finder` — MERGED to `main` on 18 Oct 2026 (later):**
 - **AI caps**: Google and Grok each have their own monthly cap (Admin → Settings → AI designs). Google's cap
   (`ai.monthlyCapInr`, key kept; saved ₹350) pauses the design maker and the print enlarger; Grok's cap
