@@ -19,7 +19,7 @@ import { imageUrl } from "../utils/imageUrl";
 import Room3D from "./Room3D";
 import AreaEditor from "./AreaEditor";
 import { AreaRenderer, cachedImage, imageSrcs, loadImage, measureText, playerElements, printThumb } from "./konvaRender";
-import { MAX_PLAYERS, NAME_MAX, NUMBER_MAX, filled, hasRoles, parsePlayers, rolesIn, sizeCounts } from "./teamOrder";
+import { MAX_PLAYERS, NAME_MAX, NUMBER_MAX, filled, hasRoles, parsePlayers, playerLabel, rolesIn, sizeCounts } from "./teamOrder";
 import { areaCm, blockersOf, clashesIn, modelForGarment, placeArea } from "./teeModel";
 import AreaThumb from "./AreaThumb";
 import Rolling from "./Rolling";
@@ -434,10 +434,15 @@ export default function DesignRoomPage() {
   const hist = useRef({ past: [], future: [] });
   const [histSize, setHistSize] = useState({ past: 0, future: 0 });
   const bumpHistory = () => setHistSize({ past: hist.current.past.length, future: hist.current.future.length });
-  const commit = useCallback((next) => {
+  // soft: a key for a change that repeats quickly (a slider drag, typing) — the same key again within
+  // 1.5 s joins the previous step, so one Undo takes the whole drag back instead of one notch
+  const softRef = useRef({ key: null, at: 0 });
+  const commit = useCallback((next, { soft = null } = {}) => {
     const prev = elementsRef.current;
     const value = typeof next === "function" ? next(prev) : next;
-    hist.current = { past: [...hist.current.past, prev].slice(-HISTORY_CAP), future: [] };
+    const joins = soft && softRef.current.key === soft && Date.now() - softRef.current.at < 1500;
+    softRef.current = { key: soft, at: Date.now() };
+    hist.current = { past: joins ? hist.current.past : [...hist.current.past, prev].slice(-HISTORY_CAP), future: [] };
     unsaved.current = true;
     if (value.length > prev.length) setPopKey((k) => k + 1);
     setElements(value);
@@ -560,10 +565,11 @@ export default function DesignRoomPage() {
     }
   };
   const toastTimer = useRef(null);
-  const say = (msg) => {
-    setToast(msg);
+  // action: { label, onClick } — a button in the message (e.g. Undo); it stays a little longer then
+  const say = (msg, action = null) => {
+    setToast(action ? { text: msg, action } : msg);
     clearTimeout(toastTimer.current);
-    toastTimer.current = setTimeout(() => setToast(""), 4500);
+    toastTimer.current = setTimeout(() => setToast(""), action ? 8000 : 4500);
   };
   // areas that already carry a print, and old designs' overlapping pairs
   const usedKeys = [...new Set(elements.map((e) => e.position))];
@@ -759,20 +765,24 @@ export default function DesignRoomPage() {
     });
   };
   const updateSel = (patch, { measure = false } = {}) => {
-    commit((prev) =>
-      syncLinked(
-        prev,
-        prev.map((e) => {
-          if (e.id !== selectedId) return e;
-          const next = { ...e, ...patch, ...(patch.fontSizePct !== undefined ? { ownSizePct: patch.fontSizePct } : {}) };
-          return measure && next.type === "text" ? textBox(next, positions.find((p) => p.key === e.position)) : next;
-        }),
-      ),
+    commit(
+      (prev) =>
+        syncLinked(
+          prev,
+          prev.map((e) => {
+            if (e.id !== selectedId) return e;
+            const next = { ...e, ...patch, ...(patch.fontSizePct !== undefined ? { ownSizePct: patch.fontSizePct } : {}) };
+            return measure && next.type === "text" ? textBox(next, positions.find((p) => p.key === e.position)) : next;
+          }),
+        ),
+      // the same settings of the same item changed again straight after = one Undo step
+      { soft: `${selectedId}:${Object.keys(patch).sort().join()}` },
     );
   };
   const removeSel = () => {
     commit((prev) => prev.filter((e) => e.id !== selectedId));
     setSelectedId(null);
+    say("Deleted.", { label: "Undo", onClick: undo });
   };
   // Remove the selected picture's background (in this browser — see removeBackground.js),
   // upload the cut-out and swap it in. Undo brings the original back.
@@ -2255,7 +2265,7 @@ export default function DesignRoomPage() {
                 />
               )}
               {teamMode && (
-                <TeamList players={players} setPlayers={setPlayers} sizes={sizes} sizeNow={sizeNow} roles={rolesIn(elements)} shownId={previewId} onShow={showPlayer} />
+                <TeamList players={players} setPlayers={setPlayers} sizes={sizes} sizeNow={sizeNow} roles={rolesIn(elements)} shownId={previewId} onShow={showPlayer} notify={say} />
               )}
               <div className="dr-qty" aria-label="Sizes and quantity" hidden={teamMode}>
                 <div className="dr-qhead">
@@ -2388,7 +2398,15 @@ export default function DesignRoomPage() {
           </div>
         )}
 
-        {toast && <div className="dr-toast" role="status">{toast}{/log in/i.test(toast) && <button type="button" onClick={goToLogin}>Log in</button>}</div>}
+        {toast && (
+          <div className="dr-toast" role="status">
+            {typeof toast === "string" ? toast : toast.text}
+            {typeof toast === "string" && /log in/i.test(toast) && <button type="button" onClick={goToLogin}>Log in</button>}
+            {typeof toast !== "string" && toast.action && (
+              <button type="button" onClick={() => { setToast(""); toast.action.onClick(); }}>{toast.action.label}</button>
+            )}
+          </div>
+        )}
         {/* busy: a line of text, or { label, expect, hint } for the AI (a card with a live seconds count) */}
         {busy && (
           <div className="dr-busy">
@@ -2415,7 +2433,8 @@ export default function DesignRoomPage() {
 /* ---------- pieces ---------- */
 // Review of a team order: one row per player (name, number, size). Each row is one tee.
 // Tapping a row shows that player's tee on the 3D model.
-function TeamList({ players, setPlayers, sizes, sizeNow, roles, shownId, onShow }) {
+// notify(text, { label, onClick }): the room's message line, used for "Player removed · Undo"
+function TeamList({ players, setPlayers, sizes, sizeNow, roles, shownId, onShow, notify }) {
   const [pasteOpen, setPasteOpen] = useState(false);
   const [pasted, setPasted] = useState("");
   const full = players.length >= MAX_PLAYERS;
@@ -2449,7 +2468,13 @@ function TeamList({ players, setPlayers, sizes, sizeNow, roles, shownId, onShow 
             <select value={p.size} aria-label={`Player ${i + 1} size`} onChange={(e) => patch(p.id, { size: e.target.value })}>
               {sizes.map((sz) => <option key={sz}>{sz}</option>)}
             </select>
-            <button type="button" className="dr-x" aria-label={`Remove player ${i + 1}`} onClick={(e) => { e.stopPropagation(); setPlayers((list) => list.filter((x) => x.id !== p.id)); }}>✕</button>
+            <button type="button" className="dr-x" aria-label={`Remove player ${i + 1}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                setPlayers((list) => list.filter((x) => x.id !== p.id));
+                // put them back where they were
+                notify?.(`${playerLabel(p) || `Player ${i + 1}`} removed.`, { label: "Undo", onClick: () => setPlayers((list) => (list.some((x) => x.id === p.id) ? list : [...list.slice(0, i), p, ...list.slice(i)])) });
+              }}>✕</button>
           </div>
         ))}
       </div>

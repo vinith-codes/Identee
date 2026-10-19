@@ -76,6 +76,8 @@ export default function MyDesignsPage() {
       await customizationService.deleteDesign(d._id);
       setConfirmDelete(null);
       setDesigns((list) => list.filter((x) => x._id !== d._id));
+      // the server also took its lines out of the cart — refresh the cart count
+      dispatch(fetchCart(JSON.parse(localStorage.getItem("userInfo") || "{}").token));
     } catch (err) {
       setError(err.response?.data?.message || "Couldn't delete that design.");
     } finally {

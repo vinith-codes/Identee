@@ -302,6 +302,13 @@ export const duplicateCustomization = async (req, res) => {
 export const deleteCustomization = async (req, res) => {
   try {
     const doc = await ownDesign(req);
+    // its cart lines go too (they would be blank, un-orderable rows otherwise)
+    const user = await User.findById(req.user._id);
+    const inCart = user.cartItems.filter((c) => String(c.customization) === String(doc._id));
+    if (inCart.length) {
+      inCart.forEach((c) => user.cartItems.pull(c._id));
+      await user.save();
+    }
     const inOrder = doc.orderedAt || (await Order.exists({ "orderItems.customization": doc._id }));
     if (inOrder) {
       doc.hiddenAt = new Date();
@@ -311,7 +318,7 @@ export const deleteCustomization = async (req, res) => {
       await doc.deleteOne();
       await dropMockups(mockups, doc._id);
     }
-    res.json({ message: "Deleted" });
+    res.json({ message: "Deleted", removedFromCart: inCart.length });
   } catch (err) {
     sendError(res, err, "Could not delete the design");
   }

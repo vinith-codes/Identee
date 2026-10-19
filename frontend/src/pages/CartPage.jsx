@@ -1,6 +1,6 @@
 // Route this at: <Route path="/cart" element={<CartPage />} />
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import {
@@ -9,6 +9,7 @@ import {
   removeCartItem,
 } from "../redux/slices/cartWishlistSlice";
 import { imageUrl } from "../utils/imageUrl";
+import customizationService from "../services/customizationService";
 import EmptyState from "../components/EmptyState";
 import { useShopOpen } from "../utils/shopOpen";
 
@@ -79,8 +80,35 @@ export default function CartPage() {
     );
   };
 
+  // Removed by mistake? An "Undo" bar puts it back for a few seconds: what was removed and how to re-add it.
+  const [undo, setUndo] = useState(null); // { text, restore: () => Promise }
+  const undoTimer = useRef(null);
+  const offerUndo = (text, restore) => {
+    clearTimeout(undoTimer.current);
+    setUndo({ text, restore });
+    undoTimer.current = setTimeout(() => setUndo(null), 9000);
+  };
+  const runUndo = async () => {
+    const u = undo;
+    setUndo(null);
+    clearTimeout(undoTimer.current);
+    try {
+      await u.restore();
+      dispatch(fetchCart(user.token));
+    } catch (err) {
+      setNote(err.response?.data?.message || "Couldn't put that back. Please add it again.");
+    }
+  };
+  const [note, setNote] = useState("");
+
   const handleRemove = (item) => {
     dispatch(removeCartItem({ cartItemId: item._id, token: user.token }));
+    const what = item.customization ? `${item.customization.name || "Your design"} · ${item.size}` : `${item.product?.brandname || "Item"} · ${item.size}`;
+    offerUndo(`Removed ${what}.`, () =>
+      item.customization
+        ? customizationService.addDesignToCart(item.customization._id, [{ size: item.size, qty: item.qty }])
+        : dispatch(updateCartItemQty({ productId: item.product?._id, cartItemId: null, size: item.size, qty: item.qty, token: user.token })).unwrap(),
+    );
   };
 
   // a team order goes as a whole (every size line of the design), after a Yes
@@ -88,6 +116,8 @@ export default function CartPage() {
   const removeTeam = (g) => {
     setConfirmTeam(null);
     dispatch(updateCartItemQty({ productId: null, cartItemId: g.items[0]._id, size: g.items[0].size, qty: 0, token: user.token }));
+    // a team design goes back in as its player list (the server ignores the sizes)
+    offerUndo(`Removed the team order "${g.design.name || "Team design"}".`, () => customizationService.addDesignToCart(g.design._id, []));
   };
 
   if (!user) {
@@ -144,6 +174,17 @@ export default function CartPage() {
           </Link>
         </div>
 
+        {(undo || note) && (
+          <div role="status" style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", padding: "10px 14px", marginBottom: 12, borderRadius: 12, background: C.ink, color: "#fff", fontSize: 13.5 }}>
+            <span style={{ flex: 1, minWidth: 0 }}>{undo ? undo.text : note}</span>
+            {undo && (
+              <button type="button" onClick={runUndo} style={{ border: 0, borderRadius: 999, padding: "6px 14px", background: C.gold, color: C.ink, fontWeight: 800, cursor: "pointer", fontSize: 13 }}>
+                Undo
+              </button>
+            )}
+            <button type="button" onClick={() => { setUndo(null); setNote(""); }} aria-label="Dismiss" style={{ border: 0, background: "none", color: "#fff", fontSize: 18, lineHeight: 1, cursor: "pointer", padding: 0 }}>×</button>
+          </div>
+        )}
         {/* custom designs: one card per design, its sizes listed under it */}
         {designGroups.map((g) => (
           <div

@@ -83,6 +83,7 @@ export default function Account() {
 
   const [addresses, setAddresses] = useState([]);
   const [editingAddress, setEditingAddress] = useState(null); // index or "new"
+  const [confirmDeleteIdx, setConfirmDeleteIdx] = useState(null); // the address waiting for "Yes, delete"
   const [addressForm, setAddressForm] = useState(emptyAddress);
   const [addressErrors, setAddressErrors] = useState({});
 
@@ -782,12 +783,27 @@ export default function Account() {
                         Set as Default
                       </button>
                     )}
-                    <button
-                      onClick={() => handleDeleteAddress(idx)}
-                      style={{ ...linkBtnStyle, color: "#B3432B" }}
-                    >
-                      Delete
-                    </button>
+                    {confirmDeleteIdx === idx ? (
+                      <span role="group" aria-label="Delete this address?" style={{ display: "inline-flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                        <span style={{ fontSize: 13, color: "#15130F" }}>Delete this address?</span>
+                        <button
+                          onClick={() => { setConfirmDeleteIdx(null); handleDeleteAddress(idx); }}
+                          style={{ border: 0, borderRadius: 999, padding: "5px 12px", background: "#B3432B", color: "#fff", fontWeight: 700, fontSize: 12, cursor: "pointer" }}
+                        >
+                          Yes, delete
+                        </button>
+                        <button onClick={() => setConfirmDeleteIdx(null)} style={linkBtnStyle}>
+                          Keep
+                        </button>
+                      </span>
+                    ) : (
+                      <button
+                        onClick={() => setConfirmDeleteIdx(idx)}
+                        style={{ ...linkBtnStyle, color: "#B3432B" }}
+                      >
+                        Delete
+                      </button>
+                    )}
                   </div>
                 </div>
               ))}

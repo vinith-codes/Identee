@@ -66,6 +66,16 @@ export default function WriteReviewModal({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
+  // closing with something written (backdrop click, Esc, Cancel) asks first, so a review isn't lost by a slip
+  const [askClose, setAskClose] = useState(false);
+  const hasWork = !success && (rating > 0 || comment.trim().length > 0 || images.length > 0);
+  const tryClose = () => (hasWork ? setAskClose(true) : onClose());
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e) => e.key === "Escape" && tryClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  });
 
   // Build/clean up object URLs for the selected photos whenever the
   // selection changes — this powers the thumbnail preview grid.
@@ -144,7 +154,7 @@ export default function WriteReviewModal({
         zIndex: 1000,
         padding: 16,
       }}
-      onClick={onClose}
+      onClick={tryClose}
     >
       <div
         onClick={(e) => e.stopPropagation()}
@@ -160,6 +170,13 @@ export default function WriteReviewModal({
           fontFamily: THEME.fontBody,
         }}
       >
+        {askClose && (
+          <div role="alertdialog" aria-label="Discard your review?" style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", padding: "10px 12px", marginBottom: 14, borderRadius: 10, background: THEME.goldBg, border: `1px solid ${THEME.goldBorder}`, fontSize: 13.5 }}>
+            <span style={{ flex: 1, minWidth: 0 }}>Discard what you’ve written?</span>
+            <button type="button" onClick={onClose} style={{ border: 0, borderRadius: 999, padding: "6px 14px", background: THEME.danger, color: "#fff", fontWeight: 700, cursor: "pointer" }}>Discard</button>
+            <button type="button" onClick={() => setAskClose(false)} style={{ borderRadius: 999, padding: "6px 14px", border: `1px solid ${THEME.border}`, background: "#fff", color: THEME.text, fontWeight: 600, cursor: "pointer" }}>Keep writing</button>
+          </div>
+        )}
         {success ? (
           <div style={{ textAlign: "center", padding: "30px 0" }}>
             <p style={{ fontSize: 40, margin: 0 }}>✅</p>
@@ -378,7 +395,7 @@ export default function WriteReviewModal({
 
             <div style={{ display: "flex", gap: 10, marginTop: 22 }}>
               <button
-                onClick={onClose}
+                onClick={tryClose}
                 style={{
                   flex: 1,
                   padding: "10px 0",
