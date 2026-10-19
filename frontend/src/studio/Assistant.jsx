@@ -64,6 +64,8 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
     onWorking?.(true);
     const me = { act, wait, stopped: false };
     job.current = me;
+    // a marker kept with the chat: after a reload mid-request it becomes "cut off — Try again"
+    setMessages((m) => [...m, { pending: act, wait }]);
     // the page may say what it is doing now (a chat request that turned into drawing two pictures)
     Promise.resolve()
       .then(() => onAct(act, (now) => !me.stopped && setThinking(now), me))
@@ -73,7 +75,10 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
         if (me.stopped) {
           // Stopped, but a picture finished anyway: it was already counted, so it is offered (not put on the tee)
           const pics = made.filter((x) => x.designs);
-          if (pics.length) setMessages((m) => [...m, { from: "bot", text: "The picture you stopped finished anyway, so it’s here if you want it. Nothing was added to your tee." }, ...pics.map((x) => ({ ...x, again: null }))]);
+          setMessages((m) => {
+            const rest = m.filter((x) => !x.pending);
+            return pics.length ? [...rest, { from: "bot", text: "The picture you stopped finished anyway, so it’s here if you want it. Nothing was added to your tee." }, ...pics.map((x) => ({ ...x, again: null }))] : rest;
+          });
           return;
         }
         job.current = null;
@@ -81,7 +86,7 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
         onWorking?.(false);
         // { failed: true } from the page = this request can simply be tried again; { retry: act } = try that one
         const out = made.map((x) => (x.failed ? { retry: act, wait } : x.retry && !x.wait ? { ...x, wait: waitFor(x.retry) } : x));
-        setMessages((m) => [...m, ...out, ...after]);
+        setMessages((m) => [...m.filter((x) => !x.pending), ...out, ...after]);
       });
   };
   // Stop: the customer stops waiting at once. A chat edit changes nothing on the tee (the page checks "stopped").
@@ -95,7 +100,7 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
     onWorking?.(false);
     const drawing = now.act.type === "generate" || now.act.type === "edit";
     setMessages((m) => [
-      ...m,
+      ...m.filter((x) => !x.pending),
       { from: "me", text: "Stop" },
       { from: "bot", text: drawing ? "Stopped. Nothing was changed on your tee. (If the picture was already being drawn, it may still count as one of today’s requests.)" : "Stopped." },
       { retry: now.act, wait: now.wait },
@@ -167,6 +172,17 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
     <div className="dr-chat">
       <div className="dr-chatlog" ref={log} aria-live="polite">
         {messages.map((m, i) => {
+          if (m.pending) {
+            // the request running now (nothing to show), or one a reload cut off (the answer never came)
+            if (thinking) return null;
+            return (
+              <div key={i} className={`dr-chatchips${m.done ? " done" : ""}`}>
+                <span className="dr-msg bot">That request was cut off — the page reloaded before I could answer.</span>
+                <button type="button" className="dr-chip dr-retry" disabled={m.done} onClick={() => retry(i, { retry: m.pending, wait: m.wait })}>↻ Try again</button>
+                <button type="button" className="dr-chip" disabled={m.done} onClick={() => say("Something else", true)}>Something else</button>
+              </div>
+            );
+          }
           if (m.chips) {
             return (
               <div key={i} className={`dr-chatchips${m.done ? " done" : ""}`}>

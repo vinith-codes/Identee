@@ -47,8 +47,16 @@ const undoOrderStatus = async (id, token) => {
   return data;
 };
 
+// The customer cancels their own order (allowed while it is CREATED or CONFIRMED).
+const cancelMyOrder = async (id, token) => {
+  const config = { headers: { Authorization: `Bearer ${token}` } };
+  const { data } = await api.put(`/orders/${id}/cancel`, {}, config);
+  return data;
+};
+
 const orderService = {
   undoOrderStatus,
+  cancelMyOrder,
   createOrder,
   getMyOrders,
   getOrderById,

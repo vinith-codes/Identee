@@ -94,8 +94,11 @@ export default function AddressStep({ selectedAddress, onContinue }) {
     fillForm,
   );
 
+  const [reloadKey, setReloadKey] = useState(0); // "Try again" after a failed load
   useEffect(() => {
     const fetchAddresses = async () => {
+      setLoading(true);
+      setError("");
       try {
         const res = await fetch(`${BACKEND_URL}/api/users/profile`, {
           headers: { Authorization: `Bearer ${user.token}` },
@@ -118,7 +121,7 @@ export default function AddressStep({ selectedAddress, onContinue }) {
     };
     fetchAddresses();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [reloadKey]);
 
   const validate = () => {
     const errs = validateAddress(form, deliverableStates);
@@ -210,6 +213,15 @@ export default function AddressStep({ selectedAddress, onContinue }) {
             }}
           >
             {error}
+            {/* never a dead end: load again, or type the address now */}
+            <span style={{ display: "inline-flex", gap: 8, marginLeft: 12, verticalAlign: "middle" }}>
+              <button type="button" onClick={() => setReloadKey((k) => k + 1)} style={{ border: 0, borderRadius: 999, padding: "6px 14px", background: THEME.ink, color: "#fff", fontWeight: 700, cursor: "pointer", fontFamily: THEME.fontBody, fontSize: 12.5 }}>
+                Try again
+              </button>
+              <button type="button" onClick={() => { setError(""); setMode("add"); }} style={{ borderRadius: 999, padding: "6px 14px", border: `1px solid ${THEME.border}`, background: "#fff", color: THEME.text, fontWeight: 600, cursor: "pointer", fontFamily: THEME.fontBody, fontSize: 12.5 }}>
+                Add a new address
+              </button>
+            </span>
           </p>
         )}
 

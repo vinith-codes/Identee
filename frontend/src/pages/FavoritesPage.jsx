@@ -15,18 +15,31 @@ export default function FavoritesPage() {
   const [favorites, setFavorites] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  // a failed load says so and offers Try again (it used to look like "No favourites yet")
+  const [failed, setFailed] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
   useEffect(() => {
     if (!user) {
       setLoading(false);
       return;
     }
+    let alive = true;
+    setLoading(true);
+    setFailed(false);
     fetch(`${BACKEND_URL}/api/users/getfavorites`, {
       headers: { Authorization: `Bearer ${user.token}` },
     })
-      .then((res) => res.json())
-      .then((data) => setFavorites(Array.isArray(data) ? data : []))
-      .finally(() => setLoading(false));
-  }, [user]);
+      .then((res) => {
+        if (!res.ok) throw new Error("Couldn't load your favourites");
+        return res.json();
+      })
+      .then((data) => alive && setFavorites(Array.isArray(data) ? data : []))
+      .catch(() => alive && setFailed(true))
+      .finally(() => alive && setLoading(false));
+    return () => {
+      alive = false;
+    };
+  }, [user, reloadKey]);
 
   if (!user) {
     return (
@@ -37,6 +50,16 @@ export default function FavoritesPage() {
   }
   if (loading) {
     return <div style={{ padding: 40, textAlign: "center", color: C.muted }}>Loading…</div>;
+  }
+  if (failed) {
+    return (
+      <div role="alert" style={{ padding: 40, textAlign: "center", color: C.muted }}>
+        <p style={{ margin: "0 0 14px", color: C.ink, fontWeight: 600 }}>We couldn’t load your favourites.</p>
+        <button type="button" onClick={() => setReloadKey((k) => k + 1)} style={{ border: 0, borderRadius: 999, padding: "10px 22px", background: C.ink, color: "#fff", fontWeight: 700, cursor: "pointer" }}>
+          Try again
+        </button>
+      </div>
+    );
   }
   if (favorites.length === 0) {
     return (

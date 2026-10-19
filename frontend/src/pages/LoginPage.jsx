@@ -457,6 +457,16 @@ export default function LoginPage() {
               >
                 Create account
               </PrimaryButton>
+              {/* a way back from the name step: wrong email or number, or someone else's */}
+              <button
+                type="button"
+                onClick={changeIdentifier}
+                disabled={loading}
+                className="mt-4 w-full text-sm underline underline-offset-4"
+                style={{ background: "none", border: 0, color: "#6B6559", cursor: "pointer" }}
+              >
+                Not you? Start again
+              </button>
             </>
           )}
         </div>

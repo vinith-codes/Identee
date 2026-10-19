@@ -51,6 +51,10 @@ const STATUS_BANNER = {
     title: "Return Completed",
     subtitle: "Your return has been processed.",
   },
+  CANCELLED: {
+    title: "Order Cancelled",
+    subtitle: "This order was cancelled. If you paid online, the amount goes back to the same payment method.",
+  },
 };
 
 export default function OrderSuccessPage() {

@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
+import { useSearchParams } from "react-router-dom";
 import { THEME } from "../../theme/theme";
 import { fetchCart } from "../../redux/slices/cartWishlistSlice";
 import EmptyState from "../EmptyState";
@@ -10,10 +11,39 @@ import PaymentStep from "./PaymentStep";
 
 // items/buyNow are optional overrides for the "Buy Now" flow.
 // Leave both undefined for normal cart checkout (falls back to redux cart).
+// The address and coupon survive a reload (this browser tab only); the step lives in the URL (?step=2), so the
+// browser's Back button goes to the previous step instead of leaving checkout. Buy Now isn't kept: its items
+// come with the page and are gone after a reload anyway.
+const SAVE_KEY = "identee:checkout:v1";
+const readSaved = () => {
+  try {
+    return JSON.parse(sessionStorage.getItem(SAVE_KEY) || "null") || {};
+  } catch {
+    return {};
+  }
+};
+
 export default function CheckoutFlow({ items: itemsProp, buyNow: buyNowProp }) {
-  const [step, setStep] = useState(1);
-  const [shippingAddress, setShippingAddress] = useState(null);
-  const [coupon, setCoupon] = useState(null);
+  const [params, setParams] = useSearchParams();
+  const [saved] = useState(() => (itemsProp ? {} : readSaved()));
+  const [shippingAddress, setShippingAddress] = useState(saved.shippingAddress || null);
+  const [coupon, setCoupon] = useState(saved.coupon || null);
+  const wanted = Math.min(3, Math.max(1, Number(params.get("step")) || 1));
+  const step = wanted >= 2 && !shippingAddress ? 1 : wanted; // a later step needs the address first
+  const setStep = (n) =>
+    setParams((p) => {
+      const q = new URLSearchParams(p);
+      q.set("step", String(n));
+      return q;
+    });
+  useEffect(() => {
+    if (itemsProp) return;
+    try {
+      sessionStorage.setItem(SAVE_KEY, JSON.stringify({ shippingAddress, coupon }));
+    } catch {
+      /* storage blocked: the form just starts over after a reload */
+    }
+  }, [itemsProp, shippingAddress, coupon]);
 
   // Local, editable copy of the Buy Now items — this is what lets the +/−
   // quantity controls in OrderSummaryStep actually change something. Cart

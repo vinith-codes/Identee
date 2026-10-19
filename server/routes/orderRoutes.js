@@ -22,6 +22,7 @@ import {
   getUndeliveredOrders,
   updateOrderStatus,
   undoOrderStatus,
+  cancelMyOrder,
   getOrderStatusCounts,
   createBillingInvoice,
   getBillingInvoiceByNumber,
@@ -42,6 +43,7 @@ router.route("/delivery").get(protect, isDelivery, getOrdersForDeliveryPerson);
 router.route("/status-count").get(protect, adminOrSeller, getOrderStatusCounts);
 router.route("/transactions").get(protect, adminOrSeller, getTransactions);
 router.route("/myorders").get(protect, GetMyOrders);
+router.route("/:id/cancel").put(protect, cancelMyOrder); // the customer's own order, before it is packed
 router.route("/quote").post(protect, getCheckoutQuote);
 
 router

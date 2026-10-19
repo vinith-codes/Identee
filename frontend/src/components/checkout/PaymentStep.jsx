@@ -93,6 +93,7 @@ export default function PaymentStep({ shippingAddress, coupon, onBack, buyNow })
     buyNow: buyNow || undefined,
   };
 
+  const [quoteRetry, setQuoteRetry] = useState(0); // "Try again" after a failed price check
   useEffect(() => {
     const fetchQuote = async () => {
       setLoadingQuote(true);
@@ -109,11 +110,16 @@ export default function PaymentStep({ shippingAddress, coupon, onBack, buyNow })
     };
     fetchQuote();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [quoteRetry]);
 
   const onOrderPlaced = (order) => {
     if (!buyNow) dispatch(fetchCart(user.token)); // server emptied the cart
     toast.success("Order placed successfully!");
+    try {
+      sessionStorage.removeItem("identee:checkout:v1"); // the address and coupon kept for a reload (CheckoutFlow)
+    } catch {
+      /* nothing kept */
+    }
     // replace: the browser's back button can't return here and place the same order again
     navigate(`/order-success/${order._id}`, { replace: true });
   };
@@ -195,10 +201,20 @@ export default function PaymentStep({ shippingAddress, coupon, onBack, buyNow })
           contact: shippingAddress?.phoneNumber,
         },
         theme: { color: "#C9A24B" },
-        modal: { ondismiss: () => setPlacing(false) },
+        modal: {
+          ondismiss: () => {
+            setPlacing(false);
+            toast.info("Payment cancelled. Nothing was charged — you can try again whenever you're ready.");
+          },
+        },
       };
 
       const rzp = new window.Razorpay(options);
+      // a card declined, a UPI timeout…: say so plainly; Razorpay's window offers another go
+      rzp.on("payment.failed", (r) => {
+        setPlacing(false);
+        toast.error(`Payment failed${r?.error?.description ? `: ${r.error.description}` : ""}. Nothing was charged — you can try again.`, { autoClose: 8000 });
+      });
       rzp.open();
     } catch (error) {
       toast.error(
@@ -438,9 +454,16 @@ export default function PaymentStep({ shippingAddress, coupon, onBack, buyNow })
               color: THEME.danger,
               fontSize: 13,
               fontFamily: THEME.fontBody,
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+              flexWrap: "wrap",
             }}
           >
             {quoteError}
+            <button type="button" onClick={() => setQuoteRetry((k) => k + 1)} disabled={loadingQuote} style={{ border: 0, borderRadius: 999, padding: "6px 14px", background: THEME.ink, color: "#fff", fontWeight: 700, cursor: "pointer", fontFamily: THEME.fontBody, fontSize: 12.5 }}>
+              Try again
+            </button>
           </p>
         )}
 

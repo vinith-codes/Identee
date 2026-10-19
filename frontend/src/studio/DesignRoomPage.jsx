@@ -978,6 +978,13 @@ export default function DesignRoomPage() {
         e.preventDefault();
         return redo();
       }
+      if (e.key === "Escape") {
+        // closes whatever is open, like a × would (even with nothing selected)
+        if (saveOpen) return setSaveOpen(false);
+        if (pickOpen) return setPickOpen(false);
+        if (areasOpen) return setAreasOpen(false);
+        return;
+      }
       if (!selectedId) return;
       if (mod && e.key.toLowerCase() === "d") {
         e.preventDefault();

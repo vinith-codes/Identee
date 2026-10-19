@@ -23,7 +23,45 @@ const STATUS_TONES = {
   DELIVERED: "success",
   RETURN_APPROVED: "danger",
   RETURN_COMPLETED: "danger",
+  CANCELLED: "neutral",
 };
+
+// "Cancel order" on an order that isn't packed yet: asks first, then tells the customer what happens next
+function CancelOrder({ order, token, onCancelled }) {
+  const [asking, setAsking] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState("");
+  const cancel = async () => {
+    setBusy(true);
+    try {
+      const res = await orderService.cancelMyOrder(order._id, token);
+      onCancelled(res.status || "CANCELLED", res.message);
+    } catch (err) {
+      setNote(err.response?.data?.message || "Couldn't cancel the order. Please try again or contact us.");
+      setAsking(false);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const small = { border: `1px solid ${THEME.border}`, background: "#fff", borderRadius: 999, padding: "5px 12px", fontSize: 12, fontWeight: 600, cursor: "pointer", color: THEME.text, fontFamily: THEME.fontBody };
+  if (asking) {
+    return (
+      <div role="group" aria-label="Cancel this order?" style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", fontSize: 13, fontFamily: THEME.fontBody }}>
+        <span>Cancel this order?{order.isPaid ? " The amount you paid will be refunded." : ""}</span>
+        <button type="button" onClick={cancel} disabled={busy} style={{ ...small, background: THEME.danger, color: "#fff", border: 0, fontWeight: 700 }}>
+          {busy ? "Cancelling…" : "Yes, cancel"}
+        </button>
+        <button type="button" onClick={() => setAsking(false)} disabled={busy} style={small}>Keep my order</button>
+      </div>
+    );
+  }
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+      <button type="button" onClick={() => { setNote(""); setAsking(true); }} style={{ ...small, color: THEME.danger }}>Cancel order</button>
+      {note && <span style={{ fontSize: 12.5, color: THEME.textMuted, fontFamily: THEME.fontBody }}>{note}</span>}
+    </div>
+  );
+}
 
 function StatusPill({ status }) {
   const tone = STATUS_TONES[status] || "neutral";
@@ -83,8 +121,12 @@ export default function MyOrdersPage() {
   const [error, setError] = useState("");
   const [activeTab, setActiveTab] = useState("all");
 
+  const [reloadKey, setReloadKey] = useState(0); // "Try again" after a failed load
+  const [cancelNote, setCancelNote] = useState("");
   useEffect(() => {
     const fetchOrders = async () => {
+      setLoading(true);
+      setError("");
       try {
         const data = await orderService.getMyOrders(user.token);
         setOrders(data);
@@ -95,7 +137,7 @@ export default function MyOrdersPage() {
       }
     };
     fetchOrders();
-  }, [user.token]);
+  }, [user.token, reloadKey]);
 
   const activeStatuses = TABS.find((t) => t.key === activeTab)?.statuses;
   const filteredOrders = activeStatuses
@@ -142,8 +184,11 @@ export default function MyOrdersPage() {
         )}
 
         {error && (
-          <p style={{ color: THEME.danger, fontFamily: THEME.fontBody }}>
+          <p style={{ color: THEME.danger, fontFamily: THEME.fontBody, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
             {error}
+            <button type="button" onClick={() => setReloadKey((k) => k + 1)} style={{ border: 0, borderRadius: 999, padding: "7px 16px", background: THEME.ink, color: "#fff", fontWeight: 700, cursor: "pointer", fontFamily: THEME.fontBody }}>
+              Try again
+            </button>
           </p>
         )}
 
@@ -238,6 +283,21 @@ export default function MyOrdersPage() {
                 </div>
                 <StatusPill status={order.orderStatus} />
               </div>
+              {["CREATED", "CONFIRMED"].includes(order.orderStatus) && (
+                <div style={{ marginBottom: 12 }}>
+                  <CancelOrder
+                    order={order}
+                    token={user.token}
+                    onCancelled={(status, message) => {
+                      setOrders((list) => list.map((o) => (o._id === order._id ? { ...o, orderStatus: status } : o)));
+                      setCancelNote(message || "Your order is cancelled.");
+                    }}
+                  />
+                </div>
+              )}
+              {cancelNote && order.orderStatus === "CANCELLED" && (
+                <p role="status" style={{ margin: "0 0 12px", fontSize: 13, color: THEME.textMuted, fontFamily: THEME.fontBody }}>{cancelNote}</p>
+              )}
 
               <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
                 {order.orderItems.slice(0, 4).map((item, i) => (
