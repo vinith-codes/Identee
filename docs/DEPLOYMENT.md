@@ -237,7 +237,7 @@ Port 3001 stays closed to the internet (only Nginx, inside the server, talks to 
 ## 10. Razorpay webhook (after the site is live)
 
 Razorpay dashboard (live mode) → **Webhooks** → Add:
-- URL: `https://identee.co.in/api/orders/razorpay/webhook`
+- URL: `https://backend.identee.co.in/api/orders/razorpay/webhook` (the live backend has its own address)
 - Events: `payment.captured` and `order.paid`
 - Make a secret, put the **same** secret in `server/.env` as `RAZORPAY_WEBHOOK_SECRET`, then `pm2 restart identee`.
 
