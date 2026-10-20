@@ -52,7 +52,9 @@ export function prepareBackgroundRemoval() {
 let ready = null;
 async function session() {
   if (!ready) {
-    ready = modelFile().then((file) => ort.InferenceSession.create(file));
+    // (memory pool off: with it on, the server's memory grew to about 1.5 GB after two photos and stayed there;
+    // off, it stays near 170 MB, for about 0.3 s more per photo — measured 20 Oct 2026)
+    ready = modelFile().then((file) => ort.InferenceSession.create(file, { enableCpuMemArena: false, enableMemPattern: false }));
     ready.catch(() => {
       ready = null; // the next try starts again (the download may have failed)
     });
