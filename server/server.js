@@ -30,6 +30,7 @@ import "./utils/subscriptionCron.js";
 import "./utils/razorpayInstance.js";
 import notificationRoutes from "./routes/notificationRoutes.js";
 import aiRoutes from "./routes/aiRoutes.js";
+import { prepareBackgroundRemoval } from "./services/backgroundService.js";
 import categoryRoutes from "./routes/categoryRoutes.js";
 import shopRoutes from "./routes/shopRoutes.js";
 import adminRoutes from "./routes/adminRoutes.js";
@@ -135,6 +136,8 @@ app.listen(
   PORT,
   console.log(`Server running in ${process.env.NODE_ENV} mode on port ${PORT}`),
 );
+// the photo background remover's model file: fetched now, in the background, not when the first customer needs it
+prepareBackgroundRemoval();
 
 //runingin
 // In server.js — add AFTER all routes

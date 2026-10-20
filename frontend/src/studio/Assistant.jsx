@@ -40,7 +40,7 @@ const waitFor = (a) =>
           ? { label: "Removing the background…", expect: 8, hint: "Free. Usually a few seconds." }
           : { label: "Putting your photo on the tee…", expect: 3 }
       : a.type === "drawPlan"
-        ? { label: a.items?.length > 1 ? `Drawing ${a.items.length} pictures…` : "Drawing your design…", expect: 25 * (a.items?.length || 1), hint: a.items?.length > 1 ? "Usually 20–40 seconds for each. You can look around the room meanwhile." : PICTURE_HINT }
+        ? { label: a.items?.length > 1 ? `Drawing ${a.items.length} pictures at the same time…` : "Drawing your design…", expect: a.items?.length > 1 ? 30 : 25, hint: a.items?.length > 1 ? "Usually 20–40 seconds for all of them. You can look around the room meanwhile." : PICTURE_HINT }
       : a.photoUrl
         ? { label: "Redrawing your photo…", expect: 35, hint: PICTURE_HINT }
         : a.baseUrl

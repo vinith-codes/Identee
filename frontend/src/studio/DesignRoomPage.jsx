@@ -1210,49 +1210,73 @@ export default function DesignRoomPage() {
     let failed = false;
     const placed = {};
     const out = [];
-    for (const [n, item] of items.entries()) {
-      if (run?.stopped) return [];
-      if (items.length > 1) progress?.({ label: `Drawing picture ${n + 1} of ${items.length}…`, expect: 25, hint: "Usually 20–40 seconds each. You can look around the room meanwhile." });
-      const used = [...new Set(els.map((e) => e.position))];
-      // the chosen area, or (if something now covers it) the biggest free one on the same side
+    // The print area for each picture first (each a different free one), then all of them are drawn AT THE SAME
+    // TIME — one after another, two pictures took twice as long (about 25 s each).
+    const used = [...new Set(els.map((e) => e.position))];
+    const jobs = [];
+    for (const item of items) {
+      // the chosen area, or (if something covers it) the biggest free one on the same side; never one an earlier
+      // picture of this plan got
       const want = item.areaKey || positions.find((p) => p.side === "front" && p.main)?.key;
-      const pos = areaFor(want, positions, used.filter((k) => !(aiPlaced[k] && k === want)));
-      if (!pos) {
-        out.push(botSays(`There’s no free print area left for ${item.subject.slice(0, 80)}. Remove a print, or pick another area.`));
-        continue;
-      }
-      const { W, H } = areaPx(pos);
-      // lettering for a tall, thin area: one long line, turned on its side on the tee
-      const banner = style === "Hand lettering" && H / W >= 2.5;
-      try {
-        const made = await aiService.design({ subject: item.subject.slice(0, 200), style, teeColour: colour?.name || "white", teeIsDark: lum(fabricHex) < 0.55, ratio: banner ? H / W : W / H, ...(banner ? { banner: true } : {}) });
-        if (made.left != null) {
-          left = made.left;
-          setAi((cur) => ({ ...cur, left: made.left }));
-        }
-        made.images.forEach((im) => {
-          aiCuts.current.set(im.url, { path: im.url, w: im.width, h: im.height });
-          loadImage(im.url).catch(() => {});
-        });
-        if (run?.stopped) return [{ designs: made.images.map((im) => im.url) }];
-        const first = made.images[0];
-        const el = aiElement(pos, { path: first.url, w: first.width, h: first.height }, els.length + 1);
-        // it replaces a picture the chat put on that area before
-        const old = aiPlaced[pos.key]?.elId;
-        els = [...els.filter((e) => e.id !== old), el];
-        placed[pos.key] = { url: first.url, elId: el.id };
-        focus = focus || pos.key;
-        out.push(
-          botSays(`${pos.label}: ${(item.label || item.subject).slice(0, 120)}${pos.key !== item.areaKey && item.areaKey ? " (its area was taken, so I used this one)" : ""}.`),
-          // again: one more version for this area (shown here, not put on the tee until Add to tee)
-          { designs: made.images.map((im) => im.url), again: { type: "generate", subject: item.subject.slice(0, 200), style, areaKey: pos.key } },
-        );
-      } catch (err) {
-        failed = true;
-        out.push(botSays(err.response?.data?.message || "The design maker had a problem."), { retry: { type: "drawPlan", items: items.slice(n), style } });
-        break;
-      }
+      const taken = [...used.filter((k) => !(aiPlaced[k] && k === want)), ...jobs.map((j) => j.pos?.key).filter(Boolean)];
+      jobs.push({ item, pos: areaFor(want, positions, taken) });
     }
+    for (const j of jobs.filter((x) => !x.pos)) out.push(botSays(`There’s no free print area left for ${j.item.subject.slice(0, 80)}. Remove a print, or pick another area.`));
+    // (drawn together, so only as many as the requests left today — the rest is said, never dropped quietly)
+    const drawable = jobs.filter((j) => j.pos);
+    const drawNow = ai.left == null ? drawable : drawable.slice(0, Math.max(0, ai.left));
+    const later = drawable.slice(drawNow.length);
+    if (drawNow.length > 1) progress?.({ label: `Drawing ${drawNow.length} pictures at the same time…`, expect: 30, hint: "Usually 20–40 seconds for all of them. You can look around the room meanwhile." });
+    const results = await Promise.allSettled(
+      drawNow.map(({ item, pos }) => {
+        const { W, H } = areaPx(pos);
+        // lettering for a tall, thin area: one long line, turned on its side on the tee
+        const banner = style === "Hand lettering" && H / W >= 2.5;
+        return aiService.design({ subject: item.subject.slice(0, 200), style, teeColour: colour?.name || "white", teeIsDark: lum(fabricHex) < 0.55, ratio: banner ? H / W : W / H, ...(banner ? { banner: true } : {}) });
+      }),
+    );
+    for (const r of results) {
+      if (r.status !== "fulfilled") continue;
+      r.value.images.forEach((im) => {
+        aiCuts.current.set(im.url, { path: im.url, w: im.width, h: im.height });
+        loadImage(im.url).catch(() => {});
+      });
+      // (the lowest count is the latest: each request was counted)
+      if (r.value.left != null) left = left == null ? r.value.left : Math.min(left, r.value.left);
+    }
+    if (left != null) setAi((cur) => ({ ...cur, left }));
+    if (run?.stopped) {
+      const urls = results.flatMap((r) => (r.status === "fulfilled" ? r.value.images.map((im) => im.url) : []));
+      return urls.length ? [{ designs: urls }] : [];
+    }
+    const missed = [];
+    let why = "";
+    results.forEach((r, i) => {
+      const { item, pos } = drawNow[i];
+      if (r.status !== "fulfilled") {
+        missed.push(item);
+        why = why || r.reason?.response?.data?.message || "The design maker had a problem.";
+        return;
+      }
+      const made = r.value;
+      const first = made.images[0];
+      const el = aiElement(pos, { path: first.url, w: first.width, h: first.height }, els.length + 1);
+      // it replaces a picture the chat put on that area before
+      const old = aiPlaced[pos.key]?.elId;
+      els = [...els.filter((e) => e.id !== old), el];
+      placed[pos.key] = { url: first.url, elId: el.id };
+      focus = focus || pos.key;
+      out.push(
+        botSays(`${pos.label}: ${(item.label || item.subject).slice(0, 120)}${pos.key !== item.areaKey && item.areaKey ? " (its area was taken, so I used this one)" : ""}.`),
+        // again: one more version for this area (shown here, not put on the tee until Add to tee)
+        { designs: made.images.map((im) => im.url), again: { type: "generate", subject: item.subject.slice(0, 200), style, areaKey: pos.key } },
+      );
+    });
+    if (missed.length) {
+      failed = true;
+      out.push(botSays(missed.length < drawNow.length ? `${why} The other picture${drawNow.length - missed.length === 1 ? " is" : "s are"} on your tee.` : why), { retry: { type: "drawPlan", items: missed, style } });
+    }
+    if (later.length) out.push(botSays(`You’ve used today’s requests, so I didn’t draw ${andList(later.map((j) => j.pos.label))}. They reset tomorrow.`));
     if (run?.stopped) return [];
     if (els !== elements) commit((now) => (now === elements ? els : mergeAiChanges(now, elements, els)));
     if (Object.keys(placed).length) setAiPlaced((cur) => ({ ...cur, ...placed }));

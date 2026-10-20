@@ -5,7 +5,7 @@
 // on the server instead: free (no AI service, no request used), the same model and quality — ORMBG (Apache-2.0,
 // onnx-community/ormbg-ONNX, the 8-bit version), run with onnxruntime-node (MIT).
 //
-// The model file is downloaded once, the first time it is needed, into server/.cache/ (not kept in git).
+// The model file is downloaded once into server/.cache/ (not kept in git): in the background when the server starts.
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -18,21 +18,41 @@ const MODEL_PATH = path.join(CACHE, "ormbg-quantized.onnx");
 const SIZE = 1024; // the model looks at a 1024 × 1024 picture (preprocessor_config.json: resize, ÷255, no normalise)
 const MAX_SIDE = 2000; // the cut-out is at most this big (keeps the PNG well under the 10 MB upload limit)
 
+// the model file on disk (downloaded once; shared, so a download already under way is not started twice)
+let fetching = null;
+function modelFile() {
+  if (fs.existsSync(MODEL_PATH)) return Promise.resolve(MODEL_PATH);
+  if (!fetching) {
+    fetching = (async () => {
+      fs.mkdirSync(CACHE, { recursive: true });
+      console.log("[background] downloading the background-removal model (once, about 44 MB)…");
+      const r = await fetch(MODEL_URL);
+      if (!r.ok) throw new Error(`model download failed: ${r.status}`);
+      const tmp = `${MODEL_PATH}.part`;
+      fs.writeFileSync(tmp, Buffer.from(await r.arrayBuffer()));
+      fs.renameSync(tmp, MODEL_PATH);
+      console.log("[background] model ready");
+      return MODEL_PATH;
+    })().finally(() => {
+      fetching = null;
+    });
+  }
+  return fetching;
+}
+
+/**
+ * Called when the server starts: the model file is fetched in the background a few seconds later, so the first
+ * customer who removes a background doesn't wait for the 44 MB download. (The model itself is only loaded into
+ * memory — about 0.3 s — on the first use, so a server where nobody uses it keeps that memory free.)
+ */
+export function prepareBackgroundRemoval() {
+  setTimeout(() => modelFile().catch((err) => console.error("[background] model download failed (will retry on first use):", err.message)), 5000);
+}
+
 let ready = null;
 async function session() {
   if (!ready) {
-    ready = (async () => {
-      if (!fs.existsSync(MODEL_PATH)) {
-        fs.mkdirSync(CACHE, { recursive: true });
-        console.log("[background] downloading the background-removal model (once, about 44 MB)…");
-        const r = await fetch(MODEL_URL);
-        if (!r.ok) throw new Error(`model download failed: ${r.status}`);
-        const tmp = `${MODEL_PATH}.part`;
-        fs.writeFileSync(tmp, Buffer.from(await r.arrayBuffer()));
-        fs.renameSync(tmp, MODEL_PATH);
-      }
-      return ort.InferenceSession.create(MODEL_PATH);
-    })();
+    ready = modelFile().then((file) => ort.InferenceSession.create(file));
     ready.catch(() => {
       ready = null; // the next try starts again (the download may have failed)
     });

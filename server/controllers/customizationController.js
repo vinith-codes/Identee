@@ -114,15 +114,17 @@ const DATA_URL = /^data:image\/(jpeg|png|webp);base64,([A-Za-z0-9+/=]+)$/;
 
 async function storeMockups(mockups) {
   if (!mockups || typeof mockups !== "object") return null;
-  const out = {};
+  // checked first, then the four uploaded together (one after another made every Save wait four times as long)
+  const files = [];
   for (const view of MOCKUP_VIEWS) {
     const m = DATA_URL.exec(String(mockups[view] || ""));
     if (!m) continue;
     const buffer = Buffer.from(m[2], "base64");
     if (buffer.length > MAX_MOCKUP_BYTES) throw badRequest("A mockup picture is too large");
-    const { url } = await uploadFile(buffer, `image/${m[1]}`, "mockups", `${view}.${m[1] === "jpeg" ? "jpg" : m[1]}`);
-    out[view] = url;
+    files.push({ view, buffer, type: m[1] });
   }
+  const stored = await Promise.all(files.map((f) => uploadFile(f.buffer, `image/${f.type}`, "mockups", `${f.view}.${f.type === "jpeg" ? "jpg" : f.type}`)));
+  const out = Object.fromEntries(files.map((f, i) => [f.view, stored[i].url]));
   return Object.keys(out).length ? out : null;
 }
 
@@ -247,8 +249,9 @@ export const updateCustomization = async (req, res) => {
       const user = await User.findById(req.user._id);
       if (await syncTeamCart(user, doc)) await user.save();
     }
-    if (mockups && old) await dropMockups(old, doc._id);
     res.json(doc);
+    // the old pictures are tidied away after answering (the customer doesn't wait for it)
+    if (mockups && old) dropMockups(old, doc._id).catch((e) => console.error("[mockups] old pictures not deleted:", e.message));
   } catch (err) {
     sendError(res, err, "Could not save the design");
   }
