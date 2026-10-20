@@ -159,7 +159,7 @@ export default function CustomizablePage() {
               <section>
                 <h2 className="cz-head">{open.name}</h2>
                 {open.description && <p className="cz-sub">{open.description}</p>}
-                {(open.garments.length > 0 || open.soon.length > 0) && <CustomizableGarments garments={open.garments} soon={open.soon} images={images} carry={carry} idea={idea} />}
+                {(open.garments.length > 0 || open.soon.length > 0) && <CustomizableGarments garments={open.garments} soon={open.soon} images={images} carry={carry} idea={idea} from={only} />}
                 {!open.garments.length && !open.soon.length && (
                   <div className="cz-empty">
                     <b>Coming soon</b>

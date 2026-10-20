@@ -29,7 +29,7 @@ const sizeRange = (sizes) => {
   return [ages, span(adults)].filter(Boolean).join(" · ");
 };
 
-function GarmentCard({ garment, photos, team, onStart, carry = "", idea = "" }) {
+function GarmentCard({ garment, photos, team, onStart, carry = "", idea = "", from = "" }) {
   const navigate = useNavigate();
   // Colour is picked in the design room's first step — the card shows the
   // white tee (or the first colour with a photo) and opens the room in it.
@@ -38,7 +38,7 @@ function GarmentCard({ garment, photos, team, onStart, carry = "", idea = "" }) 
   // new=1: always start an empty design (an unfinished one is offered inside)
   // team=1 (the team / group page): the room starts with the Team jersey layout and asks for the players
   // carry / idea: what the customer chose on the home page (opens that tool in the room — utils/carryStart.js)
-  const start = () => (onStart ? onStart(garment, colour) : navigate(`/customize/${garment.key}?new=1${colour ? `&color=${colour.slug}` : ""}${team ? "&team=1" : ""}${carry}`, idea ? { state: { idea } } : undefined));
+  const start = () => (onStart ? onStart(garment, colour) : navigate(`/customize/${garment.key}?new=1${colour ? `&color=${colour.slug}` : ""}${team ? "&team=1" : ""}${carry}${from ? `&from=${encodeURIComponent(from)}` : ""}`, idea ? { state: { idea } } : undefined));
 
   const colourCount = garment.colors?.length || 0;
   const facts = [
@@ -106,7 +106,7 @@ function ComingSoonCard({ garment }) {
 }
 
 // onStart(garment, colour): what "Start designing" does instead of opening the room (the team page asks for a layout first)
-export default function CustomizableGarments({ garments: all, images, loading, soon = [], team = false, onStart, carry = "", idea = "" }) {
+export default function CustomizableGarments({ garments: all, images, loading, soon = [], team = false, onStart, carry = "", idea = "", from = "" }) {
   const garments = all.filter((g) => isSellable(g, images));
   if (loading && !garments.length) {
     return (
@@ -124,7 +124,7 @@ export default function CustomizableGarments({ garments: all, images, loading, s
   return (
     <div className="identee-cust-grid">
       {garments.map((g) => (
-        <GarmentCard key={g._id} garment={g} photos={images.filter((p) => p.garmentType === g.key)} team={team} onStart={onStart} carry={carry} idea={idea} />
+        <GarmentCard key={g._id} garment={g} photos={images.filter((p) => p.garmentType === g.key)} team={team} onStart={onStart} carry={carry} idea={idea} from={from} />
       ))}
       {soon.map((g) => (
         <ComingSoonCard key={g._id || g.key} garment={g} />

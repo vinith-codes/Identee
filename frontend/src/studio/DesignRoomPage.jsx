@@ -196,6 +196,8 @@ export default function DesignRoomPage() {
   // The home page's ways in (read once): ?start=text | upload | art | draw opens that tool on entering the room, and
   // an idea typed in "What do you want on your tee?" (navigation state, not the address) is sent to the assistant.
   const [startLink] = useState(() => params.get("start"));
+  // the collection the garment was opened from (?from=girls-wear): Find my size asks only what fits it
+  const [fromLink] = useState(() => params.get("from") || "");
   const [ideaLink] = useState(() => (typeof location.state?.idea === "string" ? location.state.idea.trim().slice(0, 400) : ""));
   const [chatAuto, setChatAuto] = useState(""); // the idea, waiting for the chat to send it
   // was the room opened from another page of the site? (read once: tidying the address below changes location.key)
@@ -255,6 +257,7 @@ export default function DesignRoomPage() {
   const [areasOpen, setAreasOpen] = useState(false); // phones: the "where to print" sheet
   const [pickOpen, setPickOpen] = useState(false); // colour & size menu in the top bar
   const [finder, setFinder] = useState(null); // "Find my size" open from: "fit" | "pick" | "review"
+  const [finderSeen, setFinderSeen] = useState(false); // saw their size in this visit: reopening shows it again
   const [live, setLive] = useState(null); // { key, elements } while dragging
   const [textures, setTextures] = useState({}); // key -> { canvas, version }
   // returning to a saved design starts at the front view; new visits fly in after the fitting step
@@ -2384,6 +2387,9 @@ export default function DesignRoomPage() {
         {finder && (
           <SizeFinder
             garment={garment}
+            collection={fromLink}
+            resume={finderSeen}
+            onResult={() => setFinderSeen(true)}
             teeHex={fabricHex}
             pickLabel="Choose"
             onClose={() => setFinder(null)}

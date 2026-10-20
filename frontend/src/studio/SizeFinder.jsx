@@ -24,14 +24,32 @@ const save = (a) => {
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 const defaultsFor = (who) => ({ heightCm: WHO[who].height[2], weightKg: WHO[who].weight[2] });
 
-// Who the garment fits: kids only, grown-ups only, or both.
-function whoFor(garment) {
+// Men, women or both, read from a style or collection name: "Girls Round Neck", "girls-wear" → women;
+// "Boys Oversized", "boys-wear" → men; anything else ("Unisex & Kids Wear", "Co-ord Set") → nobody in particular.
+const audienceOf = (name) => {
+  const s = String(name || "").toLowerCase();
+  if (/\b(girls?|wom[ae]n|ladies|female)\b/.test(s)) return "women";
+  if (/\b(boys?|m[ae]n|gents|male)\b/.test(s)) return "men";
+  return null;
+};
+
+// Who the garment fits, so Find my size only asks when there is a real choice (client, 20 Oct 2026):
+// the garment's own style + the other collections it is shown in (Admin → Customizable → step 1), narrowed to
+// the collection the customer opened it from (?from=girls-wear) — a Girls tee never asks "Men or Women".
+function whoFor(garment, collection) {
   const rows = garment?.sizeChart || [];
   const kids = rows.some((r) => isKidSize(r.size));
   const grown = rows.some((r) => !isKidSize(r.size));
   if (kids && !grown) return ["kids"];
-  return kids ? ["men", "women", "kids"] : ["men", "women"];
+  const named = [garment?.category, ...(garment?.alsoIn || [])].map(audienceOf);
+  let people = named.includes(null) || !named.length ? ["men", "women"] : ["men", "women"].filter((w) => named.includes(w));
+  const from = audienceOf(collection);
+  if (from && people.includes(from)) people = [from];
+  return kids ? [...people, "kids"] : people;
 }
+// the kids' choice named after who the garment is for: a girls' tee says "Women / Girls"
+const whoLabel = (w, whos) =>
+  w !== "kids" ? WHO[w].label : whos.includes("women") && !whos.includes("men") ? "Girls" : whos.includes("men") && !whos.includes("women") ? "Boys" : WHO.kids.label;
 
 /* ---------- the figure ---------- */
 
@@ -254,15 +272,20 @@ function Ring({ score, size }) {
 
 /* ---------- the finder ---------- */
 
-export default function SizeFinder({ garment, teeHex, onPick, onClose, pickLabel = "Choose" }) {
-  const whos = useMemo(() => whoFor(garment), [garment]);
+export default function SizeFinder({ garment, collection = "", teeHex, onPick, onClose, pickLabel = "Choose", resume = false, onResult }) {
+  const whos = useMemo(() => whoFor(garment, collection), [garment, collection]);
   const [saved] = useState(readSaved); // last time's answers, read once
   const [a, setA] = useState(() => {
     const who = saved && whos.includes(saved.who) ? saved.who : whos[0];
     const base = saved && saved.who === who ? saved : { ...defaultsFor(who), chest: 0, stomach: 0, hips: 0, feel: 0 };
     return { unitH: "cm", unitW: "kg", chest: 0, stomach: 0, hips: 0, feel: 0, ...base, who };
   });
-  const [step, setStep] = useState(saved && whos.includes(saved.who) ? 2 : 0);
+  // resume: the customer already saw their size during this visit to the room — back to the result; on a new
+  // visit it starts at "Let's find your fit" (last time's height and weight filled in)
+  const [step, setStep] = useState(resume && saved && whos.includes(saved.who) ? 2 : 0);
+  useEffect(() => {
+    if (step === 2) onResult?.();
+  }, [step]); // eslint-disable-line react-hooks/exhaustive-deps
   const [view, setView] = useState(null); // the size shown on the result (null = the best one)
   const panel = useRef(null);
 
@@ -342,7 +365,7 @@ export default function SizeFinder({ garment, teeHex, onPick, onClose, pickLabel
                 {whos.length > 1 && (
                   <div className="szf-who" role="radiogroup" aria-label="Sizing for">
                     {whos.map((w) => (
-                      <button key={w} type="button" role="radio" aria-checked={a.who === w} className={a.who === w ? "on" : ""} onClick={() => setWho(w)}>{WHO[w].label}</button>
+                      <button key={w} type="button" role="radio" aria-checked={a.who === w} className={a.who === w ? "on" : ""} onClick={() => setWho(w)}>{whoLabel(w, whos)}</button>
                     ))}
                   </div>
                 )}
