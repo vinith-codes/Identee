@@ -154,10 +154,14 @@ export const changeDesignPrompt = (change) =>
 // "Copy this design" (a photo sent in the chat): the customer photographed a t-shirt, hoodie, poster… with a print
 // on it and wants that print on their tee. Only the print comes back — flat, straight, clean, as close as possible.
 // change: what to change while copying ("the name KINGS XI instead of LIONS"), else the same design.
-export const copyDesignPrompt = ({ change = "", teeColour, teeIsDark }) =>
+// design / words: what the text AI read in the photo (PhotoPlan) — a description of the print and its exact words, so
+// the picture AI doesn't have to make out small or wrinkled letters itself (the usual way a copy goes wrong).
+export const copyDesignPrompt = ({ change = "", design = "", words = [], teeColour, teeIsDark }) =>
   [
     "This photo shows a printed design on a garment or an object (a t-shirt, hoodie, cap, poster, sticker or similar).",
     `Recreate ONLY that printed design as clean, flat, front-facing artwork ready to print on a ${teeColour} t-shirt.`,
+    design ? `The design shows: ${design.replace(/[.\s]*$/, ".")}` : "",
+    words.length ? `The design's words, to be spelled exactly like this (same letters, capitals, numbers and punctuation): ${words.map((w) => `“${w}”`).join(", ")}.${change ? " (The change below comes first: where it replaces a word, use the new word.)" : " Write no other words."}` : "",
     "Remove the garment, the fabric and its texture, folds, wrinkles, seams, shadows, glare, the lighting and any person, hand or background.",
     "Straighten it as if it had been scanned flat: undo the camera angle and the curve of the fabric.",
     "Keep the same shapes, colours, layout and proportions as exactly as possible, and spell every word exactly as it appears.",

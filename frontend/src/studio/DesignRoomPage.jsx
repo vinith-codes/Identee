@@ -1547,7 +1547,7 @@ export default function DesignRoomPage() {
         const r = await aiService.photoPlan({ photoUrl: photo.url, message: a.text, areas: areas.filter((x) => x.free).map(({ key, label }) => ({ key, label })) });
         seen = r.seen || "";
         if (r.job && r.job !== "unclear") {
-          plan = { ...(plan || {}), job: r.job, style: r.style || plan?.style || null, areaKey: r.area || plan?.areaKey || null, change: r.change || plan?.change || null, subject: r.subject || plan?.subject || null };
+          plan = { ...(plan || {}), job: r.job, style: r.style || plan?.style || null, areaKey: r.area || plan?.areaKey || null, change: r.change || plan?.change || null, subject: r.subject || plan?.subject || null, design: r.design || null, words: r.words || [] };
         } else if (!plan) question = r.question || "";
       } catch {
         // the AI couldn't read it (off, out of credit, offline): our own rules decide, or we ask
@@ -1566,6 +1566,9 @@ export default function DesignRoomPage() {
       seen,
       areaKey: photoArea(plan.areaKey),
       change: plan.job === "copy" ? plan.change || null : null,
+      // (what the photo reading found in the design: given to the picture AI so the copy's words come out right)
+      design: plan.design || null,
+      words: plan.words || [],
       subject: plan.job === "inspired" ? plan.subject || a.text : null,
       style: plan.job === "art" ? artStyle : plan.job === "inspired" ? (ai.styles.includes(plan.style) ? plan.style : styleIn(plan.subject || a.text, ai.styles) || ai.styles[0]) : null,
       cutOut: plan.cutOut !== false,
@@ -1591,7 +1594,7 @@ export default function DesignRoomPage() {
       }
       const { W, H } = areaPx(pos);
       const tee = { teeColour: colour?.name || "white", teeIsDark: lum(fabricHex) < 0.55, ratio: W / H };
-      const body = a.job === "copy" ? { copyUrl: photo.url, change: a.change || "" } : a.job === "inspired" ? { refUrl: photo.url, subject: a.subject, style: a.style } : { photoUrl: photo.url, artStyle: a.style };
+      const body = a.job === "copy" ? { copyUrl: photo.url, change: a.change || "", design: a.design || "", words: a.words || [] } : a.job === "inspired" ? { refUrl: photo.url, subject: a.subject, style: a.style } : { photoUrl: photo.url, artStyle: a.style };
       const res = await aiService.design({ ...body, ...tee });
       if (res.left != null) setAi((cur) => ({ ...cur, left: res.left }));
       res.images.forEach((im) => {

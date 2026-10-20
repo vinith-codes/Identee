@@ -30,7 +30,8 @@ const SWITCH = {
 };
 
 /**
- * @param plan   { job, photo: { url }, areaKey, style, change, subject, seen, cutOut, enhance }
+ * @param plan   { job, photo: { url }, areaKey, style, change, subject, seen, design, words, cutOut, enhance }
+ *               design / words: what the photo reading found in the print (copy) — the words are shown here
  * @param areas  the garment's print areas [{ key, label, free }]
  * @param styles AI styles (for "inspired"); photoStyles: art styles for the photo
  * @param ai     { available, loggedIn, left }
@@ -59,6 +60,15 @@ export default function PhotoPlanCard({ plan, areas, styles, photoStyles, ai, li
           <p className="ppc-what"><b>What I’ll make:</b> {what}</p>
         </div>
       </div>
+      {/* the words read in the design — so the customer can see they were read right before anything is made */}
+      {job === "copy" && plan.words?.length > 0 && (
+        <p className="ppc-words">
+          <span>Words I’ll keep</span>
+          {plan.words.map((w) => (
+            <b key={w}>{w}</b>
+          ))}
+        </p>
+      )}
       {job === "copy" && <p className="ppc-note">From a photo I make my best copy. Small text or fine lines may come out a little different — you can try again or ask me to change it.</p>}
       {job === "photo" && live && (
         <div className="ppc-opts">

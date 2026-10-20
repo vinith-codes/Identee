@@ -1229,3 +1229,14 @@ button.dr-back { padding: 0; font: inherit; font-weight: 700; cursor: pointer; }
 .ppc-area select { min-height: 42px; border: 1px solid var(--line); border-radius: 10px; background: #fff; padding: 0 10px; font: 600 14px/1 var(--body); color: var(--ink); }
 .ppc .pc-style:not(:has(img)) { padding: 8px 6px; }
 p.pc-area { margin: 0; font-size: 13px; color: var(--muted); }
+/* a photo picked with 📎, waiting in the chat box to be sent with the words */
+.dr-composer { flex-wrap: wrap; }
+.dr-attached { flex: 1 0 100%; display: flex; align-items: center; gap: 10px; padding: 6px; border: 1px solid var(--line); border-radius: 12px; background: #FBF9F4; }
+.dr-attached img { width: 52px; height: 52px; flex: none; object-fit: cover; border-radius: 8px; background: #2b2724; }
+.dr-attached span { flex: 1; min-width: 0; font-size: 12.5px; line-height: 1.35; color: var(--ink-soft); }
+.dr-composer .dr-attached-x { flex: none; width: 40px; height: 40px; padding: 0; border: 1px solid var(--line); border-radius: 10px; background: #fff; color: var(--ink); font-size: 14px; }
+
+/* photo plan: the words read in the design, as small tags */
+.ppc-words { margin: 0; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.ppc-words span { flex: 1 0 100%; font-size: 11px; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; color: var(--gold-deep); }
+.ppc-words b { max-width: 100%; padding: 5px 9px; border-radius: 8px; background: #FBF9F4; border: 1px solid var(--line); font-size: 13px; font-weight: 700; color: var(--ink); overflow-wrap: anywhere; }

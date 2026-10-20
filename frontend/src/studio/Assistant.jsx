@@ -74,6 +74,7 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
   const timer = useRef(null);
   const job = useRef(null); // the AI request running now: { act, stopped }
   const photoBox = useRef(null); // the hidden file picker behind 📎
+  const [attached, setAttached] = useState(null); // a photo picked with 📎, waiting to be sent with the words: { file, w, h, local }
 
   useEffect(() => {
     if (log.current) log.current.scrollTop = log.current.scrollHeight;
@@ -183,18 +184,28 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
     photoBox.current?.click();
   };
   // the photo: made small enough on the phone, shown in the chat at once, then sent (the page uploads it and answers)
-  const sendPhoto = async (file) => {
-    if (!file || thinking) return;
-    let ready;
+  // picked: the photo waits in the chat box (like a messaging app) so the customer can say what they want with it,
+  // then Send sends both together
+  const attachPhoto = async (file) => {
+    if (!file) return;
     try {
-      ready = await shrinkPhoto(file);
+      const ready = await shrinkPhoto(file);
+      if (attached) URL.revokeObjectURL(attached.local);
+      setAttached({ ...ready, local: URL.createObjectURL(ready.file) });
+      setTimeout(() => box.current?.focus(), 100);
     } catch (err) {
       setMessages((m) => [...m, { from: "bot", text: err instanceof PhotoError ? err.message : "The photo couldn’t be prepared. Try another one." }]);
-      return;
     }
-    const words = draft.trim();
-    const local = URL.createObjectURL(ready.file);
+  };
+  const dropAttached = () => {
+    if (attached) URL.revokeObjectURL(attached.local);
+    setAttached(null);
+  };
+  const sendPhoto = async (ready, words) => {
+    if (!ready || thinking) return;
+    const { local } = ready;
     const id = `p${Date.now()}`;
+    setAttached(null);
     setDraft("");
     setMessages((m) => [...m.map((x) => (x.chips || x.retry ? { ...x, done: true } : x)), { from: "me", photo: { url: local, w: ready.w, h: ready.h }, text: words, sending: id }]);
     setThinking({ label: "Sending your photo…", expect: 4, hint: "On mobile data this can take a few seconds.", noStop: true });
@@ -243,7 +254,7 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
   const makePhoto = (i, plan) => {
     if (thinking) return;
     setMessages((all) => [...all.map((x, n) => (n === i ? { ...x, photoPlan: plan, done: true } : x.chips ? { ...x, done: true } : x)), { from: "me", text: "Make it" }]);
-    const a = { type: "photoMake", job: plan.job, areaKey: plan.areaKey, style: plan.style, change: plan.change, subject: plan.subject, cutOut: plan.cutOut, enhance: !!plan.enhance };
+    const a = { type: "photoMake", job: plan.job, areaKey: plan.areaKey, style: plan.style, change: plan.change, subject: plan.subject, design: plan.design, words: plan.words, cutOut: plan.cutOut, enhance: !!plan.enhance };
     run(a, waitFor(a));
   };
   // Draw on the plan card: the plan is kept as it was drawn, and the pictures are made one after the other
@@ -455,7 +466,8 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
       {/* while the assistant works, the customer can type the next message; it is sent when it's done */}
       {thinking && thinking !== true && <p className="dr-busynote">I’m still on your last request. Changed your mind? Press Stop. You can also type your next one; Send works again as soon as I’m done.</p>}
       {/* always here (the examples list is only at the start of a chat): what is typed is made clear first, free */}
-      {ctx().ai.available && ctx().ai.text && (
+      {/* (not while a photo waits to be sent: what is typed then is about the photo) */}
+      {ctx().ai.available && ctx().ai.text && !attached && (
         <div className="dr-improve-row">
           <button
             type="button"
@@ -475,17 +487,27 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
         className="dr-composer"
         onSubmit={(e) => {
           e.preventDefault();
+          if (thinking) return;
+          // a photo waiting in the box: it goes with what was typed (or alone, and then I ask)
+          if (attached) return sendPhoto(attached, draft.trim());
           // only cleared when it was sent (pressing Send while busy keeps what was typed)
           if (say(draft.trim())) setDraft("");
         }}
       >
+        {attached && (
+          <div className="dr-attached">
+            <img src={attached.local} alt="The photo you picked" />
+            <span>Photo ready. Say what you want with it, then tap Send.</span>
+            <button type="button" className="dr-attached-x" onClick={dropAttached} aria-label="Remove the photo">✕</button>
+          </div>
+        )}
         <button type="button" className="dr-attach" onClick={pickPhoto} disabled={!!thinking} aria-label="Send a photo" title="Send a photo">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
             <path d="m21 11.5-8.6 8.6a5.5 5.5 0 0 1-7.8-7.8l8.6-8.6a3.7 3.7 0 0 1 5.2 5.2l-8.6 8.6a1.8 1.8 0 0 1-2.6-2.6l7.9-7.9" />
           </svg>
         </button>
-        <input ref={photoBox} type="file" accept="image/*" hidden onChange={(e) => { const file = e.target.files?.[0]; e.target.value = ""; sendPhoto(file); }} />
-        <input ref={box} value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="Try: a tiger on the front, a tree on the back" aria-label="Message the design assistant" maxLength={400} autoComplete="off" />
+        <input ref={photoBox} type="file" accept="image/*" hidden onChange={(e) => { const file = e.target.files?.[0]; e.target.value = ""; attachPhoto(file); }} />
+        <input ref={box} value={draft} onChange={(e) => setDraft(e.target.value)} placeholder={attached ? "e.g. only the design, on the back" : "Try: a tiger on the front, a tree on the back"} aria-label={attached ? "What should I do with this photo?" : "Message the design assistant"} maxLength={400} autoComplete="off" />
         <button type="submit" disabled={!!thinking} aria-label={thinking ? "Wait — the assistant is still working" : "Send"}>
           {thinking ? "Wait…" : "Send"}
         </button>

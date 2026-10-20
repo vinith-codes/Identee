@@ -196,7 +196,14 @@ export const makeAiDesign = asyncHandler(async (req, res) => {
     const small = await sharp(photo.data).rotate().resize(1536, 1536, { fit: "inside", withoutEnlargement: true }).flatten({ background: "#ffffff" }).jpeg({ quality: 92 }).toBuffer();
     const dark = Boolean(req.body.teeIsDark);
     const prompt = copying
-      ? copyDesignPrompt({ change: String(req.body.change || "").replace(/\s+/g, " ").trim().slice(0, 200), teeColour: teeName, teeIsDark: dark })
+      ? copyDesignPrompt({
+          change: String(req.body.change || "").replace(/\s+/g, " ").trim().slice(0, 200),
+          // what the photo reading found (the customer saw these words on the plan card)
+          design: String(req.body.design || "").replace(/\s+/g, " ").trim().slice(0, 400),
+          words: (Array.isArray(req.body.words) ? req.body.words : []).map((w) => String(w || "").replace(/\s+/g, " ").trim().slice(0, 60)).filter(Boolean).slice(0, 8),
+          teeColour: teeName,
+          teeIsDark: dark,
+        })
       : inspiredDesignPrompt({ subject: text, style: AI_STYLES[req.body.style] ? req.body.style : "Bold mascot", teeColour: teeName, teeIsDark: dark, variation: 1, of: 1 });
     // (Google only: no Grok stand-in for these — photoJob / drawJob stay empty)
     jobs = [generateImage({ prompt, image: { data: small, mime: "image/jpeg" }, ratio: nearestRatio(req.body.ratio) })];
