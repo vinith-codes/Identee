@@ -103,7 +103,7 @@ export const getAiStatus = asyncHandler(async (req, res) => {
   const reason = await whyOff(settings);
   const left = req.user ? Math.max(0, settings.dailyPerUser - (await usedToday(req.user._id))) : null;
   // text: the assistant can write slogans to order (same key; switched off together with the design maker)
-  // designAddOnInr: what a picture (AI, art library or upload) adds to the tee's price (the Design Room shows it)
+  // designAddOnInr: what an AI-made or uploaded picture adds to the tee's price (art library: free; the Design Room shows it)
   res.json({ available: !reason, reason, text: aiTextConfigured() && settings.enabled, styles: Object.keys(AI_STYLES), photoStyles: [...Object.keys(PHOTO_STYLES), FILTER_STYLE], dailyPerUser: settings.dailyPerUser, left, designAddOnInr: settings.designAddOnInr });
 });
 

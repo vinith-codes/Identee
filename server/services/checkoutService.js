@@ -6,7 +6,7 @@ import Product from "../models/productModel.js";
 import Customization from "../models/customizationModel.js";
 import GarmentType from "../models/garmentTypeModel.js";
 import ShippingCost from "../models/shippingcostModel.js";
-import { aiDesignAddOn, hasPicture } from "../utils/aiPricing.js";
+import { aiDesignAddOn, hasPaidPicture } from "../utils/aiPricing.js";
 import Offer from "../models/OfferModel.js";
 import { applySubscriptionPrice } from "../utils/applySubscriptionPrice.js";
 import { addressProblem } from "../utils/address.js";
@@ -76,8 +76,8 @@ export const customizationLine = async (customizationId, qty, size, user) => {
   }
 
   // Price (launch, 16 Oct 2026): the garment's price, + a set amount per tee when the design has a picture —
-  // AI-made, from the art library or uploaded (Admin → Settings → AI designs). Text only: the garment's price.
-  const addOn = hasPicture(customization.elements) ? await aiDesignAddOn() : 0;
+  // AI-made or uploaded (Admin → Settings → AI designs). Art library pictures and text only: the garment's price.
+  const addOn = (await hasPaidPicture(customization.elements)) ? await aiDesignAddOn() : 0;
 
   // Size: the one chosen at checkout, else the one the design was made for.
   const sizes = garment.sizes?.length ? garment.sizes : SIZES;

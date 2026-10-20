@@ -681,7 +681,7 @@ export default function CustomizePage() {
       side: currentSide,
       src: design.imageUrl, // already a full backend-hosted path
       artDesignId: design._id, // kept for price lookup at checkout time
-      artPrice: design.price,
+      artPrice: 0, // art library designs are free (20 Oct 2026)
       position: activePosition.key,
       x: 10,
       y: 10,
@@ -2648,7 +2648,7 @@ function ArtPanel({
                   {d.name}
                 </span>
                 <span style={{ fontSize: 12, fontWeight: 700, color: C.gold }}>
-                  +₹{d.price}
+                  Free
                 </span>
               </button>
             ))}

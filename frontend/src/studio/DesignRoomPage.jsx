@@ -370,9 +370,9 @@ export default function DesignRoomPage() {
   const fabricHex = colour?.hex || "#1C1C1D";
   const inkDefault = lum(fabricHex) < 0.55 ? "#FFFFFF" : "#141110";
   // Price per piece (launch, 16 Oct 2026): the garment's price + a set amount when the design has a picture —
-  // AI-made, from the art library or uploaded (Admin → Settings → AI designs); once per tee, text only adds
+  // AI-made or uploaded (Admin → Settings → AI designs); once per tee. Art library pictures and text only add
   // nothing. The server works it out the same way at checkout (checkoutService.customizationLine).
-  const hasPictureOn = elements.some((e) => e.type === "image" && e.src);
+  const hasPictureOn = elements.some((e) => e.type === "image" && e.src && !e.artDesignId);
   const aiAddOn = hasPictureOn ? Number(ai.designAddOnInr ?? 100) : 0;
   const unitPrice = (garment?.basePrice || 0) + aiAddOn;
   // the struck-out "was" price, with the same AI amount on top so the saving stays the same
@@ -2978,7 +2978,7 @@ function ArtPanel({ categories, designs, onOpen, onPick }) {
           <button key={d._id} type="button" className="dr-artitem" onClick={() => onPick(d)}>
             <img src={imageUrl(d.imageUrl, 240)} alt={d.name} />
             <span>{d.name}</span>
-            <b>{d.price ? `+₹${d.price}` : "Free"}</b>
+            <b>Free</b>
           </button>
         ))}
         {list.length === 0 && <p className="dr-empty">Loading designs…</p>}
