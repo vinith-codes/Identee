@@ -1117,3 +1117,36 @@ button.dr-back { padding: 0; font: inherit; font-weight: 700; cursor: pointer; }
 @media (max-width: 420px) {
   .dr-picksize::before { content: none; }
 }
+
+/* phones: the add / edit panel shows its tools, not mostly an empty print area (customers saw only the print
+   area and couldn't tell what to do). Choosing what to add: no preview — the 3D tee above already shows the
+   dashed print area; editing: the preview stays (it's where the item is dragged), with a slimmer heading. */
+@media (max-width: 760px) {
+  .dr-editor > header { padding: 12px 16px 8px; }
+  .dr-editor h2 { font-size: 17px; }
+  .dr-editor.is-adding .dr-flatwrap, .dr-editor.is-adding .dr-ruler { display: none; }
+  .dr-editor.is-adding .dr-addtabs { margin: 4px 16px 0; }
+  .dr-addtab { padding: 7px 2px 5px; font-size: 12px; }
+  .dr-editor.is-editing { height: 64%; }
+}
+@media (max-width: 760px) {
+  /* the "+ Add more" button stays; its long hint goes (the quick tools on the tee do the same job) */
+  .dr-addhead > span { display: none; }
+  .dr-addhead { justify-content: flex-end; }
+}
+
+/* phones: "Where to print" is a full-width sheet with cards big enough to read and tap (the laptop panel's
+   264px width came later in this file and won over the phone layout: a narrow panel with 4 cramped 50px cards) */
+@media (max-width: 760px) {
+  .dr-side, .dr-stage[data-editing] .dr-side { width: auto; }
+  .dr-side .dr-cards { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  .dr-side .dr-cards .dr-area { padding: 10px 4px 9px; border-radius: 14px; gap: 3px; }
+  .dr-side .dr-cards .dr-thumb { width: 64px; height: 54px; }
+  .dr-side .dr-cards .dr-area b { font-size: 12.5px; }
+  .dr-side .dr-cards .dr-area span:not(.tick) { font-size: 11.5px; }
+  .dr-side .dr-area.blocked { opacity: .55; }
+}
+/* short phone screens (or Safari's bars showing): a little taller, so both rows of cards fit */
+@media (max-width: 760px) and (max-height: 720px) {
+  .dr-side, .dr-stage[data-editing] .dr-side { max-height: 74%; }
+}

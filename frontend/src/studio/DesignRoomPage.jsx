@@ -1781,8 +1781,9 @@ export default function DesignRoomPage() {
     // Tall, thin areas (Vertical Front 10 × 52 cm …) get a taller box, but
     // never so tall that the controls below it are pushed out of the panel.
     const tall = H / W > 2;
+    // (phones: a little smaller, so the Words box and fonts show under it without scrolling)
     const maxH = narrow
-      ? Math.min(tall ? 200 : 140, window.innerHeight * (tall ? 0.26 : 0.18))
+      ? Math.min(tall ? 170 : 110, window.innerHeight * (tall ? 0.22 : 0.14))
       : Math.min(tall ? 230 : 170, window.innerHeight * (tall ? 0.3 : 0.22));
     return Math.round(Math.max(tall ? 40 : 110, Math.min(maxW, (maxH * W) / H)));
   })();
@@ -2201,7 +2202,7 @@ export default function DesignRoomPage() {
         )}
 
         {step === "design" && activePos && !assist && (
-          <section className="dr-editor" aria-label={`Edit ${activePos.label}`}>
+          <section className={`dr-editor ${sel ? "is-editing" : "is-adding"}`} aria-label={`Edit ${activePos.label}`}>
             <header>
               <div>
                 <div className="eyebrow">Step 2 · {activePos.label}</div>
