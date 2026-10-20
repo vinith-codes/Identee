@@ -454,7 +454,7 @@
 /* step 2 */
 .dr-flatwrap { padding: 6px 20px 4px; }
 .dr-controls { padding: 14px 20px 22px; }
-.dr-addtabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; margin: 8px 20px 0; padding: 0; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; background: none; flex-shrink: 0; }
+.dr-addtabs { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0; margin: 8px 20px 0; padding: 0; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; background: none; flex-shrink: 0; }
 .dr-addtab { padding: 10px 0 11px; border-radius: 0; gap: 4px; font-size: 12px; }
 .dr-addtab.on { background: none; box-shadow: none; color: var(--ink); }
 .dr-addtab.on::after { content: ""; position: absolute; left: 18%; right: 18%; bottom: -1px; height: 2px; background: var(--gold); }
@@ -1150,3 +1150,56 @@ button.dr-back { padding: 0; font: inherit; font-weight: 700; cursor: pointer; }
 @media (max-width: 760px) and (max-height: 720px) {
   .dr-side, .dr-stage[data-editing] .dr-side { max-height: 74%; }
 }
+
+/* ================= the chat's plan card (PlanCard.jsx): what will be drawn, where, in which style ================= */
+.pc { border: 1px solid var(--line); border-radius: 16px; background: #fff; padding: 12px; display: grid; gap: 10px; box-shadow: 0 6px 18px -14px rgba(20, 17, 16, .45); }
+.pc.done { opacity: .72; box-shadow: none; }
+.pc-items { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; counter-reset: pc; }
+.pc-items li { counter-increment: pc; display: grid; gap: 6px; padding: 8px 10px; border-radius: 12px; background: #FBF9F4; }
+.pc-what { font-weight: 700; font-size: 14px; line-height: 1.35; color: var(--ink); overflow-wrap: anywhere; }
+.pc-what::before { content: counter(pc) ". "; color: var(--gold-deep); }
+.pc-row { display: flex; gap: 6px; align-items: center; }
+.pc-row select { flex: 1; min-width: 0; min-height: 40px; border: 1px solid var(--line); border-radius: 10px; background: #fff; padding: 0 10px; font: 600 14px/1 var(--body); color: var(--ink); }
+.pc-x { flex: none; width: 40px; height: 40px; border: 1px solid var(--line); border-radius: 10px; background: #fff; color: var(--muted); font-size: 14px; }
+.pc-area { font-size: 13px; color: var(--muted); }
+.pc-area::before { content: "on "; }
+.pc-h { margin: 2px 0 0; font-size: 11px; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; color: var(--gold-deep); }
+.pc-styles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.pc-style { display: grid; grid-template-columns: 22px minmax(0, 1fr); column-gap: 8px; align-items: center; text-align: left; min-height: 48px; padding: 7px 8px; border: 1px solid var(--line); border-radius: 12px; background: #fff; color: var(--ink); }
+.pc-style i { grid-row: span 2; width: 22px; height: 22px; border-radius: 50%; border: 1px solid rgba(0, 0, 0, .12); }
+.pc-style b { font-size: 13px; line-height: 1.2; }
+.pc-style span { font-size: 11.5px; line-height: 1.25; color: var(--muted); }
+.pc-style.on { border-color: var(--ink); box-shadow: 0 0 0 1px var(--ink); background: #FFFDF7; }
+.pc-style:disabled { cursor: default; }
+.pc.done .pc-style:not(.on) { display: none; }
+.pc-go { min-height: 48px; border: 0; border-radius: 999px; background: linear-gradient(135deg, #E9C66A, #C9A24B); color: var(--ink); font: 800 15px/1 var(--body); }
+.pc-go:disabled { opacity: .5; }
+.pc-note { margin: -2px 0 0; font-size: 12px; line-height: 1.4; color: var(--muted); text-align: center; }
+.pc-more { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
+/* phones: the styles in one row to swipe sideways, so the whole card (and Draw) fits in the chat panel */
+@media (max-width: 760px) {
+  .pc-styles { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; gap: 6px; margin-inline: -12px; padding: 2px 12px 6px; scrollbar-width: none; }
+  .pc-styles::-webkit-scrollbar { display: none; }
+  .pc-style { flex: 0 0 136px; scroll-snap-align: start; }
+  .pc.done .pc-styles { overflow: visible; }
+}
+/* plan card: each style shows its sample picture (public/styles) — the picture on top, the name under it */
+.pc-x { width: auto; padding: 0 10px; font-size: 12.5px; font-weight: 700; white-space: nowrap; }
+.pc-style { grid-template-columns: minmax(0, 1fr); padding: 0 0 7px; overflow: hidden; text-align: center; align-content: start; row-gap: 2px; }
+.pc-style img { display: block; width: 100%; height: auto; aspect-ratio: 1; object-fit: cover; background: #fff; border-bottom: 1px solid var(--line); margin-bottom: 4px; }
+.pc-style > i { grid-row: auto; justify-self: center; margin: 8px 0 2px; }
+.pc-style b, .pc-style span { padding-inline: 6px; }
+@media (min-width: 761px) {
+  .pc-styles { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .pc-style b { font-size: 11.5px; }
+  .pc-style span { display: none; } /* (the picture says it; the name stays) */
+}
+@media (max-width: 760px) {
+  .pc-style { flex: 0 0 118px; }
+}
+.dr-designlinks { flex-wrap: wrap; row-gap: 4px; }
+/* "Other area" for a picture already on the tee: keep it on both, or move it */
+.dr-moveask { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 8px; border-radius: 10px; background: var(--gold-soft); }
+.dr-moveask p { flex: 1 0 100%; margin: 0; font-size: 12.5px; font-weight: 700; color: var(--ink); }
+.dr-moveask .dr-chip.on { background: var(--ink); color: #fff; border-color: var(--ink); }
+.dr-moveno { border: 0; background: none; padding: 6px 4px; font-size: 12px; font-weight: 600; color: var(--ink-soft); text-decoration: underline; }

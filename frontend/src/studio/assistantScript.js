@@ -11,6 +11,8 @@
 //   { issues: [...] }              design-check findings, each with a fix
 //   { inks: [hex] }                ink colours to try
 //   { designs: [url] }             pictures the image AI made, each with "Add to tee"
+//   { plan: { items, style } }     the plan card (PlanCard.jsx): what will be drawn, where, in which style — nothing
+//                                  is drawn (or charged) until the customer taps Draw (act "drawPlan")
 //   { examples: true }             the list of things the assistant can do (EXAMPLES)
 //   { act: { type, ... } }         something for the page to do (not shown)
 //
@@ -19,6 +21,7 @@
 import { SLOGANS, TONES, occasionIn, personalLines, slogansFor, toneIn } from "./assistantSlogans";
 import { TEMPLATES } from "./designTemplates";
 import { parsePlayers, playerLabel } from "./teamOrder";
+import { styleIn } from "./styleInfo";
 
 const MENU = ["Slogan ideas", "Start from a template", "Check my design", "More help"];
 const MORE_PHOTO = "Photo to art";
@@ -27,9 +30,12 @@ const TEAM_ORDER = "Team order";
 const ADD_PLAYERS = "Add my players";
 // "Improve my idea" in the chat (see st.idea): make it clear first (free), then draw
 export const IMPROVE = "✨ Improve my idea";
-export const DRAW_THIS = "Draw this · 1 request";
-export const DRAW_MINE = "Draw my words";
+export const DRAW_THIS = "Use the improved idea";
+export const DRAW_MINE = "Use my own words";
+// (old chats kept in the browser may still show this chip: it now leads to the plan card)
 export const IN_DRAW_TAB = "Open in the Draw tab";
+// the plan card's "Not now": nothing is drawn
+export const NOT_NOW = "Not now";
 // Ways back, so the customer is never stuck: every question has one of these (or "Something else").
 export const BACK = "← Back";
 export const CHANGE_IDEA = "Change my idea";
@@ -78,10 +84,10 @@ const act = (a) => ({ act: a });
 // Without fill, tapping it starts that feature straight away.
 export const EXAMPLES = [
   { title: "Design the whole tee in one sentence", hint: "Up to three pictures at once: front, back, a sleeve", say: "A tiger on the front and a tree on the back, on a black t-shirt", fill: true, needs: "pictures" },
-  { title: "Draw a picture for me", say: "Draw a lion holding a cricket bat", fill: true, needs: "pictures", tab: "draw" },
+  { title: "Draw a picture for me", hint: "You pick the style and where it goes before anything is drawn", say: "Draw a lion holding a cricket bat", fill: true, needs: "pictures" },
   { title: "✨ Improve my idea", hint: "Say it your way: a picture, words, where each goes. I’ll show what you’ll get before drawing (free)", say: IMPROVE, needs: "idea" },
-  { title: "Turn my photo into art", hint: "Cartoon, sketch, sticker and more", say: "Photo to art", needs: "pictures", tab: "photo" },
-  { title: "Turn words into lettering art", say: "Hand lettering that says “Work smarter not harder”", fill: true, needs: "pictures", tab: "draw", style: "Hand lettering" },
+  { title: "Turn my photo into art", hint: "Cartoon, sketch, sticker and more", say: "Photo to art", needs: "pictures" },
+  { title: "Turn words into lettering art", say: "Hand lettering that says “Work smarter not harder”", fill: true, needs: "pictures" },
   { title: "Write a slogan", say: "A slogan for my mother", fill: true },
   { title: "Change things by telling me", say: "Make the text gold, curved and a bit bigger", fill: true, needs: "text" },
   { title: "Style my text for a mood", hint: "Royal, sporty, cute, minimal…", say: "Style it for me", needs: "text" },
@@ -95,6 +101,18 @@ export const firstState = () => ({ occasion: null, tone: null, shown: 0, wait: n
 // after slogans the AI wrote
 export const AFTER_AI_SLOGANS = ["Show more", "Change tone", "Something else"];
 export const AFTER_DESIGN_CHIPS = AFTER_DESIGNS;
+
+// The plan card for pictures to draw. areaKey: the area named, if it is free — else the open one, else the main
+// front area, else the first free one (the customer can change it on the card). style: the one named in their own
+// words ("a realistic tiger"), else the first.
+const PLAN_SAYS = "Here’s my plan. Check where it goes and pick a style, then tap Draw. Nothing is drawn until then.";
+const areaForPlan = (ctx, key) => {
+  const free = (k) => k && (ctx.areas || []).some((a) => a.key === k && a.free);
+  return [key, ctx.activeKey].find(free) || (ctx.areas || []).find((a) => a.free && a.main && a.side === "front")?.key || (ctx.areas || []).find((a) => a.free)?.key || null;
+};
+const planFor = (ctx, subject, areaKey, { style, improvable = false, label } = {}) => ({
+  plan: { items: [{ subject, areaKey: areaForPlan(ctx, areaKey), ...(label ? { label } : {}) }], style: style || styleIn(subject, ctx.ai.styles) || ctx.ai.styles[0], improvable },
+});
 
 const showSlogans = (st, ctx, lead) => [bot(lead || `${st.tone} lines for a ${st.occasion.toLowerCase()} tee. Tap one to put it on ${ctx.areaLabel}.`), { slogans: slogansFor(st.occasion, st.tone, st.shown) }, chips(AFTER_SLOGANS)];
 
@@ -133,7 +151,7 @@ export function replyTo(text, ctx, st, { tapped = false } = {}) {
     if (st.backTo === "idea" && st.backIdea) {
       const idea = st.backIdea;
       return done(
-        [bot(`Your idea: “${idea.improved?.prompt || idea.subject}”. What should I do with it?`), orOut(idea.improved ? [DRAW_THIS, IN_DRAW_TAB, DRAW_MINE, CHANGE_IDEA] : [IMPROVE, DRAW_MINE, IN_DRAW_TAB, CHANGE_IDEA])],
+        [bot(`Your idea: “${idea.improved?.prompt || idea.subject}”. What should I do with it?`), orOut(idea.improved ? [DRAW_THIS, DRAW_MINE, CHANGE_IDEA] : [IMPROVE, DRAW_MINE, CHANGE_IDEA])],
         { ...clean, idea, backIdea: null },
       );
     }
@@ -141,6 +159,7 @@ export function replyTo(text, ctx, st, { tapped = false } = {}) {
     if (st.backTo === "photo") return done([bot("Which photo should I redraw?"), orOut(["Upload a photo", ...(ctx.photoOnTee ? ["Use the picture on my tee"] : [])])], clean);
     return done([bot("What do you need?"), chips(["What can you do?", ...MENU.slice(0, 3), ...MORE])], clean);
   }
+  if (t === NOT_NOW) return done([bot("OK, nothing was drawn. Tell me whenever you want to try again."), chips(MENU)], clean);
   if (t === CANCEL && wait === "aiChange") return done([bot("OK, I left that design as it is."), chips(AFTER_DESIGNS)], { changeUrl: null });
   if (t === KEEP_DESIGN && st.template) return done([bot("OK, I left your design as it is."), chips(MENU)], { template: null });
   if (t === KEEP_EDITING) return done([bot("OK. Change what you like, then press Review again — or ask me to check it."), chips(["Check again", "Something else"])]);
@@ -205,6 +224,10 @@ export function replyTo(text, ctx, st, { tapped = false } = {}) {
     const job = { subject: st.subject, style: typedStyle, ...(st.areaKey ? { areaKey: st.areaKey } : {}) };
     return done([act({ type: "generate", ...job })], { lastDesign: job });
   }
+  if (wait === "drawWhat" && !offTopic && t.length >= 2) {
+    const said = subjectAndArea(t.replace(/^(please )?(can you |could you )?(draw|design|make|create|generate)( me)?( an?| the| some)?\s+/i, ""), ctx.areas);
+    return done([bot(PLAN_SAYS), planFor(ctx, said.subject, said.areaKey, { improvable: !!ctx.ai.text })], { idea: { subject: said.subject, areaKey: said.areaKey, improved: null } });
+  }
   if (wait === "aiChange" && !offTopic && st.changeUrl) {
     return done([act({ type: "generate", baseUrl: st.changeUrl, change: t })], { changeUrl: null });
   }
@@ -217,14 +240,11 @@ export function replyTo(text, ctx, st, { tapped = false } = {}) {
     const better = st.idea.improved;
     // (already improved: tapping it again asks for a new idea, below)
     if (t === IMPROVE && !better) return done([act({ type: "improve", idea: st.idea.subject, areaKey: st.idea.areaKey })]);
-    if (t === DRAW_THIS && better) {
-      const job = { subject: better.prompt, style: ai.styles.includes(better.style) ? better.style : ai.styles[0], ...(better.area || st.idea.areaKey ? { areaKey: better.area || st.idea.areaKey } : {}) };
-      return done([act({ type: "generate", ...job })], { lastDesign: job, idea: null });
+    if ((t === DRAW_THIS || t === IN_DRAW_TAB) && better) {
+      return done([bot(PLAN_SAYS), planFor(ctx, better.prompt, better.area || st.idea.areaKey, { style: ai.styles.includes(better.style) ? better.style : null })]);
     }
-    if (t === DRAW_MINE) return done([bot("Which style?"), chips([...ai.styles, BACK])], { subject: st.idea.subject, areaKey: st.idea.areaKey, wait: "aiStyle", idea: null, backTo: "idea", backIdea: st.idea });
-    if (t === IN_DRAW_TAB) {
-      const a = better ? { subject: better.prompt, style: better.style, areaKey: better.area || st.idea.areaKey } : { subject: st.idea.subject, areaKey: st.idea.areaKey };
-      return done([act({ type: "aiTab", tab: "draw", ...a })], { idea: null });
+    if (t === DRAW_MINE || t === IN_DRAW_TAB) {
+      return done([bot(PLAN_SAYS), planFor(ctx, st.idea.subject, st.idea.areaKey, { improvable: !better && !!ai.text })], better ? { idea: { ...st.idea, improved: null } } : {});
     }
   }
   // "✨ Improve my idea" on its own (the examples, More help, the button above the message box): ask for the idea,
@@ -232,7 +252,7 @@ export function replyTo(text, ctx, st, { tapped = false } = {}) {
   const typedIdea = t.startsWith(`${IMPROVE}:`) ? t.slice(IMPROVE.length + 1).trim() : "";
   if (t === IMPROVE || typedIdea) {
     const ai = ctx.ai;
-    if (!ai.available || !ai.text) return done([bot("Improving ideas is not available right now. You can still describe your picture in the Draw tab."), chips(["Make a design", "Something else"])]);
+    if (!ai.available || !ai.text) return done([bot("Improving ideas is not available right now. Describe your picture in your own words and I’ll draw it."), chips(["Make a design", "Something else"])]);
     if (typedIdea.length >= 3) {
       const idea = subjectAndArea(typedIdea, ctx.areas);
       return done([act({ type: "improve", idea: idea.subject, areaKey: idea.areaKey })], { idea: { subject: idea.subject, areaKey: idea.areaKey, improved: null } });
@@ -308,15 +328,15 @@ export function replyTo(text, ctx, st, { tapped = false } = {}) {
       const idea = subjectAndArea(t, ctx.areas);
       if (ai.text) {
         return done(
-          [bot("That’s a picture and words together. Let me make the idea clear first — it’s free, and I’ll show you what you’ll get before drawing."), orOut([IMPROVE, DRAW_MINE, IN_DRAW_TAB])],
+          [bot("That’s a picture and words together. Let me make the idea clear first — it’s free, and I’ll show you what you’ll get before drawing."), orOut([IMPROVE, DRAW_MINE])],
           { idea: { subject: idea.subject, areaKey: idea.areaKey, improved: null }, wait: null },
         );
       }
-      return done([act({ type: "aiTab", tab: "draw", subject: idea.subject, areaKey: idea.areaKey })]);
+      return done([bot(PLAN_SAYS), planFor(ctx, idea.subject, idea.areaKey, { style: LETTERING })]);
     }
     // anything else they asked for (a crown, rays, colours) stays in the request as written
     const job = { subject: quoted ? `${unArea(t.replace(quoted[0], "")).replace(/\s+/g, " ").trim()} — the words to letter, spelled exactly: “${said}”` : `the words “${said}”, spelled exactly`, style: LETTERING, ...(named ? { areaKey: named.key } : {}) };
-    return done([act({ type: "generate", ...job })], { lastDesign: job });
+    return done([bot(PLAN_SAYS), planFor(ctx, job.subject, job.areaKey, { style: LETTERING, label: `“${said}” as lettering art` })]);
   }
 
   /* ----- the stylist: fonts, colours and shape chosen together for a mood (the text AI) ----- */
@@ -411,16 +431,13 @@ export function replyTo(text, ctx, st, { tapped = false } = {}) {
     }
     if (!ai.loggedIn) return done([bot("I can draw a design from your description. Log in first so your designs are kept for you."), chips(["Log in", "Something else"])]);
     if (ai.left === 0) return done([bot("You’ve used today’s design requests. They reset tomorrow. Until then, try the art library or upload a picture."), orOut(["Open the art library", "Upload a picture"])]);
-    // drawing has its own tab (Draw): it opens with what was typed ("draw a lion holding a bat") filled in
+    // what was typed ("draw a lion holding a bat on the back") becomes the plan card; nothing typed yet: ask
     const said = t !== "Make a design" && t.split(/\s+/).length >= 3 ? subjectAndArea(t.replace(/^(please )?(can you |could you )?(draw|design|make|create|generate)( me)?( an?| the| some)?\s+/i, ""), ctx.areas) : { subject: "", areaKey: null };
-    // a real idea and the text AI is there: offer to make it clearer first (free), so they know what they'll get
-    if (said.subject && ai.text) {
-      return done(
-        [bot("I can draw that. Want me to improve your idea first? It’s free, and I’ll show you what you’ll get before drawing."), orOut([IMPROVE, DRAW_MINE, IN_DRAW_TAB])],
-        { idea: { subject: said.subject, areaKey: said.areaKey, improved: null }, wait: null },
-      );
+    if (!said.subject) {
+      return done([bot("What should I draw? Say it in your own words, and where it goes if you like. For example: a lion holding a cricket bat on the back."), chips([OUT])], { wait: "drawWhat" });
     }
-    return done([act({ type: "aiTab", tab: "draw", subject: said.subject, areaKey: said.areaKey })]);
+    // (✨ Improve my idea on the card makes it clearer first, free, when the text AI is there)
+    return done([bot(PLAN_SAYS), planFor(ctx, said.subject, said.areaKey, { improvable: !!ai.text })], { idea: { subject: said.subject, areaKey: said.areaKey, improved: null }, wait: null });
   }
 
   /* ----- slogans ----- */

@@ -6,10 +6,11 @@
 // print-area / size help). The paid AI parts can replace those scripted
 // replies later (see docs/AI_PLAN.md).
 import { useEffect, useRef, useState } from "react";
-import { CANCEL, EXAMPLES, IMPROVE, replyTo } from "./assistantScript";
+import { CANCEL, EXAMPLES, IMPROVE, NOT_NOW, replyTo } from "./assistantScript";
 import { imageUrl } from "../utils/imageUrl";
 import WaitCard from "./WaitCard";
 import IdeaPreview from "./IdeaPreview";
+import PlanCard from "./PlanCard";
 
 const PICTURE_HINT = "Usually 20–40 seconds. You can look around the room meanwhile.";
 // What the wait card says for an AI job: { label, expect (usual seconds), hint }
@@ -20,6 +21,8 @@ const waitFor = (a) =>
       ? { label: "Writing a few…", expect: 6 }
       : a.type === "improve"
         ? { label: "Improving your idea…", expect: 9 }
+      : a.type === "drawPlan"
+        ? { label: a.items?.length > 1 ? `Drawing ${a.items.length} pictures…` : "Drawing your design…", expect: 25 * (a.items?.length || 1), hint: a.items?.length > 1 ? "Usually 20–40 seconds for each. You can look around the room meanwhile." : PICTURE_HINT }
       : a.photoUrl
         ? /free/i.test(a.artStyle || "")
           ? { label: "Making your art…", expect: 5 }
@@ -47,6 +50,7 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
   // false | true (a short "Thinking…") | { label, expect, hint } for the AI: a card with a live seconds count
   const [thinking, setThinking] = useState(false);
   const [pickFor, setPickFor] = useState(null); // the design whose "Other area" list is open
+  const [moveAsk, setMoveAsk] = useState(null); // "Other area" for a picture already on the tee: { url, key, label } — keep both, or move?
   const log = useRef(null);
   const box = useRef(null);
   const timer = useRef(null);
@@ -116,7 +120,8 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
   const say = (text, tapped = false) => {
     if (thinking || !text) return false;
     // the chips just answered can't be tapped again
-    setMessages((m) => [...m.map((x) => (x.chips || x.retry ? { ...x, done: true } : x)), { from: "me", text }]);
+    // ("Not now" on a plan card closes that card too)
+    setMessages((m) => [...m.map((x) => (x.chips || x.retry || (x.plan && text === NOT_NOW) ? { ...x, done: true } : x)), { from: "me", text }]);
     const { out, st } = replyTo(text, ctx(), state, { tapped });
     setState(st);
     const fill = out.find((o) => o.fill);
@@ -125,7 +130,7 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
       setTimeout(() => box.current?.focus(), 500);
     }
     const reply = out.filter((o) => !o.act && !o.fill);
-    const slow = out.find((o) => ["generate", "slogans", "edit", "improve"].includes(o.act?.type));
+    const slow = out.find((o) => ["generate", "slogans", "edit", "improve", "drawPlan"].includes(o.act?.type));
     if (slow) {
       // the AI: wait for the answer, then show what the page hands back
       run(slow.act, waitFor(slow.act), reply);
@@ -167,6 +172,16 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
 
   // "Try another" sits under the newest pictures only
   const lastDesigns = messages.reduce((last, m, i) => (m.designs ? i : last), -1);
+  // only the newest plan can still be changed and drawn
+  const lastPlan = messages.reduce((last, m, i) => (m.plan ? i : last), -1);
+  // Draw on the plan card: the plan is kept as it was drawn, and the pictures are made one after the other
+  const drawPlan = (i, plan) => {
+    if (thinking) return;
+    setMessages((all) => [...all.map((x, n) => (n === i ? { ...x, plan, done: true } : x.chips ? { ...x, done: true } : x)), { from: "me", text: `Draw ${plan.items.length > 1 ? "them" : "it"}` }]);
+    setState({ ...state, idea: null });
+    const a = { type: "drawPlan", items: plan.items, style: plan.style };
+    run(a, waitFor(a));
+  };
 
   return (
     <div className="dr-chat">
@@ -225,6 +240,25 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
             };
             return <IdeaPreview key={i} preview={m.preview} {...(live ? { areas: free, onArea: pickArea } : {})} />;
           }
+          if (m.plan) {
+            const c = ctx();
+            const live = i === lastPlan && !m.done && !thinking;
+            const change = (plan) => setMessages((all) => all.map((x, n) => (n === i ? { ...x, plan } : x)));
+            return (
+              <PlanCard
+                key={i}
+                plan={m.plan}
+                areas={c.areas}
+                styles={c.ai.styles}
+                left={c.ai.left}
+                live={live}
+                onChange={change}
+                onDraw={(plan) => drawPlan(i, plan)}
+                onImprove={m.plan.improvable && c.ai.text ? () => say(IMPROVE, true) : null}
+                onCancel={() => say(NOT_NOW, true)}
+              />
+            );
+          }
           if (m.issues) {
             return (
               <div key={i} className="dr-chatcards">
@@ -249,8 +283,7 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
                     type="button"
                     className="dr-example"
                     onClick={() => {
-                      // drawing and photos have their own tabs (Draw, Photo) in the AI panel
-                      if (e.tab) return onAct({ type: "aiTab", tab: e.tab, style: e.style });
+                      // (everything happens here in the chat: an example is filled in to send, or started)
                       if (!e.fill) return say(e.say, true);
                       setDraft(e.say);
                       box.current?.focus();
@@ -277,12 +310,23 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
                     <div className="dr-designlinks">
                       <button type="button" onClick={() => setPickFor(pickFor === url ? null : url)} aria-expanded={pickFor === url}>Other area</button>
                       <button type="button" onClick={() => startChange(url)}>Change</button>
+                      {/* liked only one of the pictures: this one comes off the tee (Undo would take off all drawn together) */}
+                      {placed[url]?.length ? <button type="button" onClick={() => onAct({ type: "unplace", url })}>Remove from tee</button> : null}
                     </div>
                     {pickFor === url && (
                       <div className="dr-designareas">
+                        {/* already on the tee: ask first — on both areas, or moved (it used to be added a second time, silently) */}
                         {areas.map((a) => (
-                          <button key={a.key} type="button" className="dr-chip" onClick={() => { setPickFor(null); onAct({ type: "place", url, areaKey: a.key }); }}>{a.label}</button>
+                          <button key={a.key} type="button" className="dr-chip" onClick={() => { setPickFor(null); if (placed[url]?.length) setMoveAsk({ url, key: a.key, label: a.label }); else onAct({ type: "place", url, areaKey: a.key }); }}>{a.label}</button>
                         ))}
+                      </div>
+                    )}
+                    {moveAsk?.url === url && (
+                      <div className="dr-moveask" role="group" aria-label={`Put it on ${moveAsk.label}`}>
+                        <p>Put it on {moveAsk.label}:</p>
+                        <button type="button" className="dr-chip" onClick={() => { setMoveAsk(null); onAct({ type: "place", url, areaKey: moveAsk.key }); }}>Keep on {placed[url].join(" and ")} too</button>
+                        <button type="button" className="dr-chip on" onClick={() => { setMoveAsk(null); onAct({ type: "place", url, areaKey: moveAsk.key, move: true }); }}>Move it to {moveAsk.label}</button>
+                        <button type="button" className="dr-moveno" onClick={() => setMoveAsk(null)}>Cancel</button>
                       </div>
                     )}
                   </div>

@@ -11,18 +11,9 @@ import WaitCard from "./WaitCard";
 import IdeaPreview from "./IdeaPreview";
 import EarlierResults from "./EarlierResults";
 import { keepEarlier } from "./keepEarlier";
+import { STYLE_INFO } from "./styleInfo";
 
-// What each design style looks like, in a few words, and a colour swatch for its card.
-const STYLE_INFO = {
-  "Bold mascot": ["Thick outlines, flat colours, sporty", "linear-gradient(135deg,#FFB547,#D85A30)"],
-  "Minimal line art": ["A few clean lines, lots of space", "linear-gradient(135deg,#F1EFE8,#888780)"],
-  "Retro badge": ["A vintage round emblem", "linear-gradient(135deg,#F0997B,#712B13)"],
-  Cartoon: ["Friendly, clean outlines", "linear-gradient(135deg,#AFA9EC,#534AB7)"],
-  Watercolour: ["Soft painted edges", "linear-gradient(135deg,#9FE3C7,#F7B2C4)"],
-  Realistic: ["Looks like a real photo", "linear-gradient(135deg,#8A9BA8,#1F2A33)"],
-  "Detailed art": ["Lifelike, rich detail", "linear-gradient(135deg,#C9A24B,#3A2410)"],
-  "Hand lettering": ["Your words as the design", "linear-gradient(135deg,#444441,#C9A24B)"],
-};
+// what each style looks like (shared with the chat plan card)
 const IDEAS = ["A lion holding a cricket bat", "A mountain sunrise", "A cup of filter coffee", "A phoenix"];
 const WAIT_HINT = "Usually 20–40 seconds. You can look around the room meanwhile.";
 const STOPPED = "Stopped. Nothing was added to your tee. (If the picture was already being drawn, it may still count as one of today’s requests.)";

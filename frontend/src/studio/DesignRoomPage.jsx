@@ -24,7 +24,8 @@ import { areaCm, blockersOf, clashesIn, modelForGarment, placeArea } from "./tee
 import AreaThumb from "./AreaThumb";
 import Rolling from "./Rolling";
 import Assistant from "./Assistant";
-import { AFTER_AI_SLOGANS, AFTER_DESIGN_CHIPS, BACK, CHANGE_IDEA, DRAW_MINE, DRAW_THIS, IN_DRAW_TAB, bot as botSays, checkMessages, chips as chipRow, firstMessages, firstState } from "./assistantScript";
+import { AFTER_AI_SLOGANS, AFTER_DESIGN_CHIPS, BACK, CHANGE_IDEA, DRAW_MINE, bot as botSays, checkMessages, chips as chipRow, firstMessages, firstState } from "./assistantScript";
+import { styleIn } from "./styleInfo";
 import aiService from "../services/aiService";
 import { applyAiOps, areaFor, describeDesign } from "./aiOps";
 import WaitCard from "./WaitCard";
@@ -47,9 +48,13 @@ const ADD_TABS = [
   ["text", "Text", "M5 6V4h14v2M12 4v16M9 20h6"],
   ["upload", "Upload", "M12 16V4m0 0-4 4m4-4 4 4M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"],
   ["art", "Art", "M4 5h16v14H4zM8 13l3-3 5 5M15 9h.01"],
+  // the AI tools (client, 20 Oct 2026: the Assistant is chat only — Draw and Photo are added from here)
+  ["draw", "Draw", "m12 3 1.8 4.7L18 9.5l-4.2 1.8L12 16l-1.8-4.7L6 9.5l4.2-1.8L12 3Z", "AI"],
+  ["photo", "Photo", "M4 8h3l2-3h6l2 3h3v11H4zM12 16.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"],
 ];
+// these open the Draw / Photo studio (the AI panel) instead of a tab of this panel
+const AI_ADD = ["draw", "photo"];
 const ICON_AI = "m12 3 1.8 4.7L18 9.5l-4.2 1.8L12 16l-1.8-4.7L6 9.5l4.2-1.8L12 3Z";
-const AI_TABS = [["chat", "Chat"], ["draw", "Draw"], ["photo", "Photo"]];
 const ICON_PHOTO = "M4 8h3l2-3h6l2 3h3v11H4zM12 16.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z";
 const ICON_AREAS = "M8 4 4 6.5 2 10l3 1.5V20h14v-8.5L22 10l-2-3.5L16 4a4 4 0 0 1-8 0Z";
 const ICON_ADD = "M12 5v14M5 12h14";
@@ -1027,7 +1032,8 @@ export default function DesignRoomPage() {
     sizes,
     sizeNow,
     chart: (sz) => garment.sizeChart?.find((r) => r.size === sz),
-    areas: positions.map((p) => ({ key: p.key, label: p.label, side: p.side, free: usedKeys.includes(p.key) || !blockersOf(p.key, positions, usedKeys).length })),
+    areas: positions.map((p) => ({ key: p.key, label: p.label, side: p.side, main: !!p.main, free: usedKeys.includes(p.key) || !blockersOf(p.key, positions, usedKeys).length })),
+    activeKey: active || null,
     issues: designIssues,
     inks: inksFor(fabricHex, INKS),
     ai: { ...ai, loggedIn: isLoggedIn() },
@@ -1078,7 +1084,22 @@ export default function DesignRoomPage() {
       const leftOut = asked.slice(MAX_PICTURES);
       if (pictures.length && !ai.available) extra.push(botSays("Pictures can’t be made right now. You can pick from the art library or upload your own."));
       else if (pictures.length && !isLoggedIn()) extra.push(botSays("Log in and I’ll draw the pictures for you."), chipRow(["Log in", "Something else"]));
-      else {
+      else if (pictures.length && !a.draw) {
+        // Nothing is drawn yet (client, 20 Oct 2026): the pictures go in the plan card, each with the print area
+        // the AI chose (changeable there), and one style — drawn only when the customer taps Draw (act "drawPlan").
+        const used = [...new Set(els.map((e) => e.position))];
+        const items = [];
+        for (const pic of pictures) {
+          const pos = areaFor(pic.area, positions, [...used, ...items.map((x) => x.areaKey).filter(Boolean)]);
+          items.push({ subject: pic.subject.trim().slice(0, 200), areaKey: pos?.key || null });
+        }
+        const suggested = pictures.map((p) => p.style).find((x) => ai.styles.includes(x));
+        const style = styleIn(a.message, ai.styles) || suggested || ai.styles[0];
+        extra.push(
+          botSays(`Here’s what I’ll make on your ${(tee?.name || "").toLowerCase()} ${garment?.label || "tee"}. Check where each one goes and pick a style, then tap Draw. Nothing is drawn until then.`),
+          { plan: { items, style } },
+        );
+      } else {
         if (pictures.length) {
           // one after the other, about 20–40 seconds each
           progress?.({ label: pictures.length > 1 ? `Drawing ${pictures.length} pictures…` : "Drawing your picture…", expect: 25 * pictures.length, hint: `Usually 20–40 seconds${pictures.length > 1 ? " for each" : ""}. You can look around the room meanwhile.` });
@@ -1133,6 +1154,7 @@ export default function DesignRoomPage() {
       // The text AI writes its reply ("I've added a picture of…") before the picture is drawn. When the picture
       // could not be made, that reply would be untrue, so only what really happened is said.
       if (!changed) return extra;
+      if (extra.some((x) => x.plan)) return [botSays("I’ve made the other changes. Not right? Press Undo (↶)."), ...extra];
       if (pictureFailed) return [botSays("I’ve done the rest of what you asked. The picture is the part that didn’t work:"), ...extra];
       // (the text AI's own reply lists every picture asked for, also the ones left out — so it is not used here)
       if (leftOut.length) return [botSays("I’ve drawn the first three. Not right? Press Undo (↶)."), ...extra, chipRow(["Check my design", "Something else"])];
@@ -1201,6 +1223,73 @@ export default function DesignRoomPage() {
       return [botSays(err.response?.data?.message || "The design maker had a problem."), { failed: true }];
     }
   };
+  // Draw on the chat's plan card: each picture is drawn for its print area, one after the other, and put on the tee
+  // (one Undo step for all). The other versions stay in the chat with Add to tee; "Try another" makes one more.
+  const drawPlan = async (a, progress, run) => {
+    const items = (a.items || []).filter((x) => String(x.subject || "").trim()).slice(0, 3);
+    if (!items.length) return [botSays("There’s nothing to draw yet. Tell me what you’d like."), chipRow(["Make a design", "Something else"])];
+    if (!ai.available) return [botSays("Pictures can’t be made right now. You can pick from the art library or upload your own."), chipRow(["Open the art library", "Upload a picture"])];
+    if (!isLoggedIn()) return [botSays("Log in and I’ll draw it for you. Your design stays here."), chipRow(["Log in", "Something else"])];
+    const style = ai.styles.includes(a.style) ? a.style : ai.styles[0];
+    let els = elements;
+    let focus = null;
+    let left = null;
+    let failed = false;
+    const placed = {};
+    const out = [];
+    for (const [n, item] of items.entries()) {
+      if (run?.stopped) return [];
+      if (items.length > 1) progress?.({ label: `Drawing picture ${n + 1} of ${items.length}…`, expect: 25, hint: "Usually 20–40 seconds each. You can look around the room meanwhile." });
+      const used = [...new Set(els.map((e) => e.position))];
+      // the chosen area, or (if something now covers it) the biggest free one on the same side
+      const want = item.areaKey || positions.find((p) => p.side === "front" && p.main)?.key;
+      const pos = areaFor(want, positions, used.filter((k) => !(aiPlaced[k] && k === want)));
+      if (!pos) {
+        out.push(botSays(`There’s no free print area left for ${item.subject.slice(0, 80)}. Remove a print, or pick another area.`));
+        continue;
+      }
+      const { W, H } = areaPx(pos);
+      // lettering for a tall, thin area: one long line, turned on its side on the tee
+      const banner = style === "Hand lettering" && H / W >= 2.5;
+      try {
+        const made = await aiService.design({ subject: item.subject.slice(0, 200), style, teeColour: colour?.name || "white", teeIsDark: lum(fabricHex) < 0.55, ratio: banner ? H / W : W / H, ...(banner ? { banner: true } : {}) });
+        if (made.left != null) {
+          left = made.left;
+          setAi((cur) => ({ ...cur, left: made.left }));
+        }
+        made.images.forEach((im) => {
+          aiCuts.current.set(im.url, { path: im.url, w: im.width, h: im.height });
+          loadImage(im.url).catch(() => {});
+        });
+        if (run?.stopped) return [{ designs: made.images.map((im) => im.url) }];
+        const first = made.images[0];
+        const el = aiElement(pos, { path: first.url, w: first.width, h: first.height }, els.length + 1);
+        // it replaces a picture the chat put on that area before
+        const old = aiPlaced[pos.key]?.elId;
+        els = [...els.filter((e) => e.id !== old), el];
+        placed[pos.key] = { url: first.url, elId: el.id };
+        focus = focus || pos.key;
+        out.push(
+          botSays(`${pos.label}: ${(item.label || item.subject).slice(0, 120)}${pos.key !== item.areaKey && item.areaKey ? " (its area was taken, so I used this one)" : ""}.`),
+          // again: one more version for this area (shown here, not put on the tee until Add to tee)
+          { designs: made.images.map((im) => im.url), again: { type: "generate", subject: item.subject.slice(0, 200), style, areaKey: pos.key } },
+        );
+      } catch (err) {
+        failed = true;
+        out.push(botSays(err.response?.data?.message || "The design maker had a problem."), { retry: { type: "drawPlan", items: items.slice(n), style } });
+        break;
+      }
+    }
+    if (run?.stopped) return [];
+    if (els !== elements) commit((now) => (now === elements ? els : mergeAiChanges(now, elements, els)));
+    if (Object.keys(placed).length) setAiPlaced((cur) => ({ ...cur, ...placed }));
+    if (focus && focus !== active) openArea(focus, { force: true });
+    setSelectedId(null);
+    const count = Object.keys(placed).length;
+    const leftText = left == null ? "" : ` ${left} request${left === 1 ? "" : "s"} left today.`;
+    const head = count ? [botSays(`Done — ${count === 1 ? "it’s" : "they’re"} on your tee.${leftText} Tap Add to tee on another version to swap, Change to adjust one, or press Undo (↶).`)] : [];
+    return [...head, ...out, ...(failed ? [] : [chipRow(["Check my design", "Something else"])])];
+  };
   // Slogans written to order. If the AI cannot be reached, say so and offer the built-in ones.
   const writeSlogans = async (a) => {
     try {
@@ -1223,7 +1312,7 @@ export default function DesignRoomPage() {
   };
   // Put an AI-made design on a print area (the open one unless areaKey is given): its plain
   // background is cleared, the cut-out is uploaded once, and it replaces the AI design already there.
-  const placeAiDesign = async (url, areaKey) => {
+  const placeAiDesign = async (url, areaKey, { move = false } = {}) => {
     const pos = positions.find((p) => p.key === (areaKey || active)) || ensureArea();
     if (!pos || busy) return;
     const blockedBy = usedKeys.includes(pos.key) ? [] : blockersOf(pos.key, positions, usedKeys);
@@ -1246,11 +1335,16 @@ export default function DesignRoomPage() {
       }
       const el = aiElement(pos, cut, elements.length + 1);
       const old = aiPlaced[pos.key]?.elId;
-      commit((prev) => [...prev.filter((e) => e.id !== old), el]);
+      // move: the customer chose to move it (not keep it on both) — it comes off its other areas in the same Undo step
+      const from = move ? Object.entries(aiPlaced).filter(([key, put]) => key !== pos.key && put.url === url && elements.some((e) => e.id === put.elId)) : [];
+      const gone = [old, ...from.map(([, put]) => put.elId)];
+      commit((prev) => [...prev.filter((e) => !gone.includes(e.id)), el]);
+      // (the moved-from areas stay in aiPlaced: aiOn skips pictures no longer on the tee, and after Undo they are tracked again)
       setAiPlaced((cur) => ({ ...cur, [pos.key]: { url, elId: el.id } }));
       if (pos.key !== active) openArea(pos.key, { force: true });
       setSelectedId(null);
-      say(old ? `Replaced the design on ${pos.label}.` : `Added to ${pos.label}.`);
+      const fromLabels = from.map(([key]) => positions.find((p) => p.key === key)?.label || key).join(" and ");
+      say(from.length ? `Moved from ${fromLabels} to ${pos.label}.` : old ? `Replaced the design on ${pos.label}.` : `Added to ${pos.label}.`);
       return true; // (the Photo Studio marks the picture as "on the tee")
     } catch {
       say("The design could not be added. Please try again.");
@@ -1264,6 +1358,16 @@ export default function DesignRoomPage() {
     if (!elements.some((e) => e.id === put.elId)) continue;
     (aiOn[put.url] ||= []).push(positions.find((p) => p.key === key)?.label || key);
   }
+  // "Remove from tee" on a picture in the chat: takes it off every area it is on (one Undo step), the picture stays in the chat
+  const removeAiDesign = (url) => {
+    const on = Object.entries(aiPlaced).filter(([, put]) => put.url === url && elements.some((e) => e.id === put.elId));
+    if (!on.length) return;
+    const ids = on.map(([, put]) => put.elId);
+    commit((prev) => prev.filter((e) => !ids.includes(e.id)));
+    // (aiPlaced keeps the entries: aiOn skips pictures no longer on the tee, and after Undo they are tracked again)
+    setSelectedId(null);
+    say(`Removed from ${on.map(([key]) => positions.find((p) => p.key === key)?.label || key).join(" and ")}. It’s still in the chat if you want it back.`);
+  };
 
   /* ---------- the Photo Studio ---------- */
   // the print area its results go on: the open one, else the front's main area
@@ -1400,11 +1504,16 @@ export default function DesignRoomPage() {
       const freeKey = (k) => k && positions.some((p) => p.key === k && (usedKeys.includes(k) || !blockersOf(k, positions, usedKeys).length));
       const area = [a.areaKey, got.area, active].find(freeKey) || positions.find((p) => p.side === "front" && p.main && freeKey(p.key))?.key || positions.find((p) => freeKey(p.key))?.key || null;
       const res = { ...got, area };
-      const areaLabel = positions.find((p) => p.key === area)?.label;
       setChatState((st) => ({ ...st, idea: { ...(st.idea || { subject: a.idea, areaKey: a.areaKey }), improved: res } }));
-      return [botSays("Here’s what I’ll draw. Change the print area in the card if you like, then tap “Draw this”."), { preview: { ...res, areaLabel } }, chipRow([DRAW_THIS, IN_DRAW_TAB, DRAW_MINE, CHANGE_IDEA, "Something else"])];
+      // (the card under it is where the print area and the style are chosen, so the preview just says what you'll get)
+      return [
+        botSays("Here’s your idea, made clear. Check where it goes and the style in the plan, then tap Draw."),
+        { preview: { prompt: res.prompt, expect: res.expect } },
+        { plan: { items: [{ subject: res.prompt, areaKey: area }], style: ai.styles.includes(res.style) ? res.style : ai.styles[0] } },
+        chipRow([DRAW_MINE, CHANGE_IDEA, "Something else"]),
+      ];
     } catch (err) {
-      return [botSays(err.message), chipRow([DRAW_MINE, IN_DRAW_TAB, "Something else"])];
+      return [botSays(err.message), chipRow([DRAW_MINE, "Something else"])];
     }
   };
   const studioPlace = async (r, areaKey) => {
@@ -1484,6 +1593,7 @@ export default function DesignRoomPage() {
     if (a.type === "generate") return generateDesigns(a);
     if (a.type === "slogans") return writeSlogans(a);
     if (a.type === "improve") return chatImprove(a, run);
+    if (a.type === "drawPlan") return drawPlan(a, progress, run);
     if (a.type === "edit") return chatEdit(a, progress, run);
     if (a.type === "photoPick") return openPhotoStudio();
     if (a.type === "aiTab") {
@@ -1491,7 +1601,8 @@ export default function DesignRoomPage() {
       if (a.tab === "draw") setDrawSession((d) => ({ ...d, view: "form", ...(a.subject ? { subject: a.subject } : {}), ...(a.style ? { style: a.style } : {}), ...(a.areaKey ? { areaKey: a.areaKey } : {}) }));
       return openAiTab(a.tab);
     }
-    if (a.type === "place") return placeAiDesign(a.url, a.areaKey);
+    if (a.type === "place") return placeAiDesign(a.url, a.areaKey, { move: !!a.move });
+    if (a.type === "unplace") return removeAiDesign(a.url);
     if (a.type === "login") return goToLogin();
     if (a.type === "text") return addText(a.text);
     if (a.type === "tab") {
@@ -1899,7 +2010,7 @@ export default function DesignRoomPage() {
           <small>{aiAddOn ? `incl. ₹${aiAddOn} picture` : "per piece"}</small>
         </div>
         {step === "design" && (
-          <button type="button" className={`dr-aibtn${assist ? " on" : ""}`} aria-pressed={assist} onClick={() => toggleAiTab(aiTab)}>
+          <button type="button" className={`dr-aibtn${assist ? " on" : ""}`} aria-pressed={assist} onClick={() => toggleAiTab("chat")}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <path d={ICON_AI} />
             </svg>
@@ -2106,7 +2217,7 @@ export default function DesignRoomPage() {
               </svg>
               Add text or picture
             </button>
-            <button type="button" className={`dr-toolbtn${assist ? " on" : ""}`} aria-pressed={assist} onClick={() => toggleAiTab(aiTab)}>
+            <button type="button" className={`dr-toolbtn${assist ? " on" : ""}`} aria-pressed={assist} onClick={() => toggleAiTab("chat")}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <path d={ICON_AI} />
               </svg>
@@ -2151,13 +2262,6 @@ export default function DesignRoomPage() {
                 <button type="button" className="dr-x" aria-label="Close" onClick={() => setAssist(false)}>✕</button>
               </div>
             </header>
-            <div className="dr-aitabs" role="tablist" aria-label="AI design">
-              {AI_TABS.map(([k, label]) => (
-                <button key={k} type="button" role="tab" aria-selected={aiTab === k} className={aiTab === k ? "on" : ""} onClick={() => setAiTab(k)}>
-                  {label}
-                </button>
-              ))}
-            </div>
             <div className="dr-aipane" hidden={aiTab !== "chat"}>
               <Assistant messages={chat} setMessages={setChat} state={chatState} setState={setChatState} ctx={assistantCtx} onAct={assistantAct} onFix={applyFix} placed={aiOn} fabric={fabricHex} autoSay={chatAuto} onAutoSaid={() => setChatAuto("")} onWorking={setAiWorking} />
               {elements.length > 0 && (
@@ -2251,12 +2355,13 @@ export default function DesignRoomPage() {
             ) : (
               <>
                 <div className="dr-addtabs" role="tablist" aria-label="What to add">
-                  {ADD_TABS.map(([k, label, icon]) => (
-                    <button key={k} type="button" role="tab" aria-selected={addTab === k} className={`dr-addtab${addTab === k ? " on" : ""}`} onClick={() => setAddTab(k)}>
+                  {ADD_TABS.map(([k, label, icon, badge]) => (
+                    <button key={k} type="button" role="tab" aria-selected={addTab === k} className={`dr-addtab${addTab === k ? " on" : ""}`} onClick={() => (AI_ADD.includes(k) ? openAiTab(k) : setAddTab(k))}>
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                         <path d={icon} />
                       </svg>
                       {label}
+                      {badge && <small>{badge}</small>}
                     </button>
                   ))}
                 </div>
