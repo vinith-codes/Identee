@@ -11,68 +11,93 @@ import {
   useSearchParams,
 } from "react-router-dom";
 
-import LoginPage from "./pages/LoginPage";
+const LoginPage = lazy(() => import("./pages/LoginPage"));
 import Navbar from "./components/Navbar";
 import SiteFooter from "./components/SiteFooter";
-import AdminLayout from "./layouts/AdminLayout";
-import AdminDashboard from "./pages/admin/AdminDashboard";
-import AdminHome from "./pages/admin/AdminHome";
-import CustomizableListPage from "./pages/admin/CustomizableListPage";
-import GarmentSetupWizard from "./pages/admin/GarmentSetupWizard";
-import ProductWizard from "./pages/admin/readymade/ProductWizard";
-import ProductsPage from "./pages/admin/readymade/ProductsPage";
-import OfferBannerPage from "./pages/admin/OfferBannerPage";
-import VideoBannerPage from "./pages/admin/VideoBannerPage";
-import CategoryBannerPage from "./pages/admin/CategoryBannerPage";
-import CategoriesPage from "./pages/admin/CategoriesPage";
+const AdminLayout = lazy(() => import("./layouts/AdminLayout"));
+const AdminDashboard = lazy(() => import("./pages/admin/AdminDashboard"));
+const AdminHome = lazy(() => import("./pages/admin/AdminHome"));
+const CustomizableListPage = lazy(() => import("./pages/admin/CustomizableListPage"));
+const GarmentSetupWizard = lazy(() => import("./pages/admin/GarmentSetupWizard"));
+const ProductWizard = lazy(() => import("./pages/admin/readymade/ProductWizard"));
+const ProductsPage = lazy(() => import("./pages/admin/readymade/ProductsPage"));
+const OfferBannerPage = lazy(() => import("./pages/admin/OfferBannerPage"));
+const VideoBannerPage = lazy(() => import("./pages/admin/VideoBannerPage"));
+const CategoryBannerPage = lazy(() => import("./pages/admin/CategoryBannerPage"));
+const CategoriesPage = lazy(() => import("./pages/admin/CategoriesPage"));
 import Home from "./pages/Home";
-import CategoryProductsPage from "./pages/CategoryProductsPage";
-import SingleProductPage from "./pages/SingleProductPage";
+const CategoryProductsPage = lazy(() => import("./pages/CategoryProductsPage"));
+const SingleProductPage = lazy(() => import("./pages/SingleProductPage"));
 // The design studio (3D + editor libraries) loads only when it is opened.
 const StudioRoute = lazy(() => import("./studio/StudioRoute"));
-import AdminUsersPage from "./pages/admin/AdminUserPage";
-import AdminEditUserPage from "./pages/admin/AdminEditUserPage";
-import AdminUserDetailsPage from "./pages/admin/AdminUserDetailsPage";
-import BuyNowPage from "./pages/BuyNowPage";
-import FavoritesPage from "./pages/FavoritesPage";
-import CartPage from "./pages/CartPage";
-import Account from "./pages/Account";
-import CustomizablePage from "./pages/CustomizablePage";
-import ReadyMadePage from "./pages/ReadyMadePage";
-import TeamOrdersPage from "./pages/TeamOrdersPage";
+const AdminUsersPage = lazy(() => import("./pages/admin/AdminUserPage"));
+const AdminEditUserPage = lazy(() => import("./pages/admin/AdminEditUserPage"));
+const AdminUserDetailsPage = lazy(() => import("./pages/admin/AdminUserDetailsPage"));
+const BuyNowPage = lazy(() => import("./pages/BuyNowPage"));
+const FavoritesPage = lazy(() => import("./pages/FavoritesPage"));
+const CartPage = lazy(() => import("./pages/CartPage"));
+const Account = lazy(() => import("./pages/Account"));
+const CustomizablePage = lazy(() => import("./pages/CustomizablePage"));
+const ReadyMadePage = lazy(() => import("./pages/ReadyMadePage"));
+const TeamOrdersPage = lazy(() => import("./pages/TeamOrdersPage"));
 import MobileTabBar from "./components/MobileTabBar";
 import ScrollToTop from "./components/ScrollToTop";
 import { BrandFavicon } from "./utils/brandLogo";
-import ChooseColorPage from "./pages/ChooseColorPage";
-import AdminShippingPage from "./pages/admin/AdminShippingPage";
-import OffersPage from "./pages/admin/OffersPage";
-import SubscriptionPlansPage from "./pages/admin/SubscriptionPlansPage";
-import SubscribersPage from "./pages/admin/SubscribersPage";
+const ChooseColorPage = lazy(() => import("./pages/ChooseColorPage"));
+const AdminShippingPage = lazy(() => import("./pages/admin/AdminShippingPage"));
+const OffersPage = lazy(() => import("./pages/admin/OffersPage"));
+const SubscriptionPlansPage = lazy(() => import("./pages/admin/SubscriptionPlansPage"));
+const SubscribersPage = lazy(() => import("./pages/admin/SubscribersPage"));
 
 // ── NEW: Checkout flow ──────────────────────────────────────────────────
-import CheckoutPage from "./pages/CheckoutPage";
-import OrderSuccessPage from "./pages/OrderSuccessPage";
-import MyOrdersPage from "./pages/MyOrderPage";
-import MyDesignsPage from "./pages/MyDesignsPage";
+const CheckoutPage = lazy(() => import("./pages/CheckoutPage"));
+const OrderSuccessPage = lazy(() => import("./pages/OrderSuccessPage"));
+const MyOrdersPage = lazy(() => import("./pages/MyOrderPage"));
+const MyDesignsPage = lazy(() => import("./pages/MyDesignsPage"));
 // ──────────────────────────────────────────────────────────────────────────
-import GarmentPhotosPage from "./pages/admin/GarmentPhotosPage";
-import GarmentTypesPage from "./pages/admin/GarmentTypesPage";
-import ArtCategoriesPage from "./pages/admin/ArtCategoriesPage";
-import ArtDesignsPage from "./pages/admin/ArtDesignsPage";
+const GarmentPhotosPage = lazy(() => import("./pages/admin/GarmentPhotosPage"));
+const GarmentTypesPage = lazy(() => import("./pages/admin/GarmentTypesPage"));
+const ArtCategoriesPage = lazy(() => import("./pages/admin/ArtCategoriesPage"));
+const ArtDesignsPage = lazy(() => import("./pages/admin/ArtDesignsPage"));
 
-import AdminInvoicesPage from "./pages/admin/AdminInvoicesPage";
-import PrintSheetsPage from "./pages/admin/PrintSheetsPage";
-import InvoicePreviewPage from "./pages/admin/InvoicePreviewPage";
-import AdminOrdersPage from "./pages/admin/AdminOrdersPage";
-import ProductBulkUploadPage from "./pages/admin/ProductBulkUploadPage";
-import ArtBulkUploadPage from "./pages/admin/ArtBulkUploadPage";
+const AdminInvoicesPage = lazy(() => import("./pages/admin/AdminInvoicesPage"));
+const PrintSheetsPage = lazy(() => import("./pages/admin/PrintSheetsPage"));
+const InvoicePreviewPage = lazy(() => import("./pages/admin/InvoicePreviewPage"));
+const AdminOrdersPage = lazy(() => import("./pages/admin/AdminOrdersPage"));
+const ProductBulkUploadPage = lazy(() => import("./pages/admin/ProductBulkUploadPage"));
+const ArtBulkUploadPage = lazy(() => import("./pages/admin/ArtBulkUploadPage"));
 // ✅ NEW: Review moderation admin page
-import AdminReviewsPage from "./pages/admin/AdminReviewsPage";
+const AdminReviewsPage = lazy(() => import("./pages/admin/AdminReviewsPage"));
 // ✅ NEW: Settings module
-import SettingsLayout from "./pages/admin/settings/SettingsLayout";
-import AboutUs from "./pages/AboutUs";
-import PolicyPage from "./pages/PolicyPage";
-import ContactUs from "./pages/ContactUs";
+const SettingsLayout = lazy(() => import("./pages/admin/settings/SettingsLayout"));
+const AboutUs = lazy(() => import("./pages/AboutUs"));
+const PolicyPage = lazy(() => import("./pages/PolicyPage"));
+const ContactUs = lazy(() => import("./pages/ContactUs"));
+
+// While a page downloads (each page loads only when it is opened — the first download stays small for phones)
+const PageLoading = () => (
+  <div role="status" aria-label="Loading" style={{ minHeight: "70vh", display: "grid", placeItems: "center" }}>
+    <span className="page-loading-dot" />
+  </div>
+);
+
+// On the home page, the light customer pages download quietly in the background, so the first tap is instant.
+// (Only small pages: the Design Room downloads when it is opened.)
+const preloadCustomerPages = () => {
+  const go = () => {
+    import("./pages/CustomizablePage");
+    import("./pages/ChooseColorPage");
+    import("./pages/TeamOrdersPage");
+    import("./pages/CartPage");
+    import("./pages/LoginPage");
+  };
+  if ("requestIdleCallback" in window) window.requestIdleCallback(go, { timeout: 4000 });
+  else setTimeout(go, 2500);
+};
+if (typeof window !== "undefined") {
+  if (document.readyState === "complete") preloadCustomerPages();
+  else window.addEventListener("load", preloadCustomerPages, { once: true });
+}
 
 const OrdersPage = () => (
   <PlaceholderAdminPage
@@ -178,7 +203,9 @@ const CustomerLayout = () => (
   <>
     <ScrollToTop />
     <Navbar />
-    <Outlet />
+    <Suspense fallback={<PageLoading />}>
+      <Outlet />
+    </Suspense>
     <SiteFooter />
     <MobileTabBar />
   </>
@@ -236,6 +263,7 @@ export default function App() {
   return (
     <Router>
       <BrandFavicon />
+      <Suspense fallback={<PageLoading />}>
       <Routes>
         {/* Public: auth pages (only for guests) */}
         <Route
@@ -401,6 +429,7 @@ export default function App() {
         />
 
       </Routes>
+      </Suspense>
     </Router>
   );
 }
