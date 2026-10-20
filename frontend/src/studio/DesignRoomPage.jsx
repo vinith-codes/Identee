@@ -26,7 +26,7 @@ import Rolling from "./Rolling";
 import Assistant from "./Assistant";
 import { AFTER_AI_SLOGANS, AFTER_DESIGN_CHIPS, BACK, CHANGE_IDEA, DRAW_MINE, PHOTO_AS_IS, PHOTO_CHOICES, PHOTO_CUT, bot as botSays, checkMessages, chips as chipRow, firstMessages, firstState } from "./assistantScript";
 import { styleIn } from "./styleInfo";
-import { photoJobFrom } from "./photoIntent";
+import { areaFromWords, photoJobFrom } from "./photoIntent";
 import aiService from "../services/aiService";
 import { applyAiOps, areaFor, describeDesign } from "./aiOps";
 import WaitCard from "./WaitCard";
@@ -1359,6 +1359,16 @@ export default function DesignRoomPage() {
     if (!elements.some((e) => e.id === put.elId)) continue;
     (aiOn[put.url] ||= []).push(positions.find((p) => p.key === key)?.label || key);
   }
+  // "Adjust on tee" on a picture in the chat: it is opened on its print area and selected, so its settings show
+  // (size, position, turn, flip, remove background, sharper, duplicate, delete). The chat stays: Assistant brings it back.
+  const adjustAiDesign = (url) => {
+    const hit = Object.entries(aiPlaced).find(([, put]) => put.url === url && elements.some((e) => e.id === put.elId));
+    if (!hit) return say("That picture isn’t on the tee any more. Tap Add to tee to put it back.");
+    const [key, put] = hit;
+    setAssist(false);
+    openArea(key, { force: true });
+    setSelectedId(put.elId);
+  };
   // "Remove from tee" on a picture in the chat: takes it off every area it is on (one Undo step), the picture stays in the chat
   const removeAiDesign = (url) => {
     const on = Object.entries(aiPlaced).filter(([, put]) => put.url === url && elements.some((e) => e.id === put.elId));
@@ -1524,10 +1534,10 @@ export default function DesignRoomPage() {
     if (!uploadDesignImage.fulfilled.match(res)) return [botSays(res.payload || "The photo didn’t send. Check the internet connection, then tap 📎 and try again.")];
     const photo = { url: res.payload.path, w: a.w, h: a.h };
     if (a.text) {
-      setChatState((st) => ({ ...st, photo, photoUrl: null, wait: null }));
+      setChatState((st) => ({ ...st, photo, photoUrl: null, wait: null, photoAreaKey: null }));
       return [{ photoSent: photo }, { next: { type: "photoUnderstand", text: a.text } }];
     }
-    setChatState((st) => ({ ...st, photo, photoUrl: null, wait: "photoWhat" }));
+    setChatState((st) => ({ ...st, photo, photoUrl: null, wait: "photoWhat", photoAreaKey: null }));
     return [{ photoSent: photo }, botSays("Got your photo. Tell me what you want in your own words — for example “only the design from this tee” or “my photo on the back”. Or tap one:"), chipRow([...PHOTO_CHOICES, "Something else"])];
   };
   // the photo's print area: the one named, if free — else the open one, else the main front area, else any free one
@@ -1539,7 +1549,7 @@ export default function DesignRoomPage() {
     const photo = chatState.photo;
     if (!photo) return [botSays("I don’t have your photo any more. Tap 📎 and send it again.")];
     const areas = assistantCtx().areas;
-    let plan = a.job ? { job: a.job } : photoJobFrom(a.text, { areas, photoStyles: ai.photoStyles || [] });
+    let plan = a.job ? { job: a.job, areaKey: chatState.photoAreaKey || null } : photoJobFrom(a.text, { areas, photoStyles: ai.photoStyles || [] });
     let seen = "";
     let question = "";
     if (a.text && ai.available && ai.text && isLoggedIn()) {
@@ -1555,16 +1565,26 @@ export default function DesignRoomPage() {
     }
     if (run?.stopped) return [];
     if (!plan) {
-      setChatState((st) => ({ ...st, wait: "photoWhat" }));
+      // (the area they named is kept for the choice they make next)
+      const named = areaFromWords(a.text, areas);
+      setChatState((st) => ({ ...st, wait: "photoWhat", photoAreaKey: named || st.photoAreaKey || null }));
       return [botSays(question || (seen ? `I see ${seen}. Should I copy just the design from it, or print the whole photo?` : "Should I copy just the design from this photo, or print the whole photo? Tell me, or tap one:")), chipRow([...PHOTO_CHOICES, "Something else"])];
     }
     const aiOk = ai.available && isLoggedIn() && ai.left !== 0;
     const artStyle = plan.style && (ai.photoStyles || []).includes(plan.style) ? plan.style : (ai.photoStyles || []).find((x) => (aiOk ? !/free/i.test(x) : /free/i.test(x))) || null;
+    // "add this to my tee": the photo made print-ready (the photo reading turns it into "copy" when it is a printed
+    // garment); a photo too small for the area gets "Make it sharper" ticked — shown on the card, with its cost
+    const job = plan.job === "add" ? "photo" : plan.job;
+    const areaKey = photoArea(plan.areaKey || chatState.photoAreaKey);
+    const pos = positions.find((p) => p.key === areaKey);
+    const small = job === "photo" && aiOk && pos && printDpi(pos, photo.w, photo.h) < 150;
     const full = {
-      job: plan.job,
+      job,
       photo,
       seen,
-      areaKey: photoArea(plan.areaKey),
+      areaKey,
+      ready: plan.job === "add",
+      sharpenWhy: small ? "small" : null,
       change: plan.job === "copy" ? plan.change || null : null,
       // (what the photo reading found in the design: given to the picture AI so the copy's words come out right)
       design: plan.design || null,
@@ -1572,9 +1592,10 @@ export default function DesignRoomPage() {
       subject: plan.job === "inspired" ? plan.subject || a.text : null,
       style: plan.job === "art" ? artStyle : plan.job === "inspired" ? (ai.styles.includes(plan.style) ? plan.style : styleIn(plan.subject || a.text, ai.styles) || ai.styles[0]) : null,
       cutOut: plan.cutOut !== false,
-      enhance: false,
+      enhance: Boolean(small),
     };
-    return [botSays("Here’s my plan for your photo. Check it, then tap Make it."), { photoPlan: full }];
+    const where = pos ? ` for ${pos.label}` : "";
+    return [botSays(plan.job === "add" ? `Here’s your photo, made print-ready${where}. Check it, then tap Make it.` : "Here’s my plan for your photo. Check it, then tap Make it."), { photoPlan: full }];
   };
   // "Make it" on the photo plan
   const chatPhotoMake = async (a, progress) => {
@@ -1639,7 +1660,7 @@ export default function DesignRoomPage() {
   const chatPhotoPlace = async (a, progress) => {
     const photo = chatState.photo;
     if (!photo) return [botSays("I don’t have your photo any more. Tap 📎 and send it again.")];
-    const pos = photoTarget;
+    const pos = positions.find((p) => p.key === photoArea(chatState.photoAreaKey)) || photoTarget;
     if (!pos) return [botSays("This garment has no free print area. Remove a print first.")];
     let r = { url: photo.url, w: photo.w, h: photo.h, cut: false };
     if (a.cutOut) {
@@ -1749,6 +1770,7 @@ export default function DesignRoomPage() {
     }
     if (a.type === "place") return placeAiDesign(a.url, a.areaKey, { move: !!a.move });
     if (a.type === "unplace") return removeAiDesign(a.url);
+    if (a.type === "adjustPlaced") return adjustAiDesign(a.url);
     if (a.type === "login") return goToLogin();
     if (a.type === "text") return addText(a.text);
     if (a.type === "tab") {

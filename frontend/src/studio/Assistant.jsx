@@ -405,13 +405,18 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
                   <div key={url} className="dr-design">
                     <img src={imageUrl(url, 400)} alt="A design made for you" loading="lazy" style={{ background: fabric }} />
                     {placed[url]?.length ? <span className="dr-onlabel">On {placed[url].join(" and ")} ✓</span> : null}
-                    {/* every design stays usable: Add to tee replaces what the assistant put on this area; Other area uses it somewhere else as well */}
-                    <button type="button" className="dr-mini" onClick={() => onAct({ type: "place", url })}>Add to tee</button>
-                    <div className="dr-designlinks">
-                      <button type="button" onClick={() => setPickFor(pickFor === url ? null : url)} aria-expanded={pickFor === url}>Other area</button>
-                      {!m.photo && <button type="button" onClick={() => startChange(url)}>Change</button>}
+                    {/* Everything a customer may want with a picture, as buttons (never stuck): what fits depends on whether
+                        it is on the tee. Adjust on tee opens it there, ready to resize, move, turn, flip, cut out or sharpen. */}
+                    <div className="dr-designacts">
+                      {placed[url]?.length ? (
+                        <button type="button" className="dr-mini" onClick={() => onAct({ type: "adjustPlaced", url })}>Adjust on tee</button>
+                      ) : (
+                        <button type="button" className="dr-mini" onClick={() => onAct({ type: "place", url })}>Add to tee</button>
+                      )}
+                      <button type="button" className="dr-dact" onClick={() => setPickFor(pickFor === url ? null : url)} aria-expanded={pickFor === url}>{placed[url]?.length ? "Move or copy to…" : "Other area…"}</button>
+                      {!m.photo && <button type="button" className="dr-dact" disabled={!!thinking} onClick={() => startChange(url)}>Change it</button>}
                       {/* liked only one of the pictures: this one comes off the tee (Undo would take off all drawn together) */}
-                      {placed[url]?.length ? <button type="button" onClick={() => onAct({ type: "unplace", url })}>Remove from tee</button> : null}
+                      {placed[url]?.length ? <button type="button" className="dr-dact out" onClick={() => onAct({ type: "unplace", url })}>Remove from tee</button> : null}
                     </div>
                     {pickFor === url && (
                       <div className="dr-designareas">
@@ -431,10 +436,14 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
                     )}
                   </div>
                 ))}
-                {m.again && i === lastDesigns && (
-                  <button type="button" className="dr-mini dr-tryagain" disabled={!!thinking} onClick={() => tryAnother(m.again)}>
+                {/* another version, under every set of pictures (it uses one of today's requests) */}
+                {m.again && (
+                  <button type="button" className="dr-dact dr-tryagain" disabled={!!thinking} onClick={() => tryAnother(m.again)}>
                     ↻ Try another
                   </button>
+                )}
+                {i === lastDesigns && m.designs.some((u) => placed[u]?.length) && (
+                  <p className="dr-designhint">Tap “Adjust on tee” to resize, move or turn it — or just tell me, like “make it bigger” or “move it up”.</p>
                 )}
               </div>
             );

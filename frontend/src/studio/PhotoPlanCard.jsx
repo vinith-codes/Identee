@@ -47,7 +47,10 @@ export default function PhotoPlanCard({ plan, areas, styles, photoStyles, ai, li
   const styleList = job === "art" ? photoStyles.filter((s) => aiOk || /free/i.test(s)) : styles;
   const what = {
     copy: plan.change ? `Only the design from your photo, flat and clean, with this change: ${plan.change}` : "Only the design from your photo, made flat, straight and clean",
-    photo: plan.cutOut ? "Your photo, with its background removed" : "Your photo, as it is",
+    // ready: "add this to my tee" — said as print-ready, with what that means for this photo
+    photo: plan.ready
+      ? `Your photo, print-ready: ${[plan.cutOut && "background removed", plan.enhance && "made sharper"].filter(Boolean).join(", ") || "as it is"}`
+      : plan.cutOut ? "Your photo, with its background removed" : "Your photo, as it is",
     art: /free/i.test(plan.style || "") ? "Your photo in 4 free art looks (sketch, stencil, poster, pop art)" : `Your photo redrawn as ${plan.style ? plan.style.toLowerCase() : "art"}`,
     inspired: `A new design inspired by your photo${plan.subject ? `: ${plan.subject}` : ""}`,
   }[job];
@@ -74,6 +77,7 @@ export default function PhotoPlanCard({ plan, areas, styles, photoStyles, ai, li
         <div className="ppc-opts">
           <label><input type="checkbox" checked={plan.cutOut} onChange={(e) => set({ cutOut: e.target.checked })} /> Remove the background <small>free</small></label>
           {aiOk && <label><input type="checkbox" checked={!!plan.enhance} onChange={(e) => set({ enhance: e.target.checked })} /> Make it sharper with AI <small>1 request</small></label>}
+          {aiOk && plan.sharpenWhy === "small" && <p className="ppc-why">Your photo is small for this print area, so I ticked “Make it sharper” — it would print a bit soft otherwise. Untick it to keep it free.</p>}
         </div>
       )}
       {(job === "art" || job === "inspired") && (

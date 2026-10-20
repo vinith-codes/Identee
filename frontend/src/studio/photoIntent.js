@@ -4,7 +4,9 @@
 //   photo     the photo itself, printed (usually without its background) ("print my photo", "as it is")
 //   art       the photo redrawn in a style ("my dog as a cartoon")
 //   inspired  a new design that takes the look from the photo ("something like this but with a tiger")
+//   add       "add this to my tee": made print-ready (the photo, or the copied design if it is a printed garment)
 // Returns { job, style, areaKey, change, subject, cutOut } — or null when the words don't say.
+// Every job goes to the plan card first: nothing is made until the customer taps Make it.
 
 const ART = [
   ["Cartoon", /\b(cartoon\w*|anime|comic|caricature)\b/],
@@ -15,17 +17,27 @@ const ART = [
 ];
 const escapeRe = (x) => x.replace(/[.*+?^$(){}|[\]\\]/g, "\\$&");
 
-export function photoJobFrom(text, { areas = [], photoStyles = [] } = {}) {
-  const t = String(text || "").trim();
-  const low = t.toLowerCase();
-  if (low.length < 2) return null;
-  // the print area named ("on the back", "left chest"): the longest name wins ("vertical front" over "front")
+// The print area named in the words ("on the back", "left chest") — the longest name wins ("vertical front" over
+// "front"); "the front" / "the back" is that side's main free area. null when none is named.
+export function areaFromWords(text, areas = []) {
+  const low = String(text || "").toLowerCase();
   const named = areas
     .flatMap((a) => [a.label, a.label.replace(/^shorts\s*[–-]\s*/i, "")].map((n) => ({ a, n: n.toLowerCase() })))
     .sort((x, y) => y.n.length - x.n.length)
     .find(({ n }) => new RegExp(String.raw`\b${escapeRe(n)}\b`).test(low));
-  const side = !named && /\b(on|at|for) (the )?back\b/.test(low) ? "back" : !named && /\b(on|at|for) (the )?front\b/.test(low) ? "front" : null;
-  const areaKey = named?.a.key || (side ? areas.find((a) => a.side === side && a.main && a.free)?.key || areas.find((a) => a.side === side && a.free)?.key || null : null);
+  if (named) return named.a.key;
+  const side = /\b(on|at|for|to) (the |my )?back\b/.test(low) ? "back" : /\b(on|at|for|to) (the |my )?front\b/.test(low) ? "front" : null;
+  return side ? areas.find((a) => a.side === side && a.main && a.free)?.key || areas.find((a) => a.side === side && a.free)?.key || null : null;
+}
+
+export function photoJobFrom(text, { areas = [], photoStyles = [] } = {}) {
+  const t = String(text || "").trim();
+  const low = t.toLowerCase();
+  if (low.length < 2) return null;
+  const areaKey = areaFromWords(t, areas);
+  // "add this to my tee on the front", "put it on the back": made print-ready for that area (the plan card shows it
+  // ready to go; the customer still taps Make it)
+  const addIt = /\b(add|put|place|stick|apply|print)\b.{0,40}\b(on|to|onto|in|at)\b.{0,20}\b(my |the |our )?(tee|t-?shirts?|shirt|top|front|back|chest|sleeves?|it)\b/.test(low) || /^(add|put|place|stick)\s+(this|it|that)\b/.test(low);
   const base = { areaKey, style: null, change: null, subject: null, cutOut: true };
 
   // a new design that only borrows the look: "like this but with a tiger", "inspired by this"
@@ -48,6 +60,9 @@ export function photoJobFrom(text, { areas = [], photoStyles = [] } = {}) {
   // the photo itself
   const asPhoto = /\b(as it is|as is|print (this|my|the|our) (photo|picture|pic|image|selfie)|(my|this|our|the) (photo|picture|pic|selfie)\b|remove (the )?background|without (the |its )?background|cut ?out|(photo|picture|pic|selfie)s?)\b/.test(low);
   if (asPhoto) return { ...base, job: "photo", cutOut: !/\bas (it )?is\b|\bwith (the |its )?background\b|\bkeep (the )?background\b/.test(low) };
+  // "add this to my tee": made print-ready — the photo itself, unless the photo reading sees a printed garment (then
+  // its design is copied). Without the photo reading it is the photo, and the card offers "Copy just the design".
+  if (addIt) return { ...base, job: "add" };
   // ("print this" alone could mean the photo or the design on it: asked, not guessed)
   return null;
 }
