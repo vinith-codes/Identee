@@ -1,4 +1,4 @@
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useEffect } from "react";
 // App.jsx
 import {
   BrowserRouter as Router,
@@ -29,7 +29,10 @@ import Home from "./pages/Home";
 const CategoryProductsPage = lazy(() => import("./pages/CategoryProductsPage"));
 const SingleProductPage = lazy(() => import("./pages/SingleProductPage"));
 // The design studio (3D + editor libraries) loads only when it is opened.
-const StudioRoute = lazy(() => import("./studio/StudioRoute"));
+// (the design room is big — about 360 KB to download — so the shop pages fetch it in the background, below:
+// tapping "Start designing" then opens it at once instead of leaving the old page on screen while it downloads)
+const loadStudio = () => import("./studio/StudioRoute");
+const StudioRoute = lazy(loadStudio);
 const AdminUsersPage = lazy(() => import("./pages/admin/AdminUserPage"));
 const AdminEditUserPage = lazy(() => import("./pages/admin/AdminEditUserPage"));
 const AdminUserDetailsPage = lazy(() => import("./pages/admin/AdminUserDetailsPage"));
@@ -199,17 +202,29 @@ const NotFound = () => (
 // ──────────────────────────────────────────────────────────────────────────
 
 // ── Customer layout: Navbar + page content (+ the phones' bottom bar) ──────
-const CustomerLayout = () => (
-  <>
-    <ScrollToTop />
-    <Navbar />
-    <Suspense fallback={<PageLoading />}>
-      <Outlet />
-    </Suspense>
-    <SiteFooter />
-    <MobileTabBar />
-  </>
-);
+// a few seconds after a shop page has loaded (and the phone is idle), the design room is fetched in the background
+const usePreloadStudio = () => {
+  useEffect(() => {
+    const idle = window.requestIdleCallback || ((fn) => setTimeout(fn, 1));
+    const timer = setTimeout(() => idle(() => loadStudio().catch(() => {})), 2500);
+    return () => clearTimeout(timer);
+  }, []);
+};
+
+const CustomerLayout = () => {
+  usePreloadStudio();
+  return (
+    <>
+      <ScrollToTop />
+      <Navbar />
+      <Suspense fallback={<PageLoading />}>
+        <Outlet />
+      </Suspense>
+      <SiteFooter />
+      <MobileTabBar />
+    </>
+  );
+};
 
 // ── Auth helpers ──────────────────────────────────────────────────────────
 const getUserInfo = () => {

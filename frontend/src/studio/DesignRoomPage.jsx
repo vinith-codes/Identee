@@ -2814,24 +2814,12 @@ function Fitting({ garment, colours, colour, onColour, sizes, size, onSize, onFi
     <div className="dr-overlay fit">
       <div className="dr-fit">
         {earlier && (
-          <div className={`dr-resume${asking ? " ask" : ""}`} role={asking ? "alertdialog" : undefined} aria-label={asking ? "Start a new design?" : undefined}>
-            {asking ? (
-              <>
-                <span>Start a new design? Your unfinished design ({earlier.elements.length} item{earlier.elements.length === 1 ? "" : "s"}) will be replaced.</span>
-                <span className="dr-resume-btns">
-                  <button type="button" onClick={onContinue}>Continue my design</button>
-                  <button type="button" className="alt" onClick={() => { const go = asking; setAsking(null); go(); }}>Start new</button>
-                </span>
-              </>
-            ) : (
-              <>
-                <span>
-                  You have an unfinished design ({earlier.elements.length} item{earlier.elements.length === 1 ? "" : "s"}
-                  {earlier.name ? ` · ${earlier.name}` : ""}).
-                </span>
-                <button type="button" onClick={onContinue}>Continue it</button>
-              </>
-            )}
+          <div className="dr-resume">
+            <span>
+              You have an unfinished design ({earlier.elements.length} item{earlier.elements.length === 1 ? "" : "s"}
+              {earlier.name ? ` · ${earlier.name}` : ""}).
+            </span>
+            <button type="button" onClick={onContinue}>Continue it</button>
           </div>
         )}
         <div>
@@ -2891,6 +2879,24 @@ function Fitting({ garment, colours, colour, onColour, sizes, size, onSize, onFi
           {credit && <a href={credit.href} target="_blank" rel="noopener noreferrer">{credit.text}</a>}
         </div>
       </div>
+      {/* asked in front of everything when a way in is pressed (at the top of the panel it was scrolled out of
+          sight by the time the customer reached the buttons) — centred on a laptop, from the bottom on a phone */}
+      {earlier && asking && (
+        <div className="dr-askback" onClick={(e) => e.target === e.currentTarget && setAsking(null)}>
+          <div className="dr-ask" role="alertdialog" aria-modal="true" aria-labelledby="dr-ask-h">
+            <h2 id="dr-ask-h">Start a new design?</h2>
+            <p>
+              You have an unfinished design ({earlier.elements.length} item{earlier.elements.length === 1 ? "" : "s"}
+              {earlier.name ? ` · ${earlier.name}` : ""}). Starting a new one replaces it.
+            </p>
+            <div className="dr-ask-btns">
+              <button type="button" onClick={onContinue}>Continue my design</button>
+              <button type="button" className="alt" onClick={() => { const go = asking; setAsking(null); go(); }}>Start new</button>
+              <button type="button" className="link" onClick={() => setAsking(null)}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
