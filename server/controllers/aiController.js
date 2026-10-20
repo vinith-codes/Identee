@@ -25,6 +25,7 @@ import GarmentType from "../models/garmentTypeModel.js";
 import { uploadFile, deleteStoredFile } from "../utils/imageStorage.js";
 import { cutOutPlainBackground, onPlainBackground } from "../services/cutoutService.js";
 import { aiTextConfigured, improveIdea, planEdit, readPhotoRequest, writeSlogans } from "../services/aiTextService.js";
+import { removePhotoBackground } from "../services/backgroundService.js";
 import sharp from "sharp";
 import { artFilters, FILTER_STYLE } from "../services/artFilterService.js";
 import { xaiConfigured, xaiEditImage, xaiModel, xaiNewImage } from "../services/xaiImageService.js";
@@ -104,7 +105,7 @@ export const getAiStatus = asyncHandler(async (req, res) => {
   const left = req.user ? Math.max(0, settings.dailyPerUser - (await usedToday(req.user._id))) : null;
   // text: the assistant can write slogans to order (same key; switched off together with the design maker)
   // designAddOnInr: what an AI-made or uploaded picture adds to the tee's price (art library: free; the Design Room shows it)
-  res.json({ available: !reason, reason, text: aiTextConfigured() && settings.enabled, styles: Object.keys(AI_STYLES), photoStyles: [...Object.keys(PHOTO_STYLES), FILTER_STYLE], dailyPerUser: settings.dailyPerUser, left, designAddOnInr: settings.designAddOnInr });
+  res.json({ available: !reason, reason, text: aiTextConfigured() && settings.enabled, styles: Object.keys(AI_STYLES), photoStyles: Object.keys(PHOTO_STYLES) /* (the free art filters were taken away, 20 Oct 2026) */, dailyPerUser: settings.dailyPerUser, left, designAddOnInr: settings.designAddOnInr });
 });
 
 // Only pictures this feature made may be sent back to be changed.
@@ -285,7 +286,11 @@ export const makeAiDesign = asyncHandler(async (req, res) => {
   if (!made.length) {
     const err = results[0].reason;
     // the picture service refused the customer's photo: they still get art, made by our own filters
-    if (fromPhoto && googleRefused) return sendFilterArt(req, res, { refused: true, left: Math.max(0, settings.dailyPerUser - used) });
+    // (the picture service refused the customer's photo: said plainly — the chat offers to use the photo as it is, free)
+    if (fromPhoto && googleRefused) {
+      res.status(422);
+      throw new Error("The picture service wouldn’t redraw this photo — it refuses some photos, well-known faces among them. You weren’t charged. You can still put your photo on as it is, free.");
+    }
     res.status(err?.status || 502);
     throw new Error(err?.message || "The design maker had a problem. Please try again.");
   }
@@ -622,4 +627,26 @@ export const makePhotoPlan = asyncHandler(async (req, res) => {
     res.status(err?.status === 503 ? 503 : 502);
     throw new Error("I couldn’t read the photo just now.");
   }
+});
+
+// POST /api/ai/remove-background  (login required): { url } — a photo the customer uploaded
+// -> { url, width, height }: the photo without its background (a transparent PNG), stored like an upload.
+// Free: our own model on this server (services/backgroundService.js), not an AI service, not a daily request.
+// (It used to run in the customer's browser, where iPhones ran out of memory and reloaded the page.)
+export const makeBackgroundRemoval = asyncHandler(async (req, res) => {
+  if (!isOurUpload(req.body.url)) {
+    res.status(400);
+    throw new Error("Upload the photo here first.");
+  }
+  const photo = await fetchOurImage(req.body.url, req);
+  let cut;
+  try {
+    cut = await removePhotoBackground(photo.data);
+  } catch (err) {
+    console.error("[background] removal failed:", err?.message || err);
+    res.status(502);
+    throw new Error("The background couldn’t be removed just now. Please try again.");
+  }
+  const stored = await uploadFile(cut.buffer, "image/png", "designs", "cut-out.png");
+  res.status(201).json({ url: stored.url, width: cut.width, height: cut.height });
 });

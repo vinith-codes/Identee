@@ -386,7 +386,7 @@
 .dr-stepno { display: inline-grid; place-items: center; width: 20px; height: 20px; margin-right: 4px; border-radius: 50%; background: var(--ink); color: #fff; font: 700 11px/1 var(--body); vertical-align: 2px; }
 .dr-addhead { display: flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 700; color: var(--ink-soft); }
 .dr-addhead .dr-chip { margin-left: auto; min-height: 30px; padding: 5px 10px; }
-.dr-addtabs { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 2px; padding: 3px; border: 1px solid var(--line); border-radius: 12px; background: #FBF9F4; }
+.dr-addtabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 2px; padding: 3px; border: 1px solid var(--line); border-radius: 12px; background: #FBF9F4; }
 .dr-addtab { position: relative; display: grid; justify-items: center; gap: 3px; padding: 8px 2px 6px; border: 0; border-radius: 9px; background: none; font-size: 11.5px; font-weight: 600; color: var(--muted); }
 .dr-addtab svg { width: 19px; height: 19px; }
 .dr-addtab:hover { color: var(--ink); }
@@ -454,7 +454,7 @@
 /* step 2 */
 .dr-flatwrap { padding: 6px 20px 4px; }
 .dr-controls { padding: 14px 20px 22px; }
-.dr-addtabs { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0; margin: 8px 20px 0; padding: 0; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; background: none; flex-shrink: 0; }
+.dr-addtabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; margin: 8px 20px 0; padding: 0; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; background: none; flex-shrink: 0; }
 .dr-addtab { padding: 10px 0 11px; border-radius: 0; gap: 4px; font-size: 12px; }
 .dr-addtab.on { background: none; box-shadow: none; color: var(--ink); }
 .dr-addtab.on::after { content: ""; position: absolute; left: 18%; right: 18%; bottom: -1px; height: 2px; background: var(--gold); }
@@ -1251,3 +1251,33 @@ p.pc-area { margin: 0; font-size: 13px; color: var(--muted); }
 .dr-dact.out { color: #9A3B2E; }
 .dr-designs .dr-tryagain { grid-column: 1 / -1; justify-self: stretch; }
 .dr-designhint { grid-column: 1 / -1; margin: 0; font-size: 12px; line-height: 1.4; color: var(--muted); }
+
+/* 📎 lights up when the chat was opened to send a photo (home "Your photo", the start card, the Upload tab) */
+.dr-composer .dr-attach.nudge { border-color: var(--gold); box-shadow: 0 0 0 3px var(--gold-soft); animation: dr-nudge 1s ease-in-out 3; }
+@keyframes dr-nudge { 50% { transform: scale(1.12); } }
+@media (prefers-reduced-motion: reduce) { .dr-composer .dr-attach.nudge { animation: none; } }
+
+/* a picture in the chat, full width: the picture on the left, its status and buttons beside it — the buttons are
+   about twice as wide as in the old two-up grid, easier to read and tap (the wide assistant keeps two side by side) */
+.dr-designs { grid-template-columns: minmax(0, 1fr); }
+.dr-design { grid-template-columns: 120px minmax(0, 1fr); column-gap: 12px; row-gap: 6px; align-items: start; padding: 10px; }
+.dr-design > img { grid-column: 1; grid-row: 1 / span 2; }
+.dr-design > .dr-onlabel { grid-column: 2; align-self: end; }
+.dr-design > .dr-designacts { grid-column: 2; }
+.dr-design > .dr-designareas, .dr-design > .dr-moveask { grid-column: 1 / -1; }
+.dr-design .dr-dact, .dr-design .dr-designacts .dr-mini { min-height: 38px; font-size: 12.5px; }
+.dr-assist[data-wide] .dr-designs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+/* the wide assistant too: one picture per row (two side by side made the buttons narrow again), not over-stretched */
+.dr-assist[data-wide] .dr-designs { grid-template-columns: minmax(0, 1fr); }
+.dr-design { max-width: 520px; }
+/* phones: Save next to Undo / Redo on the tee (the top bar has no room for it) */
+.dr-undo .dr-undosave { display: none; }
+@media (max-width: 760px) {
+  .dr-undo .dr-undosave { display: block; width: auto; padding: 0 14px; margin-left: 4px; border-left: 1px solid var(--line); border-radius: 0 999px 999px 0; font-size: 13px; font-weight: 700; color: var(--ink); }
+}
+/* photo plan: several print areas, one row each */
+.ppc-arearow { display: flex; gap: 6px; align-items: center; }
+.ppc-arearow select { flex: 1; min-width: 0; }
+.ppc-addarea { justify-self: start; min-height: 36px; padding: 0 12px; border: 1px dashed var(--line); border-radius: 10px; background: #fff; font-size: 13px; font-weight: 700; color: var(--ink); }
+.ppc-addarea:hover { border-color: var(--ink); }
+.ppc-area .pc-x { width: auto; padding: 0 10px; font-size: 12.5px; font-weight: 700; white-space: nowrap; }

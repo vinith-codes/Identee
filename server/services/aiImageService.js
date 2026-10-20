@@ -79,6 +79,10 @@ export const PHOTO_STYLES = {
   Sticker: "a glossy die-cut sticker illustration with a thick white border around the subject",
   Watercolour: "a soft watercolour painting with loose edges",
   "Pop art": "a bold pop-art poster with halftone dots and strong contrasting colours",
+  // (20 Oct 2026: three more, and the free "art filters" were taken away)
+  Realistic: "a lifelike, highly detailed digital painting that keeps the subject looking real — the same face, features, hair and clothes — with natural light and rich detail, like premium t-shirt art",
+  Anime: "a clean anime-style illustration with expressive eyes, crisp line work and soft cel shading, keeping the person recognisable",
+  "Line art": "minimal single-weight line art with a few confident clean lines and no shading, keeping the subject recognisable",
 };
 export const photoArtPrompt = ({ style, teeColour, teeIsDark, variation, of }) =>
   [

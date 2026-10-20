@@ -44,6 +44,8 @@ export const PHOTO_ART = "Turn it into art";
 // a photo of a printed tee / hoodie / poster: only its design, copied flat (1 request)
 export const PHOTO_COPY = "Copy just the design from it";
 export const PHOTO_CHOICES = [PHOTO_COPY, PHOTO_AS_IS, PHOTO_CUT, PHOTO_ART];
+// after art (or a copied design) was made from the photo: back to the photo itself, on the same areas (free)
+export const PHOTO_REVERT = "Use my photo instead · free";
 // Ways back, so the customer is never stuck: every question has one of these (or "Something else").
 export const BACK = "← Back";
 export const CHANGE_IDEA = "Change my idea";
@@ -295,11 +297,13 @@ export function replyTo(text, ctx, st, { tapped = false } = {}) {
   if (st.photo && t === PHOTO_COPY) return done([act({ type: "photoUnderstand", text: "", job: "copy" })]);
   if (st.photo && t === PHOTO_AS_IS) return done([act({ type: "photoPlace", cutOut: false })]);
   if (st.photo && t === PHOTO_CUT) return done([act({ type: "photoPlace", cutOut: true })]);
+  if (st.photo && t === PHOTO_REVERT) return done([act({ type: "photoMake", job: "photo", cutOut: true, areaKeys: st.photoLastKeys || [] })]);
   if (st.photo && t === PHOTO_ART) {
-    // (the free looks also work when the AI is off or today's requests are used up)
-    const free = (ctx.ai.photoStyles || []).filter((x) => /free/i.test(x));
-    const styles = ctx.ai.available && ctx.ai.loggedIn && ctx.ai.left !== 0 ? ctx.ai.photoStyles || [] : free;
-    return done([bot(styles.length > free.length ? "Which style? The AI styles use 1 request each; the free looks don’t." : "Here are the free looks (the AI styles aren’t available right now)."), chips([...styles, BACK])], { photoUrl: st.photo.url, wait: "photoStyle", backTo: "photoChoice" });
+    // art needs the AI (there are no free looks any more): without it, the free choices for the photo itself
+    if (!(ctx.ai.available && ctx.ai.loggedIn && ctx.ai.left !== 0)) {
+      return done([bot(!ctx.ai.loggedIn ? "Log in to turn your photo into art." : ctx.ai.left === 0 ? "You’ve used today’s AI requests, so art has to wait until tomorrow. You can still put your photo on, free:" : "Turning photos into art isn’t available right now. You can still put your photo on, free:"), chips([...(ctx.ai.loggedIn ? [PHOTO_CUT, PHOTO_AS_IS] : ["Log in"]), BACK])], { backTo: "photoChoice" });
+    }
+    return done([bot("Which style? Each one uses 1 request."), chips([...(ctx.ai.photoStyles || []), BACK])], { photoUrl: st.photo.url, wait: "photoStyle", backTo: "photoChoice" });
   }
 
   /* ----- photo to art (the image AI redraws the customer's own photo) ----- */

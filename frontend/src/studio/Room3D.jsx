@@ -919,7 +919,7 @@ function Bottoms({ part, teeCentre, colour, areas, hotspots, glowKey, glowSpot, 
 
 const onBottoms = (spot) => spot?.side === "shorts";
 
-function Tee({ model, colour, areas, onPickArea, interactive, still, spotsRef, turntable, spin, face, spinSpeed, unfoldKey, onLit, hotspots, glowKey, activeKey, onHoverArea, popKey, showcase, twirlKey }) {
+function Tee({ model, colour, areas, onPickArea, interactive, still, spotsRef, turntable, spin, face, spinSpeed, unfoldKey, onLit, hotspots, glowKey, activeKey, onHoverArea, popKey, showcase, twirlKey, handKey }) {
   const { geo, probe, map, normalMap, centre } = useTeeGeometry(model);
   // a full turn that eases out: on stepping into the room and when the tee's colour is changed there
   const twirl = useRef({ key: twirlKey, t: 9, from: 0 });
@@ -928,6 +928,46 @@ function Tee({ model, colour, areas, onPickArea, interactive, still, spotsRef, t
   const mat = useRef();
   const target = useMemo(() => new THREE.Color(colour), [colour]);
   const speed = useRef(0); // turntable speed, eased
+  // Review (turntable): dragging left / right turns the tee itself, all the way round. After a drag it stays where the
+  // customer left it (the auto-turn pauses) until a button is used again (Turn, Front / Back / Left / Right).
+  const { gl, invalidate } = useThree();
+  const turnDrag = useRef({ on: false, x: 0, dx: 0, moved: 0, held: false });
+  useEffect(() => {
+    turnDrag.current.held = false;
+  }, [spin, face, handKey]); // (handKey: a Front / Back / Left / Right / 360° tap — also the same side again)
+  useEffect(() => {
+    if (!turntable) return undefined;
+    const el = gl.domElement;
+    const d = turnDrag.current;
+    const down = (e) => {
+      if (e.button > 0) return;
+      d.on = true;
+      d.x = e.clientX;
+      d.moved = 0;
+    };
+    const move = (e) => {
+      if (!d.on) return;
+      const dx = e.clientX - d.x;
+      d.x = e.clientX;
+      d.dx += dx;
+      d.moved += Math.abs(dx);
+      if (d.moved > 4) d.held = true; // (a tap is not a drag)
+      invalidate();
+    };
+    const up = () => {
+      d.on = false;
+    };
+    el.addEventListener("pointerdown", down);
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+    window.addEventListener("pointercancel", up);
+    return () => {
+      el.removeEventListener("pointerdown", down);
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      window.removeEventListener("pointercancel", up);
+    };
+  }, [turntable, gl, invalidate]);
   // a co-ord set's shorts are a second piece: their areas, hotspots and glow go to it
   const teeAreas = model.bottom ? areas.filter((a) => !onBottoms(a.spot)) : areas;
   const teeHotspots = useMemo(() => (model.bottom ? (hotspots || []).filter((h) => !onBottoms(h.spot)) : hotspots), [hotspots, model.bottom]);
@@ -1014,7 +1054,15 @@ function Tee({ model, colour, areas, onPickArea, interactive, still, spotsRef, t
       const d = Math.atan2(Math.sin(to - g.rotation.y), Math.cos(to - g.rotation.y));
       g.rotation.y += d * f;
     };
-    if (turntable && spin && face == null) {
+    if (turntable && turnDrag.current.held) {
+      // turned by hand: follows the finger / mouse (a full width of the screen ≈ one and a half turns)
+      const d = turnDrag.current;
+      if (d.dx) {
+        g.rotation.y += d.dx * 0.012;
+        d.dx = 0;
+      }
+      speed.current = 0;
+    } else if (turntable && spin && face == null) {
       // Review: the tee itself turns (the room stays still); spinSpeed 2 = one turn in 30 s
       speed.current += ((spinSpeed * Math.PI) / 30 - speed.current) * 0.05;
       g.rotation.y += speed.current * Math.min(dt, 0.05);
@@ -1317,7 +1365,7 @@ const Room3D = forwardRef(function Room3D({ model, colour, areas, onPickArea, ca
       <Studio visible={!boutique} colour={colour} />
       <Suspense fallback={null}>
         <Boutique visible={boutique} model={model} colour={colour} />
-        <Tee model={model} colour={colour} areas={areas} onPickArea={onPickArea} interactive={interactive} still={still} spotsRef={spotsRef} turntable={boutique} spin={spin} face={face} spinSpeed={spinSpeed} unfoldKey={unfoldKey} onLit={onLit} hotspots={hotspots} glowKey={glowKey} activeKey={activeKey} onHoverArea={onHoverArea} popKey={popKey} showcase={showcase} twirlKey={twirlKey} />
+        <Tee model={model} colour={colour} areas={areas} onPickArea={onPickArea} interactive={interactive} still={still} spotsRef={spotsRef} turntable={boutique} handKey={camRequest?.n} spin={spin} face={face} spinSpeed={spinSpeed} unfoldKey={unfoldKey} onLit={onLit} hotspots={hotspots} glowKey={glowKey} activeKey={activeKey} onHoverArea={onHoverArea} popKey={popKey} showcase={showcase} twirlKey={twirlKey} />
       </Suspense>
       <OrbitControls
         makeDefault
@@ -1332,6 +1380,8 @@ const Room3D = forwardRef(function Room3D({ model, colour, areas, onPickArea, ca
         // in the dressing room the camera stays in front (the racks are at the sides); the tee turns instead
         minAzimuthAngle={boutique ? -0.5 : -Infinity}
         maxAzimuthAngle={boutique ? 0.5 : Infinity}
+        // (in the dressing room a drag turns the tee instead — see Tee's turnDrag)
+        enableRotate={!boutique}
       />
       <CameraRig request={camRequest} getSpot={(k) => spotsRef.current(k)} apiRef={ref} room={room} dark={dark} wakeKey={`${dark}|${colour}|${still}|${interactive}|${glowKey}|${popKey}|${twirlKey}|${areas.map((a) => `${a.key}:${a.version}`).join(",")}`} />
     </Canvas>

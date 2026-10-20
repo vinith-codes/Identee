@@ -242,13 +242,14 @@ export async function readPhotoRequest({ image, message, styles = [], photoStyle
   const prompt = [
     "You help customers of a custom t-shirt printing shop. The customer sent the attached photo with a message. Decide what they want printed, from the photo AND the words.",
     "Answer with one JSON object and nothing else:",
-    '{"job": "copy" | "photo" | "art" | "inspired" | "unclear", "seen": string, "design": string|null, "words": string[], "style": string|null, "area": string|null, "change": string|null, "subject": string|null, "question": string|null}',
+    '{"job": "copy" | "photo" | "art" | "inspired" | "unclear", "seen": string, "design": string|null, "words": string[], "style": string|null, "area": string|null, "areas": string[], "change": string|null, "subject": string|null, "question": string|null}',
     "design: for copy, a precise description of the printed design only (not the garment, not the person), for an artist redrawing it: each part, where it sits, its colours and lettering style — at most 60 words. Otherwise null.",
     "words: for copy, every word, name, number and letter printed in the design, exactly as written (same spelling, capitals and punctuation), one string per separate line or block, in reading order; [] when there are none or the job is not copy. Do not include words that are only on a label, tag or the background.",
     "job: copy = the photo shows a printed design on a garment or object (t-shirt, hoodie, cap, poster, sticker, mug) and they want THAT design printed (\"only the design\", \"same design\", \"copy this\", \"print this on my tee\" when the photo is of a printed tee). photo = print the photo itself (a person, pet, place, object), possibly without its background. art = the photo itself redrawn in an art style (cartoon, sketch, sticker, watercolour, pop art). inspired = a NEW design that only takes the look or idea from the photo (\"something like this but with a tiger\"). unclear = you cannot tell which; then ask.",
     "seen: what is in the photo, in at most 12 plain words, as you would tell the customer (\"a black t-shirt with a lion and the word ROAR\").",
     "style: for art, one of " + JSON.stringify(photoStyles) + "; for inspired, one of " + JSON.stringify(styles) + "; otherwise null. Only if they named a style or it is clearly implied.",
     "area: the print area they named, as one of these keys, else null: " + JSON.stringify(areas.map((a) => ({ key: a.key, label: a.label }))),
+    'areas: EVERY print area they named for this photo, as keys from the same list, in the order they wrote them ("on the full back and the left chest" → both); [] when none.',
     "change: for copy, what to change while copying (\"the name KINGS XI instead of LIONS\"), else null.",
     "subject: for inspired, what the new design should show, in English, else null.",
     "question: for unclear only, one short question to the customer with the two likely choices.",
@@ -264,6 +265,8 @@ export async function readPhotoRequest({ image, message, styles = [], photoStyle
     seen: String(out?.seen || "").slice(0, 120),
     style: job === "art" ? pick(photoStyles, out?.style) : job === "inspired" ? pick(styles, out?.style) : null,
     area: areas.some((a) => a.key === out?.area) ? out.area : null,
+    // every area named — the same photo goes on each
+    areas: (Array.isArray(out?.areas) ? out.areas : []).filter((k, i, all) => areas.some((a) => a.key === k) && all.indexOf(k) === i).slice(0, 4),
     change: job === "copy" && out?.change ? String(out.change).slice(0, 200) : null,
     // what the design shows and its exact words: given to the picture AI, so the copy's text comes out right
     design: job === "copy" && out?.design ? String(out.design).replace(/\s+/g, " ").trim().slice(0, 400) : null,

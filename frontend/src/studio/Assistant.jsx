@@ -31,20 +31,18 @@ const waitFor = (a) =>
           : a.job === "inspired"
             ? { label: "Drawing your design…", expect: 25, hint: PICTURE_HINT }
             : a.job === "art"
-              ? /free/i.test(a.style || "") ? { label: "Making your art…", expect: 5 } : { label: "Redrawing your photo…", expect: 35, hint: PICTURE_HINT }
+              ? { label: "Redrawing your photo…", expect: 35, hint: PICTURE_HINT }
               : a.enhance
                 ? { label: "Making your photo sharper…", expect: 30, hint: PICTURE_HINT }
-                : { label: a.cutOut ? "Removing the background…" : "Putting your photo on the tee…", expect: a.cutOut ? 8 : 3, hint: a.cutOut ? "It runs on your phone, free." : "" }
+                : { label: a.cutOut ? "Removing the background…" : "Putting your photo on the tee…", expect: a.cutOut ? 8 : 3, hint: a.cutOut ? "Free. Usually a few seconds." : "" }
       : a.type === "photoPlace"
         ? a.cutOut
-          ? { label: "Removing the background…", expect: 8, hint: "It runs on your phone, free. Bigger photos take a little longer." }
+          ? { label: "Removing the background…", expect: 8, hint: "Free. Usually a few seconds." }
           : { label: "Putting your photo on the tee…", expect: 3 }
       : a.type === "drawPlan"
         ? { label: a.items?.length > 1 ? `Drawing ${a.items.length} pictures…` : "Drawing your design…", expect: 25 * (a.items?.length || 1), hint: a.items?.length > 1 ? "Usually 20–40 seconds for each. You can look around the room meanwhile." : PICTURE_HINT }
       : a.photoUrl
-        ? /free/i.test(a.artStyle || "")
-          ? { label: "Making your art…", expect: 5 }
-          : { label: "Redrawing your photo…", expect: 35, hint: PICTURE_HINT }
+        ? { label: "Redrawing your photo…", expect: 35, hint: PICTURE_HINT }
         : a.baseUrl
           ? { label: "Changing your design…", expect: 25, hint: PICTURE_HINT }
           : { label: "Drawing your design…", expect: 25, hint: PICTURE_HINT };
@@ -63,7 +61,8 @@ const waitFor = (a) =>
  */
 // autoSay: a message to send as if typed, once (the home page's "What do you want on your tee?" box); onAutoSaid clears it
 // onWorking(bool): an AI request is running (the page warns before the tab is closed meanwhile)
-export default function Assistant({ messages, setMessages, state, setState, ctx, onAct, onFix, placed = {}, fabric, autoSay, onAutoSaid, onWorking }) {
+// photoNudge: a counter — when it goes up (the chat was opened to send a photo), 📎 lights up for a moment
+export default function Assistant({ messages, setMessages, state, setState, ctx, onAct, onFix, placed = {}, fabric, autoSay, onAutoSaid, onWorking, photoNudge = 0 }) {
   const [draft, setDraft] = useState("");
   // false | true (a short "Thinking…") | { label, expect, hint } for the AI: a card with a live seconds count
   const [thinking, setThinking] = useState(false);
@@ -74,6 +73,13 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
   const timer = useRef(null);
   const job = useRef(null); // the AI request running now: { act, stopped }
   const photoBox = useRef(null); // the hidden file picker behind 📎
+  const [nudging, setNudging] = useState(false);
+  useEffect(() => {
+    if (!photoNudge) return;
+    setNudging(true);
+    const t = setTimeout(() => setNudging(false), 4000);
+    return () => clearTimeout(t);
+  }, [photoNudge]);
   const [attached, setAttached] = useState(null); // a photo picked with 📎, waiting to be sent with the words: { file, w, h, local }
 
   useEffect(() => {
@@ -254,7 +260,7 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
   const makePhoto = (i, plan) => {
     if (thinking) return;
     setMessages((all) => [...all.map((x, n) => (n === i ? { ...x, photoPlan: plan, done: true } : x.chips ? { ...x, done: true } : x)), { from: "me", text: "Make it" }]);
-    const a = { type: "photoMake", job: plan.job, areaKey: plan.areaKey, style: plan.style, change: plan.change, subject: plan.subject, design: plan.design, words: plan.words, cutOut: plan.cutOut, enhance: !!plan.enhance };
+    const a = { type: "photoMake", job: plan.job, areaKey: plan.areaKey, areaKeys: plan.areaKeys || [], style: plan.style, change: plan.change, subject: plan.subject, design: plan.design, words: plan.words, cutOut: plan.cutOut, enhance: !!plan.enhance };
     run(a, waitFor(a));
   };
   // Draw on the plan card: the plan is kept as it was drawn, and the pictures are made one after the other
@@ -510,7 +516,7 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
             <button type="button" className="dr-attached-x" onClick={dropAttached} aria-label="Remove the photo">✕</button>
           </div>
         )}
-        <button type="button" className="dr-attach" onClick={pickPhoto} disabled={!!thinking} aria-label="Send a photo" title="Send a photo">
+        <button type="button" className={`dr-attach${nudging ? " nudge" : ""}`} onClick={pickPhoto} disabled={!!thinking} aria-label="Send a photo" title="Send a photo">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
             <path d="m21 11.5-8.6 8.6a5.5 5.5 0 0 1-7.8-7.8l8.6-8.6a3.7 3.7 0 0 1 5.2 5.2l-8.6 8.6a1.8 1.8 0 0 1-2.6-2.6l7.9-7.9" />
           </svg>

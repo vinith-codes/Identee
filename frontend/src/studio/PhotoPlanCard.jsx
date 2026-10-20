@@ -18,9 +18,11 @@ const ART_INFO = {
   Sticker: "Die-cut, with a white border",
   Watercolour: "Soft, painted look",
   "Pop art": "Halftone dots, strong colours",
-  "Art filters (free)": "4 instant looks, free",
+  Realistic: "Lifelike, rich detail",
+  Anime: "Anime style, crisp lines",
+  "Line art": "A few clean lines",
 };
-const isFree = (plan) => plan.job === "photo" ? !plan.enhance : plan.job === "art" && /free/i.test(plan.style || "");
+const isFree = (plan) => plan.job === "photo" && !plan.enhance;
 // the other ways to use the same photo (a switch on the card, nothing is spent)
 const SWITCH = {
   copy: [["photo", "Keep it as a photo instead · free"]],
@@ -43,15 +45,19 @@ export default function PhotoPlanCard({ plan, areas, styles, photoStyles, ai, li
   const aiOk = ai.available && ai.loggedIn && ai.left !== 0;
   const free = isFree(plan);
   const short = !free && !aiOk;
-  const choices = areas.filter((a) => a.free || a.key === plan.areaKey);
-  const styleList = job === "art" ? photoStyles.filter((s) => aiOk || /free/i.test(s)) : styles;
+  // the print areas (one or more: "full back and left chest"); each row offers the free areas not chosen in another row
+  const keys = plan.areaKeys?.length ? plan.areaKeys : plan.areaKey ? [plan.areaKey] : [""];
+  const setKeys = (next) => set({ areaKeys: next, areaKey: next[0] || null });
+  const choicesFor = (i) => areas.filter((a) => (a.free || a.key === keys[i]) && !keys.some((k, n) => n !== i && k === a.key));
+  // (art needs the AI: there are no free looks any more — without it the card says so, and the free choices stay)
+  const styleList = job === "art" ? (aiOk ? photoStyles : []) : styles;
   const what = {
     copy: plan.change ? `Only the design from your photo, flat and clean, with this change: ${plan.change}` : "Only the design from your photo, made flat, straight and clean",
     // ready: "add this to my tee" — said as print-ready, with what that means for this photo
     photo: plan.ready
       ? `Your photo, print-ready: ${[plan.cutOut && "background removed", plan.enhance && "made sharper"].filter(Boolean).join(", ") || "as it is"}`
       : plan.cutOut ? "Your photo, with its background removed" : "Your photo, as it is",
-    art: /free/i.test(plan.style || "") ? "Your photo in 4 free art looks (sketch, stencil, poster, pop art)" : `Your photo redrawn as ${plan.style ? plan.style.toLowerCase() : "art"}`,
+    art: `Your photo redrawn as ${plan.style ? plan.style.toLowerCase() : "art"}`,
     inspired: `A new design inspired by your photo${plan.subject ? `: ${plan.subject}` : ""}`,
   }[job];
   return (
@@ -80,7 +86,7 @@ export default function PhotoPlanCard({ plan, areas, styles, photoStyles, ai, li
           {aiOk && plan.sharpenWhy === "small" && <p className="ppc-why">Your photo is small for this print area, so I ticked “Make it sharper” — it would print a bit soft otherwise. Untick it to keep it free.</p>}
         </div>
       )}
-      {(job === "art" || job === "inspired") && (
+      {(job === "art" || job === "inspired") && styleList.length > 0 && (
         <>
           <p className="pc-h">Style</p>
           <div className="pc-styles" role="radiogroup" aria-label="Style">
@@ -96,16 +102,25 @@ export default function PhotoPlanCard({ plan, areas, styles, photoStyles, ai, li
       )}
       {live ? (
         <>
-          <label className="ppc-area">
+          {/* one row per print area — the same picture goes on each, made once (it costs the same as one) */}
+          <div className="ppc-area">
             <span>Where to print</span>
-            <select value={plan.areaKey || ""} onChange={(e) => set({ areaKey: e.target.value })}>
-              {!plan.areaKey && <option value="">Choose a print area…</option>}
-              {choices.map((a) => (
-                <option key={a.key} value={a.key}>{a.label}</option>
-              ))}
-            </select>
-          </label>
-          <button type="button" className="pc-go" disabled={short || !plan.areaKey || ((job === "art" || job === "inspired") && !plan.style)} onClick={() => onMake(plan)}>
+            {keys.map((k, i) => (
+              <div key={`${k}-${i}`} className="ppc-arearow">
+                <select aria-label={`Print area ${i + 1}`} value={k || ""} onChange={(e) => setKeys(keys.map((x, n) => (n === i ? e.target.value : x)))}>
+                  {!k && <option value="">Choose a print area…</option>}
+                  {choicesFor(i).map((a) => (
+                    <option key={a.key} value={a.key}>{a.label}</option>
+                  ))}
+                </select>
+                {keys.length > 1 && <button type="button" className="pc-x" onClick={() => setKeys(keys.filter((_, n) => n !== i))} aria-label={`Leave out ${areas.find((a) => a.key === k)?.label || "this area"}`}>Leave out</button>}
+              </div>
+            ))}
+            {keys.length < 4 && choicesFor(keys.length).length > 0 && (
+              <button type="button" className="ppc-addarea" onClick={() => setKeys([...keys, choicesFor(keys.length)[0].key])}>+ Another area</button>
+            )}
+          </div>
+          <button type="button" className="pc-go" disabled={short || !keys.length || keys.some((k) => !k) || ((job === "art" || job === "inspired") && !plan.style)} onClick={() => onMake({ ...plan, areaKey: keys[0], areaKeys: keys })}>
             Make it · {free ? "free" : "1 request"}
           </button>
           <p className="pc-note">
@@ -115,13 +130,13 @@ export default function PhotoPlanCard({ plan, areas, styles, photoStyles, ai, li
           </p>
           <div className="pc-more">
             {(SWITCH[job] || []).map(([to, label]) => (
-              <button key={to} type="button" className="dr-chip" onClick={() => set({ job: to, style: to === "art" ? photoStyles.find((s) => aiOk || /free/i.test(s)) || null : to === "inspired" ? plan.style : null, cutOut: to === "photo" ? true : plan.cutOut, enhance: false })}>{label}</button>
+              <button key={to} type="button" className="dr-chip" onClick={() => set({ job: to, style: to === "art" ? (aiOk ? photoStyles[0] : null) : to === "inspired" ? plan.style : null, cutOut: to === "photo" ? true : plan.cutOut, enhance: false })}>{label}</button>
             ))}
             <button type="button" className="dr-chip" onClick={onCancel}>Not now</button>
           </div>
         </>
       ) : (
-        <p className="pc-area">{areas.find((a) => a.key === plan.areaKey)?.label || ""}</p>
+        <p className="pc-area">{keys.map((k) => areas.find((a) => a.key === k)?.label).filter(Boolean).join(" and ")}</p>
       )}
     </div>
   );

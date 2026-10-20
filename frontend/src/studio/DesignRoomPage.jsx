@@ -24,16 +24,14 @@ import { areaCm, blockersOf, clashesIn, modelForGarment, placeArea } from "./tee
 import AreaThumb from "./AreaThumb";
 import Rolling from "./Rolling";
 import Assistant from "./Assistant";
-import { AFTER_AI_SLOGANS, AFTER_DESIGN_CHIPS, BACK, CHANGE_IDEA, DRAW_MINE, PHOTO_AS_IS, PHOTO_CHOICES, PHOTO_CUT, bot as botSays, checkMessages, chips as chipRow, firstMessages, firstState } from "./assistantScript";
+import { AFTER_AI_SLOGANS, AFTER_DESIGN_CHIPS, BACK, CHANGE_IDEA, DRAW_MINE, PHOTO_AS_IS, PHOTO_CHOICES, PHOTO_CUT, PHOTO_REVERT, bot as botSays, checkMessages, chips as chipRow, firstMessages, firstState } from "./assistantScript";
 import { styleIn } from "./styleInfo";
-import { areaFromWords, photoJobFrom } from "./photoIntent";
+import { areasFromWords, photoJobFrom } from "./photoIntent";
 import aiService from "../services/aiService";
 import { applyAiOps, areaFor, describeDesign } from "./aiOps";
 import WaitCard from "./WaitCard";
 import PriceTag from "../components/PriceTag";
 import { shippingNote, useShippingRule, useSiteOffer } from "../utils/sitePricing";
-import PhotoStudio from "./PhotoStudio";
-import DrawStudio from "./DrawStudio";
 import { checkDesign, inksFor, printSharpness } from "./designCheck";
 import { TEMPLATES } from "./designTemplates";
 import TeamModeChoice from "./TeamModeChoice";
@@ -49,12 +47,8 @@ const ADD_TABS = [
   ["text", "Text", "M5 6V4h14v2M12 4v16M9 20h6"],
   ["upload", "Upload", "M12 16V4m0 0-4 4m4-4 4 4M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"],
   ["art", "Art", "M4 5h16v14H4zM8 13l3-3 5 5M15 9h.01"],
-  // the AI tools (client, 20 Oct 2026: the Assistant is chat only — Draw and Photo are added from here)
-  ["draw", "Draw", "m12 3 1.8 4.7L18 9.5l-4.2 1.8L12 16l-1.8-4.7L6 9.5l4.2-1.8L12 3Z", "AI"],
-  ["photo", "Photo", "M4 8h3l2-3h6l2 3h3v11H4zM12 16.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"],
 ];
-// these open the Draw / Photo studio (the AI panel) instead of a tab of this panel
-const AI_ADD = ["draw", "photo"];
+// (drawing and photos happen in the chat — the Assistant — since 20 Oct 2026; there are no Draw / Photo pages)
 const ICON_AI = "m12 3 1.8 4.7L18 9.5l-4.2 1.8L12 16l-1.8-4.7L6 9.5l4.2-1.8L12 3Z";
 const ICON_PHOTO = "M4 8h3l2-3h6l2 3h3v11H4zM12 16.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z";
 const ICON_AREAS = "M8 4 4 6.5 2 10l3 1.5V20h14v-8.5L22 10l-2-3.5L16 4a4 4 0 0 1-8 0Z";
@@ -106,28 +100,6 @@ const writeJSON = (key, v) => {
     localStorage.setItem(key, JSON.stringify(v));
   } catch {
     // storage blocked — the design just isn't kept after a reload
-  }
-};
-// The Draw / Photo tab's state for this browser tab (sessionStorage). A step that was running isn't
-// running any more after a reload, so it opens on what was there before it (results, the choices or the form).
-const TAB_SESSION_KEY = (tab, type) => `identee:${tab}:v1:${type}`;
-const readTabSession = (tab, type) => {
-  try {
-    const s = JSON.parse(sessionStorage.getItem(TAB_SESSION_KEY(tab, type)) || "null");
-    if (!s || typeof s !== "object") return {};
-    const busy = s.view === "working" || s.view === "error";
-    return { ...s, wait: null, ...(busy ? { view: s.results?.length ? "results" : s.photo ? "choose" : undefined, error: null } : {}) };
-  } catch {
-    return {};
-  }
-};
-const saveTabSession = (tab, type, session) => {
-  try {
-    // functions (the "Try again" step) can't be kept
-    const plain = Object.fromEntries(Object.entries(session).filter(([k, v]) => k !== "last" && typeof v !== "function"));
-    sessionStorage.setItem(TAB_SESSION_KEY(tab, type), JSON.stringify(plain));
-  } catch {
-    // storage blocked — the tab just starts fresh after a reload
   }
 };
 const isLoggedIn = () => !!readJSON("userInfo")?.token;
@@ -226,15 +198,7 @@ export default function DesignRoomPage() {
   // The design assistant has its own panel (it works on the whole tee, not one print area). It takes
   // the editor's place on the right; picking a print area or "Edit by hand" brings the editor back.
   const [assist, setAssist] = useState(() => Boolean(session?.assist));
-  // the Photo Studio (PhotoStudio.jsx): the customer's photo as art, or print-ready. Its panel takes the
-  // editor's place like the assistant's; its state stays while it is closed (results are still there)
-  const [aiTab, setAiTab] = useState("chat"); // the AI panel's tab: chat | draw | photo
-  // the Draw tab's state (DrawStudio.jsx) and the Photo tab's: kept for this browser tab, so what was typed and
-  // made is still there after a reload or a trip to the login page ("Your design stays here")
-  const [drawSession, setDrawSession] = useState(() => readTabSession("draw", type));
-  const [photoSession, setPhotoSession] = useState(() => readTabSession("photo", type));
-  useEffect(() => saveTabSession("draw", type, drawSession), [type, drawSession]);
-  useEffect(() => saveTabSession("photo", type, photoSession), [type, photoSession]);
+  const [aiTab, setAiTab] = useState("chat"); // the AI panel shows the chat (the Draw / Photo pages are gone)
   // the assistant made wide (about half the screen) with its Expand button — remembered on this device
   const [assistWide, setAssistWide] = useState(() => readJSON(ASSIST_WIDE_KEY) === true);
   const toggleAssistWide = () => {
@@ -883,14 +847,22 @@ export default function DesignRoomPage() {
       const out = await removeBackground(img, progress);
       if (me.stopped) return;
       if (out.already) return say("This picture already has a see-through background.");
+      if (out.needsServer) {
+        // a photo: our server's model cuts it out (free) and stores the cut-out
+        if (!isLoggedIn()) return say("Log in to remove a photo's background.");
+        const cut = await aiService.removeBg({ url: el.src });
+        if (me.stopped) return;
+        commit((prev) => prev.map((e) => (e.id === el.id ? { ...e, src: cut.url, pxW: cut.width } : e)));
+        return say("Background removed. Not right? Press Undo (↶) to get the original back.");
+      }
       progress("Saving the cut-out…");
       const res = await dispatch(uploadDesignImage(new File([out.blob], "cut-out.png", { type: "image/png" })));
       if (me.stopped) return;
       if (!uploadDesignImage.fulfilled.match(res)) return say(res.payload || "The cut-out could not be saved. Please try again.");
       commit((prev) => prev.map((e) => (e.id === el.id ? { ...e, src: res.payload.path, pxW: out.width } : e)));
       say(out.method === "ai" ? "Background removed. Not right? Press Undo (↶) to get the original back." : "Background colour removed. Not right? Press Undo (↶).");
-    } catch {
-      if (!me.stopped) say("The background could not be removed. Check your internet connection and try again.");
+    } catch (err) {
+      if (!me.stopped) say(err?.response?.data?.message || "The background could not be removed. Check your internet connection and try again.");
     } finally {
       endBusy(me);
     }
@@ -1369,6 +1341,33 @@ export default function DesignRoomPage() {
     openArea(key, { force: true });
     setSelectedId(put.elId);
   };
+  // The same picture (already cut out — in aiCuts) on several print areas at once ("full back and left chest"), in one
+  // Undo step. An area that overlaps another print (or one chosen just before it) is left out. Returns the areas used.
+  const placeOnAreas = (url, keys) => {
+    const cut = aiCuts.current.get(url);
+    if (!cut) return [];
+    const taken = [...usedKeys];
+    const done = [];
+    const els = [];
+    const gone = [];
+    for (const key of keys) {
+      const pos = positions.find((p) => p.key === key);
+      if (!pos || done.some((d) => d.key === key)) continue;
+      if (!taken.includes(key) && blockersOf(key, positions, taken).length) continue;
+      const el = aiElement(pos, cut, elements.length + els.length + 1);
+      if (aiPlaced[key]?.elId) gone.push(aiPlaced[key].elId); // (it replaces the picture the chat put there before)
+      els.push(el);
+      done.push(pos);
+      if (!taken.includes(key)) taken.push(key);
+    }
+    if (!els.length) return [];
+    commit((prev) => [...prev.filter((e) => !gone.includes(e.id)), ...els]);
+    setAiPlaced((cur) => ({ ...cur, ...Object.fromEntries(done.map((p, i) => [p.key, { url, elId: els[i].id }])) }));
+    if (done[0].key !== active) openArea(done[0].key, { force: true });
+    setSelectedId(null);
+    return done;
+  };
+  const andList = (labels) => (labels.length > 1 ? `${labels.slice(0, -1).join(", ")} and ${labels[labels.length - 1]}` : labels[0] || "");
   // "Remove from tee" on a picture in the chat: takes it off every area it is on (one Undo step), the picture stays in the chat
   const removeAiDesign = (url) => {
     const on = Object.entries(aiPlaced).filter(([, put]) => put.url === url && elements.some((e) => e.id === put.elId));
@@ -1383,45 +1382,26 @@ export default function DesignRoomPage() {
   /* ---------- the Photo Studio ---------- */
   // the print area its results go on: the open one, else the front's main area
   const photoTarget = activePos || positions.find((p) => p.side === "front" && p.main) || positions.find((p) => p.side === "front") || positions[0] || null;
-  // the AI panel on one of its tabs (from the top bar, the start cards, the assistant's examples)
+  // The AI panel is the chat. The ways in that used to open the Draw / Photo pages (home "Describe it" and
+  // "Your photo", the "Your photo" start card, the Upload tab) open it at the right question instead:
+  //   "draw"  → "What should I draw?"        "photo" → "Send me a photo with 📎…" (and 📎 lights up)
+  const [photoNudge, setPhotoNudge] = useState(0);
   const openAiTab = (tab) => {
-    setAiTab(tab);
+    setAiTab("chat");
     setAssist(true);
     setAreasOpen(false);
+    if (tab === "draw") setChatAuto("Make a design");
+    if (tab === "photo") {
+      setChat((m) => [
+        ...m.map((x) => (x.chips ? { ...x, done: true } : x)),
+        botSays("Send me a photo with the 📎 button below, and tell me what you want — for example “only the design from this tee”, “my photo on the back” or “my dog as a cartoon”."),
+      ]);
+      setPhotoNudge((n) => n + 1);
+    }
   };
-  const toggleAiTab = (tab) => (assist && aiTab === tab ? setAssist(false) : openAiTab(tab));
+  const toggleAiTab = () => (assist ? setAssist(false) : openAiTab("chat"));
   const openPhotoStudio = () => openAiTab("photo");
   const aiFailed = (err, fallback) => new Error(err?.response?.data?.message || fallback);
-  const studioUpload = async (file) => {
-    const res = await dispatch(uploadDesignImage(file));
-    if (!uploadDesignImage.fulfilled.match(res)) throw new Error(res.payload || "The upload didn’t work. Check the internet connection.");
-    let w = 1000;
-    let h = 1000;
-    try {
-      const bmp = await createImageBitmap(file);
-      w = bmp.width;
-      h = bmp.height;
-      bmp.close?.();
-    } catch {
-      // the size stays a guess; the print check is then only a guide
-    }
-    return { url: res.payload.path, w, h };
-  };
-  const studioArt = async (url, style) => {
-    const { W, H } = photoTarget ? areaPx(photoTarget) : { W: 1, H: 1 };
-    let res;
-    try {
-      res = await aiService.design({ photoUrl: url, artStyle: style, teeColour: colour?.name || "white", teeIsDark: lum(fabricHex) < 0.55, ratio: W / H });
-    } catch (err) {
-      throw aiFailed(err, "The design maker had a problem.");
-    }
-    if (res.left != null) setAi((cur) => ({ ...cur, left: res.left }));
-    res.images.forEach((im) => {
-      aiCuts.current.set(im.url, { path: im.url, w: im.width, h: im.height });
-      loadImage(im.url).catch(() => {});
-    });
-    return res;
-  };
   // print-ready: enhanced by the image AI (if asked), then the background removed here in the browser (free)
   const studioPrintReady = async (photo, { cutOut, enhance }, progress) => {
     let cur = { url: photo.url, w: photo.w, h: photo.h };
@@ -1445,7 +1425,12 @@ export default function DesignRoomPage() {
       const img = await loadImage(cur.url, { full: true });
       const { removeBackground } = await import("./removeBackground");
       const out = await removeBackground(img, (t) => typeof t === "string" && progress(t));
-      if (!out.already) {
+      if (out.needsServer) {
+        // a photo: our server's model cuts it out (free) — the phone does no heavy work
+        const done = await aiService.removeBg({ url: cur.url });
+        cur = { url: done.url, w: done.width, h: done.height };
+        cut = true;
+      } else if (!out.already) {
         progress("Saving the cut-out…");
         const res = await dispatch(uploadDesignImage(new File([out.blob], "photo-cut-out.png", { type: "image/png" })));
         if (!uploadDesignImage.fulfilled.match(res)) throw new Error(res.payload || "The cut-out couldn’t be saved. Check the internet connection.");
@@ -1455,42 +1440,7 @@ export default function DesignRoomPage() {
     }
     return { ...cur, enhanced, cut };
   };
-  // the Draw tab: the image AI draws a design for a print area, or changes one it made
-  const drawSize = (key) => {
-    const pos = positions.find((p) => p.key === key) || photoTarget;
-    return pos ? areaPx(pos) : { W: 1, H: 1 };
-  };
-  const keepAiDesigns = (res) => {
-    if (res.left != null) setAi((c) => ({ ...c, left: res.left }));
-    res.images.forEach((im) => {
-      aiCuts.current.set(im.url, { path: im.url, w: im.width, h: im.height });
-      loadImage(im.url).catch(() => {});
-    });
-    return res;
-  };
-  const drawDesign = async ({ subject, style, areaKey }) => {
-    const { W, H } = drawSize(areaKey);
-    // lettering: the words in quotes are drawn exactly as written; a tall, thin area gets one long line
-    const lettering = style === "Hand lettering";
-    const quoted = /[“"‘']([^”"’']{2,160})[”"’']/.exec(subject);
-    const asked = !lettering ? subject : quoted ? `${subject.replace(quoted[0], "").trim()} — the words to letter, spelled exactly: “${quoted[1]}”` : `the words “${subject}”, spelled exactly`;
-    const banner = lettering && H / W >= 2.5;
-    try {
-      return keepAiDesigns(await aiService.design({ subject: asked, style, teeColour: colour?.name || "white", teeIsDark: lum(fabricHex) < 0.55, ratio: banner ? H / W : W / H, ...(banner ? { banner: true } : {}) }));
-    } catch (err) {
-      throw aiFailed(err, "The design maker had a problem.");
-    }
-  };
-  const changeDrawing = async ({ baseUrl, change, areaKey }) => {
-    const { W, H } = drawSize(areaKey);
-    try {
-      return keepAiDesigns(await aiService.design({ baseUrl, change, teeIsDark: lum(fabricHex) < 0.55, ratio: W / H }));
-    } catch (err) {
-      throw aiFailed(err, "The design couldn’t be changed just now.");
-    }
-  };
-  const drawPlace = async (url, key) => Boolean(await placeAiDesign(url, key));
-  // "Improve my idea" (Draw tab and Chat): the text AI makes the idea clear and says what will be drawn,
+  // "Improve my idea" (in the chat): the text AI makes the idea clear and says what will be drawn,
   // suggesting a style and one of the free print areas (with its real size now). Free — no picture request.
   const improveIdea = async (idea) => {
     const free = positions.filter((p) => usedKeys.includes(p.key) || !blockersOf(p.key, positions, usedKeys).length);
@@ -1505,7 +1455,7 @@ export default function DesignRoomPage() {
       throw aiFailed(err, "I couldn’t improve that just now. Try again, or draw it with your own words.");
     }
   };
-  // the same in the chat: the preview, then Draw this / Open in the Draw tab / Draw my words (never a dead end)
+  // the same in the chat: the preview, then the plan card (and Use my own words / Change my idea — never a dead end)
   const chatImprove = async (a, run) => {
     try {
       const got = await improveIdea(a.idea);
@@ -1534,10 +1484,10 @@ export default function DesignRoomPage() {
     if (!uploadDesignImage.fulfilled.match(res)) return [botSays(res.payload || "The photo didn’t send. Check the internet connection, then tap 📎 and try again.")];
     const photo = { url: res.payload.path, w: a.w, h: a.h };
     if (a.text) {
-      setChatState((st) => ({ ...st, photo, photoUrl: null, wait: null, photoAreaKey: null }));
+      setChatState((st) => ({ ...st, photo, photoUrl: null, wait: null, photoAreaKey: null, photoAreaKeys: [] }));
       return [{ photoSent: photo }, { next: { type: "photoUnderstand", text: a.text } }];
     }
-    setChatState((st) => ({ ...st, photo, photoUrl: null, wait: "photoWhat", photoAreaKey: null }));
+    setChatState((st) => ({ ...st, photo, photoUrl: null, wait: "photoWhat", photoAreaKey: null, photoAreaKeys: [] }));
     return [{ photoSent: photo }, botSays("Got your photo. Tell me what you want in your own words — for example “only the design from this tee” or “my photo on the back”. Or tap one:"), chipRow([...PHOTO_CHOICES, "Something else"])];
   };
   // the photo's print area: the one named, if free — else the open one, else the main front area, else any free one
@@ -1549,7 +1499,7 @@ export default function DesignRoomPage() {
     const photo = chatState.photo;
     if (!photo) return [botSays("I don’t have your photo any more. Tap 📎 and send it again.")];
     const areas = assistantCtx().areas;
-    let plan = a.job ? { job: a.job, areaKey: chatState.photoAreaKey || null } : photoJobFrom(a.text, { areas, photoStyles: ai.photoStyles || [] });
+    let plan = a.job ? { job: a.job, areaKey: chatState.photoAreaKey || null, areaKeys: chatState.photoAreaKeys || [] } : photoJobFrom(a.text, { areas, photoStyles: ai.photoStyles || [] });
     let seen = "";
     let question = "";
     if (a.text && ai.available && ai.text && isLoggedIn()) {
@@ -1557,7 +1507,7 @@ export default function DesignRoomPage() {
         const r = await aiService.photoPlan({ photoUrl: photo.url, message: a.text, areas: areas.filter((x) => x.free).map(({ key, label }) => ({ key, label })) });
         seen = r.seen || "";
         if (r.job && r.job !== "unclear") {
-          plan = { ...(plan || {}), job: r.job, style: r.style || plan?.style || null, areaKey: r.area || plan?.areaKey || null, change: r.change || plan?.change || null, subject: r.subject || plan?.subject || null, design: r.design || null, words: r.words || [] };
+          plan = { ...(plan || {}), job: r.job, style: r.style || plan?.style || null, areaKey: r.area || plan?.areaKey || null, areaKeys: r.areas?.length ? r.areas : plan?.areaKeys || [], change: r.change || plan?.change || null, subject: r.subject || plan?.subject || null, design: r.design || null, words: r.words || [] };
         } else if (!plan) question = r.question || "";
       } catch {
         // the AI couldn't read it (off, out of credit, offline): our own rules decide, or we ask
@@ -1566,16 +1516,21 @@ export default function DesignRoomPage() {
     if (run?.stopped) return [];
     if (!plan) {
       // (the area they named is kept for the choice they make next)
-      const named = areaFromWords(a.text, areas);
-      setChatState((st) => ({ ...st, wait: "photoWhat", photoAreaKey: named || st.photoAreaKey || null }));
+      const named = areasFromWords(a.text, areas);
+      setChatState((st) => ({ ...st, wait: "photoWhat", photoAreaKey: named[0] || st.photoAreaKey || null, photoAreaKeys: named.length ? named : st.photoAreaKeys || [] }));
       return [botSays(question || (seen ? `I see ${seen}. Should I copy just the design from it, or print the whole photo?` : "Should I copy just the design from this photo, or print the whole photo? Tell me, or tap one:")), chipRow([...PHOTO_CHOICES, "Something else"])];
     }
     const aiOk = ai.available && isLoggedIn() && ai.left !== 0;
-    const artStyle = plan.style && (ai.photoStyles || []).includes(plan.style) ? plan.style : (ai.photoStyles || []).find((x) => (aiOk ? !/free/i.test(x) : /free/i.test(x))) || null;
+    const artStyle = plan.style && (ai.photoStyles || []).includes(plan.style) ? plan.style : (ai.photoStyles || [])[0] || null;
     // "add this to my tee": the photo made print-ready (the photo reading turns it into "copy" when it is a printed
     // garment); a photo too small for the area gets "Make it sharper" ticked — shown on the card, with its cost
     const job = plan.job === "add" ? "photo" : plan.job;
-    const areaKey = photoArea(plan.areaKey || chatState.photoAreaKey);
+    // every area named, each free and not overlapping the ones before it (else the main free area)
+    const asked = (plan.areaKeys?.length ? plan.areaKeys : [plan.areaKey || chatState.photoAreaKey]).filter(Boolean);
+    const areaKeys = [];
+    for (const k of asked) if (freeArea(k) && !areaKeys.includes(k) && !blockersOf(k, positions, [...usedKeys, ...areaKeys]).length) areaKeys.push(k);
+    if (!areaKeys.length && photoArea(null)) areaKeys.push(photoArea(asked[0] || null));
+    const areaKey = areaKeys[0] || null;
     const pos = positions.find((p) => p.key === areaKey);
     const small = job === "photo" && aiOk && pos && printDpi(pos, photo.w, photo.h) < 150;
     const full = {
@@ -1583,6 +1538,7 @@ export default function DesignRoomPage() {
       photo,
       seen,
       areaKey,
+      areaKeys,
       ready: plan.job === "add",
       sharpenWhy: small ? "small" : null,
       change: plan.job === "copy" ? plan.change || null : null,
@@ -1594,7 +1550,7 @@ export default function DesignRoomPage() {
       cutOut: plan.cutOut !== false,
       enhance: Boolean(small),
     };
-    const where = pos ? ` for ${pos.label}` : "";
+    const where = areaKeys.length ? ` for ${andList(areaKeys.map((k) => positions.find((p) => p.key === k)?.label))}` : "";
     return [botSays(plan.job === "add" ? `Here’s your photo, made print-ready${where}. Check it, then tap Make it.` : "Here’s my plan for your photo. Check it, then tap Make it."), { photoPlan: full }];
   };
   // "Make it" on the photo plan
@@ -1602,16 +1558,25 @@ export default function DesignRoomPage() {
     const photo = chatState.photo;
     if (!photo) return [botSays("I don’t have your photo any more. Tap 📎 and send it again.")];
     if (!isLoggedIn()) return [botSays("Log in and I’ll make it. Your design stays here."), chipRow(["Log in", "Something else"])];
-    const pos = positions.find((p) => p.key === a.areaKey) || photoTarget;
+    // every chosen area (the picture is made once, then put on each)
+    const keys = (a.areaKeys?.length ? a.areaKeys : [a.areaKey || photoTarget?.key]).filter(Boolean);
+    const pos = positions.find((p) => p.key === keys[0]) || photoTarget;
     if (!pos) return [botSays("This garment has no free print area. Remove a print first.")];
     const freeChoices = [PHOTO_CUT, PHOTO_AS_IS, "Something else"];
+    const putOn = (url) => {
+      const on = placeOnAreas(url, keys.length ? keys : [pos.key]);
+      const missed = keys.filter((k) => !on.some((p) => p.key === k)).map((k) => positions.find((p) => p.key === k)?.label).filter(Boolean);
+      return { on, where: andList(on.map((p) => p.label)), missed: missed.length ? ` (${andList(missed)} ${missed.length === 1 ? "is" : "are"} covered by another print, so I left ${missed.length === 1 ? "it" : "them"} out.)` : "" };
+    };
     try {
       if (a.job === "photo") {
         const r = await studioPrintReady(photo, { cutOut: a.cutOut, enhance: a.enhance }, (t) => progress?.({ label: t, expect: 8 }));
-        const ok = await studioPlace(r, pos.key);
-        if (!ok) return [botSays(`I couldn’t put it on ${pos.label}. Use “Other area” under the photo to pick a free one.`), { designs: [r.url], photo: true }];
+        aiCuts.current.set(r.url, { path: r.url, w: r.w, h: r.h }); // (final already: put on as it is)
+        const { on, where, missed } = putOn(r.url);
+        if (!on.length) return [botSays("Those print areas are covered by another print. Use “Other area” under the photo to pick a free one."), { designs: [r.url], photo: true }];
         const how = a.cutOut ? (r.cut ? ", without its background" : " (it had no background to remove)") : "";
-        return [botSays(`Done — your photo is on ${pos.label}${how}${r.enhanced ? ", made sharper" : ""}. ${qualityLine(printDpi(pos, r.w, r.h))}`), { designs: [r.url], photo: true }, chipRow(["Check my design", "Something else"])];
+        const dpi = Math.min(...on.map((p) => printDpi(p, r.w, r.h)));
+        return [botSays(`Done — your photo is on ${where}${how}${r.enhanced ? ", made sharper" : ""}.${missed} ${qualityLine(dpi)}`), { designs: [r.url], photo: true }, chipRow(["Check my design", "Something else"])];
       }
       const { W, H } = areaPx(pos);
       const tee = { teeColour: colour?.name || "white", teeIsDark: lum(fabricHex) < 0.55, ratio: W / H };
@@ -1623,20 +1588,19 @@ export default function DesignRoomPage() {
         loadImage(im.url).catch(() => {});
       });
       const first = res.images[0];
-      await placeAiDesign(first.url, pos.key);
+      const placed = putOn(first.url);
+      const onWhere = placed.where || pos.label;
       const left = res.left == null ? "" : ` ${res.left} request${res.left === 1 ? "" : "s"} left today.`;
-      const n = res.images.length;
       const said =
         a.job === "copy"
-          ? `Here’s the design from your photo, on ${pos.label}.${left} Not quite the same? Tap Try another, or Change to fix a part.`
+          ? `Here’s the design from your photo, on ${onWhere}.${placed.missed}${left} Not quite the same? Tap Try another, or Change to fix a part.`
           : a.job === "inspired"
-            ? `Here’s your new design, on ${pos.label}.${left}`
-            : res.filtered
-              ? res.refused
-                ? `The AI wouldn’t redraw this photo (it refuses some photos, well-known faces among them), so I made ${n} art versions another way, free. The first is on ${pos.label}.`
-                : `Here are ${n} free art versions. The first is on ${pos.label}; tap Add to tee on another to swap.`
-              : `Here’s your photo as ${String(a.style || "art").toLowerCase()}, on ${pos.label}.${left}`;
-      return [botSays(said), { designs: res.images.map((im) => im.url), again: { type: "photoMake", ...a } }, chipRow(["Check my design", "Something else"])];
+            ? `Here’s your new design, on ${onWhere}.${placed.missed}${left}`
+            : `Here’s your photo as ${String(a.style || "art").toLowerCase()}, on ${onWhere}.${placed.missed}${left}`;
+      // (remembered for "Use my photo instead": the photo itself goes back on these same areas)
+      setChatState((st) => ({ ...st, photoLastKeys: placed.on.map((p) => p.key) }));
+      const after = a.job === "art" ? [PHOTO_REVERT, "Check my design", "Something else"] : ["Check my design", "Something else"];
+      return [botSays(said), { designs: res.images.map((im) => im.url), again: { type: "photoMake", ...a } }, chipRow(after)];
     } catch (err) {
       const status = err?.response?.status;
       const why = err?.response?.data?.message;
@@ -1656,7 +1620,7 @@ export default function DesignRoomPage() {
   };
   const qualityLine = (dpi) =>
     dpi >= 150 ? "It’s sharp, so it will print well." : dpi >= 100 ? "It will print fine; a bigger photo would be even sharper." : "It’s a small photo, so it may print a bit soft. A bigger one will look sharper.";
-  // "Put it on my tee as it is" / "Remove the background first" (both free; the cut-out runs in the browser)
+  // "Put it on my tee as it is" / "Remove the background first" (both free; a photo is cut out on our server)
   const chatPhotoPlace = async (a, progress) => {
     const photo = chatState.photo;
     if (!photo) return [botSays("I don’t have your photo any more. Tap 📎 and send it again.")];
@@ -1665,25 +1629,21 @@ export default function DesignRoomPage() {
     let r = { url: photo.url, w: photo.w, h: photo.h, cut: false };
     if (a.cutOut) {
       try {
-        r = await studioPrintReady(photo, { cutOut: true }, (t) => progress?.({ label: t, expect: 8, hint: "It runs on your phone, free." }));
+        r = await studioPrintReady(photo, { cutOut: true }, (t) => progress?.({ label: t, expect: 8, hint: "Free. Usually a few seconds." }));
       } catch (err) {
         return [botSays(err.message || "The background couldn’t be removed. Try again, or put it on as it is."), { failed: true }];
       }
     }
-    const placed = await studioPlace(r, pos.key);
-    if (!placed) return [botSays(`I couldn’t put it on ${pos.label}. Use “Other area” under the photo to pick a free one.`), { designs: [r.url], photo: true }];
+    aiCuts.current.set(r.url, { path: r.url, w: r.w, h: r.h });
+    const want = (chatState.photoAreaKeys || []).filter(freeArea);
+    const on = placeOnAreas(r.url, want.length ? want : [pos.key]);
+    if (!on.length) return [botSays(`I couldn’t put it on ${pos.label}. Use “Other area” under the photo to pick a free one.`), { designs: [r.url], photo: true }];
     const how = a.cutOut ? (r.cut ? ", without its background" : " (it had no background to remove)") : "";
     return [
-      botSays(`Done — your photo is on ${pos.label}${how}. ${qualityLine(printDpi(pos, r.w, r.h))}`),
+      botSays(`Done — your photo is on ${andList(on.map((p) => p.label))}${how}. ${qualityLine(Math.min(...on.map((p) => printDpi(p, r.w, r.h))))}`),
       { designs: [r.url], photo: true },
       chipRow(a.cutOut ? ["Check my design", "Something else"] : [PHOTO_CUT, "Check my design", "Something else"]),
     ];
-  };
-  const studioPlace = async (r, areaKey) => {
-    const key = areaKey || photoTarget?.key;
-    if (!key) return false;
-    aiCuts.current.set(r.url, { path: r.url, w: r.w, h: r.h }); // already final: put on as it is
-    return Boolean(await placeAiDesign(r.url, key));
   };
 
   // A ready-made layout: its texts go to the first area the garment offers that is free.
@@ -1764,8 +1724,8 @@ export default function DesignRoomPage() {
     if (a.type === "edit") return chatEdit(a, progress, run);
     if (a.type === "photoPick") return openPhotoStudio();
     if (a.type === "aiTab") {
-      // "Draw a picture for me", a drawing typed in the chat, "Turn my photo into art": over to that tab
-      if (a.tab === "draw") setDrawSession((d) => ({ ...d, view: "form", ...(a.subject ? { subject: a.subject } : {}), ...(a.style ? { style: a.style } : {}), ...(a.areaKey ? { areaKey: a.areaKey } : {}) }));
+      // (from chats saved before the Draw / Photo pages went: a drawing with words becomes its plan card)
+      if (a.tab === "draw" && a.subject) return setChatAuto(`Draw ${a.subject}`);
       return openAiTab(a.tab);
     }
     if (a.type === "place") return placeAiDesign(a.url, a.areaKey, { move: !!a.move });
@@ -2310,6 +2270,10 @@ export default function DesignRoomPage() {
               <div className="dr-undo" role="group" aria-label="Undo and redo">
                 <button type="button" onClick={undo} disabled={histSize.past === 0} aria-label="Undo" title="Undo (Ctrl+Z)">↶</button>
                 <button type="button" onClick={redo} disabled={histSize.future === 0} aria-label="Redo" title="Redo (Ctrl+Y)">↷</button>
+                {/* phones: Save lives here (the top bar has no room for it); laptops have it in the top bar */}
+                <button type="button" className="dr-undosave" onClick={() => (isLoggedIn() ? setSaveOpen((o) => !o) : goToLogin())} aria-expanded={saveOpen}>
+                  {savedAt ? "Saved ✓" : "Save"}
+                </button>
               </div>
               {hoverPos ? (
                 <div className="dr-hotchip" role="status" key={hoverPos.key}>
@@ -2395,21 +2359,14 @@ export default function DesignRoomPage() {
         )}
 
         {step === "design" && assist && (
-          // The AI panel: Chat (the assistant), Draw (DrawStudio.jsx) and Photo (PhotoStudio.jsx). All three stay
-          // mounted, so a tab keeps its state (and a running request) while another is shown.
+          // The AI panel: the chat (Assistant.jsx) — drawing, photos and changes all happen there
           <section className={`dr-editor dr-assist dr-ai tab-${aiTab}`} data-wide={assistWide ? "1" : undefined} aria-label="AI design">
             <header>
               <div>
                 <div className="eyebrow">AI design</div>
-                <h2>{aiTab === "draw" ? "Describe it, I’ll draw it" : aiTab === "photo" ? "Your photo, on your tee" : "Tell me what you want"}</h2>
+                <h2>Tell me what you want</h2>
                 <div className="sub">
-                  {aiTab === "draw"
-                    ? "The AI draws a design for your tee."
-                    : aiTab === "photo"
-                      ? `Turn it into art, or keep it a photo — print-ready.${photoTarget ? ` It goes on ${photoTarget.label}.` : ""}`
-                      : activePos
-                        ? `Working on ${activePos.label}. You can still change anything by hand.`
-                        : "Describe your tee, or pick a starting point."}
+                  {activePos ? `Working on ${activePos.label}. You can still change anything by hand.` : "Describe your tee, send a photo, or pick a starting point."}
                 </div>
               </div>
               <div className="dr-assisthead">
@@ -2430,45 +2387,13 @@ export default function DesignRoomPage() {
                 <button type="button" className="dr-x" aria-label="Close" onClick={() => setAssist(false)}>✕</button>
               </div>
             </header>
-            <div className="dr-aipane" hidden={aiTab !== "chat"}>
-              <Assistant messages={chat} setMessages={setChat} state={chatState} setState={setChatState} ctx={assistantCtx} onAct={assistantAct} onFix={applyFix} placed={aiOn} fabric={fabricHex} autoSay={chatAuto} onAutoSaid={() => setChatAuto("")} onWorking={setAiWorking} />
+            <div className="dr-aipane">
+              <Assistant messages={chat} setMessages={setChat} state={chatState} setState={setChatState} ctx={assistantCtx} onAct={assistantAct} onFix={applyFix} placed={aiOn} fabric={fabricHex} autoSay={chatAuto} onAutoSaid={() => setChatAuto("")} onWorking={setAiWorking} photoNudge={photoNudge} />
               {elements.length > 0 && (
                 <button type="button" className="dr-handoff" onClick={editByHand}>
                   Not quite right? Edit it by hand →
                 </button>
               )}
-            </div>
-            <div className="dr-aipane" hidden={aiTab !== "draw"}>
-              <DrawStudio
-                ai={{ ...ai, loggedIn: isLoggedIn() }}
-                areas={positions.map((p) => ({ key: p.key, label: p.label, free: usedKeys.includes(p.key) || !blockersOf(p.key, positions, usedKeys).length }))}
-                targetKey={photoTarget?.key}
-                fabric={fabricHex}
-                session={drawSession}
-                setSession={setDrawSession}
-                onLogin={goToLogin}
-                onDraw={drawDesign}
-                onChange={changeDrawing}
-                onPlace={drawPlace}
-                onImprove={improveIdea}
-                onClose={() => setAssist(false)}
-              />
-            </div>
-            <div className="dr-aipane" hidden={aiTab !== "photo"}>
-              <PhotoStudio
-                ai={{ ...ai, loggedIn: isLoggedIn() }}
-                target={photoTarget ? { label: photoTarget.label, cm: areaCm(photoTarget, sizeNow) } : { label: "your tee", cm: null }}
-                areas={positions.filter((p) => usedKeys.includes(p.key) || !blockersOf(p.key, positions, usedKeys).length).map((p) => ({ key: p.key, label: p.label }))}
-                fabric={fabricHex}
-                session={photoSession}
-                setSession={setPhotoSession}
-                onLogin={goToLogin}
-                onUpload={studioUpload}
-                onArt={studioArt}
-                onPrintReady={studioPrintReady}
-                onPlace={studioPlace}
-                onClose={() => setAssist(false)}
-              />
             </div>
           </section>
         )}
@@ -2524,7 +2449,7 @@ export default function DesignRoomPage() {
               <>
                 <div className="dr-addtabs" role="tablist" aria-label="What to add">
                   {ADD_TABS.map(([k, label, icon, badge]) => (
-                    <button key={k} type="button" role="tab" aria-selected={addTab === k} className={`dr-addtab${addTab === k ? " on" : ""}`} onClick={() => (AI_ADD.includes(k) ? openAiTab(k) : setAddTab(k))}>
+                    <button key={k} type="button" role="tab" aria-selected={addTab === k} className={`dr-addtab${addTab === k ? " on" : ""}`} onClick={() => setAddTab(k)}>
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                         <path d={icon} />
                       </svg>
@@ -2552,8 +2477,8 @@ export default function DesignRoomPage() {
                 {addTab === "upload" && (
                   <>
                     <button type="button" className="dr-photocta" onClick={openPhotoStudio}>
-                      <b>Photo studio</b>
-                      <span>Turn a photo into art, or make it print-ready →</span>
+                      <b>Send it to the assistant</b>
+                      <span>Copy a design from a photo, remove the background, or turn it into art →</span>
                     </button>
                     <button type="button" className="dr-drop" onClick={pickUpload}>
                       <b>Upload a photo or logo</b>
@@ -2928,7 +2853,7 @@ function Fitting({ garment, colours, colour, onColour, sizes, size, onSize, onFi
           </svg>
           <span>
             <b>Start with my photo</b>
-            <small>Turn it into art, or keep it a photo — print-ready</small>
+            <small>Copy a design from it, put it on as it is, or turn it into art</small>
           </span>
           <i aria-hidden="true">→</i>
         </button>

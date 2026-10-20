@@ -1,6 +1,6 @@
 // routes/aiRoutes.js — the Design Room's AI design maker (see controllers/aiController.js)
 import express from "express";
-import { dropPrintPicture, getAiAdmin, getAiStatus, makeAiDesign, makeEdit, makeImprovedIdea, makePhotoPlan, makePrintPicture, makeSlogans, saveAiAdmin } from "../controllers/aiController.js";
+import { dropPrintPicture, getAiAdmin, getAiStatus, makeAiDesign, makeBackgroundRemoval, makeEdit, makeImprovedIdea, makePhotoPlan, makePrintPicture, makeSlogans, saveAiAdmin } from "../controllers/aiController.js";
 import { protect, adminOnly, adminOrSeller } from "../middleware/authMiddleware.js";
 import optionalAuth from "../middleware/optionalAuthMiddleware.js";
 import rateLimit from "../middleware/rateLimit.js";
@@ -18,6 +18,8 @@ router.post("/improve", rateLimit({ windowMs: 60_000, max: 20, message: "Slow do
 router.post("/edit", rateLimit({ windowMs: 60_000, max: 30, message: "Slow down a little — try again in a minute." }), makeEdit);
 // a photo sent in the chat: what the customer wants made from it (the text AI reads the photo; almost free)
 router.post("/photo-plan", protect, rateLimit({ windowMs: 60_000, max: 20, message: "Slow down a little — try again in a minute." }), makePhotoPlan);
+// "Remove the background" of a photo: done on this server (free — not an AI service, not a daily request)
+router.post("/remove-background", protect, rateLimit({ windowMs: 60_000, max: 10, message: "Slow down a little — try again in a minute." }), makeBackgroundRemoval);
 router.get("/admin", protect, adminOrSeller, getAiAdmin);
 router.put("/admin", protect, adminOnly, saveAiAdmin);
 // admin, from an order's print-files window: a large copy of an ordered picture for printing (costs about 3× a normal picture)

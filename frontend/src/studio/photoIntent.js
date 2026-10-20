@@ -30,15 +30,42 @@ export function areaFromWords(text, areas = []) {
   return side ? areas.find((a) => a.side === side && a.main && a.free)?.key || areas.find((a) => a.side === side && a.free)?.key || null : null;
 }
 
+// Every print area named, in the order written ("on the full back and the left chest" → both). "front" / "back"
+// count only when no area of that side is named by its full name.
+export function areasFromWords(text, areas = []) {
+  let rest = String(text || "").toLowerCase();
+  const names = areas
+    .flatMap((a) => [a.label, a.label.replace(/^shorts\s*[–-]\s*/i, "")].map((n) => ({ a, n: n.toLowerCase() })))
+    .sort((x, y) => y.n.length - x.n.length);
+  const found = [];
+  for (const { a, n } of names) {
+    const m = new RegExp(String.raw`\b${escapeRe(n)}\b`).exec(rest);
+    if (!m) continue;
+    if (!found.some((f) => f.key === a.key)) found.push({ key: a.key, side: a.side, at: m.index });
+    // (blanked out, so "front" inside "vertical front" isn't counted again)
+    rest = rest.slice(0, m.index) + " ".repeat(n.length) + rest.slice(m.index + n.length);
+  }
+  for (const side of ["front", "back"]) {
+    const m = new RegExp(String.raw`\b(on|at|for|to|and) (the |my )?${side}\b`).exec(rest);
+    if (m && !found.some((f) => f.side === side)) {
+      const key = areas.find((a) => a.side === side && a.main && a.free)?.key || areas.find((a) => a.side === side && a.free)?.key;
+      if (key) found.push({ key, side, at: m.index });
+    }
+  }
+  return found.sort((x, y) => x.at - y.at).map((f) => f.key);
+}
+
 export function photoJobFrom(text, { areas = [], photoStyles = [] } = {}) {
   const t = String(text || "").trim();
   const low = t.toLowerCase();
   if (low.length < 2) return null;
-  const areaKey = areaFromWords(t, areas);
+  // every area named ("full back and left chest" → both): the same photo goes on each
+  const areaKeys = areasFromWords(t, areas);
+  const areaKey = areaKeys[0] || null;
   // "add this to my tee on the front", "put it on the back": made print-ready for that area (the plan card shows it
   // ready to go; the customer still taps Make it)
   const addIt = /\b(add|put|place|stick|apply|print)\b.{0,40}\b(on|to|onto|in|at)\b.{0,20}\b(my |the |our )?(tee|t-?shirts?|shirt|top|front|back|chest|sleeves?|it)\b/.test(low) || /^(add|put|place|stick)\s+(this|it|that)\b/.test(low);
-  const base = { areaKey, style: null, change: null, subject: null, cutOut: true };
+  const base = { areaKey, areaKeys, style: null, change: null, subject: null, cutOut: true };
 
   // a new design that only borrows the look: "like this but with a tiger", "inspired by this"
   const like = /\b(like this|similar to this|something like|inspired by|in (the )?same style|same style as)\b/.test(low);

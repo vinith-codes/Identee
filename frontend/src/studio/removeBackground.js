@@ -1,21 +1,16 @@
 // studio/removeBackground.js
 //
-// Removes a picture's background in the customer's own browser — nothing is
-// sent to a paid service, so it costs nothing to run.
-//
-// Two ways, picked automatically:
-//  1. Plain background (logos, drawings on white or one flat colour): the
-//     background colour is cleared, starting from the picture's edges. Exact
-//     and instant.
-//  2. Photos: a small AI model (ORMBG, Apache-2.0 licence) finds the subject.
-//     It is downloaded once (~44 MB, then kept by the browser) with
-//     Transformers.js, which is only loaded when this is first used.
+// Removes a picture's background — free (no paid service). Two ways, picked automatically:
+//  1. Plain background (logos, drawings on white or one flat colour): cleared here in the browser, starting from
+//     the picture's edges. Exact and instant.
+//  2. Photos: { needsServer: true } — the caller asks the server (POST /api/ai/remove-background), which runs the
+//     ORMBG model (Apache-2.0). It used to run here in the browser, but on iPhones the model (~44 MB) and the 3D
+//     tee used more memory than Safari allows a page, and Safari reloaded the page.
 //
 // Not used on purpose: @imgly/background-removal and IS-Net (AGPL licences),
 // RMBG-1.4 (non-commercial licence).
 
 const MAX_SIDE = 2000; // bigger pictures are scaled down first (keeps the PNG well under the 10 MB upload limit)
-const MODEL = "onnx-community/ormbg-ONNX";
 
 const dist = (d, i, c) => Math.abs(d[i] - c[0]) + Math.abs(d[i + 1] - c[1]) + Math.abs(d[i + 2] - c[2]);
 
@@ -95,44 +90,11 @@ function clearFlatColour(image, colour, edge) {
   }
 }
 
-// 2. Photos: the AI model gives a mask (how much of each pixel is the subject).
-let modelReady = null;
-async function loadModel(onProgress) {
-  if (!modelReady) {
-    modelReady = (async () => {
-      const tf = await import("@huggingface/transformers");
-      const progress_callback = (p) => {
-        if (p.status === "progress" && /\.onnx$/.test(p.file || "")) onProgress?.(Math.round(p.progress || 0));
-      };
-      const model = await tf.AutoModel.from_pretrained(MODEL, { dtype: "q8", progress_callback });
-      const processor = await tf.AutoProcessor.from_pretrained(MODEL);
-      return { tf, model, processor };
-    })();
-    modelReady.catch(() => {
-      modelReady = null; // let the next try start again (e.g. the download failed)
-    });
-  }
-  return modelReady;
-}
-
-async function clearWithModel(canvas, image, onStage) {
-  const { tf, model, processor } = await loadModel((pct) => onStage?.(`Getting the background remover ready… ${pct}%`));
-  onStage?.("Removing the background…");
-  const raw = await tf.RawImage.fromCanvas(canvas);
-  const { pixel_values } = await processor(raw);
-  const inputName = model.sessions?.model?.inputNames?.[0] || "pixel_values";
-  const out = await model({ [inputName]: pixel_values });
-  const tensor = Object.values(out)[0];
-  const mask = await tf.RawImage.fromTensor(tensor[0].mul(255).to("uint8")).resize(canvas.width, canvas.height);
-  const { data } = image;
-  for (let p = 0; p < mask.data.length; p++) data[p * 4 + 3] = Math.min(data[p * 4 + 3], mask.data[p]);
-}
-
 /**
  * @param {HTMLImageElement} img  a loaded picture (CORS-safe)
  * @param {(text: string) => void} onStage  progress messages for the customer
  * @param {{ flatOnly?: boolean }} opts    flatOnly: only clear a plain background (never load the AI model)
- * @returns {Promise<{ blob: Blob, width: number, height: number, method: "colour" | "ai" } | { already: true }>}
+ * @returns {Promise<{ blob: Blob, width: number, height: number, method: "colour" } | { already: true } | { needsServer: true }>}
  */
 export async function removeBackground(img, onStage, { flatOnly = false } = {}) {
   const canvas = toCanvas(img);
@@ -144,10 +106,7 @@ export async function removeBackground(img, onStage, { flatOnly = false } = {}) 
   let method = "colour";
   if (edge.flat) clearFlatColour(image, edge.colour, edge.idx);
   else if (flatOnly) return { already: true }; // (AI-made designs: no plain background to clear, use the picture as it is)
-  else {
-    method = "ai";
-    await clearWithModel(canvas, image, onStage);
-  }
+  else return { needsServer: true }; // a photo: the server's model does it
   ctx.putImageData(image, 0, 0);
   const blob = await new Promise((done) => canvas.toBlob(done, "image/png"));
   if (!blob) throw new Error("Could not make the picture");
