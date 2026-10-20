@@ -28,7 +28,7 @@ const CSS = `
   .sf-ways a:hover { text-decoration: underline; text-underline-offset: 4px; }
   .sf-ways svg { width: 18px; height: 18px; flex-shrink: 0; }
   .sf-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(0, 1.3fr); gap: 32px; padding-block: 52px 56px; }
-  .sf-col h3 { margin: 0 0 16px; font: 700 11.5px/1 "Inter", sans-serif; letter-spacing: .2em; text-transform: uppercase; color: #6F6A60; }
+  .sf-col h3 { margin: 0 0 16px; font: 700 12.5px/1 "Inter", sans-serif; letter-spacing: .2em; text-transform: uppercase; color: #6F6A60; }
   .sf-col ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 11px; }
   .sf-col li a { font-size: 14.5px; color: #3B362E; transition: color .2s; }
   .sf-col li a:hover { color: #15130F; text-decoration: underline; text-underline-offset: 4px; }
@@ -48,6 +48,9 @@ const CSS = `
   .sf a:focus-visible { outline: 2px solid #B8912F; outline-offset: 3px; border-radius: 4px; }
   @media (max-width: 900px) { .sf-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
   @media (max-width: 520px) { .sf-grid { grid-template-columns: minmax(0, 1fr); gap: 28px; } }
+  /* phones: no map in the footer (it was most of the footer's height, and about 1 MB to download) — a link instead */
+  .sf-maplink { display: none; margin-top: 10px; font-weight: 700; color: #7A5B12; text-decoration: none; }
+  @media (max-width: 600px) { .sf-map { display: none; } .sf-maplink { display: inline-block; } }
 `;
 
 const Icon = {
@@ -174,6 +177,7 @@ export default function SiteFooter() {
             <div className="sf-col">
               <h3>Visit us</h3>
               <address>{address}</address>
+              <a className="sf-maplink" href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`} target="_blank" rel="noreferrer">Open in Google Maps →</a>
               {showMap && (
                 <div className="sf-map">
                   <iframe title="Store location on the map" src={`https://www.google.com/maps?q=${encodeURIComponent(address)}&output=embed`} loading="lazy" />

@@ -289,3 +289,32 @@
   .hm-dots { gap: 12px; }
   .hm-dot { width: 32px; height: 32px; }
 }
+
+/* ---------- phones (≤600px): the headline and "Create your IDENTEE" on the first screen, a shorter page,
+   and no text too small to read ---------- */
+@media (max-width: 600px) {
+  .hm-hero .hm-wrap { padding-block: 14px 8px; gap: 10px; }
+  .hm-stage { max-width: 220px; }
+  .hm-hero h1 { font-size: 40px; margin-top: 12px; }
+  .hm-hero .lead { margin-top: 12px; font-size: 15.5px; line-height: 1.55; }
+  .hm-hero .ctas { margin-top: 18px; gap: 10px; }
+  .hm-hero .ctas .hm-btn { flex: 1 1 100%; justify-content: center; }
+  .hm-picker { margin-top: 22px; }
+  .hm-picker small { font-size: 13px; }
+  .hm-eyebrow { font-size: 12.5px; letter-spacing: .18em; }
+  .hm-sec { padding-block: 52px; }
+  .hm-way { min-height: 440px; }
+  .hm-cols { height: 340px; }
+}
+@media (max-width: 600px) {
+  .hm-way { min-height: 400px; }
+}
+
+/* phones: the "Create your IDENTEE" card stacks — the whole tee on top, the words below it (the tee used to sit
+   over the title and the text, cut off at the edge); the doodle is for the wide layout only */
+@media (max-width: 600px) {
+  .hm-way.custom { min-height: 0; padding-top: 20px; justify-content: flex-start; }
+  .hm-way.custom .photo { position: relative; top: auto; right: auto; width: 66%; max-width: 250px; margin: 0 auto 10px; }
+  .hm-way.custom:hover .photo { transform: none; }
+  .hm-way.custom .art, .hm-way.custom::after { display: none; }
+}
