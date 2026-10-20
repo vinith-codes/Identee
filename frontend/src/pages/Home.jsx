@@ -236,8 +236,8 @@ export default function Home() {
 
       <HomeHero garment={garment} colours={colours.slice(0, 6)} printCm={printCm} shopOpen={shopOpen} />
       <HomeMarquee shopOpen={shopOpen} />
-      <HomeCreate garment={garment} colours={colours} />
-      <HomePhoto garment={garment} />
+      <HomeCreate colours={colours} />
+      <HomePhoto />
       <HomeWays garment={garment} customPhoto={garment ? coverPhoto(garment, garmentImages) : null} stackPhotos={stackPhotos} custom={custom} ready={ready} shopOpen={shopOpen} />
       <HomeSteps />
       {shopOpen && <HomeFeatured products={products} />}

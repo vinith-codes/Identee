@@ -9,7 +9,7 @@
 // from Admin → Customizable: live, sellable ones can be designed; drafts marked "coming soon"
 // show as cards with their catalogue photo (nothing to click into yet).
 import { useEffect, useLayoutEffect, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useLocation, useSearchParams } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { fetchCategories } from "../redux/slices/categorySlice";
 import { fetchGarmentTypes } from "../redux/slices/garmentTypeSlice";
@@ -21,6 +21,7 @@ import { isDesignYourOwn } from "../utils/categoryKinds";
 import { SHOPS } from "../utils/shopNames";
 import { imageUrl } from "../utils/imageUrl";
 import garmentTypeService from "../services/garmentTypeService";
+import { carryFrom, ideaFrom } from "../utils/carryStart";
 
 const CSS = `
   .cz-cats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 22px; }
@@ -51,6 +52,10 @@ export default function CustomizablePage() {
   const dispatch = useDispatch();
   const [params] = useSearchParams();
   const only = params.get("category");
+  // what the customer tapped on the home page ("Your words", "Your photo", a typed idea): kept until the Design Room
+  const carry = carryFrom(params);
+  const idea = ideaFrom(useLocation());
+  const keep = idea ? { idea } : undefined;
   const { items: allCategories } = useSelector((s) => s.categories);
   // only the Design-your-own collections (Admin → Categories → Design your own)
   const categories = (allCategories || []).filter(isDesignYourOwn);
@@ -123,7 +128,7 @@ export default function CustomizablePage() {
                 const count = g.garments.length;
                 const coming = g.soon.length;
                 return (
-                  <Link key={g.key} to={`/customizable?category=${g.key}`} className="cz-cat">
+                  <Link key={g.key} to={`/customizable?category=${g.key}${carry}`} state={keep} className="cz-cat">
                     <div className="cz-img">
                       {pic ? <img src={imageUrl(pic, 600)} alt="" loading="lazy" style={pic === g.soon[0]?.catalogueImage ? { objectFit: "contain", background: "#fff" } : undefined} /> : <div className="cz-ph" aria-hidden="true">{g.name.split(/\s+/).map((w) => w[0]).filter((ch) => /[a-z]/i.test(ch)).join("").slice(0, 3)}</div>}
                       {!count && <span className="cz-soon">Coming soon</span>}
@@ -149,12 +154,12 @@ export default function CustomizablePage() {
         {/* step 2: the garments of one collection */}
         {!loading && only && (
           <>
-            <Link to="/customizable" className="cz-back">← All collections</Link>
+            <Link to={`/customizable${carry.replace("&", "?")}`} state={keep} className="cz-back">← All collections</Link>
             {open ? (
               <section>
                 <h2 className="cz-head">{open.name}</h2>
                 {open.description && <p className="cz-sub">{open.description}</p>}
-                {(open.garments.length > 0 || open.soon.length > 0) && <CustomizableGarments garments={open.garments} soon={open.soon} images={images} />}
+                {(open.garments.length > 0 || open.soon.length > 0) && <CustomizableGarments garments={open.garments} soon={open.soon} images={images} carry={carry} idea={idea} />}
                 {!open.garments.length && !open.soon.length && (
                   <div className="cz-empty">
                     <b>Coming soon</b>

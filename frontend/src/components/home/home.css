@@ -101,7 +101,9 @@
 .hm-way p { margin: 0 0 20px; max-width: 360px; line-height: 1.6; }
 .hm-way .meta { font-size: 13px; font-weight: 600; opacity: .7; margin-bottom: 20px; }
 .hm-way.custom { background: var(--stone); color: var(--ink); }
-.hm-way.custom .photo { position: absolute; top: -3%; right: 0; width: 72%; z-index: 0; transition: transform 1.4s var(--ease); }
+/* aspect-ratio: the garment photos are 4 : 5 — without a height before it loads, the lazy picture had a 0-tall box
+   and the browser never fetched it (the card showed no photo) */
+.hm-way.custom .photo { position: absolute; top: -3%; right: 0; width: 72%; aspect-ratio: 4 / 5; object-fit: contain; z-index: 0; transition: transform 1.4s var(--ease); }
 .hm-way.custom:hover .photo { transform: translateY(-8px) scale(1.03); }
 .hm-way.custom .art { position: absolute; right: 23%; top: 29%; width: 26%; z-index: 1; overflow: visible; }
 .hm-way .art path { fill: none; stroke: var(--ink); stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 520; stroke-dashoffset: 0; }

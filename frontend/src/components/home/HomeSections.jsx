@@ -39,7 +39,8 @@ export function HomeHero({ garment, colours, printCm, shopOpen }) {
 
   const c = colours[cur] || colours[0];
   const ink = c && isLight(c.hex) ? "#15130F" : "#F3E7C6";
-  const designHref = garment ? `/customize/${garment.key}?new=1&color=${c?.slug || "white"}` : "/customizable";
+  // first "choose your T-shirt" (there are several types); the colour is picked there and in the room
+  const designHref = SHOPS.create.to;
 
   return (
     <section className="hm-hero" aria-label="Welcome">
@@ -199,28 +200,28 @@ function useTypedExample(stop) {
   // stopped (they clicked in or typed): the current example in full, not a half-typed line
   return calm ? IDEA_EXAMPLE : stop ? IDEA_EXAMPLES[n] : IDEA_EXAMPLES[n].slice(0, len);
 }
-export function HomeCreate({ garment, colours }) {
+export function HomeCreate({ colours }) {
   const navigate = useNavigate();
   const [idea, setIdea] = useState("");
   const [missing, setMissing] = useState(false);
   const [focused, setFocused] = useState(false);
   const example = useTypedExample(focused || idea.length > 0);
-  const base = garment ? `/customize/${garment.key}?new=1` : null;
-  const go = (extra = "", color = "white") => (base ? `${base}&color=${color}${extra}` : SHOPS.create.to);
+  // each way in goes to "choose your T-shirt" first and opens its tool once the T-shirt is picked (utils/carryStart.js)
+  const go = (extra = "") => `${SHOPS.create.to}${extra.replace("&", "?")}`;
   const photo = (slug, i) => (colours.find((c) => c.slug === slug) || colours[i % Math.max(1, colours.length)])?.front;
   const submit = (e) => {
     e.preventDefault();
     const text = idea.trim();
     if (text.length < 3) return setMissing(true);
-    navigate(go(), { state: { idea: text } });
+    navigate(SHOPS.create.to, { state: { idea: text } });
   };
   const WAYS6 = [
     { title: "Your photo", text: "As it is, or turned into art.", to: go("&photo=1"), slug: "white", ov: <span className="ov box">YOUR<br />PHOTO</span> },
-    { title: "Your words", text: "Names, quotes, dates — in any font.", to: go("&start=text", "black"), slug: "black", ov: <span className="ov" style={{ color: "#F0D585", fontSize: 15 }}>SAY IT<br />LOUD</span> },
-    { title: "Describe it", text: "We draw what you describe.", to: go("&start=draw", "navy"), slug: "navy", ov: <span className="ov" style={{ color: "#fff" }}>✦ DRAWN<br />FOR YOU</span> },
-    { title: "Ready art", text: "Designs from our art library.", to: go("&start=art", "cream"), slug: "cream", ov: <span className="ov" style={{ color: "#7A5B12" }}>◆ ART<br />LIBRARY</span> },
+    { title: "Your words", text: "Names, quotes, dates — in any font.", to: go("&start=text"), slug: "black", ov: <span className="ov" style={{ color: "#F0D585", fontSize: 15 }}>SAY IT<br />LOUD</span> },
+    { title: "Describe it", text: "We draw what you describe.", to: go("&start=draw"), slug: "navy", ov: <span className="ov" style={{ color: "#fff" }}>✦ DRAWN<br />FOR YOU</span> },
+    { title: "Ready art", text: "Designs from our art library.", to: go("&start=art"), slug: "cream", ov: <span className="ov" style={{ color: "#7A5B12" }}>◆ ART<br />LIBRARY</span> },
     { title: "Names & numbers", text: "A different one on every tee.", to: SHOPS.team.to, slug: "bottle-green", ov: <span className="ov" style={{ color: "#fff" }}>ARUN<br /><span style={{ fontSize: 22 }}>07</span></span> },
-    { title: "Your logo", text: "For a shop, college or office.", to: go("&start=upload", "red"), slug: "red", ov: <span className="ov dash">YOUR LOGO</span> },
+    { title: "Your logo", text: "For a shop, college or office.", to: go("&start=upload"), slug: "red", ov: <span className="ov dash">YOUR LOGO</span> },
   ];
   return (
     <section className="hm-sec hm-create" aria-label="What do you want on your tee?">
@@ -305,7 +306,7 @@ export function HomeWays({ garment, customPhoto, stackPhotos, custom, ready, sho
               el.classList.add("draw");
             }}
           >
-            {customPhoto && <img className="photo" src={imageUrl(customPhoto, 900)} alt="" loading="lazy" />}
+            {customPhoto && <img className="photo" src={imageUrl(customPhoto, 900)} alt="" />}
             <svg className="art" viewBox="0 0 200 200" aria-hidden="true">
               <path className="g" d="M30 150 C 40 60, 90 40, 100 100 S 160 160, 170 60" />
               <path d="M40 176 L 160 176" />
@@ -391,9 +392,9 @@ export function HomeWays({ garment, customPhoto, stackPhotos, custom, ready, sho
 
 /* ---------- three steps (the real Design Room order) ---------- */
 /* ---------- the Photo Studio, highlighted: the customer's photo as art, or print-ready ---------- */
-export function HomePhoto({ garment }) {
+export function HomePhoto() {
   // straight into the design room, which opens the Photo Studio (?photo=1)
-  const href = garment ? `/customize/${garment.key}?new=1&photo=1` : "/customizable";
+  const href = `${SHOPS.create.to}?photo=1`; // choose the T-shirt first, then the room opens the Photo tab
   // a big tee with a face on it, made in our own design room (3D previews, saved in public/home): they take turns
   const tees = [
     ["/home/photo-tee-leo.jpg", "Vijay · LEO", "on the back of a navy oversized tee"],
