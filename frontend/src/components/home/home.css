@@ -281,3 +281,9 @@
   .hm-photo-in { grid-template-columns: minmax(0, 1fr); gap: 36px; }
   .hm-photo-show { max-width: 420px; }
 }
+
+/* phones: colour dots big enough for a thumb */
+@media (max-width: 760px) {
+  .hm-dots { gap: 12px; }
+  .hm-dot { width: 32px; height: 32px; }
+}

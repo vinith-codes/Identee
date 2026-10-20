@@ -227,7 +227,9 @@ export default function Home() {
         @media (max-width: 760px) {
           /* above the phones' bottom bar (MobileTabBar) */
           .identee-floating-social { left: auto; right: 10px; bottom: calc(76px + env(safe-area-inset-bottom, 0px)); gap: 10px; }
-          .identee-floating-btn { width: 40px; height: 40px; }
+          .identee-floating-btn { width: 44px; height: 44px; }
+          /* one bubble only, so less of the page is covered (Instagram is in the footer) */
+          .identee-floating-instagram { display: none; }
         }
       `}</style>
       <FloatingSocial settings={publicSettings} />

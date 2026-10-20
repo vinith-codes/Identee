@@ -1116,11 +1116,25 @@ export default function Navbar() {
           .nav-mobile-menu { padding: 12px 18px 20px !important; }
         }
 
+        /* phones and tablets: every icon gets a thumb-sized (42 × 42) tap area, the look stays the same */
+        @media (max-width: 900px) {
+          .navbar-right { gap: 2px !important; }
+          .navbar-icon, .navbar-burger { min-width: 42px; min-height: 42px; align-items: center; justify-content: center; }
+          .navbar-icon svg { width: 22px !important; height: 22px !important; }
+        }
+        @media (max-width: 600px) {
+          .navbar-logo { height: 56px !important; }
+        }
+        /* touch screens: no hover tooltips (a tap would leave one stuck on screen) */
+        @media (hover: none) {
+          .navbar-icon::after, .navbar-icon::before { display: none !important; }
+        }
+
         /* ==================== SMALL MOBILE (≤380px) ==================== */
         @media (max-width: 380px) {
-          .navbar-right { gap: 8px !important; }
-          .navbar-icon svg { width: 18px !important; height: 18px !important; }
-          .navbar-logo { height: 38px !important; }
+          .navbar-right { gap: 0 !important; }
+          .navbar-icon svg { width: 20px !important; height: 20px !important; }
+          .navbar-logo { height: 54px !important; }
         }
       `}</style>
     </>
