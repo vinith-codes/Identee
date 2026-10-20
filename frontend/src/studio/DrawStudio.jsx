@@ -19,6 +19,8 @@ const STYLE_INFO = {
   "Retro badge": ["A vintage round emblem", "linear-gradient(135deg,#F0997B,#712B13)"],
   Cartoon: ["Friendly, clean outlines", "linear-gradient(135deg,#AFA9EC,#534AB7)"],
   Watercolour: ["Soft painted edges", "linear-gradient(135deg,#9FE3C7,#F7B2C4)"],
+  Realistic: ["Looks like a real photo", "linear-gradient(135deg,#8A9BA8,#1F2A33)"],
+  "Detailed art": ["Lifelike, rich detail", "linear-gradient(135deg,#C9A24B,#3A2410)"],
   "Hand lettering": ["Your words as the design", "linear-gradient(135deg,#444441,#C9A24B)"],
 };
 const IDEAS = ["A lion holding a cricket bat", "A mountain sunrise", "A cup of filter coffee", "A phoenix"];

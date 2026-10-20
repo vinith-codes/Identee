@@ -61,6 +61,11 @@ export const AI_STYLES = {
   "Retro badge": "vintage round badge emblem with a retro screen-print look and a limited palette",
   Cartoon: "friendly cartoon illustration with clean outlines and flat colours",
   Watercolour: "soft watercolour painting with loose, flowing edges",
+  // real-looking pictures (the styles above are all drawings)
+  Realistic:
+    "photorealistic, true-to-life image that looks like a real high-resolution photograph: real proportions, natural lighting, real materials and textures, sharp fine detail; not a drawing, cartoon or illustration, no outlines",
+  "Detailed art":
+    "highly detailed, lifelike digital painting like premium streetwear t-shirt art: realistic proportions, dramatic lighting, rich shading and sharp fine detail; not a cartoon, no thick outlines, no flat colours",
   // words as the whole design: a slogan or a quote drawn as lettering (the Assistant picks this by itself
   // when the customer asks for words "as an image", "typography", "a design that says …")
   "Hand lettering":
