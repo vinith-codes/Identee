@@ -357,7 +357,8 @@ export const makeSlogans = asyncHandler(async (req, res) => {
 });
 
 // POST /api/ai/improve  (no login needed; limited per address in the route)
-// { idea, teeColour?, teeIsDark?, areas?: [{ key, label, side, cm }] } -> { prompt, expect: [{ label, value }], style, area }
+// { idea, teeColour?, teeIsDark?, areas?: [{ key, label, side, cm }] } -> { prompt, expect: [{ label, value }], style, area,
+//   pictures: [{ prompt, expect, area }] }  (one picture per print area named; prompt/expect/area are the first's)
 // "Improve my idea": the customer's rough words as a clear instruction for the picture AI, and what they will get.
 // Text only — costs a fraction of a paisa, so it is not counted against the picture limits.
 export const makeImprovedIdea = asyncHandler(async (req, res) => {

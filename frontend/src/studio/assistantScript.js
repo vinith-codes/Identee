@@ -23,6 +23,7 @@ import { SLOGANS, TONES, occasionIn, personalLines, slogansFor, toneIn } from ".
 import { TEMPLATES } from "./designTemplates";
 import { parsePlayers, playerLabel } from "./teamOrder";
 import { styleIn } from "./styleInfo";
+import { areasFromWords } from "./photoIntent";
 
 const MENU = ["Slogan ideas", "Start from a template", "Check my design", "More help"];
 const MORE_PHOTO = "Photo to art";
@@ -74,13 +75,18 @@ const namedArea = (areas, low) =>
     .flatMap((a) => areaNames(a).map((name) => ({ a, name })))
     .sort((x, y) => y.name.length - x.name.length)
     .find(({ name }) => new RegExp(String.raw`\b${escapeRe(name)}\b`).test(low)) || null;
-// "a tiger on the left leg": what to draw (without the area's name) and the area it is for
+// "a tiger on the left leg": what to draw (without the area's name) and the area it is for.
+// Two areas named ("Naruto on the front and Ben 10 on the back"): the words stay whole and multi is set — that is
+// one picture per area, so it goes to the planner (or Improve), never one picture for one area.
 const subjectAndArea = (t, areas) => {
+  if (areasFromWords(t, areas).length > 1) return { subject: t, areaKey: null, multi: true };
   const hit = namedArea(areas, t.toLowerCase());
   if (!hit) return { subject: t, areaKey: null };
   const subject = t.replace(new RegExp(String.raw`\s*\b((on|in|at|for|to) )?(the )?${escapeRe(hit.name)}( area)?\b`, "i"), " ").replace(/\s+/g, " ").trim();
   return { subject: subject.length >= 2 ? subject : t, areaKey: hit.a.key };
 };
+// what an idea is kept as while it waits (Improve / Use my own words / Change my idea)
+const ideaOf = (said) => ({ subject: said.subject, areaKey: said.areaKey, ...(said.multi ? { multi: true } : {}), improved: null });
 
 export const bot = (text) => ({ from: "bot", text });
 export const chips = (list) => ({ chips: list });
@@ -123,6 +129,10 @@ const areaForPlan = (ctx, key) => {
 const planFor = (ctx, subject, areaKey, { style, improvable = false, label } = {}) => ({
   plan: { items: [{ subject, areaKey: areaForPlan(ctx, areaKey), ...(label ? { label } : {}) }], style: style || styleIn(subject, ctx.ai.styles) || ctx.ai.styles[0], improvable },
 });
+// an idea in the customer's own words as the plan card: one picture, or — when it names more than one area and the
+// text AI is there — the planner splits it into one picture per area (act "edit" shows the same plan card)
+const ideaPlan = (ctx, idea, opts) =>
+  idea.multi && ctx.ai.text ? [act({ type: "edit", message: idea.subject })] : [bot(PLAN_SAYS), planFor(ctx, idea.subject, idea.areaKey, opts)];
 
 const showSlogans = (st, ctx, lead) => [bot(lead || `${st.tone} lines for a ${st.occasion.toLowerCase()} tee. Tap one to put it on ${ctx.areaLabel}.`), { slogans: slogansFor(st.occasion, st.tone, st.shown) }, chips(AFTER_SLOGANS)];
 
@@ -239,7 +249,7 @@ export function replyTo(text, ctx, st, { tapped = false } = {}) {
   }
   if (wait === "drawWhat" && !offTopic && t.length >= 2) {
     const said = subjectAndArea(t.replace(/^(please )?(can you |could you )?(draw|design|make|create|generate)( me)?( an?| the| some)?\s+/i, ""), ctx.areas);
-    return done([bot(PLAN_SAYS), planFor(ctx, said.subject, said.areaKey, { improvable: !!ctx.ai.text })], { idea: { subject: said.subject, areaKey: said.areaKey, improved: null } });
+    return done(ideaPlan(ctx, said, { improvable: !!ctx.ai.text }), { idea: ideaOf(said) });
   }
   if (wait === "aiChange" && !offTopic && st.changeUrl) {
     return done([act({ type: "generate", baseUrl: st.changeUrl, change: t })], { changeUrl: null });
@@ -254,10 +264,13 @@ export function replyTo(text, ctx, st, { tapped = false } = {}) {
     // (already improved: tapping it again asks for a new idea, below)
     if (t === IMPROVE && !better) return done([act({ type: "improve", idea: st.idea.subject, areaKey: st.idea.areaKey })]);
     if ((t === DRAW_THIS || t === IN_DRAW_TAB) && better) {
-      return done([bot(PLAN_SAYS), planFor(ctx, better.prompt, better.area || st.idea.areaKey, { style: ai.styles.includes(better.style) ? better.style : null })]);
+      const style = ai.styles.includes(better.style) ? better.style : null;
+      // (more than one picture: each on its own area, as the improved idea said)
+      if (better.pictures?.length > 1) return done([bot(PLAN_SAYS), { plan: { items: better.pictures.map((p) => ({ subject: p.prompt, areaKey: p.areaKey || p.area || null })), style: style || ai.styles[0] } }]);
+      return done([bot(PLAN_SAYS), planFor(ctx, better.prompt, better.area || st.idea.areaKey, { style })]);
     }
     if (t === DRAW_MINE || t === IN_DRAW_TAB) {
-      return done([bot(PLAN_SAYS), planFor(ctx, st.idea.subject, st.idea.areaKey, { improvable: !better && !!ai.text })], better ? { idea: { ...st.idea, improved: null } } : {});
+      return done(ideaPlan(ctx, st.idea, { improvable: !better && !!ai.text }), better ? { idea: { ...st.idea, improved: null } } : {});
     }
   }
   // "✨ Improve my idea" on its own (the examples, More help, the button above the message box): ask for the idea,
@@ -268,13 +281,13 @@ export function replyTo(text, ctx, st, { tapped = false } = {}) {
     if (!ai.available || !ai.text) return done([bot("Improving ideas is not available right now. Describe your picture in your own words and I’ll draw it."), chips(["Make a design", "Something else"])]);
     if (typedIdea.length >= 3) {
       const idea = subjectAndArea(typedIdea, ctx.areas);
-      return done([act({ type: "improve", idea: idea.subject, areaKey: idea.areaKey })], { idea: { subject: idea.subject, areaKey: idea.areaKey, improved: null } });
+      return done([act({ type: "improve", idea: idea.subject, areaKey: idea.areaKey })], { idea: ideaOf(idea) });
     }
     return done([bot("Tell me your idea in your own words: what to draw, any words on it, and where each part goes. For example: “Vijay’s face at the top and the name VIJAY in bold letters at the bottom left”. I’ll make it clear and show you what you’ll get before anything is drawn."), chips([OUT])], { wait: "idea", idea: null });
   }
   if (wait === "idea" && !offTopic && t.length >= 3) {
     const idea = subjectAndArea(t, ctx.areas);
-    return done([act({ type: "improve", idea: idea.subject, areaKey: idea.areaKey })], { idea: { subject: idea.subject, areaKey: idea.areaKey, improved: null } });
+    return done([act({ type: "improve", idea: idea.subject, areaKey: idea.areaKey })], { idea: ideaOf(idea) });
   }
   if (t === "Log in") return done([act({ type: "login" })]);
 
@@ -355,7 +368,7 @@ export function replyTo(text, ctx, st, { tapped = false } = {}) {
       if (ai.text) {
         return done(
           [bot("That’s a picture and words together. Let me make the idea clear first — it’s free, and I’ll show you what you’ll get before drawing."), orOut([IMPROVE, DRAW_MINE])],
-          { idea: { subject: idea.subject, areaKey: idea.areaKey, improved: null }, wait: null },
+          { idea: ideaOf(idea), wait: null },
         );
       }
       return done([bot(PLAN_SAYS), planFor(ctx, idea.subject, idea.areaKey, { style: LETTERING })]);
@@ -463,7 +476,7 @@ export function replyTo(text, ctx, st, { tapped = false } = {}) {
       return done([bot("What should I draw? Say it in your own words, and where it goes if you like. For example: a lion holding a cricket bat on the back."), chips([OUT])], { wait: "drawWhat" });
     }
     // (✨ Improve my idea on the card makes it clearer first, free, when the text AI is there)
-    return done([bot(PLAN_SAYS), planFor(ctx, said.subject, said.areaKey, { improvable: !!ai.text })], { idea: { subject: said.subject, areaKey: said.areaKey, improved: null }, wait: null });
+    return done(ideaPlan(ctx, said, { improvable: !!ai.text }), { idea: ideaOf(said), wait: null });
   }
 
   /* ----- slogans ----- */

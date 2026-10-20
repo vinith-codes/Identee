@@ -320,7 +320,8 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
           if (m.preview) {
             // "Improve my idea": what will be drawn, before any picture request is spent
             // its print area can be changed until it is drawn (the idea still waiting is this one)
-            const live = !thinking && state.idea?.improved?.prompt === m.preview.prompt;
+            // (one of several pictures: its area is shown, and changed in the plan card under them)
+            const live = !thinking && !m.preview.fixed && state.idea?.improved?.prompt === m.preview.prompt;
             const free = ctx().areas.filter((a) => a.free || a.key === m.preview.area);
             const pickArea = (key) => {
               const label = free.find((a) => a.key === key)?.label;

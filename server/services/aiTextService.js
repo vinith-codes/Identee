@@ -114,19 +114,21 @@ async function askJson(prompt, temperature = 0.3, modelName = model()) {
  * @param teeColour  the tee's colour name; teeIsDark: whether it is dark
  * @param styles     the picture styles they can pick ({ name, about })
  * @param areas      the free print areas ({ key, label, side, cm: [w, h] }) — one is suggested
- * @returns {Promise<{ prompt: string, expect: [{ label, value }], style: string|null, area: string|null }>}
+ * @returns {Promise<{ prompt, expect, style, area, pictures: [{ prompt, expect, area }] }>}  one picture per print area
+ *          the customer named ("Naruto on the front and Ben 10 on the back" = 2); prompt/expect/area = the first
  */
 export async function improveIdea({ idea, teeColour, teeIsDark, styles = [], areas = [] }) {
   const prompt = [
     "You help a customer of a custom t-shirt shop describe a design for an AI picture maker. They wrote a rough idea; rewrite it as a clear instruction and tell them, in plain words, what they will get.",
-    'Answer with JSON only: {"prompt": string, "expect": [{"label": string, "value": string}], "style": string, "area": string}.',
-    "prompt: at most 280 characters, in English. Describe only the artwork: what is in it, where each part sits (top, middle, bottom, left, right), the drawing style, and the colours.",
+    'Answer with JSON only: {"pictures": [{"prompt": string, "expect": [{"label": string, "value": string}], "area": string}], "style": string}.',
+    "pictures: ONE entry for each print area the customer wants a picture on — \"X on the front and Y on the back\" is TWO entries (X for the front, Y for the back), never one picture with both. Things meant to be together in one place (\"a tiger beside Naruto on the front\") stay one entry. Never drop a picture they asked for. At most 4 entries.",
+    "prompt (in each entry): at most 280 characters, in English. Describe only the artwork: what is in it, where each part sits (top, middle, bottom, left, right), the drawing style, and the colours.",
     "Words: ONLY words the customer asked to appear (a name, a slogan, letters in quotes, \"the text …\", \"the word …\"). Never add words of your own — \"for my cricket team\" says who it is for, it is not text to print. Put each wanted word or phrase in double quotes, written as the customer meant it (a name or short word they typed in small letters may be written in capitals), followed by (spelled X-X-X) when it is one short word. Fix the customer's typos everywhere else.",
     "Colours: keep every colour the customer asked for, exactly. Only where they named none, choose colours that show well on a " + (teeIsDark ? "dark" : "light") + " " + teeColour + " t-shirt (one-colour ink: black on a light tee, white on a dark tee).",
     "Never mention the t-shirt, a shirt, a mockup, a background, a base, a frame or a watermark in the prompt. Do not add objects they did not ask for; you may add style details that make it look good. When a word could mean two different things, pick one meaning and name it precisely (never leave the vague word).",
-    "expect: 3 to 5 short lines for the customer, in the customer's language, each label one or two words (for example Words, Top, Bottom, Style, Colours) and each value under 60 characters. Say plainly what each part will look like, naming objects precisely so the customer can spot a misunderstanding. If there are words, the first line is Words: the exact words. Only if a word the customer wrote really has two likely meanings in this design, the LAST line has the label Check (no Check line otherwise) and says which meaning you chose and what to write instead for the other (for example: Check — I read \"glass\" as a drinking glass; write \"eyeglasses\" if you meant spectacles).",
+    "expect (in each entry): 2 to 5 short lines for the customer, about that picture only, in the customer's language, each label one or two words (for example Words, Top, Bottom, Style, Colours) and each value under 60 characters. Say plainly what each part will look like, naming objects precisely so the customer can spot a misunderstanding. If there are words, the first line is Words: the exact words. Only if a word the customer wrote really has two likely meanings in this design, the LAST line has the label Check (no Check line otherwise) and says which meaning you chose and what to write instead for the other (for example: Check — I read \"glass\" as a drinking glass; write \"eyeglasses\" if you meant spectacles).",
     "style: the one of these picture styles that suits best; when the customer names a style (lettering, cartoon, watercolour, retro badge…), choose that one; when they want it to look real, realistic, lifelike or like a photo, choose Realistic (or Detailed art for a lifelike painting): " + JSON.stringify(styles),
-    "area: the key of the print area that suits the design's shape best (tall designs with parts at top and bottom suit a tall area; a small logo suits a chest area). Choose from: " + JSON.stringify(areas),
+    "area (in each entry): the key of the print area the customer named for it (front = the main front area, back = the main back area); when they named none, the one that suits the design's shape best (tall designs with parts at top and bottom suit a tall area; a small logo suits a chest area). Choose from: " + JSON.stringify(areas),
     "The customer's idea: " + JSON.stringify(String(idea).slice(0, 400)),
   ].join("\n");
   // a stronger (still cheap: about ₹0.03) model than the slogans use — it has to follow many rules at once
@@ -137,25 +139,26 @@ export async function improveIdea({ idea, teeColour, teeIsDark, styles = [], are
     out = await askJson(prompt, 0.3); // the small model, if that one is busy
   }
   // (the picture AI is told about the tee and the plain background separately; mentioning them here only confuses it)
-  const text = String(out?.prompt || "")
+  const clean = (p) => String(p || "")
     .replace(/[,.]?\s*(designed |made )?(for|on) an? [\w -]{0,20}\b(t-?shirt|tee|shirt)\b\.?/gi, ".")
     .replace(/[,.]?\s*(on|against|over) (an? |the )?([\w-]+ ){0,3}(background|canvas|base|backdrop)\b/gi, "")
     .replace(/\.\s*\./g, ".")
     .replace(/\s+/g, " ")
     .trim()
     .slice(0, 300);
-  if (text.length < 10) throw Object.assign(new Error("empty"), { status: 502 });
-  const expect = (Array.isArray(out?.expect) ? out.expect : [])
+  const lines = (list) => (Array.isArray(list) ? list : [])
     .map((e) => ({ label: String(e?.label || "").trim().slice(0, 24), value: String(e?.value || "").trim().slice(0, 90) }))
     .filter((e) => e.label && e.value)
     .slice(0, 5);
+  // (an older answer shape, one picture at the top level, still works)
+  const raw = Array.isArray(out?.pictures) && out.pictures.length ? out.pictures : [out];
+  const pictures = raw
+    .slice(0, 4)
+    .map((p) => ({ prompt: clean(p?.prompt), expect: lines(p?.expect), area: areas.some((a) => a.key === p?.area) ? p.area : null }))
+    .filter((p) => p.prompt.length >= 10);
+  if (!pictures.length) throw Object.assign(new Error("empty"), { status: 502 });
   const names = styles.map((s) => s.name);
-  return {
-    prompt: text,
-    expect,
-    style: names.includes(out?.style) ? out.style : null,
-    area: areas.some((a) => a.key === out?.area) ? out.area : null,
-  };
+  return { ...pictures[0], style: names.includes(out?.style) ? out.style : null, pictures };
 }
 
 /**

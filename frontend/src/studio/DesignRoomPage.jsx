@@ -1464,13 +1464,32 @@ export default function DesignRoomPage() {
       // else the AI's suggestion, else the open area, else the main front area (only areas that are free)
       const freeKey = (k) => k && positions.some((p) => p.key === k && (usedKeys.includes(k) || !blockersOf(k, positions, usedKeys).length));
       const area = [a.areaKey, got.area, active].find(freeKey) || positions.find((p) => p.side === "front" && p.main && freeKey(p.key))?.key || positions.find((p) => freeKey(p.key))?.key || null;
+      const style = ai.styles.includes(got.style) ? got.style : ai.styles[0];
+      // more than one picture ("Naruto on the front and Ben 10 on the back"): each gets its own area — the one the
+      // AI read for it if free and not taken by an earlier one, else the next free main area
+      if (got.pictures?.length > 1) {
+        const taken = [];
+        const pics = got.pictures.map((p) => {
+          const ok = (k) => freeKey(k) && !taken.includes(k);
+          const key = [p.area].find(ok) || positions.find((x) => x.main && ok(x.key))?.key || positions.find((x) => ok(x.key))?.key || null;
+          if (key) taken.push(key);
+          return { ...p, areaKey: key, areaLabel: positions.find((x) => x.key === key)?.label };
+        });
+        setChatState((st) => ({ ...st, idea: { ...(st.idea || { subject: a.idea, areaKey: a.areaKey }), improved: { ...got, area: pics[0].areaKey, pictures: pics } } }));
+        return [
+          botSays(`Here’s your idea, made clear: ${pics.length} pictures, one for each place. Check where each goes and the style in the plan, then tap Draw.`),
+          ...pics.map((p) => ({ preview: { prompt: p.prompt, expect: p.expect, areaLabel: p.areaLabel, fixed: true } })),
+          { plan: { items: pics.map((p) => ({ subject: p.prompt, areaKey: p.areaKey })), style } },
+          chipRow([DRAW_MINE, CHANGE_IDEA, "Something else"]),
+        ];
+      }
       const res = { ...got, area };
       setChatState((st) => ({ ...st, idea: { ...(st.idea || { subject: a.idea, areaKey: a.areaKey }), improved: res } }));
       // (the card under it is where the print area and the style are chosen, so the preview just says what you'll get)
       return [
         botSays("Here’s your idea, made clear. Check where it goes and the style in the plan, then tap Draw."),
         { preview: { prompt: res.prompt, expect: res.expect } },
-        { plan: { items: [{ subject: res.prompt, areaKey: area }], style: ai.styles.includes(res.style) ? res.style : ai.styles[0] } },
+        { plan: { items: [{ subject: res.prompt, areaKey: area }], style } },
         chipRow([DRAW_MINE, CHANGE_IDEA, "Something else"]),
       ];
     } catch (err) {
