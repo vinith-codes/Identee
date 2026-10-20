@@ -6,7 +6,7 @@
 // print-area / size help). The paid AI parts can replace those scripted
 // replies later (see docs/AI_PLAN.md).
 import { useEffect, useRef, useState } from "react";
-import { CANCEL, EXAMPLES, IMPROVE, NOT_NOW, replyTo } from "./assistantScript";
+import { CANCEL, EXAMPLES, IMPROVE, NOT_NOW, PROMPT_MAX, replyTo } from "./assistantScript";
 import { imageUrl } from "../utils/imageUrl";
 import WaitCard from "./WaitCard";
 import IdeaPreview from "./IdeaPreview";
@@ -73,6 +73,14 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
   const timer = useRef(null);
   const job = useRef(null); // the AI request running now: { act, stopped }
   const photoBox = useRef(null); // the hidden file picker behind 📎
+  // the message box grows with what is typed (up to about 6 lines, then it scrolls), so a long idea can be read
+  // back before it is sent; it shrinks again when it is sent or cleared
+  useEffect(() => {
+    const el = box.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 150)}px`;
+  }, [draft]);
   const [nudging, setNudging] = useState(false);
   useEffect(() => {
     if (!photoNudge) return;
@@ -523,7 +531,24 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
           </svg>
         </button>
         <input ref={photoBox} type="file" accept="image/*" hidden onChange={(e) => { const file = e.target.files?.[0]; e.target.value = ""; attachPhoto(file); }} />
-        <input ref={box} value={draft} onChange={(e) => setDraft(e.target.value)} placeholder={attached ? "e.g. only the design, on the back" : "Try: a tiger on the front, a tree on the back"} aria-label={attached ? "What should I do with this photo?" : "Message the design assistant"} maxLength={400} autoComplete="off" />
+        <textarea
+          ref={box}
+          rows={1}
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          // Enter sends (as before); Shift+Enter starts a new line (not while an Indian-language keyboard is still composing)
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+              e.preventDefault();
+              e.currentTarget.form?.requestSubmit();
+            }
+          }}
+          placeholder={attached ? "e.g. only the design, on the back" : "Try: a tiger on the front, a tree on the back"}
+          aria-label={attached ? "What should I do with this photo?" : "Message the design assistant"}
+          maxLength={PROMPT_MAX}
+          autoComplete="off"
+        />
+        {draft.length > PROMPT_MAX - 300 && <span className="dr-count" aria-live="polite">{draft.length} / {PROMPT_MAX}</span>}
         <button type="submit" disabled={!!thinking} aria-label={thinking ? "Wait — the assistant is still working" : "Send"}>
           {thinking ? "Wait…" : "Send"}
         </button>

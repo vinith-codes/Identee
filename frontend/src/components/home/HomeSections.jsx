@@ -241,7 +241,7 @@ export function HomeCreate({ colours }) {
               onBlur={() => setFocused(false)}
               placeholder={`Try: “${example}”`}
               aria-label="Describe what you want on your tee"
-              maxLength={400}
+              maxLength={2000}
             />
             <button type="submit">Create it <span className="arr">→</span></button>
           </form>

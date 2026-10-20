@@ -45,6 +45,9 @@ const DEFAULTS = {
   // what the CUSTOMER pays extra per tee with a picture — AI-made, art library or upload (utils/aiPricing.js)
   [AI_ADDON_KEY]: { value: AI_ADDON_DEFAULT, type: "number", description: "Extra price per tee with a picture (₹)" },
 };
+// how much a customer may type for the AI (a long, detailed idea is fine; 2,000 characters ≈ 300 words — the
+// cut-off only stops something pasted by mistake, like a whole page, from being sent to the AI)
+const PROMPT_MAX = 2000;
 const LIMITS = { "ai.dailyPerUser": [1, 50], "ai.imagesPerRequest": [1, 4], "ai.monthlyCapInr": [0, 1000000], "ai.grokMonthlyCapInr": [0, 1000000], "ai.pricePerImageInr": [0, 100], "ai.grokPricePerImageInr": [0, 100], [AI_ADDON_KEY]: [0, 5000] };
 
 
@@ -172,12 +175,12 @@ export const makeAiDesign = asyncHandler(async (req, res) => {
   // fixing a picture that is on the tee: make it sharper, or recolour it for this tee
   const fixing = !copying && !inspired && !changing && !fromPhoto && Boolean(req.body.fixUrl) && FIX_KINDS.includes(req.body.fixKind);
   const text = copying
-    ? `Copy a design from a photo${req.body.change ? `: ${String(req.body.change).replace(/\s+/g, " ").trim().slice(0, 200)}` : ""}`
+    ? `Copy a design from a photo${req.body.change ? `: ${String(req.body.change).replace(/\s+/g, " ").trim().slice(0, PROMPT_MAX)}` : ""}`
     : fixing
     ? (req.body.fixKind === "recolour" ? "Recolour a picture for the tee" : req.body.fixKind === "photo" ? "Photo Studio: enhance a photo" : "Make a picture sharper")
     : fromPhoto
     ? `Photo to art: ${PHOTO_STYLES[req.body.artStyle] ? req.body.artStyle : "Cartoon"}`
-    : String((changing ? req.body.change : req.body.subject) || "").replace(/\s+/g, " ").trim().slice(0, 300);
+    : String((changing ? req.body.change : req.body.subject) || "").replace(/\s+/g, " ").trim().slice(0, PROMPT_MAX);
   if (text.length < 3) {
     res.status(400);
     throw new Error(changing ? "Tell me what to change." : "Describe what the design should show.");
@@ -198,7 +201,7 @@ export const makeAiDesign = asyncHandler(async (req, res) => {
     const dark = Boolean(req.body.teeIsDark);
     const prompt = copying
       ? copyDesignPrompt({
-          change: String(req.body.change || "").replace(/\s+/g, " ").trim().slice(0, 200),
+          change: String(req.body.change || "").replace(/\s+/g, " ").trim().slice(0, PROMPT_MAX),
           // what the photo reading found (the customer saw these words on the plan card)
           design: String(req.body.design || "").replace(/\s+/g, " ").trim().slice(0, 400),
           words: (Array.isArray(req.body.words) ? req.body.words : []).map((w) => String(w || "").replace(/\s+/g, " ").trim().slice(0, 60)).filter(Boolean).slice(0, 8),
@@ -323,7 +326,7 @@ export const makeAiDesign = asyncHandler(async (req, res) => {
   await AiUsage.create({
     user: req.user._id,
     kind: copying ? "copy" : inspired ? "inspired" : fixing ? "fix" : fromPhoto ? "photo" : changing ? "change" : "new",
-    prompt: text,
+    prompt: text.slice(0, PROMPT_MAX),
     style: fromPhoto ? req.body.artStyle : changing || copying ? undefined : req.body.style,
     images: made.length,
     costInr: Math.round(made.length * (byGrok ? settings.grokPricePerImageInr : settings.pricePerImageInr) * 100) / 100,
@@ -341,7 +344,7 @@ export const makeSlogans = asyncHandler(async (req, res) => {
     res.status(503);
     throw new Error("Slogans to order are not available right now.");
   }
-  const ask = String(req.body.ask || "").replace(/\s+/g, " ").trim().slice(0, 200);
+  const ask = String(req.body.ask || "").replace(/\s+/g, " ").trim().slice(0, PROMPT_MAX);
   if (ask.length < 2) {
     res.status(400);
     throw new Error("Tell me what the slogan is about.");
@@ -367,7 +370,7 @@ export const makeImprovedIdea = asyncHandler(async (req, res) => {
     res.status(503);
     throw new Error("Improving ideas isn’t available right now — your own words work fine too.");
   }
-  const idea = String(req.body.idea || "").replace(/\s+/g, " ").trim().slice(0, 400);
+  const idea = String(req.body.idea || "").replace(/\s+/g, " ").trim().slice(0, PROMPT_MAX);
   if (idea.length < 3) {
     res.status(400);
     throw new Error("Write your idea first — a few words are enough.");
@@ -396,7 +399,7 @@ export const makeEdit = asyncHandler(async (req, res) => {
     res.status(503);
     throw new Error("I can’t do that right now.");
   }
-  const message = String(req.body.message || "").trim();
+  const message = String(req.body.message || "").trim().slice(0, PROMPT_MAX);
   const d = req.body.design && typeof req.body.design === "object" ? req.body.design : {};
   if (message.length < 2) {
     res.status(400);
@@ -622,7 +625,7 @@ export const makePhotoPlan = asyncHandler(async (req, res) => {
   const small = await sharp(photo.data).rotate().resize(1024, 1024, { fit: "inside", withoutEnlargement: true }).flatten({ background: "#ffffff" }).jpeg({ quality: 85 }).toBuffer();
   const areas = (Array.isArray(req.body.areas) ? req.body.areas : []).slice(0, 24).map((a) => ({ key: String(a?.key || "").slice(0, 40), label: String(a?.label || "").slice(0, 60) }));
   try {
-    const plan = await readPhotoRequest({ image: { data: small, mime: "image/jpeg" }, message: req.body.message, styles: Object.keys(AI_STYLES), photoStyles: Object.keys(PHOTO_STYLES), areas });
+    const plan = await readPhotoRequest({ image: { data: small, mime: "image/jpeg" }, message: String(req.body.message || "").slice(0, PROMPT_MAX), styles: Object.keys(AI_STYLES), photoStyles: Object.keys(PHOTO_STYLES), areas });
     res.json(plan);
   } catch (err) {
     res.status(err?.status === 503 ? 503 : 502);

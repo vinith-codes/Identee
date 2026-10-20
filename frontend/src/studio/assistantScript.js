@@ -44,6 +44,9 @@ export const PHOTO_CUT = "Remove the background first";
 export const PHOTO_ART = "Turn it into art";
 // a photo of a printed tee / hoodie / poster: only its design, copied flat (1 request)
 export const PHOTO_COPY = "Copy just the design from it";
+// how much a customer may type in the chat (the server allows the same): 2,000 characters ≈ 300 words, plenty for
+// a detailed idea — it only stops something pasted by mistake (a whole page) from being sent
+export const PROMPT_MAX = 2000;
 export const PHOTO_CHOICES = [PHOTO_COPY, PHOTO_AS_IS, PHOTO_CUT, PHOTO_ART];
 // after art (or a copied design) was made from the photo: back to the photo itself, on the same areas (free)
 export const PHOTO_REVERT = "Use my photo instead · free";

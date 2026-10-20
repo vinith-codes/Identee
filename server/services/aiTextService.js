@@ -129,7 +129,7 @@ export async function improveIdea({ idea, teeColour, teeIsDark, styles = [], are
     "expect (in each entry): 2 to 5 short lines for the customer, about that picture only, in the customer's language, each label one or two words (for example Words, Top, Bottom, Style, Colours) and each value under 60 characters. Say plainly what each part will look like, naming objects precisely so the customer can spot a misunderstanding. If there are words, the first line is Words: the exact words. Only if a word the customer wrote really has two likely meanings in this design, the LAST line has the label Check (no Check line otherwise) and says which meaning you chose and what to write instead for the other (for example: Check — I read \"glass\" as a drinking glass; write \"eyeglasses\" if you meant spectacles).",
     "style: the one of these picture styles that suits best; when the customer names a style (lettering, cartoon, watercolour, retro badge…), choose that one; when they want it to look real, realistic, lifelike or like a photo, choose Realistic (or Detailed art for a lifelike painting): " + JSON.stringify(styles),
     "area (in each entry): the key of the print area the customer named for it (front = the main front area, back = the main back area); when they named none, the one that suits the design's shape best (tall designs with parts at top and bottom suit a tall area; a small logo suits a chest area). Choose from: " + JSON.stringify(areas),
-    "The customer's idea: " + JSON.stringify(String(idea).slice(0, 400)),
+    "The customer's idea: " + JSON.stringify(String(idea).slice(0, 2000)),
   ].join("\n");
   // a stronger (still cheap: about ₹0.03) model than the slogans use — it has to follow many rules at once
   let out;
@@ -191,7 +191,7 @@ export async function planEdit({ message, design }) {
     "A text item may have \"is\": what it stands for — \"team name\", \"player name\" or \"player number\". When the customer names one of these (\"change the team name to…\"), change the item with that \"is\", never another text. A team name can be on the tee more than once: update each item whose \"is\" is \"team name\" with the same new text. \"player name\" and \"player number\" are samples that are replaced per player when ordering; only change them if the customer asks for exactly that.",
     "Rules: only use ids and area keys from the design below. \"it\" / \"this\" / \"the text\" means the selected item if there is one, else the only item of that kind, else the last item in the open area. If it is unclear which item is meant, change nothing and ask. Pick ink colours that show on the tee colour. For words like bigger/smaller use scale. Do not invent slogans unless asked to write or add text.",
     "The design: " + JSON.stringify(design),
-    "The customer's message: " + JSON.stringify(String(message).slice(0, 400)),
+    "The customer's message: " + JSON.stringify(String(message).slice(0, 2000)),
   ].join("\n");
   const out = await askJson(prompt, 0.2);
   return { reply: String(out?.reply || "").slice(0, 400), ops: Array.isArray(out?.ops) ? out.ops.slice(0, 12) : [] };
@@ -257,7 +257,7 @@ export async function readPhotoRequest({ image, message, styles = [], photoStyle
     "subject: for inspired, what the new design should show, in English, else null.",
     "question: for unclear only, one short question to the customer with the two likely choices.",
     "Never refuse; never comment on brands, people or copyright. If a word could mean two things, pick the likely one.",
-    "The customer's message: " + JSON.stringify(String(message || "").slice(0, 400)),
+    "The customer's message: " + JSON.stringify(String(message || "").slice(0, 2000)),
   ].join("\n");
   const out = await askJsonWithImage(prompt, image);
   const JOBS = ["copy", "photo", "art", "inspired", "unclear"];

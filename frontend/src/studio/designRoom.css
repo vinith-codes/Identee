@@ -1300,3 +1300,10 @@ p.pc-area { margin: 0; font-size: 13px; color: var(--muted); }
   .dr-askback { place-items: end center; padding: 0; }
   .dr-ask { width: 100%; border-radius: 20px 20px 0 0; padding: 22px 16px calc(18px + env(safe-area-inset-bottom, 0px)); }
 }
+/* the chat's message box: it grows with a long idea (up to about 6 lines), the buttons stay at its foot */
+.dr-composer { align-items: flex-end; }
+.dr-composer textarea { flex: 1; min-width: 0; box-sizing: border-box; min-height: 44px; max-height: 150px; resize: none; overflow-y: auto; border: 1px solid var(--line); border-radius: 22px; padding: 11px 16px; background: #fff; font: inherit; line-height: 1.4; color: var(--ink); }
+.dr-composer button[type="submit"] { min-height: 44px; align-self: flex-end; }
+.dr-count { flex-basis: 100%; order: 9; text-align: right; font-size: 11.5px; color: var(--muted); margin-top: -4px; font-variant-numeric: tabular-nums; }
+/* (empty, the hint stays on one line — wrapped, it made the empty box two lines tall) */
+.dr-composer textarea:placeholder-shown { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

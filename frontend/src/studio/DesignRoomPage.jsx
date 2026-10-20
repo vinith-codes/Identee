@@ -24,7 +24,7 @@ import { areaCm, blockersOf, clashesIn, modelForGarment, placeArea } from "./tee
 import AreaThumb from "./AreaThumb";
 import Rolling from "./Rolling";
 import Assistant from "./Assistant";
-import { AFTER_AI_SLOGANS, AFTER_DESIGN_CHIPS, BACK, CHANGE_IDEA, DRAW_MINE, PHOTO_AS_IS, PHOTO_CHOICES, PHOTO_CUT, PHOTO_REVERT, bot as botSays, checkMessages, chips as chipRow, firstMessages, firstState } from "./assistantScript";
+import { AFTER_AI_SLOGANS, AFTER_DESIGN_CHIPS, BACK, CHANGE_IDEA, DRAW_MINE, PHOTO_AS_IS, PHOTO_CHOICES, PHOTO_CUT, PHOTO_REVERT, PROMPT_MAX, bot as botSays, checkMessages, chips as chipRow, firstMessages, firstState } from "./assistantScript";
 import { styleIn } from "./styleInfo";
 import { areasFromWords, photoJobFrom } from "./photoIntent";
 import aiService from "../services/aiService";
@@ -176,7 +176,7 @@ export default function DesignRoomPage() {
   const [startLink] = useState(() => params.get("start"));
   // the collection the garment was opened from (?from=girls-wear): Find my size asks only what fits it
   const [fromLink] = useState(() => params.get("from") || "");
-  const [ideaLink] = useState(() => (typeof location.state?.idea === "string" ? location.state.idea.trim().slice(0, 400) : ""));
+  const [ideaLink] = useState(() => (typeof location.state?.idea === "string" ? location.state.idea.trim().slice(0, PROMPT_MAX) : ""));
   const [chatAuto, setChatAuto] = useState(""); // the idea, waiting for the chat to send it
   // was the room opened from another page of the site? (read once: tidying the address below changes location.key)
   const [cameFromSite] = useState(() => location.key !== "default");
@@ -1064,7 +1064,7 @@ export default function DesignRoomPage() {
         const items = [];
         for (const pic of pictures) {
           const pos = areaFor(pic.area, positions, [...used, ...items.map((x) => x.areaKey).filter(Boolean)]);
-          items.push({ subject: pic.subject.trim().slice(0, 200), areaKey: pos?.key || null });
+          items.push({ subject: pic.subject.trim().slice(0, PROMPT_MAX), areaKey: pos?.key || null });
         }
         const suggested = pictures.map((p) => p.style).find((x) => ai.styles.includes(x));
         const style = styleIn(a.message, ai.styles) || suggested || ai.styles[0];
@@ -1088,7 +1088,7 @@ export default function DesignRoomPage() {
           }
           const { W, H } = areaPx(pos);
           try {
-            const made = await aiService.design({ subject: pic.subject.slice(0, 200), style: ai.styles.includes(pic.style) ? pic.style : ai.styles[0], teeColour: tee?.name || "white", teeIsDark: lum(tee?.hex || fabricHex) < 0.55, ratio: W / H, count: 2 });
+            const made = await aiService.design({ subject: pic.subject.slice(0, PROMPT_MAX), style: ai.styles.includes(pic.style) ? pic.style : ai.styles[0], teeColour: tee?.name || "white", teeIsDark: lum(tee?.hex || fabricHex) < 0.55, ratio: W / H, count: 2 });
             setAi((cur) => ({ ...cur, left: made.left }));
             made.images.forEach((im) => {
               aiCuts.current.set(im.url, { path: im.url, w: im.width, h: im.height });
@@ -1106,7 +1106,7 @@ export default function DesignRoomPage() {
             extra.push(
               botSays(err.response?.data?.message || "The design maker had a problem."),
               // only this picture again (the rest of the message is already done)
-              { retry: { type: "generate", subject: pic.subject.slice(0, 200), style: ai.styles.includes(pic.style) ? pic.style : ai.styles[0], areaKey: pos.key } },
+              { retry: { type: "generate", subject: pic.subject.slice(0, PROMPT_MAX), style: ai.styles.includes(pic.style) ? pic.style : ai.styles[0], areaKey: pos.key } },
             );
             break;
           }
@@ -1232,7 +1232,7 @@ export default function DesignRoomPage() {
         const { W, H } = areaPx(pos);
         // lettering for a tall, thin area: one long line, turned on its side on the tee
         const banner = style === "Hand lettering" && H / W >= 2.5;
-        return aiService.design({ subject: item.subject.slice(0, 200), style, teeColour: colour?.name || "white", teeIsDark: lum(fabricHex) < 0.55, ratio: banner ? H / W : W / H, ...(banner ? { banner: true } : {}) });
+        return aiService.design({ subject: item.subject.slice(0, PROMPT_MAX), style, teeColour: colour?.name || "white", teeIsDark: lum(fabricHex) < 0.55, ratio: banner ? H / W : W / H, ...(banner ? { banner: true } : {}) });
       }),
     );
     for (const r of results) {
@@ -1269,7 +1269,7 @@ export default function DesignRoomPage() {
       out.push(
         botSays(`${pos.label}: ${(item.label || item.subject).slice(0, 120)}${pos.key !== item.areaKey && item.areaKey ? " (its area was taken, so I used this one)" : ""}.`),
         // again: one more version for this area (shown here, not put on the tee until Add to tee)
-        { designs: made.images.map((im) => im.url), again: { type: "generate", subject: item.subject.slice(0, 200), style, areaKey: pos.key } },
+        { designs: made.images.map((im) => im.url), again: { type: "generate", subject: item.subject.slice(0, PROMPT_MAX), style, areaKey: pos.key } },
       );
     });
     if (missed.length) {
