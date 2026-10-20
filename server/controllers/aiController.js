@@ -645,8 +645,9 @@ export const makeBackgroundRemoval = asyncHandler(async (req, res) => {
     cut = await removePhotoBackground(photo.data);
   } catch (err) {
     console.error("[background] removal failed:", err?.message || err);
-    res.status(502);
-    throw new Error("The background couldn’t be removed just now. Please try again.");
+    // (503: the remover can't run on this server at all — said plainly, so the customer isn't told to keep retrying)
+    res.status(err?.status === 503 ? 503 : 502);
+    throw new Error(err?.status === 503 ? err.message : "The background couldn’t be removed just now. Please try again.");
   }
   const stored = await uploadFile(cut.buffer, "image/png", "designs", "cut-out.png");
   res.status(201).json({ url: stored.url, width: cut.width, height: cut.height });

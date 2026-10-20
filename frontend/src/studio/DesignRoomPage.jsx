@@ -1648,6 +1648,8 @@ export default function DesignRoomPage() {
       const status = err?.response?.status;
       const why = err?.response?.data?.message;
       // never a dead end: what didn't work, in plain words, and what still works (the free choices)
+      // (the photo itself, cut out: a 503 means the background remover can't run — say that, and offer it as it is)
+      if (status === 503 && a.job === "photo" && why) return [botSays(why), chipRow([PHOTO_AS_IS, "Something else"])];
       if (status === 503) return [botSays("The design assistant is resting right now. You can still put your photo on as it is or without its background (free), add text, or pick from the art library."), chipRow(freeChoices)];
       if (status === 429) return [botSays(why || "You’ve used today’s AI requests. They reset tomorrow."), chipRow(freeChoices)];
       if (status === 422) return [botSays(why || "The picture service refused this one."), chipRow(freeChoices)];
@@ -1674,7 +1676,11 @@ export default function DesignRoomPage() {
       try {
         r = await studioPrintReady(photo, { cutOut: true }, (t) => progress?.({ label: t, expect: 8, hint: "Free. Usually a few seconds." }));
       } catch (err) {
-        return [botSays(err.message || "The background couldn’t be removed. Try again, or put it on as it is."), { failed: true }];
+        // the server's own words (not "Request failed with status code …"); when the remover can't run there at all
+        // (503), trying again won't help — offer the photo as it is instead
+        const why = err?.response?.data?.message || err.message || "The background couldn’t be removed. Try again, or put it on as it is.";
+        if (err?.response?.status === 503) return [botSays(why), chipRow([PHOTO_AS_IS, "Something else"])];
+        return [botSays(why), { failed: true }];
       }
     }
     aiCuts.current.set(r.url, { path: r.url, w: r.w, h: r.h });

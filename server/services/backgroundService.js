@@ -10,7 +10,9 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import sharp from "sharp";
-import ort from "onnxruntime-node";
+// onnxruntime-node is loaded only when a background is first removed (see session()): if its program can't run on
+// a server (an old Linux, say), only "Remove background" fails — the backend still starts and everything else works.
+let ort = null;
 
 const MODEL_URL = "https://huggingface.co/onnx-community/ormbg-ONNX/resolve/main/onnx/model_quantized.onnx";
 const CACHE = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", ".cache");
@@ -54,7 +56,16 @@ async function session() {
   if (!ready) {
     // (memory pool off: with it on, the server's memory grew to about 1.5 GB after two photos and stayed there;
     // off, it stays near 170 MB, for about 0.3 s more per photo — measured 20 Oct 2026)
-    ready = modelFile().then((file) => ort.InferenceSession.create(file, { enableCpuMemArena: false, enableMemPattern: false }));
+    ready = (async () => {
+      const file = await modelFile();
+      try {
+        ort = ort || (await import("onnxruntime-node")).default;
+      } catch (err) {
+        console.error("[background] onnxruntime-node can't run on this server:", err.message);
+        throw Object.assign(new Error("Removing backgrounds isn’t available on this server right now. Put the photo on as it is, or try again later."), { status: 503 });
+      }
+      return ort.InferenceSession.create(file, { enableCpuMemArena: false, enableMemPattern: false });
+    })();
     ready.catch(() => {
       ready = null; // the next try starts again (the download may have failed)
     });
