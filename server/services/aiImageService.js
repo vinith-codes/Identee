@@ -151,6 +151,28 @@ export function newDesignPrompt({ subject, style, teeColour, teeIsDark, variatio
 export const changeDesignPrompt = (change) =>
   `Edit this t-shirt design: ${change}. Keep everything else the same, including the flat plain background. Do not add a t-shirt, a frame or a watermark.`;
 
+// "Copy this design" (a photo sent in the chat): the customer photographed a t-shirt, hoodie, poster… with a print
+// on it and wants that print on their tee. Only the print comes back — flat, straight, clean, as close as possible.
+// change: what to change while copying ("the name KINGS XI instead of LIONS"), else the same design.
+export const copyDesignPrompt = ({ change = "", teeColour, teeIsDark }) =>
+  [
+    "This photo shows a printed design on a garment or an object (a t-shirt, hoodie, cap, poster, sticker or similar).",
+    `Recreate ONLY that printed design as clean, flat, front-facing artwork ready to print on a ${teeColour} t-shirt.`,
+    "Remove the garment, the fabric and its texture, folds, wrinkles, seams, shadows, glare, the lighting and any person, hand or background.",
+    "Straighten it as if it had been scanned flat: undo the camera angle and the curve of the fabric.",
+    "Keep the same shapes, colours, layout and proportions as exactly as possible, and spell every word exactly as it appears.",
+    "Make it sharp and high resolution, with crisp edges; do not add anything that is not in the design.",
+    change ? `Then make this change to it: ${change}. Keep everything else the same.` : "",
+    `The background must be flat pure ${teeIsDark ? "black" : "white"} and nothing else. Do not draw a t-shirt, a mockup, a frame or a watermark.`,
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+// "Something like this, but…" (a photo sent in the chat as a reference): a new design in the requested style that
+// takes its look, layout or mood from the photo.
+export const inspiredDesignPrompt = (ask) =>
+  `${newDesignPrompt(ask)} Use the attached image only as a reference for the look, layout and mood the customer likes — make a new design of the subject above, not a copy of the image.`;
+
 // The answer's shape differs a little between models, so the picture is found by looking for it.
 function findImage(node, depth = 0) {
   if (!node || typeof node !== "object" || depth > 8) return null;

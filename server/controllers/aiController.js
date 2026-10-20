@@ -24,11 +24,11 @@ import Customization from "../models/customizationModel.js";
 import GarmentType from "../models/garmentTypeModel.js";
 import { uploadFile, deleteStoredFile } from "../utils/imageStorage.js";
 import { cutOutPlainBackground, onPlainBackground } from "../services/cutoutService.js";
-import { aiTextConfigured, improveIdea, planEdit, writeSlogans } from "../services/aiTextService.js";
+import { aiTextConfigured, improveIdea, planEdit, readPhotoRequest, writeSlogans } from "../services/aiTextService.js";
 import sharp from "sharp";
 import { artFilters, FILTER_STYLE } from "../services/artFilterService.js";
 import { xaiConfigured, xaiEditImage, xaiModel, xaiNewImage } from "../services/xaiImageService.js";
-import { AI_STYLES, PHOTO_STYLES, aiImageConfigured, aiImageModel, changeDesignPrompt, generateImage, nearestRatio, newDesignPrompt, photoArtPrompt, FIX_KINDS, fixPrompt, printPrompt, RATIO_VALUES } from "../services/aiImageService.js";
+import { AI_STYLES, PHOTO_STYLES, aiImageConfigured, aiImageModel, changeDesignPrompt, copyDesignPrompt, inspiredDesignPrompt, generateImage, nearestRatio, newDesignPrompt, photoArtPrompt, FIX_KINDS, fixPrompt, printPrompt, RATIO_VALUES } from "../services/aiImageService.js";
 
 const CATEGORY = "ai";
 const DEFAULTS = {
@@ -145,6 +145,8 @@ async function sendFilterArt(req, res, { refused = false, left = null } = {}) {
 // POST /api/ai/design  (login required)
 // New design: { subject, style, teeColour, teeIsDark, ratio }
 // Change one: { baseUrl, change, teeIsDark, ratio }
+// Copy the print from a photo sent in the chat: { copyUrl, change?, teeColour, teeIsDark, ratio }   (Google only)
+// A new design with a photo as the reference: { refUrl, subject, style, teeColour, teeIsDark, ratio }   (Google only)
 // -> { images: [{ url, width, height }], left }   (each picture already cut out of its background)
 export const makeAiDesign = asyncHandler(async (req, res) => {
   // the free filters work whether the AI is on or not
@@ -161,11 +163,16 @@ export const makeAiDesign = asyncHandler(async (req, res) => {
     throw new Error(`You’ve used today’s ${settings.dailyPerUser} design requests. They reset tomorrow.`);
   }
 
-  const changing = Boolean(req.body.baseUrl);
-  const fromPhoto = !changing && Boolean(req.body.photoUrl);
+  // a photo sent in the chat: its print copied, or used as a reference for a new design
+  const copying = Boolean(req.body.copyUrl);
+  const inspired = !copying && Boolean(req.body.refUrl);
+  const changing = !copying && !inspired && Boolean(req.body.baseUrl);
+  const fromPhoto = !copying && !inspired && !changing && Boolean(req.body.photoUrl);
   // fixing a picture that is on the tee: make it sharper, or recolour it for this tee
-  const fixing = !changing && !fromPhoto && Boolean(req.body.fixUrl) && FIX_KINDS.includes(req.body.fixKind);
-  const text = fixing
+  const fixing = !copying && !inspired && !changing && !fromPhoto && Boolean(req.body.fixUrl) && FIX_KINDS.includes(req.body.fixKind);
+  const text = copying
+    ? `Copy a design from a photo${req.body.change ? `: ${String(req.body.change).replace(/\s+/g, " ").trim().slice(0, 200)}` : ""}`
+    : fixing
     ? (req.body.fixKind === "recolour" ? "Recolour a picture for the tee" : req.body.fixKind === "photo" ? "Photo Studio: enhance a photo" : "Make a picture sharper")
     : fromPhoto
     ? `Photo to art: ${PHOTO_STYLES[req.body.artStyle] ? req.body.artStyle : "Cartoon"}`
@@ -179,7 +186,21 @@ export const makeAiDesign = asyncHandler(async (req, res) => {
   let photoJob = null; // photo to art, a change to a design, or a fix: what Grok needs if Google refuses the picture
   let drawJob = null; // a new drawing: what Grok needs if Google refuses the words (a named person)
   const teeName = String(req.body.teeColour || "white").replace(/[^\w \-]/g, "").slice(0, 30) || "white";
-  if (fixing) {
+  if (copying || inspired) {
+    const src = copying ? req.body.copyUrl : req.body.refUrl;
+    if (!isOurUpload(src)) {
+      res.status(400);
+      throw new Error("Send the photo here first.");
+    }
+    const photo = await fetchOurImage(src, req);
+    const small = await sharp(photo.data).rotate().resize(1536, 1536, { fit: "inside", withoutEnlargement: true }).flatten({ background: "#ffffff" }).jpeg({ quality: 92 }).toBuffer();
+    const dark = Boolean(req.body.teeIsDark);
+    const prompt = copying
+      ? copyDesignPrompt({ change: String(req.body.change || "").replace(/\s+/g, " ").trim().slice(0, 200), teeColour: teeName, teeIsDark: dark })
+      : inspiredDesignPrompt({ subject: text, style: AI_STYLES[req.body.style] ? req.body.style : "Bold mascot", teeColour: teeName, teeIsDark: dark, variation: 1, of: 1 });
+    // (Google only: no Grok stand-in for these — photoJob / drawJob stay empty)
+    jobs = [generateImage({ prompt, image: { data: small, mime: "image/jpeg" }, ratio: nearestRatio(req.body.ratio) })];
+  } else if (fixing) {
     if (!isOurUpload(req.body.fixUrl)) {
       res.status(400);
       throw new Error("Upload the picture here first.");
@@ -289,9 +310,9 @@ export const makeAiDesign = asyncHandler(async (req, res) => {
 
   await AiUsage.create({
     user: req.user._id,
-    kind: fixing ? "fix" : fromPhoto ? "photo" : changing ? "change" : "new",
+    kind: copying ? "copy" : inspired ? "inspired" : fixing ? "fix" : fromPhoto ? "photo" : changing ? "change" : "new",
     prompt: text,
-    style: fromPhoto ? req.body.artStyle : changing ? undefined : req.body.style,
+    style: fromPhoto ? req.body.artStyle : changing || copying ? undefined : req.body.style,
     images: made.length,
     costInr: Math.round(made.length * (byGrok ? settings.grokPricePerImageInr : settings.pricePerImageInr) * 100) / 100,
     model: byGrok ? xaiModel() : aiImageModel(),
@@ -568,4 +589,30 @@ export const dropPrintPicture = asyncHandler(async (req, res) => {
   await design.save();
   if (old) await deleteStoredFile(old).catch(() => {});
   res.json({ printSrc: null });
+});
+
+// POST /api/ai/photo-plan  (login required): { photoUrl, message, areas: [{ key, label }] }
+// A photo sent in the chat with the customer's words: what they want made from it (the text AI reads the photo).
+// -> { job, seen, style, area, change, subject, question }   — a small text request, not one of the customer's
+// daily picture requests. When it can't be read (AI off, out of credit), the chat uses its own rules instead.
+export const makePhotoPlan = asyncHandler(async (req, res) => {
+  const settings = await readSettings();
+  if (!settings.enabled || !aiTextConfigured()) {
+    res.status(503);
+    throw new Error("Reading photos isn't available right now.");
+  }
+  if (!isOurUpload(req.body.photoUrl)) {
+    res.status(400);
+    throw new Error("Send the photo here first.");
+  }
+  const photo = await fetchOurImage(req.body.photoUrl, req);
+  const small = await sharp(photo.data).rotate().resize(1024, 1024, { fit: "inside", withoutEnlargement: true }).flatten({ background: "#ffffff" }).jpeg({ quality: 85 }).toBuffer();
+  const areas = (Array.isArray(req.body.areas) ? req.body.areas : []).slice(0, 24).map((a) => ({ key: String(a?.key || "").slice(0, 40), label: String(a?.label || "").slice(0, 60) }));
+  try {
+    const plan = await readPhotoRequest({ image: { data: small, mime: "image/jpeg" }, message: req.body.message, styles: Object.keys(AI_STYLES), photoStyles: Object.keys(PHOTO_STYLES), areas });
+    res.json(plan);
+  } catch (err) {
+    res.status(err?.status === 503 ? 503 : 502);
+    throw new Error("I couldn’t read the photo just now.");
+  }
 });

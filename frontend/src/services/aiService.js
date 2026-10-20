@@ -30,6 +30,8 @@ const edit = async (body) => (await axios.post(`${API_URL}/edit`, body, { timeou
 // "Improve my idea" (text only, not counted as a picture request):
 // { idea, teeColour, teeIsDark, areas: [{ key, label, side, cm }] } -> { prompt, expect: [{ label, value }], style, area }
 const improve = async (body) => (await axios.post(`${API_URL}/improve`, body, { timeout: 30000 })).data;
+// a photo sent in the chat + the customer's words: what they want made from it { job, seen, style, area, change, subject, question }
+const photoPlan = async (body) => (await axios.post(`${API_URL}/photo-plan`, body, { ...auth(), timeout: 30000 })).data;
 
 // admin
 const getAdmin = async () => (await axios.get(`${API_URL}/admin`, auth())).data;
@@ -41,4 +43,4 @@ const printPicture = async (body) => (await axios.post(`${API_URL}/admin/print-p
 // print the original again
 const dropPrintPicture = async (body) => (await axios.delete(`${API_URL}/admin/print-picture`, { ...auth(), data: body })).data;
 
-export default { status, design, slogans, edit, improve, getAdmin, saveAdmin, printPicture, dropPrintPicture };
+export default { status, design, slogans, edit, improve, photoPlan, getAdmin, saveAdmin, printPicture, dropPrintPicture };

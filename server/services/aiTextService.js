@@ -193,3 +193,77 @@ export async function planEdit({ message, design }) {
   const out = await askJson(prompt, 0.2);
   return { reply: String(out?.reply || "").slice(0, 400), ops: Array.isArray(out?.ops) ? out.ops.slice(0, 12) : [] };
 }
+
+// The text model with a picture: the same as askJson, with the photo sent along (Gemini reads images).
+async function askJsonWithImage(prompt, image, temperature = 0.2, modelName = ideaModel()) {
+  const key = apiKey();
+  if (!key) throw Object.assign(new Error("not set up"), { status: 503 });
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
+  let res;
+  try {
+    res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent`, {
+      method: "POST",
+      headers: { "x-goog-api-key": key, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ role: "user", parts: [{ inline_data: { mime_type: image.mime || "image/jpeg", data: image.data.toString("base64") } }, { text: prompt }] }],
+        generationConfig: { temperature, responseMimeType: "application/json" },
+      }),
+      signal: ctrl.signal,
+    });
+  } catch {
+    throw Object.assign(new Error("unreachable"), { status: 502 });
+  } finally {
+    clearTimeout(timer);
+  }
+  const json = await res.json().catch(() => null);
+  if (!res.ok) {
+    console.error("[ai] photo reading failed:", res.status, json?.error?.message || "");
+    throw Object.assign(new Error("failed"), { status: res.status === 402 || res.status === 403 || res.status === 429 ? 503 : 502 });
+  }
+  const text = (json?.candidates?.[0]?.content?.parts || []).map((p) => p.text || "").join("");
+  return JSON.parse(text.replace(/^```(?:json)?|```$/g, "").trim());
+}
+
+/**
+ * A photo sent in the chat with the customer's words ("I want only this design", "my dog as a cartoon on the back"):
+ * what they want made from it. Answers in plain words what it sees, so the customer can tell it understood.
+ *
+ * @param image     { data: Buffer, mime } — the photo (already made small)
+ * @param message   what the customer typed with it
+ * @param styles    picture styles for a NEW design ("inspired by")
+ * @param photoStyles  art styles for redrawing the photo itself
+ * @param areas     the free print areas ({ key, label })
+ * @returns {Promise<{ job, seen, style, area, change, subject, question }>}
+ *   job: "copy" (only the print on a garment/object, recreated flat) | "photo" (print the photo itself) |
+ *        "art" (the photo redrawn in a style) | "inspired" (a new design using it as a reference) | "unclear"
+ */
+export async function readPhotoRequest({ image, message, styles = [], photoStyles = [], areas = [] }) {
+  const prompt = [
+    "You help customers of a custom t-shirt printing shop. The customer sent the attached photo with a message. Decide what they want printed, from the photo AND the words.",
+    "Answer with one JSON object and nothing else:",
+    '{"job": "copy" | "photo" | "art" | "inspired" | "unclear", "seen": string, "style": string|null, "area": string|null, "change": string|null, "subject": string|null, "question": string|null}',
+    "job: copy = the photo shows a printed design on a garment or object (t-shirt, hoodie, cap, poster, sticker, mug) and they want THAT design printed (\"only the design\", \"same design\", \"copy this\", \"print this on my tee\" when the photo is of a printed tee). photo = print the photo itself (a person, pet, place, object), possibly without its background. art = the photo itself redrawn in an art style (cartoon, sketch, sticker, watercolour, pop art). inspired = a NEW design that only takes the look or idea from the photo (\"something like this but with a tiger\"). unclear = you cannot tell which; then ask.",
+    "seen: what is in the photo, in at most 12 plain words, as you would tell the customer (\"a black t-shirt with a lion and the word ROAR\").",
+    "style: for art, one of " + JSON.stringify(photoStyles) + "; for inspired, one of " + JSON.stringify(styles) + "; otherwise null. Only if they named a style or it is clearly implied.",
+    "area: the print area they named, as one of these keys, else null: " + JSON.stringify(areas.map((a) => ({ key: a.key, label: a.label }))),
+    "change: for copy, what to change while copying (\"the name KINGS XI instead of LIONS\"), else null.",
+    "subject: for inspired, what the new design should show, in English, else null.",
+    "question: for unclear only, one short question to the customer with the two likely choices.",
+    "Never refuse; never comment on brands, people or copyright. If a word could mean two things, pick the likely one.",
+    "The customer's message: " + JSON.stringify(String(message || "").slice(0, 400)),
+  ].join("\n");
+  const out = await askJsonWithImage(prompt, image);
+  const JOBS = ["copy", "photo", "art", "inspired", "unclear"];
+  const job = JOBS.includes(out?.job) ? out.job : "unclear";
+  const pick = (list, v) => (list.includes(v) ? v : null);
+  return {
+    job,
+    seen: String(out?.seen || "").slice(0, 120),
+    style: job === "art" ? pick(photoStyles, out?.style) : job === "inspired" ? pick(styles, out?.style) : null,
+    area: areas.some((a) => a.key === out?.area) ? out.area : null,
+    change: job === "copy" && out?.change ? String(out.change).slice(0, 200) : null,
+    subject: job === "inspired" && out?.subject ? String(out.subject).slice(0, 200) : null,
+    question: job === "unclear" && out?.question ? String(out.question).slice(0, 160) : null,
+  };
+}

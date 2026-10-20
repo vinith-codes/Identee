@@ -11,6 +11,7 @@ import { imageUrl } from "../utils/imageUrl";
 import WaitCard from "./WaitCard";
 import IdeaPreview from "./IdeaPreview";
 import PlanCard from "./PlanCard";
+import PhotoPlanCard from "./PhotoPlanCard";
 import { PhotoError, shrinkPhoto } from "./shrinkPhoto";
 
 const PICTURE_HINT = "Usually 20–40 seconds. You can look around the room meanwhile.";
@@ -22,6 +23,18 @@ const waitFor = (a) =>
       ? { label: "Writing a few…", expect: 6 }
       : a.type === "improve"
         ? { label: "Improving your idea…", expect: 9 }
+      : a.type === "photoUnderstand"
+        ? { label: "Looking at your photo…", expect: 6 }
+      : a.type === "photoMake"
+        ? a.job === "copy"
+          ? { label: "Copying the design…", expect: 30, hint: PICTURE_HINT }
+          : a.job === "inspired"
+            ? { label: "Drawing your design…", expect: 25, hint: PICTURE_HINT }
+            : a.job === "art"
+              ? /free/i.test(a.style || "") ? { label: "Making your art…", expect: 5 } : { label: "Redrawing your photo…", expect: 35, hint: PICTURE_HINT }
+              : a.enhance
+                ? { label: "Making your photo sharper…", expect: 30, hint: PICTURE_HINT }
+                : { label: a.cutOut ? "Removing the background…" : "Putting your photo on the tee…", expect: a.cutOut ? 8 : 3, hint: a.cutOut ? "It runs on your phone, free." : "" }
       : a.type === "photoPlace"
         ? a.cutOut
           ? { label: "Removing the background…", expect: 8, hint: "It runs on your phone, free. Bigger photos take a little longer." }
@@ -127,7 +140,7 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
     if (thinking || !text) return false;
     // the chips just answered can't be tapped again
     // ("Not now" on a plan card closes that card too)
-    setMessages((m) => [...m.map((x) => (x.chips || x.retry || (x.plan && text === NOT_NOW) ? { ...x, done: true } : x)), { from: "me", text }]);
+    setMessages((m) => [...m.map((x) => (x.chips || x.retry || ((x.plan || x.photoPlan) && text === NOT_NOW) ? { ...x, done: true } : x)), { from: "me", text }]);
     const { out, st } = replyTo(text, ctx(), state, { tapped });
     setState(st);
     const fill = out.find((o) => o.fill);
@@ -136,7 +149,7 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
       setTimeout(() => box.current?.focus(), 500);
     }
     const reply = out.filter((o) => !o.act && !o.fill);
-    const slow = out.find((o) => ["generate", "slogans", "edit", "improve", "drawPlan", "photoPlace"].includes(o.act?.type));
+    const slow = out.find((o) => ["generate", "slogans", "edit", "improve", "drawPlan", "photoPlace", "photoUnderstand", "photoMake"].includes(o.act?.type));
     if (slow) {
       // the AI: wait for the answer, then show what the page hands back
       run(slow.act, waitFor(slow.act), reply);
@@ -198,9 +211,12 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
     // sent: the photo in the chat now points at the uploaded copy (it is still there after a reload)
     setMessages((m) => [
       ...m.map((x) => (x.sending === id ? { from: "me", photo: sent || x.photo, text: x.text, ...(sent ? {} : { failed: true }) } : x)),
-      ...(out.length ? out.filter((x) => !x.photoSent) : [{ from: "bot", text: "The photo didn’t send. Check the internet connection, then tap 📎 and try again." }]),
+      ...(out.length ? out.filter((x) => !x.photoSent && !x.next) : [{ from: "bot", text: "The photo didn’t send. Check the internet connection, then tap 📎 and try again." }]),
     ]);
     if (sent) setTimeout(() => URL.revokeObjectURL(local), 5000);
+    // words came with the photo: it is read with them now (no menu to pick from)
+    const next = out.find((x) => x.next)?.next;
+    if (sent && next) run(next, waitFor(next));
   };
   // "Change" on a design: the next thing typed is the change to make
   const startChange = (url) => {
@@ -221,8 +237,15 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
 
   // "Try another" sits under the newest pictures only
   const lastDesigns = messages.reduce((last, m, i) => (m.designs ? i : last), -1);
-  // only the newest plan can still be changed and drawn
-  const lastPlan = messages.reduce((last, m, i) => (m.plan ? i : last), -1);
+  // only the newest plan can still be changed and drawn (a drawing plan or a photo plan)
+  const lastPlan = messages.reduce((last, m, i) => (m.plan || m.photoPlan ? i : last), -1);
+  // "Make it" on a photo plan
+  const makePhoto = (i, plan) => {
+    if (thinking) return;
+    setMessages((all) => [...all.map((x, n) => (n === i ? { ...x, photoPlan: plan, done: true } : x.chips ? { ...x, done: true } : x)), { from: "me", text: "Make it" }]);
+    const a = { type: "photoMake", job: plan.job, areaKey: plan.areaKey, style: plan.style, change: plan.change, subject: plan.subject, cutOut: plan.cutOut, enhance: !!plan.enhance };
+    run(a, waitFor(a));
+  };
   // Draw on the plan card: the plan is kept as it was drawn, and the pictures are made one after the other
   const drawPlan = (i, plan) => {
     if (thinking) return;
@@ -288,6 +311,23 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
               setState({ ...state, idea: { ...state.idea, improved: { ...state.idea.improved, area: key } } });
             };
             return <IdeaPreview key={i} preview={m.preview} {...(live ? { areas: free, onArea: pickArea } : {})} />;
+          }
+          if (m.photoPlan) {
+            const c = ctx();
+            return (
+              <PhotoPlanCard
+                key={i}
+                plan={m.photoPlan}
+                areas={c.areas}
+                styles={c.ai.styles}
+                photoStyles={c.ai.photoStyles || []}
+                ai={c.ai}
+                live={i === lastPlan && !m.done && !thinking}
+                onChange={(photoPlan) => setMessages((all) => all.map((x, n) => (n === i ? { ...x, photoPlan } : x)))}
+                onMake={(plan) => makePhoto(i, plan)}
+                onCancel={() => say(NOT_NOW, true)}
+              />
+            );
           }
           if (m.plan) {
             const c = ctx();

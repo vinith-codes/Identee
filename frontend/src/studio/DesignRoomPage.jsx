@@ -24,8 +24,9 @@ import { areaCm, blockersOf, clashesIn, modelForGarment, placeArea } from "./tee
 import AreaThumb from "./AreaThumb";
 import Rolling from "./Rolling";
 import Assistant from "./Assistant";
-import { AFTER_AI_SLOGANS, AFTER_DESIGN_CHIPS, BACK, CHANGE_IDEA, DRAW_MINE, PHOTO_CHOICES, PHOTO_CUT, bot as botSays, checkMessages, chips as chipRow, firstMessages, firstState } from "./assistantScript";
+import { AFTER_AI_SLOGANS, AFTER_DESIGN_CHIPS, BACK, CHANGE_IDEA, DRAW_MINE, PHOTO_AS_IS, PHOTO_CHOICES, PHOTO_CUT, bot as botSays, checkMessages, chips as chipRow, firstMessages, firstState } from "./assistantScript";
 import { styleIn } from "./styleInfo";
+import { photoJobFrom } from "./photoIntent";
 import aiService from "../services/aiService";
 import { applyAiOps, areaFor, describeDesign } from "./aiOps";
 import WaitCard from "./WaitCard";
@@ -1522,8 +1523,105 @@ export default function DesignRoomPage() {
     const res = await dispatch(uploadDesignImage(a.file));
     if (!uploadDesignImage.fulfilled.match(res)) return [botSays(res.payload || "The photo didn’t send. Check the internet connection, then tap 📎 and try again.")];
     const photo = { url: res.payload.path, w: a.w, h: a.h };
-    setChatState((st) => ({ ...st, photo, photoUrl: null, wait: null }));
-    return [{ photoSent: photo }, botSays("Got your photo. What should I do with it?"), chipRow([...PHOTO_CHOICES, "Something else"])];
+    if (a.text) {
+      setChatState((st) => ({ ...st, photo, photoUrl: null, wait: null }));
+      return [{ photoSent: photo }, { next: { type: "photoUnderstand", text: a.text } }];
+    }
+    setChatState((st) => ({ ...st, photo, photoUrl: null, wait: "photoWhat" }));
+    return [{ photoSent: photo }, botSays("Got your photo. Tell me what you want in your own words — for example “only the design from this tee” or “my photo on the back”. Or tap one:"), chipRow([...PHOTO_CHOICES, "Something else"])];
+  };
+  // the photo's print area: the one named, if free — else the open one, else the main front area, else any free one
+  const freeArea = (k) => k && positions.some((p) => p.key === k && (usedKeys.includes(k) || !blockersOf(k, positions, usedKeys).length));
+  const photoArea = (k) => [k, active].find(freeArea) || positions.find((p) => p.side === "front" && p.main && freeArea(p.key))?.key || positions.find((p) => freeArea(p.key))?.key || null;
+  // What the customer wants made from the photo: their words read with the photo by the text AI (when it can), and
+  // by our own rules (free; also when the AI can't). Then the plan card — nothing is made or charged yet.
+  const chatPhotoUnderstand = async (a, run) => {
+    const photo = chatState.photo;
+    if (!photo) return [botSays("I don’t have your photo any more. Tap 📎 and send it again.")];
+    const areas = assistantCtx().areas;
+    let plan = a.job ? { job: a.job } : photoJobFrom(a.text, { areas, photoStyles: ai.photoStyles || [] });
+    let seen = "";
+    let question = "";
+    if (a.text && ai.available && ai.text && isLoggedIn()) {
+      try {
+        const r = await aiService.photoPlan({ photoUrl: photo.url, message: a.text, areas: areas.filter((x) => x.free).map(({ key, label }) => ({ key, label })) });
+        seen = r.seen || "";
+        if (r.job && r.job !== "unclear") {
+          plan = { ...(plan || {}), job: r.job, style: r.style || plan?.style || null, areaKey: r.area || plan?.areaKey || null, change: r.change || plan?.change || null, subject: r.subject || plan?.subject || null };
+        } else if (!plan) question = r.question || "";
+      } catch {
+        // the AI couldn't read it (off, out of credit, offline): our own rules decide, or we ask
+      }
+    }
+    if (run?.stopped) return [];
+    if (!plan) {
+      setChatState((st) => ({ ...st, wait: "photoWhat" }));
+      return [botSays(question || (seen ? `I see ${seen}. Should I copy just the design from it, or print the whole photo?` : "Should I copy just the design from this photo, or print the whole photo? Tell me, or tap one:")), chipRow([...PHOTO_CHOICES, "Something else"])];
+    }
+    const aiOk = ai.available && isLoggedIn() && ai.left !== 0;
+    const artStyle = plan.style && (ai.photoStyles || []).includes(plan.style) ? plan.style : (ai.photoStyles || []).find((x) => (aiOk ? !/free/i.test(x) : /free/i.test(x))) || null;
+    const full = {
+      job: plan.job,
+      photo,
+      seen,
+      areaKey: photoArea(plan.areaKey),
+      change: plan.job === "copy" ? plan.change || null : null,
+      subject: plan.job === "inspired" ? plan.subject || a.text : null,
+      style: plan.job === "art" ? artStyle : plan.job === "inspired" ? (ai.styles.includes(plan.style) ? plan.style : styleIn(plan.subject || a.text, ai.styles) || ai.styles[0]) : null,
+      cutOut: plan.cutOut !== false,
+      enhance: false,
+    };
+    return [botSays("Here’s my plan for your photo. Check it, then tap Make it."), { photoPlan: full }];
+  };
+  // "Make it" on the photo plan
+  const chatPhotoMake = async (a, progress) => {
+    const photo = chatState.photo;
+    if (!photo) return [botSays("I don’t have your photo any more. Tap 📎 and send it again.")];
+    if (!isLoggedIn()) return [botSays("Log in and I’ll make it. Your design stays here."), chipRow(["Log in", "Something else"])];
+    const pos = positions.find((p) => p.key === a.areaKey) || photoTarget;
+    if (!pos) return [botSays("This garment has no free print area. Remove a print first.")];
+    const freeChoices = [PHOTO_CUT, PHOTO_AS_IS, "Something else"];
+    try {
+      if (a.job === "photo") {
+        const r = await studioPrintReady(photo, { cutOut: a.cutOut, enhance: a.enhance }, (t) => progress?.({ label: t, expect: 8 }));
+        const ok = await studioPlace(r, pos.key);
+        if (!ok) return [botSays(`I couldn’t put it on ${pos.label}. Use “Other area” under the photo to pick a free one.`), { designs: [r.url], photo: true }];
+        const how = a.cutOut ? (r.cut ? ", without its background" : " (it had no background to remove)") : "";
+        return [botSays(`Done — your photo is on ${pos.label}${how}${r.enhanced ? ", made sharper" : ""}. ${qualityLine(printDpi(pos, r.w, r.h))}`), { designs: [r.url], photo: true }, chipRow(["Check my design", "Something else"])];
+      }
+      const { W, H } = areaPx(pos);
+      const tee = { teeColour: colour?.name || "white", teeIsDark: lum(fabricHex) < 0.55, ratio: W / H };
+      const body = a.job === "copy" ? { copyUrl: photo.url, change: a.change || "" } : a.job === "inspired" ? { refUrl: photo.url, subject: a.subject, style: a.style } : { photoUrl: photo.url, artStyle: a.style };
+      const res = await aiService.design({ ...body, ...tee });
+      if (res.left != null) setAi((cur) => ({ ...cur, left: res.left }));
+      res.images.forEach((im) => {
+        aiCuts.current.set(im.url, { path: im.url, w: im.width, h: im.height });
+        loadImage(im.url).catch(() => {});
+      });
+      const first = res.images[0];
+      await placeAiDesign(first.url, pos.key);
+      const left = res.left == null ? "" : ` ${res.left} request${res.left === 1 ? "" : "s"} left today.`;
+      const n = res.images.length;
+      const said =
+        a.job === "copy"
+          ? `Here’s the design from your photo, on ${pos.label}.${left} Not quite the same? Tap Try another, or Change to fix a part.`
+          : a.job === "inspired"
+            ? `Here’s your new design, on ${pos.label}.${left}`
+            : res.filtered
+              ? res.refused
+                ? `The AI wouldn’t redraw this photo (it refuses some photos, well-known faces among them), so I made ${n} art versions another way, free. The first is on ${pos.label}.`
+                : `Here are ${n} free art versions. The first is on ${pos.label}; tap Add to tee on another to swap.`
+              : `Here’s your photo as ${String(a.style || "art").toLowerCase()}, on ${pos.label}.${left}`;
+      return [botSays(said), { designs: res.images.map((im) => im.url), again: { type: "photoMake", ...a } }, chipRow(["Check my design", "Something else"])];
+    } catch (err) {
+      const status = err?.response?.status;
+      const why = err?.response?.data?.message;
+      // never a dead end: what didn't work, in plain words, and what still works (the free choices)
+      if (status === 503) return [botSays("The design assistant is resting right now. You can still put your photo on as it is or without its background (free), add text, or pick from the art library."), chipRow(freeChoices)];
+      if (status === 429) return [botSays(why || "You’ve used today’s AI requests. They reset tomorrow."), chipRow(freeChoices)];
+      if (status === 422) return [botSays(why || "The picture service refused this one."), chipRow(freeChoices)];
+      return [botSays(why || err?.message || "That didn’t work just now."), { failed: true }];
+    }
   };
   // how sharp a picture will print on an area: dots per inch at the size it is put on the tee (aiElement: 92% of the
   // area's width or height, whichever it meets first)
@@ -1636,6 +1734,8 @@ export default function DesignRoomPage() {
     if (a.type === "improve") return chatImprove(a, run);
     if (a.type === "drawPlan") return drawPlan(a, progress, run);
     if (a.type === "photo") return chatPhoto(a);
+    if (a.type === "photoUnderstand") return chatPhotoUnderstand(a, run);
+    if (a.type === "photoMake") return chatPhotoMake(a, progress);
     if (a.type === "photoPlace") return chatPhotoPlace(a, progress);
     if (a.type === "edit") return chatEdit(a, progress, run);
     if (a.type === "photoPick") return openPhotoStudio();

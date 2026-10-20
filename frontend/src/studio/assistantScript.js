@@ -41,7 +41,9 @@ export const NOT_NOW = "Not now";
 export const PHOTO_AS_IS = "Put it on my tee as it is";
 export const PHOTO_CUT = "Remove the background first";
 export const PHOTO_ART = "Turn it into art";
-export const PHOTO_CHOICES = [PHOTO_AS_IS, PHOTO_CUT, PHOTO_ART];
+// a photo of a printed tee / hoodie / poster: only its design, copied flat (1 request)
+export const PHOTO_COPY = "Copy just the design from it";
+export const PHOTO_CHOICES = [PHOTO_COPY, PHOTO_AS_IS, PHOTO_CUT, PHOTO_ART];
 // Ways back, so the customer is never stuck: every question has one of these (or "Something else").
 export const BACK = "← Back";
 export const CHANGE_IDEA = "Change my idea";
@@ -166,6 +168,8 @@ export function replyTo(text, ctx, st, { tapped = false } = {}) {
     if (st.backTo === "photo") return done([bot("Which photo should I redraw?"), orOut(["Upload a photo", ...(ctx.photoOnTee ? ["Use the picture on my tee"] : [])])], clean);
     return done([bot("What do you need?"), chips(["What can you do?", ...MENU.slice(0, 3), ...MORE])], clean);
   }
+  // a photo just sent without words: what is typed next says what to make from it (read with the photo)
+  if (st.photo && wait === "photoWhat" && !tapped && t.length >= 2 && t !== OUT) return done([act({ type: "photoUnderstand", text: t })]);
   if (t === NOT_NOW) return done([bot("OK, nothing was drawn. Tell me whenever you want to try again."), chips(MENU)], clean);
   if (t === CANCEL && wait === "aiChange") return done([bot("OK, I left that design as it is."), chips(AFTER_DESIGNS)], { changeUrl: null });
   if (t === KEEP_DESIGN && st.template) return done([bot("OK, I left your design as it is."), chips(MENU)], { template: null });
@@ -288,6 +292,7 @@ export function replyTo(text, ctx, st, { tapped = false } = {}) {
   }
 
   /* ----- a photo sent with 📎 (st.photo): on the tee as it is, without its background (both free), or as art ----- */
+  if (st.photo && t === PHOTO_COPY) return done([act({ type: "photoUnderstand", text: "", job: "copy" })]);
   if (st.photo && t === PHOTO_AS_IS) return done([act({ type: "photoPlace", cutOut: false })]);
   if (st.photo && t === PHOTO_CUT) return done([act({ type: "photoPlace", cutOut: true })]);
   if (st.photo && t === PHOTO_ART) {
