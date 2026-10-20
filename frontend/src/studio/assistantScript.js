@@ -11,6 +11,7 @@
 //   { issues: [...] }              design-check findings, each with a fix
 //   { inks: [hex] }                ink colours to try
 //   { designs: [url] }             pictures the image AI made, each with "Add to tee"
+//   { from: "me", photo, text }    a photo the customer sent with 📎 ({ url, w, h }), with their words if any
 //   { plan: { items, style } }     the plan card (PlanCard.jsx): what will be drawn, where, in which style — nothing
 //                                  is drawn (or charged) until the customer taps Draw (act "drawPlan")
 //   { examples: true }             the list of things the assistant can do (EXAMPLES)
@@ -36,6 +37,11 @@ export const DRAW_MINE = "Use my own words";
 export const IN_DRAW_TAB = "Open in the Draw tab";
 // the plan card's "Not now": nothing is drawn
 export const NOT_NOW = "Not now";
+// a photo sent with 📎 (st.photo): what to do with it — the first two are free
+export const PHOTO_AS_IS = "Put it on my tee as it is";
+export const PHOTO_CUT = "Remove the background first";
+export const PHOTO_ART = "Turn it into art";
+export const PHOTO_CHOICES = [PHOTO_AS_IS, PHOTO_CUT, PHOTO_ART];
 // Ways back, so the customer is never stuck: every question has one of these (or "Something else").
 export const BACK = "← Back";
 export const CHANGE_IDEA = "Change my idea";
@@ -97,7 +103,7 @@ export const EXAMPLES = [
 ];
 const HELLO = "Hi. I can design your tee with you. Tap one to try it, or type what you want in your own words.";
 export const firstMessages = () => [bot(HELLO), { examples: true }, chips(["More help"])];
-export const firstState = () => ({ occasion: null, tone: null, shown: 0, wait: null, template: null, subject: null, areaKey: null, lastDesign: null, changeUrl: null, ask: null, said: [], photoUrl: null, idea: null, backTo: null, backIdea: null });
+export const firstState = () => ({ occasion: null, tone: null, shown: 0, wait: null, template: null, subject: null, areaKey: null, lastDesign: null, changeUrl: null, ask: null, said: [], photoUrl: null, idea: null, backTo: null, backIdea: null, photo: null });
 // after slogans the AI wrote
 export const AFTER_AI_SLOGANS = ["Show more", "Change tone", "Something else"];
 export const AFTER_DESIGN_CHIPS = AFTER_DESIGNS;
@@ -156,6 +162,7 @@ export function replyTo(text, ctx, st, { tapped = false } = {}) {
       );
     }
     if (st.backTo === "occasion") return done([bot("Who is the tee for?"), orOut(Object.keys(SLOGANS))], { ...clean, occasion: null, tone: null });
+    if (st.backTo === "photoChoice" && st.photo) return done([bot("What should I do with your photo?"), orOut(PHOTO_CHOICES)], clean);
     if (st.backTo === "photo") return done([bot("Which photo should I redraw?"), orOut(["Upload a photo", ...(ctx.photoOnTee ? ["Use the picture on my tee"] : [])])], clean);
     return done([bot("What do you need?"), chips(["What can you do?", ...MENU.slice(0, 3), ...MORE])], clean);
   }
@@ -278,6 +285,16 @@ export function replyTo(text, ctx, st, { tapped = false } = {}) {
     if (t === "Change tone" && st.ask) return done([bot("Which tone?"), orOut(TONES)], { wait: "sloganTone" });
     if (wait === "sloganTone" && TONES.includes(t)) return ask(st.ask, t, false);
     if (t === MENU[0]) return done([bot("What is it about? Say it in your own words, or pick one."), orOut(["My mother", "Our cricket team", "A birthday", "A college farewell", "A family trip"])], { wait: "sloganTopic" });
+  }
+
+  /* ----- a photo sent with 📎 (st.photo): on the tee as it is, without its background (both free), or as art ----- */
+  if (st.photo && t === PHOTO_AS_IS) return done([act({ type: "photoPlace", cutOut: false })]);
+  if (st.photo && t === PHOTO_CUT) return done([act({ type: "photoPlace", cutOut: true })]);
+  if (st.photo && t === PHOTO_ART) {
+    // (the free looks also work when the AI is off or today's requests are used up)
+    const free = (ctx.ai.photoStyles || []).filter((x) => /free/i.test(x));
+    const styles = ctx.ai.available && ctx.ai.loggedIn && ctx.ai.left !== 0 ? ctx.ai.photoStyles || [] : free;
+    return done([bot(styles.length > free.length ? "Which style? The AI styles use 1 request each; the free looks don’t." : "Here are the free looks (the AI styles aren’t available right now)."), chips([...styles, BACK])], { photoUrl: st.photo.url, wait: "photoStyle", backTo: "photoChoice" });
   }
 
   /* ----- photo to art (the image AI redraws the customer's own photo) ----- */

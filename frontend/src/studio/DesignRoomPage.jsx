@@ -24,7 +24,7 @@ import { areaCm, blockersOf, clashesIn, modelForGarment, placeArea } from "./tee
 import AreaThumb from "./AreaThumb";
 import Rolling from "./Rolling";
 import Assistant from "./Assistant";
-import { AFTER_AI_SLOGANS, AFTER_DESIGN_CHIPS, BACK, CHANGE_IDEA, DRAW_MINE, bot as botSays, checkMessages, chips as chipRow, firstMessages, firstState } from "./assistantScript";
+import { AFTER_AI_SLOGANS, AFTER_DESIGN_CHIPS, BACK, CHANGE_IDEA, DRAW_MINE, PHOTO_CHOICES, PHOTO_CUT, bot as botSays, checkMessages, chips as chipRow, firstMessages, firstState } from "./assistantScript";
 import { styleIn } from "./styleInfo";
 import aiService from "../services/aiService";
 import { applyAiOps, areaFor, describeDesign } from "./aiOps";
@@ -1516,6 +1516,47 @@ export default function DesignRoomPage() {
       return [botSays(err.message), chipRow([DRAW_MINE, "Something else"])];
     }
   };
+  // 📎 in the chat: the photo is uploaded (the phone already made it small enough), then the customer chooses
+  const chatPhoto = async (a) => {
+    if (!isLoggedIn()) return [botSays("Log in to send a photo. Your design stays here while you log in."), chipRow(["Log in", "Something else"])];
+    const res = await dispatch(uploadDesignImage(a.file));
+    if (!uploadDesignImage.fulfilled.match(res)) return [botSays(res.payload || "The photo didn’t send. Check the internet connection, then tap 📎 and try again.")];
+    const photo = { url: res.payload.path, w: a.w, h: a.h };
+    setChatState((st) => ({ ...st, photo, photoUrl: null, wait: null }));
+    return [{ photoSent: photo }, botSays("Got your photo. What should I do with it?"), chipRow([...PHOTO_CHOICES, "Something else"])];
+  };
+  // how sharp a picture will print on an area: dots per inch at the size it is put on the tee (aiElement: 92% of the
+  // area's width or height, whichever it meets first)
+  const printDpi = (pos, w, h) => {
+    const { wCm, hCm } = areaPx(pos);
+    const widthCm = w / h > wCm / hCm ? 0.92 * wCm : 0.92 * hCm * (w / h);
+    return widthCm > 0 ? w / (widthCm / 2.54) : 300;
+  };
+  const qualityLine = (dpi) =>
+    dpi >= 150 ? "It’s sharp, so it will print well." : dpi >= 100 ? "It will print fine; a bigger photo would be even sharper." : "It’s a small photo, so it may print a bit soft. A bigger one will look sharper.";
+  // "Put it on my tee as it is" / "Remove the background first" (both free; the cut-out runs in the browser)
+  const chatPhotoPlace = async (a, progress) => {
+    const photo = chatState.photo;
+    if (!photo) return [botSays("I don’t have your photo any more. Tap 📎 and send it again.")];
+    const pos = photoTarget;
+    if (!pos) return [botSays("This garment has no free print area. Remove a print first.")];
+    let r = { url: photo.url, w: photo.w, h: photo.h, cut: false };
+    if (a.cutOut) {
+      try {
+        r = await studioPrintReady(photo, { cutOut: true }, (t) => progress?.({ label: t, expect: 8, hint: "It runs on your phone, free." }));
+      } catch (err) {
+        return [botSays(err.message || "The background couldn’t be removed. Try again, or put it on as it is."), { failed: true }];
+      }
+    }
+    const placed = await studioPlace(r, pos.key);
+    if (!placed) return [botSays(`I couldn’t put it on ${pos.label}. Use “Other area” under the photo to pick a free one.`), { designs: [r.url], photo: true }];
+    const how = a.cutOut ? (r.cut ? ", without its background" : " (it had no background to remove)") : "";
+    return [
+      botSays(`Done — your photo is on ${pos.label}${how}. ${qualityLine(printDpi(pos, r.w, r.h))}`),
+      { designs: [r.url], photo: true },
+      chipRow(a.cutOut ? ["Check my design", "Something else"] : [PHOTO_CUT, "Check my design", "Something else"]),
+    ];
+  };
   const studioPlace = async (r, areaKey) => {
     const key = areaKey || photoTarget?.key;
     if (!key) return false;
@@ -1594,6 +1635,8 @@ export default function DesignRoomPage() {
     if (a.type === "slogans") return writeSlogans(a);
     if (a.type === "improve") return chatImprove(a, run);
     if (a.type === "drawPlan") return drawPlan(a, progress, run);
+    if (a.type === "photo") return chatPhoto(a);
+    if (a.type === "photoPlace") return chatPhotoPlace(a, progress);
     if (a.type === "edit") return chatEdit(a, progress, run);
     if (a.type === "photoPick") return openPhotoStudio();
     if (a.type === "aiTab") {

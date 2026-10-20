@@ -11,6 +11,7 @@ import { imageUrl } from "../utils/imageUrl";
 import WaitCard from "./WaitCard";
 import IdeaPreview from "./IdeaPreview";
 import PlanCard from "./PlanCard";
+import { PhotoError, shrinkPhoto } from "./shrinkPhoto";
 
 const PICTURE_HINT = "Usually 20–40 seconds. You can look around the room meanwhile.";
 // What the wait card says for an AI job: { label, expect (usual seconds), hint }
@@ -21,6 +22,10 @@ const waitFor = (a) =>
       ? { label: "Writing a few…", expect: 6 }
       : a.type === "improve"
         ? { label: "Improving your idea…", expect: 9 }
+      : a.type === "photoPlace"
+        ? a.cutOut
+          ? { label: "Removing the background…", expect: 8, hint: "It runs on your phone, free. Bigger photos take a little longer." }
+          : { label: "Putting your photo on the tee…", expect: 3 }
       : a.type === "drawPlan"
         ? { label: a.items?.length > 1 ? `Drawing ${a.items.length} pictures…` : "Drawing your design…", expect: 25 * (a.items?.length || 1), hint: a.items?.length > 1 ? "Usually 20–40 seconds for each. You can look around the room meanwhile." : PICTURE_HINT }
       : a.photoUrl
@@ -55,6 +60,7 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
   const box = useRef(null);
   const timer = useRef(null);
   const job = useRef(null); // the AI request running now: { act, stopped }
+  const photoBox = useRef(null); // the hidden file picker behind 📎
 
   useEffect(() => {
     if (log.current) log.current.scrollTop = log.current.scrollHeight;
@@ -130,13 +136,14 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
       setTimeout(() => box.current?.focus(), 500);
     }
     const reply = out.filter((o) => !o.act && !o.fill);
-    const slow = out.find((o) => ["generate", "slogans", "edit", "improve", "drawPlan"].includes(o.act?.type));
+    const slow = out.find((o) => ["generate", "slogans", "edit", "improve", "drawPlan", "photoPlace"].includes(o.act?.type));
     if (slow) {
       // the AI: wait for the answer, then show what the page hands back
       run(slow.act, waitFor(slow.act), reply);
       return true;
     }
-    out.filter((o) => o.act).forEach((o) => onAct(o.act));
+    // ("Upload a photo" opens 📎's picker here — still inside the tap, so phones allow it)
+    out.filter((o) => o.act).forEach((o) => (o.act.type === "photoPick" ? pickPhoto() : onAct(o.act)));
     if (!reply.length) return true;
     setThinking(true);
     timer.current = setTimeout(() => {
@@ -153,6 +160,48 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
     }, 400);
     return () => clearTimeout(t);
   }, [autoSay]); // eslint-disable-line react-hooks/exhaustive-deps
+  // 📎 — a photo in the chat, like a messaging app. Logged out: said BEFORE the picker opens, so no photo is lost.
+  const pickPhoto = () => {
+    if (thinking) return;
+    if (!ctx().ai.loggedIn) {
+      setMessages((m) => [...m.map((x) => (x.chips ? { ...x, done: true } : x)), { from: "bot", text: "Log in to send a photo. Your design stays here while you log in." }, { chips: ["Log in", "Something else"] }]);
+      return;
+    }
+    photoBox.current?.click();
+  };
+  // the photo: made small enough on the phone, shown in the chat at once, then sent (the page uploads it and answers)
+  const sendPhoto = async (file) => {
+    if (!file || thinking) return;
+    let ready;
+    try {
+      ready = await shrinkPhoto(file);
+    } catch (err) {
+      setMessages((m) => [...m, { from: "bot", text: err instanceof PhotoError ? err.message : "The photo couldn’t be prepared. Try another one." }]);
+      return;
+    }
+    const words = draft.trim();
+    const local = URL.createObjectURL(ready.file);
+    const id = `p${Date.now()}`;
+    setDraft("");
+    setMessages((m) => [...m.map((x) => (x.chips || x.retry ? { ...x, done: true } : x)), { from: "me", photo: { url: local, w: ready.w, h: ready.h }, text: words, sending: id }]);
+    setThinking({ label: "Sending your photo…", expect: 4, hint: "On mobile data this can take a few seconds.", noStop: true });
+    onWorking?.(true);
+    let out;
+    try {
+      out = (await onAct({ type: "photo", file: ready.file, w: ready.w, h: ready.h, text: words })) || [];
+    } catch {
+      out = [];
+    }
+    setThinking(false);
+    onWorking?.(false);
+    const sent = out.find((x) => x.photoSent)?.photoSent;
+    // sent: the photo in the chat now points at the uploaded copy (it is still there after a reload)
+    setMessages((m) => [
+      ...m.map((x) => (x.sending === id ? { from: "me", photo: sent || x.photo, text: x.text, ...(sent ? {} : { failed: true }) } : x)),
+      ...(out.length ? out.filter((x) => !x.photoSent) : [{ from: "bot", text: "The photo didn’t send. Check the internet connection, then tap 📎 and try again." }]),
+    ]);
+    if (sent) setTimeout(() => URL.revokeObjectURL(local), 5000);
+  };
   // "Change" on a design: the next thing typed is the change to make
   const startChange = (url) => {
     if (thinking) return;
@@ -309,7 +358,7 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
                     <button type="button" className="dr-mini" onClick={() => onAct({ type: "place", url })}>Add to tee</button>
                     <div className="dr-designlinks">
                       <button type="button" onClick={() => setPickFor(pickFor === url ? null : url)} aria-expanded={pickFor === url}>Other area</button>
-                      <button type="button" onClick={() => startChange(url)}>Change</button>
+                      {!m.photo && <button type="button" onClick={() => startChange(url)}>Change</button>}
                       {/* liked only one of the pictures: this one comes off the tee (Undo would take off all drawn together) */}
                       {placed[url]?.length ? <button type="button" onClick={() => onAct({ type: "unplace", url })}>Remove from tee</button> : null}
                     </div>
@@ -348,10 +397,20 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
               </div>
             );
           }
+          if (m.photo) {
+            const src = /^blob:/.test(m.photo.url) ? m.photo.url : imageUrl(m.photo.url, 500);
+            return (
+              <div key={i} className={`dr-msg me dr-photomsg${m.failed ? " failed" : ""}`}>
+                <img src={src} alt="The photo you sent" />
+                {m.text && <span>{m.text}</span>}
+                {m.failed && <small>Not sent</small>}
+              </div>
+            );
+          }
           return <div key={i} className={`dr-msg ${m.from}`}>{m.text}</div>;
         })}
         {thinking === true && <div className="dr-typing">Thinking…</div>}
-        {thinking && thinking !== true && <WaitCard key={`${messages.length}-${thinking.label}`} {...thinking} onStop={stop} />}
+        {thinking && thinking !== true && <WaitCard key={`${messages.length}-${thinking.label}`} {...thinking} onStop={thinking.noStop ? undefined : stop} />}
       </div>
       {/* while the assistant works, the customer can type the next message; it is sent when it's done */}
       {thinking && thinking !== true && <p className="dr-busynote">I’m still on your last request. Changed your mind? Press Stop. You can also type your next one; Send works again as soon as I’m done.</p>}
@@ -380,6 +439,12 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
           if (say(draft.trim())) setDraft("");
         }}
       >
+        <button type="button" className="dr-attach" onClick={pickPhoto} disabled={!!thinking} aria-label="Send a photo" title="Send a photo">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="m21 11.5-8.6 8.6a5.5 5.5 0 0 1-7.8-7.8l8.6-8.6a3.7 3.7 0 0 1 5.2 5.2l-8.6 8.6a1.8 1.8 0 0 1-2.6-2.6l7.9-7.9" />
+          </svg>
+        </button>
+        <input ref={photoBox} type="file" accept="image/*" hidden onChange={(e) => { const file = e.target.files?.[0]; e.target.value = ""; sendPhoto(file); }} />
         <input ref={box} value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="Try: a tiger on the front, a tree on the back" aria-label="Message the design assistant" maxLength={400} autoComplete="off" />
         <button type="submit" disabled={!!thinking} aria-label={thinking ? "Wait — the assistant is still working" : "Send"}>
           {thinking ? "Wait…" : "Send"}

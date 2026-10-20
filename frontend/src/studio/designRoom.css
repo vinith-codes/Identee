@@ -1203,3 +1203,13 @@ button.dr-back { padding: 0; font: inherit; font-weight: 700; cursor: pointer; }
 .dr-moveask p { flex: 1 0 100%; margin: 0; font-size: 12.5px; font-weight: 700; color: var(--ink); }
 .dr-moveask .dr-chip.on { background: var(--ink); color: #fff; border-color: var(--ink); }
 .dr-moveno { border: 0; background: none; padding: 6px 4px; font-size: 12px; font-weight: 600; color: var(--ink-soft); text-decoration: underline; }
+
+/* 📎 in the chat box, and a photo the customer sent (shown as their message) */
+.dr-composer .dr-attach { flex: none; width: 44px; height: 44px; padding: 0; display: grid; place-items: center; background: #fff; color: var(--ink); border: 1px solid var(--line); }
+.dr-composer .dr-attach svg { width: 20px; height: 20px; }
+.dr-composer .dr-attach:hover:not(:disabled) { border-color: var(--ink); }
+.dr-msg.dr-photomsg { display: grid; gap: 6px; padding: 5px; max-width: min(72%, 240px); }
+.dr-photomsg img { display: block; width: 100%; height: auto; max-height: 260px; object-fit: cover; border-radius: 12px; background: #2b2724; }
+.dr-photomsg span { padding: 0 6px 4px; }
+.dr-photomsg small { padding: 0 6px 4px; font-size: 11.5px; font-weight: 700; color: #F4B6A8; }
+.dr-photomsg.failed img { opacity: .55; }
