@@ -9,10 +9,23 @@
 //     2. Spider-Man    [Full Back ▾]
 //    Style: (Bold mascot) (Cartoon) (Realistic) …
 //    [Draw both · 2 requests]   4 left today"
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { STYLE_INFO, styleSample } from "./styleInfo";
 
 const COUNT = ["", "it", "both", "all 3"];
+// a long, detailed description (prompts can be 2,000 characters): plain weight and 4 lines, with Show all — in bold
+// and in full, one of them filled a phone's screen
+const LONG = 140;
+function What({ text }) {
+  const [open, setOpen] = useState(false);
+  if (text.length <= LONG) return <span className="pc-what">{text}</span>;
+  return (
+    <span className={`pc-what long${open ? " open" : ""}`}>
+      <span className="pc-whattext">{text}</span>
+      <button type="button" className="pc-more" onClick={() => setOpen((o) => !o)} aria-expanded={open}>{open ? "Show less" : "Show all"}</button>
+    </span>
+  );
+}
 
 /**
  * @param plan      { items: [{ subject, areaKey, label? }], style, improvable }   label: what the customer sees, if not the subject
@@ -47,7 +60,7 @@ export default function PlanCard({ plan, areas, styles, left, live, onChange, on
       <ol className="pc-items">
         {items.map((x, i) => (
           <li key={i}>
-            <span className="pc-what">{x.label || x.subject}</span>
+            <What text={x.label || x.subject} />
             {live ? (
               <span className="pc-row">
                 <select aria-label={`Where to print picture ${i + 1}`} value={x.areaKey || ""} onChange={(e) => setArea(i, e.target.value)}>
