@@ -14,7 +14,7 @@ const FIELDS = [
   ["imagesPerRequest", "Pictures per request", "How many options the customer sees each time (each one is paid for).", 1, 4, 1],
   ["monthlyCapInr", "Google: monthly spending cap (₹)", "When this month's Google spend reaches it, the feature pauses until next month. Keep it a little below the spend cap set in Google AI Studio. 0 = no cap.", 0, 1000000, 50],
   ["pricePerImageInr", "Cost of one Google picture (₹)", "Used only for the spending figures here. Include GST: Google’s spend page shows about ₹3.50 a picture.", 0, 100, 0.1],
-  ["grokMonthlyCapInr", "Grok: monthly spending cap (₹)", "When this month's Grok spend reaches it, Grok stops standing in until next month: refused photos get the free art filters, and Google keeps working. Keep it a little below your xAI credit. 0 = no cap.", 0, 1000000, 50],
+  ["grokMonthlyCapInr", "Grok: monthly spending cap (₹)", "When this month's Grok spend reaches it, Grok stops standing in until next month: a picture Google refuses then gets a “couldn’t make this one” message, and Google keeps working. Keep it a little below your xAI credit. 0 = no cap.", 0, 1000000, 50],
   ["grokPricePerImageInr", "Cost of one Grok picture (₹)", "Grok redraws a customer's photo only when Google refuses it (well-known people). $5 of xAI credit ≈ 71 pictures ≈ ₹6 each — check console.x.ai → Billing.", 0, 100, 0.1],
   ["designAddOnInr", "Extra price per tee with a picture (₹)", "What the CUSTOMER pays on top of the garment's price for each tee whose design has an AI-made picture or their own upload. Once per tee, however many pictures. Pictures from the art library are free, and a text-only design costs just the garment's price.", 0, 5000, 10],
 ];
