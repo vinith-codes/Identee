@@ -13,7 +13,9 @@ git pull --ff-only origin main
 
 echo "→ 2/4  Backend libraries"
 cd "$APP_DIR/server"
-npm ci --omit=dev
+# (Chrome for the invoice PDFs separately: if its download failed inside npm ci, npm stopped half-way)
+PUPPETEER_SKIP_DOWNLOAD=true npm ci --omit=dev
+npx puppeteer browsers install chrome || echo "  ! Chrome for invoice PDFs didn't download — the site works; run 'npx puppeteer browsers install chrome' in server/ later"
 
 echo "→ 3/4  Building the website"
 cd "$APP_DIR/frontend"

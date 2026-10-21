@@ -92,17 +92,27 @@ Repo → Settings → Deploy keys, read-only.)
 
 ## 4. The backend
 
-**4a. Libraries:**
+**4a. Libraries** — without Puppeteer's Chrome download (that is step 4b). If Chrome's download fails inside
+`npm ci`, npm stops half-way and the backend is left with missing libraries:
 
 ```bash
-cd ~/identee/server && npm ci --omit=dev
+cd ~/identee/server && PUPPETEER_SKIP_DOWNLOAD=true npm ci --omit=dev
 ```
 
-**4b. Chrome for the invoice PDFs** (Puppeteer):
+**4b. Chrome for the invoice PDFs** (Puppeteer). Run it as the same user that runs the backend (PM2). If it fails
+(slow internet), just run it again — nothing else depends on it:
 
 ```bash
 npx puppeteer browsers install chrome
 ```
+
+Check it works (it should print `Chrome OK: …`):
+
+```bash
+cd ~/identee/server && node -e "import('puppeteer').then(async ({default: p}) => { const b = await p.launch({ args: ['--no-sandbox'] }); console.log('Chrome OK:', await b.version()); await b.close(); }).catch((e) => console.log('Chrome problem:', e.message))"
+```
+
+If it says `Chrome problem: … error while loading shared libraries`, install the libraries from step 2b.
 
 **4c. The settings file.** Make it from the template, then fill in every line marked REQUIRED:
 
@@ -297,6 +307,7 @@ Fix the problem on your laptop, push, then `git checkout main` on the server and
 | Photo upload fails with "413" | Nginx's upload limit | `client_max_body_size 25m;` in the site's Nginx file |
 | `MongoDB` connection error in the logs | The server's IP isn't in Atlas Network Access | Add it (step 4d) |
 | Invoice PDF fails | Chrome or its libraries missing | Steps 2b and 4b again, then `pm2 restart identee` |
+| `npm ci` stops with `ERROR: Failed to set up chrome` | Puppeteer couldn't download Chrome | Run `PUPPETEER_SKIP_DOWNLOAD=true npm ci --omit=dev`, then step 4b on its own |
 | AI pictures fail after about a minute | Nginx timed out | `proxy_read_timeout 240s;` in the `/api/` part |
 | Login codes don't arrive | Zoho settings, or they're in spam | `pm2 logs identee` for mail errors; check `EMAIL_*` in `.env` |
 
