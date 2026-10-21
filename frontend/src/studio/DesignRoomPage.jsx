@@ -70,6 +70,7 @@ const ROOM_KEY = (type) => `identee:room:v1:${type}`;
 const CHAT_KEPT = 80; // messages
 const SIZE_KEY = "identee:size";
 const ASSIST_WIDE_KEY = "identee:assistWide";
+const ASSIST_SMALL_KEY = "identee:assistSmall"; // phones: the assistant made half height ("Show the tee")
 const DARK_KEY = "identee:room-dark"; // the customer's light / dark studio choice
 const HISTORY_CAP = 50;
 
@@ -204,6 +205,13 @@ export default function DesignRoomPage() {
   const toggleAssistWide = () => {
     writeJSON(ASSIST_WIDE_KEY, !assistWide);
     setAssistWide(!assistWide);
+  };
+  // phones: the assistant fills the screen (room for the chat and its pictures); "Show the tee" makes it half
+  // height so the tee shows above it — remembered on this device
+  const [assistSmall, setAssistSmall] = useState(() => readJSON(ASSIST_SMALL_KEY) === true);
+  const toggleAssistSmall = () => {
+    writeJSON(ASSIST_SMALL_KEY, !assistSmall);
+    setAssistSmall(!assistSmall);
   };
   // the assistant's conversation (kept while you switch tabs, and across a reload of the page)
   const [chat, setChat] = useState(() => (Array.isArray(session?.chat) && session.chat.length ? session.chat : firstMessages()));
@@ -2045,6 +2053,36 @@ export default function DesignRoomPage() {
   };
 
   /* ---------- render ---------- */
+  // Phones, while the assistant is open: the phone's keyboard covers the bottom of the screen (where the chat
+  // box is) without the page getting shorter. So the room is fitted into the part the keyboard leaves free —
+  // the chat box stays in sight while typing, and the room goes back to full height when the keyboard closes.
+  const appRef = useRef(null);
+  const ready = Boolean(garment);
+  useEffect(() => {
+    const vv = window.visualViewport;
+    const el = appRef.current;
+    if (!assist || !vv || !el) return undefined;
+    const phone = window.matchMedia("(max-width: 760px)");
+    const fit = () => {
+      const keyboard = phone.matches && window.innerHeight - vv.height > 120;
+      if (keyboard) {
+        el.dataset.kb = "1";
+        el.style.setProperty("--vv-top", `${vv.offsetTop}px`);
+        el.style.setProperty("--vv-h", `${vv.height}px`);
+      } else {
+        delete el.dataset.kb;
+      }
+    };
+    fit();
+    vv.addEventListener("resize", fit);
+    vv.addEventListener("scroll", fit);
+    return () => {
+      vv.removeEventListener("resize", fit);
+      vv.removeEventListener("scroll", fit);
+      delete el.dataset.kb;
+    };
+  }, [assist, ready]); // (ready: the room is on screen — it isn't while the tee is still loading)
+
   if (!garment) {
     return (
       <div className="dr-center">
@@ -2079,7 +2117,7 @@ export default function DesignRoomPage() {
   })();
 
   return (
-    <div className="dr-app" data-step={step} data-lit={lit ? "1" : undefined}>
+    <div className="dr-app" ref={appRef} data-step={step} data-lit={lit ? "1" : undefined}>
       <header className="dr-top">
         {/* the arrow goes back one step: Review → Design → colour & size → the page the customer came from */}
         {step === "fit" ? (
@@ -2411,7 +2449,7 @@ export default function DesignRoomPage() {
 
         {step === "design" && assist && (
           // The AI panel: the chat (Assistant.jsx) — drawing, photos and changes all happen there
-          <section className={`dr-editor dr-assist dr-ai tab-${aiTab}`} data-wide={assistWide ? "1" : undefined} aria-label="AI design">
+          <section className={`dr-editor dr-assist dr-ai tab-${aiTab}`} data-wide={assistWide ? "1" : undefined} data-small={assistSmall ? "1" : undefined} aria-label="AI design">
             <header>
               <div>
                 <div className="eyebrow">AI design</div>
@@ -2434,6 +2472,13 @@ export default function DesignRoomPage() {
                     <path d={assistWide ? "M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7" : "M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"} />
                   </svg>
                   <span>{assistWide ? "Narrower" : "Wider"}</span>
+                </button>
+                {/* phones: full screen for the chat, or half so the tee shows above it */}
+                <button type="button" className="dr-tall" aria-pressed={!assistSmall} onClick={toggleAssistSmall}>
+                  <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d={assistSmall ? "M6 15l6-6 6 6" : "M6 9l6 6 6-6"} />
+                  </svg>
+                  <span>{assistSmall ? "Make it big" : "Show the tee"}</span>
                 </button>
                 <button type="button" className="dr-x" aria-label="Close" onClick={() => setAssist(false)}>✕</button>
               </div>

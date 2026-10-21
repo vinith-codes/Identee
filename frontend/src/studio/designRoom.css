@@ -649,6 +649,24 @@
   .dr-widen { display: none; } /* phones: the assistant is already a large sheet */
 }
 @media (prefers-reduced-motion: reduce) { .dr-editor.dr-assist { transition: none; } }
+/* phones: the assistant fills the room under the top bar (the chat and its pictures get room); "Show the tee"
+   makes it half height so the tee shows above it. While the keyboard is open the room fits above it (dr-app[data-kb],
+   set in DesignRoomPage) so the chat box stays in sight. */
+.dr-tall { display: none; }
+@media (max-width: 760px) {
+  .dr-editor.dr-assist { height: calc(100% - 6px); transition: height .3s cubic-bezier(.2, .7, .2, 1); }
+  .dr-editor.dr-assist[data-small] { height: 56%; }
+  .dr-tall { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; border: 1px solid var(--line); background: #fff; color: var(--ink-soft);
+    border-radius: 999px; padding: 0 13px; font-size: 13px; font-weight: 700; white-space: nowrap; cursor: pointer; }
+  .dr-tall svg { width: 16px; height: 16px; }
+  .dr-assist .dr-x { width: 40px; height: 40px; }
+  .dr-assist .dr-chatlog { overscroll-behavior: contain; }
+  .dr-app[data-kb] { top: var(--vv-top, 0px); bottom: auto; height: var(--vv-h, 100%); }
+  /* keyboard open: the full-height chat */
+  .dr-app[data-kb] .dr-editor.dr-assist { height: calc(100% - 6px); }
+  .dr-assist > header .sub { display: none; } /* (the first chat message says the same) */
+}
+@media (max-width: 760px) and (prefers-reduced-motion: reduce) { .dr-editor.dr-assist { transition: none; } }
 .dr-ways { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .dr-enter.alt { display: inline-flex; align-items: center; justify-content: center; gap: 8px; background: #fff; border: 1.5px solid var(--gold); color: var(--ink); }
 .dr-enter.alt svg { width: 18px; height: 18px; color: var(--gold-deep); }
@@ -659,7 +677,6 @@
   .dr-ways { grid-template-columns: minmax(0, 1fr); }
   .dr-tools { grid-template-columns: none; }
   .dr-toolbtn { font-size: 12px; padding: 11px 4px; gap: 5px; }
-  .dr-editor.dr-assist { height: 72%; }
 }
 
 /* assistant: what it can do, as tap-able examples */
