@@ -63,7 +63,8 @@ function AdminLayoutInner() {
         }}
       >
         <AdminTopbar />
-        <div style={{ padding: 24 }}>
+        {/* a phone: less space around the page, so forms and tables get the width (see index.css) */}
+        <div className="adm-content" style={{ padding: phone ? 12 : 24 }}>
           <Outlet />
         </div>
       </main>

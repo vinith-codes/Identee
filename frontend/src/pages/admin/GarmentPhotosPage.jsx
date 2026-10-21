@@ -105,7 +105,7 @@ export default function GarmentPhotosPage() {
       <div
         style={{ display: "flex", gap: 20, marginBottom: 28, flexWrap: "wrap" }}
       >
-        <div>
+        <div style={{ maxWidth: "100%" }}>
           <label style={labelStyle}>Garment Type</label>
           <select
             value={garmentKey}
@@ -123,7 +123,7 @@ export default function GarmentPhotosPage() {
           </select>
         </div>
 
-        <div>
+        <div style={{ maxWidth: "100%" }}>
           <label style={labelStyle}>Color Name</label>
           <input
             value={colorName}
@@ -133,7 +133,7 @@ export default function GarmentPhotosPage() {
           />
         </div>
 
-        <div>
+        <div style={{ maxWidth: "100%" }}>
           <label style={labelStyle}>Color Swatch</label>
           <input
             type="color"
@@ -410,5 +410,7 @@ const selectStyle = {
   background: C.panel,
   color: C.ink,
   fontSize: 13,
-  minWidth: 200,
+  minWidth: "min(200px, 100%)",
+  maxWidth: "100%",
+  boxSizing: "border-box",
 };

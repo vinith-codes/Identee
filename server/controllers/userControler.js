@@ -642,14 +642,19 @@ const TEAM_ROLES = {
   seller: { field: "isSeller", label: "a seller" },
   delivery: { field: "isDelivery", label: "a delivery person" },
 };
+// an address as a link that opens: "identee.co.in" (as Settings → General may hold it) → "https://identee.co.in"
+const withScheme = (url) => {
+  const u = String(url || "").trim().replace(/\/+$/, "");
+  return u && !/^https?:\/\//i.test(u) ? `https://${u}` : u;
+};
 const siteAddress = async () => {
   const set = (await Setting.findOne({ key: "general.websiteUrl" }).select("value").lean())?.value;
   const fromCors = String(process.env.CORS_ORIGIN || "").split(",")[0].trim();
-  return String(set || fromCors || "https://identee.co.in").replace(/\/+$/, "");
+  return withScheme(set || fromCors || "https://identee.co.in");
 };
 // where the team logs in: the admin website (ADMIN_URL in .env, e.g. https://admin.identee.co.in) once the shop and
 // the admin are two websites; until it is set, the shop's address (the admin pages are still part of it)
-const teamAddress = async () => String(process.env.ADMIN_URL || "").trim().replace(/\/+$/, "") || siteAddress();
+const teamAddress = async () => withScheme(process.env.ADMIN_URL) || siteAddress();
 // @desc   Give admin / seller / delivery access to an email (making the account if needed)
 // @route  POST /api/users/team   { email, name?, role: "admin" | "seller" | "delivery" }
 // @access Admin only

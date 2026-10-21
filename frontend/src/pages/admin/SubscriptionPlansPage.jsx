@@ -146,7 +146,7 @@ export default function SubscriptionPlansPage() {
     <div style={{ fontFamily: "'Inter', sans-serif", color: C.ink, padding: 24 }}>
       <h2 style={{ marginBottom: 20 }}>Subscription Plans</h2>
 
-      <div style={{ display: "flex", gap: 24, alignItems: "flex-start" }}>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 24, alignItems: "flex-start" }}>
         {/* Form */}
         <form
           onSubmit={handleSubmit}
@@ -156,6 +156,8 @@ export default function SubscriptionPlansPage() {
             borderRadius: 12,
             padding: 20,
             width: 320,
+            maxWidth: "100%",
+            boxSizing: "border-box",
             flexShrink: 0,
           }}
         >
@@ -219,7 +221,7 @@ export default function SubscriptionPlansPage() {
         </form>
 
         {/* List */}
-        <div style={{ flex: 1 }}>
+        <div style={{ flex: "1 1 280px", minWidth: 0 }}>
           {loading ? (
             <p style={{ color: C.muted }}>Loading...</p>
           ) : plans.length === 0 ? (

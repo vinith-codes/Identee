@@ -271,7 +271,8 @@ export default function OffersPage() {
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "1fr 1fr",
+            // two columns; one on a phone (narrower than 2 × 220px)
+            gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 220px), 1fr))",
             gap: 16,
             marginBottom: 16,
           }}
@@ -408,6 +409,7 @@ export default function OffersPage() {
                 key={offer._id}
                 style={{
                   display: "flex",
+                  flexWrap: "wrap", // a phone: the details and buttons go onto their own lines
                   alignItems: "center",
                   gap: 16,
                   background: C.panel,
@@ -442,9 +444,11 @@ export default function OffersPage() {
 
                 <div
                   style={{
-                    flex: 1,
+                    flex: "1 1 220px",
+                    minWidth: 0,
                     display: "flex",
-                    gap: 28,
+                    flexWrap: "wrap",
+                    gap: "6px 28px",
                     fontSize: 12,
                     color: C.muted,
                   }}
@@ -465,7 +469,7 @@ export default function OffersPage() {
                   {offer.showOnSite && <b style={{ color: C.gold }}>On the website</b>}
                 </div>
 
-                <div style={{ display: "flex", gap: 8 }}>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                   <button
                     onClick={() => startEdit(offer)}
                     style={{

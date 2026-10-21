@@ -191,7 +191,7 @@ export default function AdminReviewsPage() {
 
         <form
           onSubmit={handleSearchSubmit}
-          style={{ marginLeft: "auto", display: "flex", gap: 8 }}
+          style={{ marginLeft: "auto", display: "flex", gap: 8, maxWidth: "100%" }}
         >
           <input
             value={search}
@@ -201,7 +201,9 @@ export default function AdminReviewsPage() {
               padding: "6px 12px",
               borderRadius: 8,
               border: `1px solid ${theme.border}`,
-              minWidth: 240,
+              width: 240,
+              minWidth: 0,
+              flex: "1 1 auto",
             }}
           />
           <button

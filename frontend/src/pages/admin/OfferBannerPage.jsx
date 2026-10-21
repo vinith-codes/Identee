@@ -75,12 +75,12 @@ export default function OfferBannerPage() {
         Controls the announcement strip shown at the top of every page. Only one offer can be live at a time.
       </p>
 
-      <form onSubmit={handleAdd} style={{ display: "flex", gap: 10, marginBottom: 28 }}>
+      <form onSubmit={handleAdd} style={{ display: "flex", flexWrap: "wrap", gap: 10, marginBottom: 28 }}>
         <input
           value={newText}
           onChange={(e) => setNewText(e.target.value)}
           placeholder="e.g. Get 10% Off on your First Purchase. Use Code - SAVE10"
-          style={{ ...inputStyle, flex: 1 }}
+          style={{ ...inputStyle, flex: "1 1 220px", minWidth: 0 }}
         />
         <button
           type="submit"
@@ -107,6 +107,7 @@ export default function OfferBannerPage() {
             key={o._id}
             style={{
               display: "flex",
+              flexWrap: "wrap", // a phone: Edit / Delete go under the text
               alignItems: "center",
               gap: 12,
               padding: "12px 16px",
@@ -131,7 +132,7 @@ export default function OfferBannerPage() {
                 autoFocus
               />
             ) : (
-              <span style={{ flex: 1, fontSize: 14 }}>
+              <span style={{ flex: "1 1 180px", minWidth: 0, fontSize: 14, overflowWrap: "anywhere" }}>
                 {o.offerText}
                 {o.isActive && (
                   <>

@@ -25,3 +25,9 @@ a, button, [role="button"], input, select, textarea, label {
 .page-loading-dot { width: 10px; height: 10px; border-radius: 50%; background: #C9A24B; animation: page-loading 1s ease-in-out infinite alternate; }
 @keyframes page-loading { from { opacity: .25; transform: scale(.8); } to { opacity: 1; transform: scale(1.2); } }
 @media (prefers-reduced-motion: reduce) { .page-loading-dot { animation: none; } }
+
+/* admin on a phone: the older admin pages pad themselves 40px on each side (inline "padding: 32px 40px"), which
+   left their forms about 130px wide inside the admin frame — on a phone they get 14px instead (computers unchanged) */
+@media (max-width: 760px) {
+  .adm-content > div[style*="padding: 32px 40px"] { padding: 20px 14px !important; }
+}
