@@ -1,7 +1,7 @@
-import { async } from "regenerator-runtime";
 import Product from "../models/productModel.js";
 import OfferBanner from "../models/offerBannerModel.js";
-import VideoBanner from "../models/videoBannerModel.js";
+// (the exact file name: Linux servers only find exact names — "videoBannerModel.js" worked on Windows only)
+import VideoBanner from "../models/Videobannermodel.js";
 
 import asyncHandler from "express-async-handler";
 import { deleteStoredFile } from "../utils/imageStorage.js";

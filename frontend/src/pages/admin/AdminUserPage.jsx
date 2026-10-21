@@ -7,7 +7,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
-import { fetchUsers, removeUser } from "../../redux/slices/userManagementSlice";
+import { fetchUsers, removeUser } from "../../redux/slices/Usermanagementslice";
 import { AW } from "./garmentSetup/wizardStyles";
 
 const FILTERS = [

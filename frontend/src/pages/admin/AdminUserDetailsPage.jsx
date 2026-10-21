@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useNavigate, useParams } from "react-router-dom";
-import { fetchUserById, clearSelectedUser } from "../../redux/slices/userManagementSlice";
+import { fetchUserById, clearSelectedUser } from "../../redux/slices/Usermanagementslice";
 
 const AdminUserDetailsPage = () => {
   const { id } = useParams();

@@ -6,7 +6,7 @@ import {
   fetchUserById,
   editUser,
   clearSelectedUser,
-} from "../../redux/slices/userManagementSlice";
+} from "../../redux/slices/Usermanagementslice";
 
 // Same light look as the rest of the admin panel. (This page used pale text made for an
 // older dark panel, so the title and the tick-box labels could not be read.)

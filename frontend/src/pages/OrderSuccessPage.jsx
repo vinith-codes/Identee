@@ -4,7 +4,7 @@ import { useSelector } from "react-redux";
 import { THEME } from "../theme/theme";
 import orderService from "../services/orderService";
 import reviewService from "../services/reviewServices";
-import WriteReviewModal from "../components/WriteReviewModal";
+import WriteReviewModal from "../components/WriteReviewmodal"; // (exact file name, for Linux)
 import { imageUrl } from "../utils/imageUrl";
 import DesignPreview from "../components/DesignPreview";
 

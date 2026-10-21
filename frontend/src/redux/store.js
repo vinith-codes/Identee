@@ -4,7 +4,7 @@ import productReducer from "./slices/productSlice";
 import bannerReducer from "./slices/bannerSlice";
 import categoryBannerReducer from "./slices/categoryBannerSlice";
 import customizationReducer from "./slices/customizationSlice";
-import userManagementReducer from "./slices/userManagementSlice";
+import userManagementReducer from "./slices/Usermanagementslice"; // (exact file name, for Linux)
 import orderReducer from "./slices/orderSlice";
 import cartWishlistReducer from "./slices/cartWishlistSlice";
 import garmentImageReducer from "./slices/garmentImageSlice";
