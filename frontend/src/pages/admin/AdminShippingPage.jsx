@@ -824,7 +824,7 @@ export default function AdminShippingPage() {
                     >
                       {order.invoiceNumber || order._id.slice(-8)}
                     </td>
-                    <td style={tdStyle}>{order.user?.name || "—"}</td>
+                    <td style={tdStyle}>{order.user?.name || [order.shippingAddress?.firstName, order.shippingAddress?.lastName].filter(Boolean).join(" ") || "Deleted customer"}</td>
                     <td style={tdStyle}>
                       {order.shippingAddress?.state || "—"}
                     </td>

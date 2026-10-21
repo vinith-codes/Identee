@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { useSelector } from "react-redux";
 import { toast } from "react-toastify";
 import html2pdf from "html2pdf.js";
@@ -16,6 +16,17 @@ export default function InvoicePreviewPage() {
   const [emailing, setEmailing] = useState(false);
   const [showEmailConfirm, setShowEmailConfirm] = useState(false);
   const printRef = useRef(null);
+  // Back goes to the list the invoice was opened from (the client's wish, 21 Oct 2026): opened from Orders →
+  // "Back to Orders" (with the filters set there: the browser's own back step keeps them), else → "Back to
+  // Invoices". It used to be a fixed http://localhost:5173 address, which on the live site led nowhere.
+  const navigate = useNavigate();
+  const location = useLocation();
+  const fromOrders = location.state?.from === "orders";
+  const backLabel = fromOrders ? "Back to Orders" : "Back to Invoices";
+  const goBack = () => {
+    if (fromOrders) return location.key !== "default" ? navigate(-1) : navigate("/admin/orders");
+    return navigate("/admin/invoices");
+  };
 
   // Opening the page only LOOKS for an invoice. Making one assigns the next invoice number and freezes
   // the details, so that is a button the admin presses on purpose.
@@ -155,10 +166,15 @@ export default function InvoicePreviewPage() {
   };
 
   if (loading) return <PageWrap>Loading invoice…</PageWrap>;
-  if (error) return <PageWrap error>{error}</PageWrap>;
+  if (error)
+    return (
+      <PageWrap error back={<BackLink onClick={goBack}>{backLabel}</BackLink>}>
+        {error}
+      </PageWrap>
+    );
   if (noInvoice)
     return (
-      <PageWrap>
+      <PageWrap back={<BackLink onClick={goBack}>{backLabel}</BackLink>}>
         <p style={{ margin: "0 0 6px", fontWeight: 700 }}>No invoice has been made for this order yet.</p>
         <p style={{ margin: "0 0 18px", fontSize: 14, color: "#6B6559" }}>
           Making it assigns the next invoice number (IDT-…) and freezes the invoice details as they are now. That can't be undone.
@@ -187,7 +203,7 @@ export default function InvoicePreviewPage() {
           margin: "0 auto",
         }}
       >
-        <InvoiceDocument ref={printRef} invoice={invoice} />
+        <InvoiceDocument ref={printRef} invoice={invoice} onBack={goBack} backLabel={backLabel} />
       </div>
 
       {showEmailConfirm && (
@@ -316,19 +332,38 @@ function ActionButton({ children, onClick, disabled }) {
   );
 }
 
-function PageWrap({ children, error }) {
+// back: a way back to the list (no invoice yet, or it couldn't load — never a page without a way out)
+function PageWrap({ children, error, back }) {
   return (
     <div
       style={{
         minHeight: "100vh",
         display: "flex",
+        flexDirection: "column",
         alignItems: "center",
         justifyContent: "center",
+        gap: 16,
+        padding: "24px 16px",
+        boxSizing: "border-box",
+        textAlign: "center",
         color: error ? THEME.danger : "#71695B",
       }}
     >
-      {children}
+      <div style={{ maxWidth: 520 }}>{children}</div>
+      {back}
     </div>
+  );
+}
+
+function BackLink({ children, onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{ background: "#FFFFFF", border: "1px solid #EEE7D6", borderRadius: 8, padding: "8px 16px", minHeight: 40, color: "#15130F", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
+    >
+      ← {children}
+    </button>
   );
 }
 

@@ -74,7 +74,7 @@ function useNewOrderCount() {
   return count;
 }
 
-export default function AdminSidebar({ collapsed, onToggle }) {
+export default function AdminSidebar({ collapsed, onToggle, onNavigate }) {
   const dispatch = useDispatch();
   const brandLogo = useBrandLogo(logo, 120); // Admin → Settings → General, else the built-in file
   const navigate = useNavigate();
@@ -98,6 +98,8 @@ export default function AdminSidebar({ collapsed, onToggle }) {
   const onSection = (section) => {
     if (!confirmLeave()) return;
     navigate(section.to);
+    // (a section with sub-pages stays open, so one of them can be chosen; on a phone the menu folds otherwise)
+    if (!section.children) onNavigate?.();
   };
 
   return (
@@ -194,6 +196,7 @@ export default function AdminSidebar({ collapsed, onToggle }) {
                       className={({ isActive }) => `adm-sub${isActive ? " on" : ""}`}
                       onClick={(e) => {
                         if (!confirmLeave()) e.preventDefault();
+                        else onNavigate?.();
                       }}
                     >
                       {child.label}

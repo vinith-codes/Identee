@@ -3,13 +3,27 @@
 // Shows where you are ("Orders › Invoices") plus Back and View website.
 // Sign out lives at the bottom of the menu.
 import { useLocation, useNavigate } from "react-router-dom";
-import { findMenuPage } from "../utils/adminMenu";
+import { backTarget, findMenuPage } from "../utils/adminMenu";
+import { useUnsavedChanges } from "../utils/unsavedChanges";
+
 
 export default function AdminTopbar() {
   const navigate = useNavigate();
-  const { pathname } = useLocation();
+  const location = useLocation();
+  const { pathname } = location;
   const where = findMenuPage(pathname);
   const isHome = where?.section.key === "home";
+  const { confirmLeave } = useUnsavedChanges();
+  // an invoice opened from Orders (its "View invoice" / "Generate invoice" button) goes back to Orders — with the
+  // filters set there, by the browser's own back step — like the invoice's "Back to Orders" button
+  const fromOrders = location.state?.from === "orders";
+  const target = fromOrders ? "/admin/orders" : backTarget(pathname);
+  // (asks first when a page has unsaved changes, like the menu does)
+  const goBack = () => {
+    if (!confirmLeave()) return;
+    if (fromOrders && location.key !== "default") navigate(-1);
+    else navigate(target);
+  };
 
   return (
     <header
@@ -45,7 +59,7 @@ export default function AdminTopbar() {
 
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
         {!isHome && (
-          <button type="button" onClick={() => navigate(-1)} style={btn(false)}>
+          <button type="button" onClick={goBack} style={btn(false)} title={target === "/admin/dashboard" ? "Back to the admin Home" : fromOrders ? "Back to Orders" : "Back to the list"}>
             ← Back
           </button>
         )}

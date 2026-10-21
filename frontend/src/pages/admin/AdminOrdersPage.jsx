@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { toast } from "react-toastify";
 import {
@@ -22,6 +22,74 @@ const STATUS_COLORS = {
 };
 
 const STATUS_OPTIONS = Object.keys(STATUS_COLORS);
+
+// ── Filters (all in the page address, ?q=…&status=…, so "Back to Orders" and a reload keep them) ──
+const PAY_OPTIONS = [
+  ["", "All payments"],
+  ["paid", "Paid"],
+  ["unpaid", "Unpaid"],
+  ["cod", "Cash on delivery"],
+  ["online", "Online (Razorpay)"],
+];
+const DATE_OPTIONS = [
+  ["", "Any time"],
+  ["today", "Today"],
+  ["7d", "Last 7 days"],
+  ["30d", "Last 30 days"],
+  ["month", "This month"],
+  ["custom", "Custom dates…"],
+];
+const KIND_OPTIONS = [
+  ["", "All orders"],
+  ["custom", "With custom designs"],
+  ["ready", "Ready-made only"],
+];
+const FILTER_KEYS = ["q", "status", "pay", "when", "from", "to", "kind"];
+
+// the first moment an order must be from (or null), for the date filter
+function dateStart(when, from) {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  if (when === "today") return d;
+  if (when === "7d") return new Date(d.getTime() - 6 * 86400000);
+  if (when === "30d") return new Date(d.getTime() - 29 * 86400000);
+  if (when === "month") return new Date(d.getFullYear(), d.getMonth(), 1);
+  if (when === "custom" && from) return new Date(`${from}T00:00:00`);
+  return null;
+}
+
+// what the search box looks in: order number, customer, email, phone, city, pincode
+function matchesSearch(o, q) {
+  if (!q) return true;
+  const a = o.shippingAddress || {};
+  const text = [o.invoiceNumber, o.invoiceDetails?.invoiceNumber, o._id, o.user?.name, `${a.firstName || ""} ${a.lastName || ""}`, a.email, a.city, a.state, a.pin]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+  if (text.includes(q.toLowerCase())) return true;
+  // phone numbers: digits only ("98400 12345" finds 9840012345)
+  const digits = q.replace(/\D/g, "");
+  return digits.length >= 4 && [a.phoneNumber, a.secondaryPhone].some((ph) => String(ph || "").replace(/\D/g, "").includes(digits));
+}
+
+function applyFilters(orders, f) {
+  const start = dateStart(f.when, f.from);
+  const end = f.when === "custom" && f.to ? new Date(`${f.to}T23:59:59.999`) : null;
+  return orders.filter((o) => {
+    if (f.status && o.orderStatus !== f.status) return false;
+    if (f.pay === "paid" && !o.isPaid) return false;
+    if (f.pay === "unpaid" && o.isPaid) return false;
+    if (f.pay === "cod" && o.paymentMethod !== "COD") return false;
+    if (f.pay === "online" && o.paymentMethod !== "RAZORPAY") return false;
+    const custom = (o.orderItems || []).some((i) => i.customization);
+    if (f.kind === "custom" && !custom) return false;
+    if (f.kind === "ready" && custom) return false;
+    const placed = new Date(o.createdAt);
+    if (start && placed < start) return false;
+    if (end && placed > end) return false;
+    return matchesSearch(o, f.q.trim());
+  });
+}
 
 function StatusPill({ status }) {
   const colors = STATUS_COLORS[status] || STATUS_COLORS.CREATED;
@@ -148,7 +216,24 @@ export default function AdminOrdersPage() {
   const navigate = useNavigate();
   const { allOrders, allOrdersLoading, allOrdersError, updatingStatusId } =
     useSelector((s) => s.orders);
-  const [statusFilter, setStatusFilter] = useState("");
+  const [params, setParams] = useSearchParams();
+  const f = Object.fromEntries(FILTER_KEYS.map((k) => [k, params.get(k) || ""]));
+  const setFilter = (key, value) =>
+    setParams(
+      (cur) => {
+        const next = new URLSearchParams(cur);
+        if (value) next.set(key, value);
+        else next.delete(key);
+        if (key === "when" && value !== "custom") {
+          next.delete("from");
+          next.delete("to");
+        }
+        return next;
+      },
+      { replace: true },
+    );
+  const anyFilter = FILTER_KEYS.some((k) => f[k]);
+  const clearFilters = () => setParams({}, { replace: true });
   const [designsFor, setDesignsFor] = useState(null); // order id → custom designs + print files
 
   useEffect(() => {
@@ -198,9 +283,17 @@ export default function AdminOrdersPage() {
   const sorted = [...(allOrders || [])].sort(
     (a, b) => new Date(b.createdAt) - new Date(a.createdAt),
   );
-  const filtered = statusFilter
-    ? sorted.filter((o) => o.orderStatus === statusFilter)
-    : sorted;
+  const filtered = applyFilters(sorted, f);
+  const control = {
+    padding: "8px 12px",
+    minHeight: 38,
+    borderRadius: 8,
+    border: `1px solid ${THEME.border}`,
+    background: THEME.surface2,
+    color: THEME.text,
+    fontSize: 12.5,
+    boxSizing: "border-box",
+  };
 
   return (
     <div
@@ -208,7 +301,7 @@ export default function AdminOrdersPage() {
         minHeight: "100vh",
         background: THEME.bg,
         color: THEME.text,
-        padding: "32px 40px",
+        padding: "32px clamp(16px, 4vw, 40px)",
         fontFamily: "'Inter', sans-serif",
       }}
     >
@@ -234,26 +327,59 @@ export default function AdminOrdersPage() {
         >
           Orders
         </h1>
-        <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-          style={{
-            padding: "8px 12px",
-            borderRadius: 8,
-            border: `1px solid ${THEME.border}`,
-            background: THEME.surface2,
-            color: THEME.text,
-            fontSize: 12,
-          }}
-        >
+      </div>
+
+      {/* ── Filters ── */}
+      <div role="search" aria-label="Filter orders" style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", marginBottom: 10 }}>
+        <input
+          type="search"
+          value={f.q}
+          onChange={(e) => setFilter("q", e.target.value)}
+          placeholder="Search order or invoice no., customer, phone, city…"
+          aria-label="Search orders"
+          style={{ ...control, flex: "1 1 240px", minWidth: 0 }}
+        />
+        <select value={f.status} onChange={(e) => setFilter("status", e.target.value)} aria-label="Status" style={control}>
           <option value="">All statuses</option>
           {STATUS_OPTIONS.map((s) => (
             <option key={s} value={s}>
-              {s}
+              {s.replace(/_/g, " ")}
             </option>
           ))}
         </select>
+        <select value={f.pay} onChange={(e) => setFilter("pay", e.target.value)} aria-label="Payment" style={control}>
+          {PAY_OPTIONS.map(([v, label]) => (
+            <option key={v} value={v}>{label}</option>
+          ))}
+        </select>
+        <select value={f.when} onChange={(e) => setFilter("when", e.target.value)} aria-label="Date placed" style={control}>
+          {DATE_OPTIONS.map(([v, label]) => (
+            <option key={v} value={v}>{label}</option>
+          ))}
+        </select>
+        {f.when === "custom" && (
+          <span style={{ display: "inline-flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+            <input type="date" value={f.from} max={f.to || undefined} onChange={(e) => setFilter("from", e.target.value)} aria-label="From date" style={control} />
+            <span style={{ color: THEME.textMuted, fontSize: 12 }}>to</span>
+            <input type="date" value={f.to} min={f.from || undefined} onChange={(e) => setFilter("to", e.target.value)} aria-label="To date" style={control} />
+          </span>
+        )}
+        <select value={f.kind} onChange={(e) => setFilter("kind", e.target.value)} aria-label="Order type" style={control}>
+          {KIND_OPTIONS.map(([v, label]) => (
+            <option key={v} value={v}>{label}</option>
+          ))}
+        </select>
+        {anyFilter && (
+          <button type="button" onClick={clearFilters} style={{ ...control, background: "none", cursor: "pointer", fontWeight: 600 }}>
+            Clear filters
+          </button>
+        )}
       </div>
+      {!allOrdersLoading && !allOrdersError && (allOrders || []).length > 0 && (
+        <p aria-live="polite" style={{ margin: "0 0 14px", fontSize: 12.5, color: THEME.textMuted }}>
+          {anyFilter ? `Showing ${filtered.length} of ${(allOrders || []).length} orders` : `${(allOrders || []).length} orders`}
+        </p>
+      )}
 
       {allOrdersLoading ? (
         <p style={{ color: THEME.textMuted }}>Loading orders…</p>
@@ -263,18 +389,28 @@ export default function AdminOrdersPage() {
         </p>
       ) : filtered.length === 0 ? (
         <p style={{ color: THEME.textMuted }}>
-          No orders {statusFilter ? `with status ${statusFilter}` : "yet"}.
+          {anyFilter ? (
+            <>
+              No orders match these filters.{" "}
+              <button type="button" onClick={clearFilters} style={{ background: "none", border: 0, padding: 0, color: THEME.goldDeep, fontWeight: 700, textDecoration: "underline", cursor: "pointer", font: "inherit" }}>
+                Clear filters
+              </button>
+            </>
+          ) : (
+            "No orders yet."
+          )}
         </p>
       ) : (
         <div
           style={{
             border: `1px solid ${THEME.border}`,
             borderRadius: 12,
-            overflow: "hidden",
+            // (phones: the table scrolls sideways inside its box instead of being cut off)
+            overflowX: "auto",
           }}
         >
           <table
-            style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}
+            style={{ width: "100%", minWidth: 860, borderCollapse: "collapse", fontSize: 13 }}
           >
             <thead>
               <tr style={{ background: THEME.surface2, textAlign: "left" }}>
@@ -318,7 +454,8 @@ export default function AdminOrdersPage() {
                     {order.invoiceNumber || order._id.slice(-8)}
                   </td>
                   <td style={{ padding: "12px 16px" }}>
-                    {order.user?.name || "—"}
+                    {/* (the account may have been deleted: the order keeps the name it was placed with) */}
+                    {order.user?.name || [order.shippingAddress?.firstName, order.shippingAddress?.lastName].filter(Boolean).join(" ") || "Deleted customer"}
                   </td>
                   <td style={{ padding: "12px 16px" }}>
                     {(order.orderItems || []).length} item
@@ -382,21 +519,29 @@ export default function AdminOrdersPage() {
                     })}
                   </td>
                   <td style={{ padding: "12px 16px" }}>
+                    {/* once the invoice is made (order.invoiceDetails, with its IDT-… number), the button only views it —
+                        so the list shows at a glance which orders have an invoice */}
                     <button
-                      onClick={() => navigate(`/admin/invoices/${order._id}`)}
+                      onClick={() => navigate(`/admin/invoices/${order._id}`, { state: { from: "orders" } })}
                       style={{
-                        background: "none",
+                        background: order.invoiceDetails ? "none" : THEME.gold,
                         border: `1px solid ${THEME.gold}`,
-                        color: THEME.goldDeep,
+                        color: order.invoiceDetails ? THEME.goldDeep : "#141110",
                         borderRadius: 6,
                         padding: "5px 12px",
                         cursor: "pointer",
                         fontSize: 12,
+                        fontWeight: order.invoiceDetails ? 500 : 700,
                         whiteSpace: "nowrap",
                       }}
                     >
-                      Generate / View Invoice
+                      {order.invoiceDetails ? "View invoice" : "Generate invoice"}
                     </button>
+                    {order.invoiceDetails?.invoiceNumber && (
+                      <span style={{ display: "block", marginTop: 4, fontFamily: "monospace", fontSize: 10.5, color: THEME.textMuted, whiteSpace: "nowrap" }}>
+                        {order.invoiceDetails.invoiceNumber}
+                      </span>
+                    )}
                   </td>
                 </tr>
               ))}

@@ -107,3 +107,19 @@ export function findMenuPage(pathname) {
   const page = (section.children || []).find((c) => startsWith(pathname, c.to));
   return { section, page };
 }
+
+// Where "← Back" goes: one level UP, not the previous page in the browser's history (after opening an invoice,
+// Back on Orders went to the invoice — 21 Oct 2026). The client's rule, for every section:
+//   a page inside a list (one invoice, one customer, editing a product) → that list
+//   a section's other pages (Invoices, Print sheets, Shipping rates)     → the section's main page (Orders)
+//   the section's main page (Orders, All customers, Designs…)            → the admin Home
+export function backTarget(pathname) {
+  const where = findMenuPage(pathname);
+  if (!where) return "/admin/dashboard";
+  const main = where.section.to;
+  const base = where.page?.to || (where.section.match || [main]).find((p) => startsWith(pathname, p)) || main;
+  const here = pathname.replace(/\/+$/, "");
+  if (here !== base) return base;
+  if (base !== main) return main;
+  return "/admin/dashboard";
+}

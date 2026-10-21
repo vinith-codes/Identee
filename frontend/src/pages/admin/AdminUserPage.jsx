@@ -8,6 +8,7 @@ import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
 import { fetchUsers, removeUser } from "../../redux/slices/Usermanagementslice";
+import userService from "../../services/userService";
 import { AW } from "./garmentSetup/wizardStyles";
 
 const FILTERS = [
@@ -55,6 +56,14 @@ const CSS = `
   .cu-act.del:hover:not(:disabled) { background: #FEECEA; }
   .cu-act:disabled { opacity: .45; cursor: not-allowed; }
   .cu-empty { padding: 44px 20px; text-align: center; color: #6B6559; }
+  .cu-add { margin-top: 22px; padding: 18px 20px; display: grid; gap: 12px; }
+  .cu-add h2 { margin: 0; font: 700 16px 'Inter', sans-serif; color: #141110; }
+  .cu-add p { margin: 0; font-size: 13px; color: #6B6559; line-height: 1.5; }
+  .cu-addrow { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
+  .cu-addrow label { display: grid; gap: 6px; font-size: 12.5px; font-weight: 700; color: #3B342B; flex: 1 1 200px; min-width: 0; }
+  .cu-addrow label.role { flex: 0 1 190px; }
+  .cu-addrow .aw-inp { width: 100%; box-sizing: border-box; }
+  .cu-addacts { display: flex; gap: 8px; flex-wrap: wrap; }
   .cu-count { margin: 12px 2px 0; font-size: 12.5px; color: #6B6559; }
   @media (max-width: 900px) { .cu-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 `;
@@ -67,6 +76,10 @@ const AdminUsersPage = () => {
   const { users, loading, actionLoading, error } = useSelector((state) => state.userManagement);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState("all");
+  // "Add an admin" (by email): the box, what is typed, and whether it is being sent
+  const [addOpen, setAddOpen] = useState(false);
+  const [add, setAdd] = useState({ email: "", name: "", role: "admin" });
+  const [adding, setAdding] = useState(false);
   // the admin looking at this page (their own row can't be deleted)
   const myId = useMemo(() => {
     try {
@@ -104,12 +117,41 @@ const AdminUsersPage = () => {
       .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
   }, [users, query, filter]);
 
+  const ROLE_LABEL = { admin: "an admin", seller: "a seller", delivery: "a delivery person" };
+  const handleAdd = async (e) => {
+    e.preventDefault();
+    const email = add.email.trim();
+    if (!email) return;
+    const ask =
+      add.role === "admin"
+        ? `Give ${email} full admin access?\n\nThey'll be able to see and change everything here: orders, customers, products, prices and other admins.`
+        : `Make ${email} ${ROLE_LABEL[add.role]}?`;
+    if (!window.confirm(ask)) return;
+    setAdding(true);
+    try {
+      const token = JSON.parse(localStorage.getItem("userInfo") || "{}")?.token;
+      const res = await userService.addTeamMember({ email, name: add.name.trim(), role: add.role }, token);
+      toast.success(res.message, { autoClose: res.emailed ? 6000 : 12000 });
+      setAdd({ email: "", name: "", role: "admin" });
+      setAddOpen(false);
+      dispatch(fetchUsers()); // the list shows them straight away
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Couldn't add them. Please try again.");
+    } finally {
+      setAdding(false);
+    }
+  };
+
   const handleDelete = async (user) => {
     const who = user.name || user.email || user.phone || "this person";
-    if (!window.confirm(`Delete ${who}'s account? This cannot be undone.`)) return;
+    const orders = user.orderCount || 0;
+    const kept = orders
+      ? `\n\nTheir ${orders} order${orders === 1 ? " is" : "s are"} kept (with the name and address ${orders === 1 ? "it was" : "they were"} placed with), but they won't be able to log in, see ${orders === 1 ? "it" : "them"} or ask for a return.`
+      : "";
+    if (!window.confirm(`Delete ${who}'s account?${kept}\n\nThis cannot be undone.`)) return;
     try {
       await dispatch(removeUser(user._id)).unwrap();
-      toast.success("Account deleted");
+      toast.success(orders ? `Account deleted — their ${orders} order${orders === 1 ? " is" : "s are"} kept.` : "Account deleted");
     } catch (err) {
       toast.error(err || "Could not delete the account");
     }
@@ -120,6 +162,46 @@ const AdminUsersPage = () => {
       <style>{AW.css + CSS}</style>
       <h1 style={AW.h1}>Customers</h1>
       <p style={AW.lead}>Everyone with an account. Open a person to see their orders or change what they are allowed to do.</p>
+
+      {/* Add an admin (or a seller / delivery person) by email — also someone who has never logged in */}
+      {addOpen ? (
+        <form className="aw-card cu-add" onSubmit={handleAdd}>
+          <h2>Add an admin by email</h2>
+          <p>They don't need an account yet. They'll get an email, then log in at the website with this address — a code is sent to it, there's no password.</p>
+          <div className="cu-addrow">
+            <label>
+              Email
+              <input className="aw-inp" type="email" required autoFocus value={add.email} onChange={(e) => setAdd({ ...add, email: e.target.value })} placeholder="name@example.com" />
+            </label>
+            <label>
+              Name (optional)
+              <input className="aw-inp" value={add.name} maxLength={80} onChange={(e) => setAdd({ ...add, name: e.target.value })} placeholder="e.g. Priya" />
+            </label>
+            <label className="role">
+              Access
+              <select className="aw-inp" value={add.role} onChange={(e) => setAdd({ ...add, role: e.target.value })}>
+                <option value="admin">Admin (full access)</option>
+                <option value="seller">Seller</option>
+                <option value="delivery">Delivery person</option>
+              </select>
+            </label>
+          </div>
+          <div className="cu-addacts">
+            <button type="submit" className="aw-btn dark" disabled={adding || !add.email.trim()}>
+              {adding ? "Adding…" : "Add"}
+            </button>
+            <button type="button" className="aw-btn light" disabled={adding} onClick={() => setAddOpen(false)}>
+              Cancel
+            </button>
+          </div>
+        </form>
+      ) : (
+        <div style={{ marginTop: 18 }}>
+          <button type="button" className="aw-btn gold" onClick={() => setAddOpen(true)}>
+            + Add an admin
+          </button>
+        </div>
+      )}
 
       {error ? (
         <div className="aw-card cu-empty" style={{ marginTop: 22, color: "#B42318" }}>Couldn’t load the customers: {error}</div>

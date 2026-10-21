@@ -207,6 +207,11 @@ export default function GeneralSettingsPage() {
           value={form["general.gstin"] || ""}
           onChange={(v) => set("general.gstin", v)}
         />
+        <TextField
+          label="Authorised signatory (printed on invoices)"
+          value={form["general.authorisedSignatory"] || ""}
+          onChange={(v) => set("general.authorisedSignatory", v)}
+        />
       </SettingCard>
 
       <SettingCard title="Regional">

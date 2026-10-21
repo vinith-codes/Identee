@@ -77,6 +77,14 @@ export const GENERAL_SETTINGS_DEFAULTS = [
     description: "GSTIN",
   },
   {
+    // the name under the signature on every invoice (the proprietor of Makaliamman Traders)
+    key: "general.authorisedSignatory",
+    value: "Sathish Kumar",
+    type: "string",
+    isPublic: true,
+    description: "Authorised signatory (printed on invoices)",
+  },
+  {
     key: "general.currency",
     value: "INR",
     type: "string",

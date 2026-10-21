@@ -1,6 +1,7 @@
 import express from "express";
 const router = express.Router();
 import {
+  addTeamMember,
   requestLoginOtp,
   verifyLoginOtp,
   completeOtpSignup,
@@ -42,6 +43,9 @@ router
   .put(protect, uploadProfileImage, updateUserProfile);
 
 router.delete("/profile/picture", protect, deleteProfilePicture);
+
+// Admin → Customers → "Add an admin": give access to an email, making the account if needed
+router.post("/team", protect, adminOnly, addTeamMember);
 
 router
   .route("/:id")

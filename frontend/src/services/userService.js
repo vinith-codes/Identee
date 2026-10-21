@@ -18,6 +18,12 @@ const updateUser = async (id, userData, token) => {
   return data;
 };
 
+// Admin: give admin / seller / delivery access to an email (the account is made if it doesn't exist)
+const addTeamMember = async (body, token) => {
+  const config = { headers: { Authorization: `Bearer ${token}` } };
+  const { data } = await api.post("/users/team", body, config);
+  return data;
+};
 const deleteUser = async (id, token) => {
   const config = { headers: { Authorization: `Bearer ${token}` } };
   const { data } = await api.delete(`/users/${id}`, config);
@@ -34,5 +40,5 @@ const getCart = async (token) => {
   const { data } = await api.get("/users/cart", config);
   return data;
 };
-const userService = { getUsers, getUserById, updateUser, deleteUser, getFavorites, getCart };
+const userService = { getUsers, getUserById, updateUser, deleteUser, addTeamMember, getFavorites, getCart };
 export default userService;

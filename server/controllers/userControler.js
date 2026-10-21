@@ -20,6 +20,8 @@ import {
 } from "../utils/otp.js";
 import Subscription from "../models/subscriptionModel.js";
 import Order from "../models/orderModel.js";
+import Setting from "../models/settingModel.js";
+import { mailer, fromAddress } from "../utils/mailer.js";
 import ShippingCost from "../models/shippingcostModel.js";
 import { addressProblem } from "../utils/address.js";
 import path from "path";
@@ -544,14 +546,19 @@ const deleteUser = asyncHandler(async (req, res) => {
       res.status(400);
       throw new Error("This person is an admin. Remove their admin access first, then delete.");
     }
-    // their orders would lose their customer (no name on the order, no status emails)
-    const orders = await Order.countDocuments({ user: user._id });
-    if (orders) {
+    // An order still in progress needs its customer (status emails, delivery, a return being handled). Once every
+    // order is finished, the account can go: the orders stay — each keeps the name, email, phone and address it was
+    // placed with (shippingAddress), and its invoice its own copy — so the shop's records are complete.
+    // (It used to refuse any customer with orders at all, even delivered ones — 21 Oct 2026.)
+    const IN_PROGRESS = ["CREATED", "CONFIRMED", "PACKED", "OUT_FOR_DELIVERY", "RETURN_APPROVED"];
+    const open = await Order.countDocuments({ user: user._id, orderStatus: { $in: IN_PROGRESS } });
+    if (open) {
       res.status(400);
-      throw new Error(`This customer has ${orders} order${orders === 1 ? "" : "s"}, so the account can't be deleted. Remove their admin or seller access instead if that's the concern.`);
+      throw new Error(`This customer has ${open} order${open === 1 ? "" : "s"} still in progress. Finish ${open === 1 ? "it" : "them"} first (delivered, cancelled or return completed), then delete the account.`);
     }
+    const kept = await Order.countDocuments({ user: user._id });
     await user.deleteOne({ _id: req.params.id });
-    res.json({ message: "User removed" });
+    res.json({ message: kept ? `Account deleted. Their ${kept} finished order${kept === 1 ? " is" : "s are"} kept.` : "Account deleted." });
   } else {
     res.status(404);
     throw new Error("User not found");
@@ -626,7 +633,80 @@ const getCart = asyncHandler(async (req, res) => {
 // @route POST /api/users/subscribe
 // @access Private
 
+// ── Add a team member by email (Admin → Customers → "Add an admin") ──────────────────────────────────────────────
+// No account with that email yet: it is made now, with the access ticked, so their first login (a code sent to the
+// email — no password) goes straight in. An account already there: it gets the access. Either way they are emailed
+// how to log in; if the email can't be sent, the access is still given and the admin is told.
+const TEAM_ROLES = {
+  admin: { field: "isAdmin", label: "an admin" },
+  seller: { field: "isSeller", label: "a seller" },
+  delivery: { field: "isDelivery", label: "a delivery person" },
+};
+const siteAddress = async () => {
+  const set = (await Setting.findOne({ key: "general.websiteUrl" }).select("value").lean())?.value;
+  const fromCors = String(process.env.CORS_ORIGIN || "").split(",")[0].trim();
+  return String(set || fromCors || "https://identee.co.in").replace(/\/+$/, "");
+};
+// @desc   Give admin / seller / delivery access to an email (making the account if needed)
+// @route  POST /api/users/team   { email, name?, role: "admin" | "seller" | "delivery" }
+// @access Admin only
+const addTeamMember = asyncHandler(async (req, res) => {
+  const email = String(req.body.email || "").trim().toLowerCase();
+  const name = String(req.body.name || "").replace(/\s+/g, " ").trim().slice(0, 80);
+  const role = TEAM_ROLES[req.body.role] ? req.body.role : "admin";
+  const { field, label } = TEAM_ROLES[role];
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    res.status(400);
+    throw new Error("Enter a valid email address.");
+  }
+  let user = await User.findOne({ email });
+  const created = !user;
+  if (user) {
+    if (user[field]) {
+      res.status(400);
+      throw new Error(`${user.name || email} is already ${label}.`);
+    }
+    user[field] = true;
+    await user.save({ validateBeforeSave: false });
+  } else {
+    // (a name other than "temp", so their first login doesn't ask for one — they can change it in their account)
+    user = await User.create({ name: name || email.split("@")[0], email, [field]: true });
+  }
+
+  let emailed = false;
+  try {
+    const site = await siteAddress();
+    const who = req.user?.name ? ` by ${req.user.name}` : "";
+    await mailer().sendMail({
+      from: fromAddress(),
+      to: email,
+      subject: `You've been added to IDENTEE as ${label}`,
+      html: `
+        <div style="font-family:Arial, sans-serif; max-width:600px; margin:auto;">
+          <h2 style="color:#8A6F2E;">Welcome to the IDENTEE team</h2>
+          <p>Hi ${String(user.name).replace(/[<>&]/g, "")},</p>
+          <p>You've been added as <strong>${label}</strong>${who}.</p>
+          <p>To log in, open <a href="${site}/login">${site}/login</a> and enter this email address
+            (<strong>${email}</strong>). We'll email you a code — there's no password.</p>
+          <p style="color:gray; font-size:12px;">If you weren't expecting this, you can ignore this email.</p>
+        </div>`,
+    });
+    emailed = true;
+  } catch (err) {
+    console.error("[team] the welcome email wasn't sent:", err?.code || "", err?.message || err);
+  }
+
+  const done = created ? `Account made for ${email} — they're now ${label}.` : `${user.name || email} is now ${label}.`;
+  res.status(created ? 201 : 200).json({
+    message: `${done} ${emailed ? "We emailed them how to log in." : `The email to them didn't go out, so tell them yourself: log in at the website with ${email}.`}`,
+    created,
+    emailed,
+    user: { _id: user._id, name: user.name, email: user.email, isAdmin: user.isAdmin, isSeller: user.isSeller, isDelivery: user.isDelivery, orderCount: 0, createdAt: user.createdAt },
+  });
+});
+
 export {
+  addTeamMember,
   requestLoginOtp,
   verifyLoginOtp,
   completeOtpSignup,

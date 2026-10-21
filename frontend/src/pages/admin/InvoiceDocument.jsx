@@ -1,6 +1,7 @@
 import { forwardRef } from "react";
 import logo from "../../assets/identee-logo.png";
-import { useBrandLogo } from "../../utils/brandLogo";
+import { useBrandLogo, useStoreText } from "../../utils/brandLogo";
+import { LEGAL_ENTITY } from "../../utils/legalEntity";
 import { THEME } from "../../theme/theme";
 import { imageUrl } from "../../utils/imageUrl";
 
@@ -37,10 +38,10 @@ function getImageUrl(path) {
   return imageUrl(path.replace(/^\/+/, ""));
 }
 
-// Navigate back to the admin invoices list
-function handleBackToInvoices() {
-  window.location.href = "http://localhost:5173/admin/invoices";
-}
+// (the page that shows this invoice says where "back" goes — it used to be a fixed http://localhost:5173 address,
+// which on the live site sent the admin to their own computer; without onBack it goes to the invoices list on
+// this same site)
+const backToInvoices = () => window.location.assign("/admin/invoices");
 
 function BackArrowIcon() {
   return (
@@ -56,8 +57,9 @@ function BackArrowIcon() {
   );
 }
 
-const InvoiceDocument = forwardRef(({ invoice }, ref) => {
+const InvoiceDocument = forwardRef(({ invoice, onBack = backToInvoices, backLabel = "Back to Invoices" }, ref) => {
   const brandLogo = useBrandLogo(logo); // Admin → Settings → General, else the built-in file
+  const signatory = useStoreText("general.authorisedSignatory", "Sathish Kumar"); // Settings → General
   if (!invoice) return null;
 
   const { pricing = {} } = invoice;
@@ -66,7 +68,7 @@ const InvoiceDocument = forwardRef(({ invoice }, ref) => {
     <>
       {/* ── Back Button — hidden on print/PDF export ── */}
       <button
-        onClick={handleBackToInvoices}
+        onClick={onBack}
         className="invoice-back-button"
         style={{
           display: "flex",
@@ -85,7 +87,7 @@ const InvoiceDocument = forwardRef(({ invoice }, ref) => {
         }}
       >
         <BackArrowIcon />
-        Back to Invoices
+        {backLabel}
       </button>
 
       <div
@@ -391,46 +393,36 @@ const InvoiceDocument = forwardRef(({ invoice }, ref) => {
             </div>
           </div>
 
-          {/* ── Payment Info + Signature ──
-              NOTE: placeholder fields below — swap these with your real
-              account/UPI details once you send them over. */}
+          {/* ── Signature ── (the "Payment Info" box with placeholder bank/UPI details was taken off, 21 Oct 2026:
+              customers pay online by Razorpay or cash on delivery) */}
           <div
             style={{
               display: "flex",
-              justifyContent: "space-between",
+              justifyContent: "flex-end",
               alignItems: "flex-end",
               paddingTop: 12,
               borderTop: "1px solid #EEE7D6",
             }}
           >
-            <div>
-              <p
-                style={{
-                  ...labelStyle,
-                  color: "#9C6F23",
-                  fontSize: 11,
-                  marginBottom: 8,
-                }}
-              >
-                Payment Info
-              </p>
-              <p style={valueStyle}>Account No. XXXXXXXXXXXX</p>
-              <p style={valueStyle}>IFSC XXXXXXXXX</p>
-              <p style={valueStyle}>A/H Name IDENTEE</p>
-              <p style={valueStyle}>UPI XXXXXXXXXX</p>
-            </div>
 
+            {/* the usual GST invoice sign-off: for the business, space to sign, the signatory's name */}
             <div style={{ textAlign: "center" }}>
+              <p style={{ margin: "0 0 4px", fontSize: 11, color: "#6B6559" }}>
+                For {LEGAL_ENTITY.name}
+              </p>
               <div
                 style={{
                   height: 40,
                   borderBottom: "1px solid #9C9890",
-                  width: 160,
+                  width: 180,
                   marginBottom: 6,
                 }}
               />
-              <p style={{ margin: 0, fontSize: 11, color: "#8A857A" }}>
-                Authorised Sign
+              <p style={{ margin: 0, fontSize: 12.5, fontWeight: 700, color: "#15130F" }}>
+                {signatory}
+              </p>
+              <p style={{ margin: "2px 0 0", fontSize: 11, color: "#8A857A" }}>
+                Authorised Signatory
               </p>
             </div>
           </div>

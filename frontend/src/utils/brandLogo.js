@@ -14,6 +14,12 @@ function useBrandSetting(key) {
   return { value: String(values?.[key] || "").trim(), isLoaded };
 }
 
+// A General setting's text (e.g. the invoice's authorised signatory), or the fallback until it is set.
+export function useStoreText(key, fallback = "") {
+  const { value } = useBrandSetting(key);
+  return value || fallback;
+}
+
 // null until the settings arrive, so the built-in logo doesn't flash before an uploaded one.
 export function useBrandLogo(fallback, width = 400) {
   const { value, isLoaded } = useBrandSetting("general.storeLogo");

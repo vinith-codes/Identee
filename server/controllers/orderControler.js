@@ -499,10 +499,22 @@ const emailInvoiceToCustomer = asyncHandler(async (req, res) => {
     throw new Error("This order has no customer email on file");
   }
 
+  // Two steps that can fail for different reasons — the admin is told which one (it used to be one message for
+  // both, so nobody knew whether to fix Chrome on the server or the email settings).
+  // 1. the PDF (the SAME template as the admin's InvoiceDocument), made with Chrome on the server
+  let pdfBuffer;
   try {
-    // Render the SAME template as the admin's InvoiceDocument, as a PDF.
-    const pdfBuffer = await generateInvoicePdfBuffer(order.invoiceDetails);
+    pdfBuffer = await generateInvoicePdfBuffer(order.invoiceDetails);
+  } catch (err) {
+    console.error("❌ Invoice PDF failed (Chrome for invoice PDFs on the server):", err?.message || err);
+    return res.status(500).json({
+      message:
+        "Couldn't make the invoice PDF on the server — its Chrome for PDFs isn't working (see docs/DEPLOYMENT.md, step 4b). Use Download PDF and send it yourself for now.",
+    });
+  }
 
+  // 2. the email, through the mail service in server/.env (EMAIL_HOST …)
+  try {
     await sendEmail({
       email: recipientEmail,
       status: "INVOICE",
@@ -516,9 +528,10 @@ const emailInvoiceToCustomer = asyncHandler(async (req, res) => {
     });
     res.json({ message: `Invoice emailed to ${recipientEmail}` });
   } catch (err) {
-    console.error("❌ Invoice email failed:", err);
+    console.error("❌ Invoice email failed (mail service):", err?.code || "", err?.message || err);
     res.status(500).json({
-      message: "Couldn't send automatically — use the mailto fallback instead.",
+      message:
+        "The invoice PDF was made, but the email service didn't send it — check the email settings (EMAIL_…) in the server's .env. Use Download PDF and send it yourself for now.",
     });
   }
 });

@@ -73,7 +73,19 @@ async function getLogoDataUri() {
   return builtInLogoDataUri();
 }
 
-function buildInvoiceHtml(invoice, logo) {
+// the business that issues the invoice (as in frontend/src/utils/legalEntity.js)
+const LEGAL_NAME = "Makaliamman Traders";
+async function getSignatory() {
+  try {
+    const row = await Setting.findOne({ key: "general.authorisedSignatory" }).select("value").lean();
+    return String(row?.value || "").trim() || "Sathish Kumar";
+  } catch {
+    return "Sathish Kumar";
+  }
+}
+const escapeHtml = (t) => String(t).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+
+function buildInvoiceHtml(invoice, logo, signatory = "Sathish Kumar") {
   const pricing = invoice.pricing || {};
 
   const rows = (invoice.orderItems || [])
@@ -231,6 +243,15 @@ function buildInvoiceHtml(invoice, logo) {
         </div>
       </div>
 
+      <div style="display:flex;justify-content:flex-end;padding:28px 48px 0">
+        <div style="text-align:center">
+          <p style="margin:0 0 4px;font-size:11px;color:#6B6559">For ${LEGAL_NAME}</p>
+          <div style="height:40px;border-bottom:1px solid #9C9890;width:180px;margin-bottom:6px"></div>
+          <p style="margin:0;font-size:12.5px;font-weight:700;color:#15130F">${escapeHtml(signatory)}</p>
+          <p style="margin:2px 0 0;font-size:11px;color:#8A857A">Authorised Signatory</p>
+        </div>
+      </div>
+
       <div class="footer">
         <p class="footer-title">Thank you for shopping with IDENTEE.</p>
         <p class="footer-tag">YOUR STYLE. YOUR STORY. YOUR IDENTITY.</p>
@@ -246,7 +267,7 @@ function buildInvoiceHtml(invoice, logo) {
  * html2pdf — avoids a leftover blank second page).
  */
 export async function generateInvoicePdfBuffer(invoice) {
-  const html = buildInvoiceHtml(invoice, await getLogoDataUri());
+  const html = buildInvoiceHtml(invoice, await getLogoDataUri(), await getSignatory());
 
   const browser = await puppeteer.launch({
     headless: "new",

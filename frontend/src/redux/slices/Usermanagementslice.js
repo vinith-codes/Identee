@@ -118,9 +118,10 @@ const userManagementSlice = createSlice({
         }
         state.selectedUser = action.payload;
       })
-      .addCase(editUser.rejected, (state, action) => {
+      // (a refused change or delete is shown as a message by the page — it must not land in `error`, which is the
+      // "couldn't load the customers" state: a refused delete used to hide the whole list behind that message)
+      .addCase(editUser.rejected, (state) => {
         state.actionLoading = false;
-        state.error = action.payload;
       })
       // removeUser
       .addCase(removeUser.pending, (state) => {
@@ -130,9 +131,8 @@ const userManagementSlice = createSlice({
         state.actionLoading = false;
         state.users = state.users.filter((u) => u._id !== action.payload);
       })
-      .addCase(removeUser.rejected, (state, action) => {
+      .addCase(removeUser.rejected, (state) => {
         state.actionLoading = false;
-        state.error = action.payload;
       });
   },
 });
