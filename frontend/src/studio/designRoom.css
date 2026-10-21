@@ -1333,3 +1333,40 @@ p.pc-area { margin: 0; font-size: 13px; color: var(--muted); }
 .pc-more { justify-self: start; border: 0; background: none; padding: 4px 0; min-height: 32px; font: 700 13px var(--body); color: var(--gold-deep); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
 .pc-what.long::before { content: none; }
 .pc-what.long .pc-whattext::before { content: counter(pc) ". "; color: var(--gold-deep); font-weight: 700; }
+
+/* ================= the assistant's message box (Assistant.jsx .dr-cbox) =================
+   One rounded box, like a chat app's: the words on top (it grows up to about 6 lines), and inside it a slim row —
+   📎, "✨ Improve my idea · free", the count near the limit, and a round Send. It lights up gold while typing. */
+.dr-composer.dr-cbox { display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; align-items: stretch;
+  margin: 8px 14px calc(10px + env(safe-area-inset-bottom, 0px)); padding: 10px 10px 8px 14px;
+  border: 1px solid var(--line); border-radius: 22px; background: #fff;
+  box-shadow: 0 8px 22px -16px rgba(20, 17, 16, .45); transition: border-color .15s ease, box-shadow .15s ease; }
+.dr-composer.dr-cbox:focus-within { border-color: var(--gold); box-shadow: 0 0 0 3px var(--gold-soft), 0 8px 22px -16px rgba(20, 17, 16, .45); }
+.dr-composer.dr-cbox textarea { width: 100%; min-height: 26px; max-height: 150px; padding: 4px 2px; border: 0; border-radius: 0; background: transparent;
+  outline: none; font: 500 15px/1.45 var(--body); color: var(--ink); }
+.dr-composer.dr-cbox textarea::placeholder { color: #9A9081; font-weight: 500; }
+.dr-cbar { display: flex; align-items: center; gap: 6px; min-height: 40px; }
+.dr-cbar-gap { flex: 1; }
+.dr-composer.dr-cbox .dr-attach { width: 40px; height: 40px; border: 0; border-radius: 50%; background: transparent; color: var(--ink-soft); }
+.dr-composer.dr-cbox .dr-attach:hover:not(:disabled) { background: #F3EFE6; color: var(--ink); }
+.dr-composer.dr-cbox .dr-improve { display: inline-flex; align-items: center; gap: 6px; min-height: 34px; padding: 0 12px; border: 1px solid var(--line); border-radius: 999px;
+  background: #FBF8F1; color: var(--ink); font: 700 12.5px/1 var(--body); white-space: nowrap; }
+.dr-composer.dr-cbox .dr-improve small { font: 700 10.5px/1 var(--body); letter-spacing: .04em; text-transform: uppercase; color: var(--gold-deep); background: var(--gold-soft); border-radius: 999px; padding: 3px 6px; }
+.dr-composer.dr-cbox .dr-improve:hover:not(:disabled) { border-color: var(--gold); background: #fff; }
+.dr-composer.dr-cbox .dr-count { font-size: 11.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.dr-composer.dr-cbox .dr-send { flex: none; width: 40px; height: 40px; min-height: 40px; padding: 0; border: 0; border-radius: 50%; display: grid; place-items: center;
+  background: var(--ink); color: #fff; transition: transform .12s ease, background-color .15s ease; }
+.dr-composer.dr-cbox .dr-send svg { width: 20px; height: 20px; }
+.dr-composer.dr-cbox .dr-send:hover:not(:disabled) { background: #2C261F; }
+.dr-composer.dr-cbox .dr-send:active:not(:disabled) { transform: scale(.92); }
+.dr-composer.dr-cbox .dr-send:disabled { opacity: 1; background: #CFC6B5; }
+.dr-send-wait { width: 16px; height: 16px; border-radius: 50%; border: 2.5px solid rgba(255, 255, 255, .45); border-top-color: #fff; animation: dr-spin .8s linear infinite; }
+@keyframes dr-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .dr-send-wait { animation: none; } }
+.dr-composer.dr-cbox .dr-attached { margin-bottom: 4px; }
+/* (the old separate "Improve my idea" line above the box is gone — it lives inside the box now) */
+.dr-assist .dr-handoff { margin: 0 14px 12px; }
+@media (max-width: 760px) {
+  .dr-composer.dr-cbox { margin-inline: 10px; }
+  .dr-assist .dr-handoff { margin-inline: 10px; }
+}

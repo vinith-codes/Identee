@@ -489,26 +489,10 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
       </div>
       {/* while the assistant works, the customer can type the next message; it is sent when it's done */}
       {thinking && thinking !== true && <p className="dr-busynote">I’m still on your last request. Changed your mind? Press Stop. You can also type your next one; Send works again as soon as I’m done.</p>}
-      {/* always here (the examples list is only at the start of a chat): what is typed is made clear first, free */}
-      {/* (not while a photo waits to be sent: what is typed then is about the photo) */}
-      {ctx().ai.available && ctx().ai.text && !attached && (
-        <div className="dr-improve-row">
-          <button
-            type="button"
-            className="dr-improve"
-            disabled={!!thinking}
-            onClick={() => {
-              const idea = draft.trim();
-              if (say(idea.length >= 3 ? `${IMPROVE}: ${idea}` : IMPROVE, true)) setDraft("");
-            }}
-          >
-            {IMPROVE}
-          </button>
-          <span>{draft.trim().length >= 3 ? "Makes what you typed clear first. Free." : "Free. Shows what you’ll get before drawing."}</span>
-        </div>
-      )}
+      {/* the message box: one rounded box — the words on top, a slim row of buttons inside it underneath
+          (📎 a photo, ✨ Improve my idea — free, the count near the limit, and Send) */}
       <form
-        className="dr-composer"
+        className="dr-composer dr-cbox"
         onSubmit={(e) => {
           e.preventDefault();
           if (thinking) return;
@@ -525,11 +509,6 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
             <button type="button" className="dr-attached-x" onClick={dropAttached} aria-label="Remove the photo">✕</button>
           </div>
         )}
-        <button type="button" className={`dr-attach${nudging ? " nudge" : ""}`} onClick={pickPhoto} disabled={!!thinking} aria-label="Send a photo" title="Send a photo">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <path d="m21 11.5-8.6 8.6a5.5 5.5 0 0 1-7.8-7.8l8.6-8.6a3.7 3.7 0 0 1 5.2 5.2l-8.6 8.6a1.8 1.8 0 0 1-2.6-2.6l7.9-7.9" />
-          </svg>
-        </button>
         <input ref={photoBox} type="file" accept="image/*" hidden onChange={(e) => { const file = e.target.files?.[0]; e.target.value = ""; attachPhoto(file); }} />
         <textarea
           ref={box}
@@ -543,15 +522,45 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
               e.currentTarget.form?.requestSubmit();
             }
           }}
-          placeholder={attached ? "e.g. only the design, on the back" : "Try: a tiger on the front, a tree on the back"}
+          placeholder={attached ? "What should I do with it?" : "Describe your idea…"}
           aria-label={attached ? "What should I do with this photo?" : "Message the design assistant"}
           maxLength={PROMPT_MAX}
           autoComplete="off"
         />
-        {draft.length > PROMPT_MAX - 300 && <span className="dr-count" aria-live="polite">{draft.length} / {PROMPT_MAX}</span>}
-        <button type="submit" disabled={!!thinking} aria-label={thinking ? "Wait — the assistant is still working" : "Send"}>
-          {thinking ? "Wait…" : "Send"}
-        </button>
+        <div className="dr-cbar">
+          <button type="button" className={`dr-attach${nudging ? " nudge" : ""}`} onClick={pickPhoto} disabled={!!thinking} aria-label="Send a photo" title="Send a photo">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="m21 11.5-8.6 8.6a5.5 5.5 0 0 1-7.8-7.8l8.6-8.6a3.7 3.7 0 0 1 5.2 5.2l-8.6 8.6a1.8 1.8 0 0 1-2.6-2.6l7.9-7.9" />
+            </svg>
+          </button>
+          {/* what is typed is made clear first, free — always here (the examples list is only at the start of a chat);
+              not while a photo waits to be sent (what is typed then is about the photo) */}
+          {ctx().ai.available && ctx().ai.text && !attached && (
+            <button
+              type="button"
+              className="dr-improve"
+              disabled={!!thinking}
+              title={draft.trim().length >= 3 ? "Makes what you typed clear first. Free." : "Free. Shows what you’ll get before drawing."}
+              onClick={() => {
+                const idea = draft.trim();
+                if (say(idea.length >= 3 ? `${IMPROVE}: ${idea}` : IMPROVE, true)) setDraft("");
+              }}
+            >
+              {IMPROVE} <small>free</small>
+            </button>
+          )}
+          <span className="dr-cbar-gap" />
+          {draft.length > PROMPT_MAX - 300 && <span className="dr-count" aria-live="polite">{draft.length} / {PROMPT_MAX}</span>}
+          <button type="submit" className="dr-send" disabled={!!thinking} aria-label={thinking ? "Wait — the assistant is still working" : "Send"} title={thinking ? "Still working…" : "Send"}>
+            {thinking ? (
+              <span className="dr-send-wait" aria-hidden="true" />
+            ) : (
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M12 19V5M5.5 11.5 12 5l6.5 6.5" />
+              </svg>
+            )}
+          </button>
+        </div>
       </form>
     </div>
   );
