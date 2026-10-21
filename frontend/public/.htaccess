@@ -1,0 +1,40 @@
+# IDENTEE website — settings for an Apache server (the live site runs on Apache).
+# It goes into the website folder next to index.html; Vite copies it there in every build.
+#
+# Why (21 Oct 2026): browsers kept YESTERDAY's index.html, which asked for page files a new build no longer has,
+# and the server answered those with the home page instead of "not found" — pages broke, "reloaded", lost the
+# login and pictures. Now: the start page is always checked for a new version, a missing /assets/ file is a real
+# 404 (the site then reloads itself once to get the new version), and every page address still opens the app.
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /
+
+  # one address for the site: www.identee.co.in → identee.co.in (a browser keeps a separate login per address, so
+  # opening the www one asked people to log in again). (http → https is left to the hosting panel's "Force HTTPS":
+  # done here it can loop forever on servers where HTTPS is handled in front of Apache.)
+  RewriteCond %{HTTP_HOST} ^www\.identee\.co\.in$ [NC]
+  RewriteRule ^ https://identee.co.in%{REQUEST_URI} [R=301,L]
+
+  # real files and folders are served as they are
+  RewriteCond %{REQUEST_FILENAME} -f [OR]
+  RewriteCond %{REQUEST_FILENAME} -d
+  RewriteRule ^ - [L]
+
+  # a file under /assets/ that doesn't exist: "not found" (never the home page in its place)
+  RewriteRule ^assets/ - [R=404,L]
+
+  # every other address (/account, /customize/oversized-tee, …) is a page of the website
+  RewriteRule ^ index.html [L]
+</IfModule>
+
+<IfModule mod_headers.c>
+  # the start page: always ask the server whether there is a newer one
+  <FilesMatch "^(index\.html)?$">
+    Header set Cache-Control "no-cache"
+  </FilesMatch>
+  # files in /assets/ have a fingerprint in their name and never change: keep them for a year
+  <If "%{REQUEST_URI} =~ m#^/assets/#">
+    Header set Cache-Control "public, max-age=31536000, immutable"
+  </If>
+</IfModule>

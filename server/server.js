@@ -73,8 +73,11 @@ app.post(
   razorpayWebhook,
 );
 
-app.use(express.json({ limit: "500mb" }));
-app.use(express.urlencoded({ limit: "500mb", extended: true }));
+// The biggest normal request is saving a design with its 4 tee pictures (at most ~4.3 MB); photos and bulk files
+// come as uploads, which have their own limits. It was 500 MB — a request that big could slow or crash the
+// server (21 Oct 2026).
+app.use(express.json({ limit: "15mb" }));
+app.use(express.urlencoded({ limit: "15mb", extended: true }));
 
 app.use(checkMaintenanceMode);
 

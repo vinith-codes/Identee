@@ -1528,7 +1528,9 @@ export default function DesignRoomPage() {
     const photo = { url: res.payload.path, w: a.w, h: a.h };
     if (a.text) {
       setChatState((st) => ({ ...st, photo, photoUrl: null, wait: null, photoAreaKey: null, photoAreaKeys: [] }));
-      return [{ photoSent: photo }, { next: { type: "photoUnderstand", text: a.text } }];
+      // (the photo goes along with the next step: the chat's memory isn't updated yet when it starts, so reading
+      // it from there said "I don't have your photo any more" the first time a photo was sent with words)
+      return [{ photoSent: photo }, { next: { type: "photoUnderstand", text: a.text, photo } }];
     }
     setChatState((st) => ({ ...st, photo, photoUrl: null, wait: "photoWhat", photoAreaKey: null, photoAreaKeys: [] }));
     return [{ photoSent: photo }, botSays("Got your photo. Tell me what you want in your own words — for example “only the design from this tee” or “my photo on the back”. Or tap one:"), chipRow([...PHOTO_CHOICES, "Something else"])];
@@ -1539,7 +1541,7 @@ export default function DesignRoomPage() {
   // What the customer wants made from the photo: their words read with the photo by the text AI (when it can), and
   // by our own rules (free; also when the AI can't). Then the plan card — nothing is made or charged yet.
   const chatPhotoUnderstand = async (a, run) => {
-    const photo = chatState.photo;
+    const photo = a.photo || chatState.photo;
     if (!photo) return [botSays("I don’t have your photo any more. Tap 📎 and send it again.")];
     const areas = assistantCtx().areas;
     let plan = a.job ? { job: a.job, areaKey: chatState.photoAreaKey || null, areaKeys: chatState.photoAreaKeys || [] } : photoJobFrom(a.text, { areas, photoStyles: ai.photoStyles || [] });

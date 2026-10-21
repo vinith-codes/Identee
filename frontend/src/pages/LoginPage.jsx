@@ -105,6 +105,11 @@ export default function LoginPage() {
   const [toast, setToast] = useState({ show: false, msg: "" });
 
   const otpRef = useRef(null);
+  // came here because the saved login expired (utils/sessionExpiry.js): say so, and go back there afterwards
+  const params = new URLSearchParams(location.search);
+  const expired = params.get("expired") === "1";
+  const nextRaw = params.get("next") || "";
+  const next = /^\/(?!\/)/.test(nextRaw) && !nextRaw.startsWith("/login") ? nextRaw : ""; // (only a page of this site)
   const nameRef = useRef(null);
 
   useEffect(() => {
@@ -130,9 +135,10 @@ export default function LoginPage() {
 
     const from = location.state?.from;
     setTimeout(() => {
-      if (user.isAdmin) navigate("/admin/dashboard", { replace: true });
-      else if (user.isSeller) navigate("/seller/dashboard", { replace: true });
-      else navigate(from || "/", { replace: true });
+      // (after an expired login: back to that page — an admin to an admin page, a seller to a seller page)
+      if (user.isAdmin) navigate(next.startsWith("/admin") ? next : "/admin/dashboard", { replace: true });
+      else if (user.isSeller) navigate(next.startsWith("/seller") ? next : "/seller/dashboard", { replace: true });
+      else navigate(next && !next.startsWith("/admin") ? next : from || "/", { replace: true });
     }, 600);
   };
 
@@ -339,6 +345,11 @@ export default function LoginPage() {
           <p className="text-sm mb-8" style={{ color: "#8A877F" }}>
             {headings[step][1]}
           </p>
+          {expired && step === "identifier" && (
+            <p role="status" className="text-sm mb-6" style={{ color: "#F0D585", background: "#C9A24B1A", border: "1px solid #C9A24B55", borderRadius: 10, padding: "10px 12px", lineHeight: 1.5 }}>
+              Your login has expired — please log in again. Anything you were designing is still here.
+            </p>
+          )}
 
           {step === "identifier" && (
             <>
