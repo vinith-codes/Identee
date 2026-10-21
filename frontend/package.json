@@ -5,8 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "dev:shop": "vite --mode shop",
-    "dev:admin": "vite --mode admin --port 5174",
+    "dev:shop": "vite --mode shop --port 5173 --strictPort",
+    "dev:admin": "vite --mode admin --port 5174 --strictPort",
     "build": "vite build",
     "build:shop": "vite build --mode shop --outDir dist-shop",
     "build:admin": "vite build --mode admin --outDir dist-admin",
