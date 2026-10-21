@@ -2053,16 +2053,29 @@ export default function DesignRoomPage() {
   };
 
   /* ---------- render ---------- */
-  // Phones, while the assistant is open: the phone's keyboard covers the bottom of the screen (where the chat
-  // box is) without the page getting shorter. So the room is fitted into the part the keyboard leaves free —
-  // the chat box stays in sight while typing, and the room goes back to full height when the keyboard closes.
+  // Phones: the room must never slide out of place.
+  // · The page behind the room can't scroll (a phone browser could otherwise scroll it a little, and the room's
+  //   top bar — Back, size, price, Review — slid under the browser's address bar; seen on the live site, 21 Oct).
+  // · The phone's keyboard covers the bottom of the screen without the page getting shorter, and slides the page
+  //   up to show the box being typed in: while it is open the room is fitted into the part it leaves free (the
+  //   chat box / the words stay in sight), and when it closes the page is put back at the top, so the top bar is
+  //   where it belongs again (some phone browsers left the page slid up).
   const appRef = useRef(null);
   const ready = Boolean(garment);
   useEffect(() => {
+    const root = document.documentElement;
+    root.classList.add("dr-open");
+    return () => root.classList.remove("dr-open");
+  }, []);
+  useEffect(() => {
     const vv = window.visualViewport;
     const el = appRef.current;
-    if (!assist || !vv || !el) return undefined;
+    if (!vv || !el) return undefined;
     const phone = window.matchMedia("(max-width: 760px)");
+    let wasKeyboard = false;
+    const backToTop = () => {
+      if (window.scrollX || window.scrollY || vv.offsetTop) window.scrollTo(0, 0);
+    };
     const fit = () => {
       const keyboard = phone.matches && window.innerHeight - vv.height > 120;
       if (keyboard) {
@@ -2071,17 +2084,29 @@ export default function DesignRoomPage() {
         el.style.setProperty("--vv-h", `${vv.height}px`);
       } else {
         delete el.dataset.kb;
+        if (wasKeyboard) backToTop();
       }
+      wasKeyboard = keyboard;
     };
+    // a box lost the focus (the keyboard is closing): once it has gone, the page goes back to the top
+    const onFocusOut = () => setTimeout(() => {
+      const t = document.activeElement;
+      if (!t || !/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)) backToTop();
+    }, 120);
     fit();
+    backToTop();
     vv.addEventListener("resize", fit);
     vv.addEventListener("scroll", fit);
+    document.addEventListener("focusout", onFocusOut);
+    window.addEventListener("orientationchange", backToTop);
     return () => {
       vv.removeEventListener("resize", fit);
       vv.removeEventListener("scroll", fit);
+      document.removeEventListener("focusout", onFocusOut);
+      window.removeEventListener("orientationchange", backToTop);
       delete el.dataset.kb;
     };
-  }, [assist, ready]); // (ready: the room is on screen — it isn't while the tee is still loading)
+  }, [ready]); // (ready: the room is on screen — it isn't while the tee is still loading)
 
   if (!garment) {
     return (

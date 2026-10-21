@@ -652,6 +652,8 @@
 /* phones: the assistant fills the room under the top bar (the chat and its pictures get room); "Show the tee"
    makes it half height so the tee shows above it. While the keyboard is open the room fits above it (dr-app[data-kb],
    set in DesignRoomPage) so the chat box stays in sight. */
+/* while the design room is open the page behind it can't scroll or bounce (DesignRoomPage: html.dr-open) */
+html.dr-open, html.dr-open body { overflow: hidden; height: 100%; overscroll-behavior: none; }
 .dr-tall { display: none; }
 @media (max-width: 760px) {
   .dr-editor.dr-assist { height: calc(100% - 6px); transition: height .3s cubic-bezier(.2, .7, .2, 1); }

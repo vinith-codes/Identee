@@ -161,7 +161,16 @@ export function shopRoutes({ Guest }) {
         <Route path="/favorites" element={<FavoritesPage />} />
         {/* old "All products" address → the ready-made categories */}
         <Route path="/products" element={<ToReadyMade />} />
-        <Route path="/account" element={<Account />} />
+        {/* the account needs a login: without one it showed an empty form (e.g. on www. or http://, which keep
+            their own login) — now it opens the login page and comes back here */}
+        <Route
+          path="/account"
+          element={
+            <PrivateRoute>
+              <Account />
+            </PrivateRoute>
+          }
+        />
         <Route path="/cart" element={<CartPage />} />
 
         {/* Checkout flow — must be logged in */}
