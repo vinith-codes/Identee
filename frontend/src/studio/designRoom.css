@@ -1370,3 +1370,57 @@ p.pc-area { margin: 0; font-size: 13px; color: var(--muted); }
   .dr-composer.dr-cbox { margin-inline: 10px; }
   .dr-assist .dr-handoff { margin-inline: 10px; }
 }
+
+/* ================= the free art library (ArtPanel) and its start button =================
+   Group tiles show 4 of their designs and how many there are; a search box looks through every design; a group
+   opens 24 at a time with "Show more". The start row has a fifth card, "Free designs". */
+.dr-starts { grid-template-columns: repeat(4, minmax(0, 1fr)); width: min(720px, calc(100% - 40px)); }
+/* four cards: icon on top, then the name (and the line under it on wide screens) — tidy at any width */
+.dr-starts button { grid-template-columns: minmax(0, 1fr); justify-items: start; align-content: start; row-gap: 4px; padding: 11px 12px; }
+.dr-starts svg { grid-row: auto; margin-bottom: 2px; }
+.dr-starts b { line-height: 1.2; }
+.dr-starts small { line-height: 1.3; }
+@media (max-width: 1279px) { .dr-starts small { display: none; } .dr-starts b { font-size: 12.5px; } }
+@media (prefers-reduced-motion: no-preference) and (min-width: 761px) { .dr-starts button:nth-child(5) { animation: dr-cardin .5s cubic-bezier(.2, .7, .2, 1) .32s backwards; } }
+@media (max-width: 760px) {
+  .dr-starts { width: calc(100% - 12px); gap: 5px; }
+  .dr-starts button { padding: 8px 4px; justify-items: center; text-align: center; }
+  .dr-starts b { font-size: 11.5px; line-height: 1.2; }
+}
+/* the art library's own box (its height follows the list, so the search box can stay at the top while scrolling) */
+.dr-artpanel { display: grid; gap: 10px; align-content: start; }
+/* 2 or 3 pictures fill the square too: side by side, or one tall and two small */
+.dr-artquad.n2 img { grid-row: 1 / -1; aspect-ratio: auto; }
+.dr-artquad.n3 img:first-child { grid-row: 1 / span 2; }
+.dr-artsearch { position: sticky; top: -14px; z-index: 2; display: flex; align-items: center; gap: 8px; padding: 0 6px 0 12px;
+  border: 1px solid var(--line); border-radius: 999px; background: #fff; box-shadow: 0 6px 16px -12px rgba(20, 17, 16, .4); }
+.dr-artsearch:focus-within { border-color: var(--gold); box-shadow: 0 0 0 3px var(--gold-soft); }
+.dr-artsearch svg { width: 18px; height: 18px; flex: none; color: var(--muted); }
+.dr-artsearch input { flex: 1; min-width: 0; min-height: 42px; border: 0; outline: none; background: transparent; font: 500 14px/1.3 var(--body); color: var(--ink); }
+.dr-artsearch input::-webkit-search-cancel-button { display: none; }
+.dr-artclear { flex: none; width: 34px; height: 34px; border: 0; border-radius: 50%; background: #F3EFE6; color: var(--ink); font-size: 13px; }
+.dr-artcats { grid-template-columns: repeat(auto-fill, minmax(min(100%, 116px), 1fr)); gap: 10px; }
+.dr-artcat { gap: 6px; padding: 8px; text-align: left; justify-items: stretch; }
+.dr-artcat b { font-size: 13px; font-weight: 800; }
+.dr-artcat small { font-size: 11.5px; color: var(--muted); font-weight: 600; margin-top: -4px; }
+.dr-artquad { display: grid; grid-template-columns: 1fr 1fr; gap: 3px; aspect-ratio: 1 / 1; border-radius: 10px; overflow: hidden; background: #F3EEE2; }
+.dr-artquad img { width: 100%; height: 100%; object-fit: contain; background: #fff; display: block; }
+.dr-artquad img:only-child { grid-column: 1 / -1; grid-row: 1 / -1; }
+.dr-arthead { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
+.dr-arthead span { font-size: 12.5px; font-weight: 700; color: var(--ink-soft); }
+.dr-artmore { width: 100%; min-height: 44px; border: 1px solid var(--line); border-radius: 12px; background: #fff; font: 700 13px var(--body); color: var(--ink); cursor: pointer; }
+.dr-artmore:hover { border-color: var(--gold); }
+.dr-artitem span { overflow-wrap: anywhere; line-height: 1.25; }
+
+/* narrow phones (360 px): Review never squeezed (its arrow was cut) — the struck-out price makes room */
+.dr-top .dr-reviewbtn { flex-shrink: 0; }
+@media (max-width: 380px) {
+  .dr-top .dr-price .dr-was { display: none; }
+  .dr-top { gap: 8px; }
+}
+
+/* phones, empty tee: the start cards sit at the top, so Undo / Redo / Save go just below them (they were under
+   the cards — after deleting the only design, its Undo couldn't be reached) */
+@media (max-width: 760px) {
+  .dr-stage:has(.dr-starts) .dr-undo { top: 92px; }
+}

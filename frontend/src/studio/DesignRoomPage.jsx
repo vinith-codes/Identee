@@ -11,9 +11,9 @@ import { Link, useLocation, useNavigate, useParams, useSearchParams } from "reac
 import { useDispatch, useSelector } from "react-redux";
 import { fetchGarmentTypes } from "../redux/slices/garmentTypeSlice";
 import { fetchArtCategories } from "../redux/slices/artCategorySlice";
-import { fetchArtDesigns } from "../redux/slices/artDesignSlice";
 import { uploadDesignImage } from "../redux/slices/customizationSlice";
 import customizationService from "../services/customizationService";
+import artDesignService from "../services/artDesignService";
 import { fetchCart } from "../redux/slices/cartWishlistSlice";
 import { imageUrl } from "../utils/imageUrl";
 import Room3D from "./Room3D";
@@ -151,7 +151,6 @@ export default function DesignRoomPage() {
 
   const { items: garments, isLoading: garmentsLoading } = useSelector((s) => s.garmentType);
   const { items: artCategories } = useSelector((s) => s.artCategory);
-  const { items: artDesigns } = useSelector((s) => s.artDesign);
   const cartCount = useSelector((s) => s.cartWishlist?.cartItems?.length || 0);
   const garment = garments.find((g) => g.key === type);
   const model = modelForGarment(garment);
@@ -2412,11 +2411,7 @@ export default function DesignRoomPage() {
               )}
               {!elements.length && !active && !assist && !areasOpen && (
                 <div className="dr-starts" role="group" aria-label="Ways to start">
-                  <button type="button" className="photo" onClick={openPhotoStudio}>
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={ICON_PHOTO} /></svg>
-                    <b>Your photo</b>
-                    <small>As art, or print-ready</small>
-                  </button>
+                  {/* (no "Your photo" card here: photos start from the first screen, Upload a picture, or the Assistant's 📎) */}
                   <button type="button" onClick={() => { startAdding(); setAddTab("text"); }}>
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={ICON_TEXT} /></svg>
                     <b>Add text</b>
@@ -2426,6 +2421,12 @@ export default function DesignRoomPage() {
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={ICON_UPLOAD} /></svg>
                     <b>Upload a picture</b>
                     <small>A logo or picture, as it is</small>
+                  </button>
+                  {/* the free art library (cars, bikes…): on the first screen, so people know it's there */}
+                  <button type="button" className="art" onClick={() => { startAdding(); setAddTab("art"); }}>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 5h16v14H4zM8 13l3-3 5 5M15 9h.01" /></svg>
+                    <b>Free designs</b>
+                    <small>Cars, bikes and more</small>
                   </button>
                   <button type="button" className="ai" onClick={() => openAiTab("chat")}>
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={ICON_AI} /></svg>
@@ -2609,7 +2610,7 @@ export default function DesignRoomPage() {
                   </>
                 )}
 
-                {addTab === "art" && <ArtPanel categories={artCategories} designs={artDesigns} onOpen={(id) => dispatch(fetchArtDesigns(id))} onPick={pickArt} />}
+                {addTab === "art" && <ArtPanel categories={artCategories} onPick={pickArt} />}
 
                 </div>
               </>
@@ -3284,37 +3285,110 @@ function Controls({ sel, areaCmW, areaRatio, onPatch, onDelete, onDuplicate, onL
   );
 }
 
-function ArtPanel({ categories, designs, onOpen, onPick }) {
+// The free art library (Admin → Design library). Every design is loaded once (one small list), so a group's tile can
+// show 4 of its designs and how many there are, and the search box looks through all of them at once (a name or a
+// group: "ferrari", "bike"). A group opens 24 at a time ("Show more"), so a phone isn't handed 286 pictures at once.
+// Groups with nothing to show are left out (they used to open on "Loading designs…" for ever).
+const ART_PAGE = 24;
+function ArtPanel({ categories, onPick }) {
+  const [all, setAll] = useState(null); // every design shown to customers (null while loading)
+  const [failed, setFailed] = useState(false);
   const [cat, setCat] = useState(null);
-  if (!cat) {
+  const [q, setQ] = useState("");
+  const [shown, setShown] = useState(ART_PAGE);
+  useEffect(() => {
+    let off = false;
+    artDesignService
+      .getArtDesigns()
+      .then((list) => !off && setAll(Array.isArray(list) ? list : []))
+      .catch(() => !off && (setAll([]), setFailed(true)));
+    return () => {
+      off = true;
+    };
+  }, []);
+  const byCat = useMemo(() => {
+    const m = new Map();
+    for (const d of all || []) {
+      const k = String(d.category?._id || d.category || "");
+      if (!m.has(k)) m.set(k, []);
+      m.get(k).push(d);
+    }
+    return m;
+  }, [all]);
+  const groups = categories.map((c) => ({ ...c, items: byCat.get(String(c._id)) || [] })).filter((g) => all === null || g.items.length);
+  const total = (all || []).length;
+  const term = q.trim().toLowerCase();
+  const found = term ? (all || []).filter((d) => `${d.name} ${d.category?.name || ""}`.toLowerCase().includes(term)) : null;
+  const list = found || (cat ? byCat.get(String(cat._id)) || [] : null);
+  const open = (c) => {
+    setCat(c);
+    setShown(ART_PAGE);
+  };
+  const search = (
+    <div className="dr-artsearch">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
+      <input
+        type="search"
+        value={q}
+        onChange={(e) => {
+          setQ(e.target.value);
+          setShown(ART_PAGE);
+        }}
+        placeholder={total ? `Search ${total} free designs…` : "Search the designs…"}
+        aria-label="Search the free designs"
+        enterKeyHint="search"
+      />
+      {q && <button type="button" className="dr-artclear" onClick={() => setQ("")} aria-label="Clear the search">✕</button>}
+    </div>
+  );
+  if (!list) {
     return (
-      <div className="dr-controls">
-        {categories.length === 0 && <p className="dr-empty">No art categories yet.</p>}
+      <div className="dr-artpanel">
+        {search}
+        {all === null && <p className="dr-empty">Opening the designs…</p>}
+        {all !== null && !groups.length && <p className="dr-empty">{failed ? "The designs didn’t load. Check your connection and try again." : "No designs yet."}</p>}
         <div className="dr-artcats">
-          {categories.map((c) => (
-            <button key={c._id} type="button" className="dr-artcat" onClick={() => { setCat(c); onOpen(c._id); }}>
-              {c.thumbnail && <img src={imageUrl(c.thumbnail, 200)} alt="" />}
-              <span>{c.name}</span>
+          {groups.map((g) => (
+            <button key={g._id} type="button" className="dr-artcat" onClick={() => open(g)}>
+              <span className={`dr-artquad n${Math.min(4, Math.max(1, g.items.length))}`} aria-hidden="true">
+                {(g.items.length ? g.items.slice(0, 4) : [{ _id: "t", imageUrl: g.thumbnail }]).map((d) => (
+                  <img key={d._id} src={imageUrl(d.imageUrl, 140)} alt="" loading="lazy" decoding="async" />
+                ))}
+              </span>
+              <b>{g.name}</b>
+              {g.items.length > 0 && <small>{g.items.length} design{g.items.length === 1 ? "" : "s"}</small>}
             </button>
           ))}
         </div>
       </div>
     );
   }
-  const list = designs.filter((d) => String(d.category?._id || d.category) === String(cat._id));
   return (
-    <div className="dr-controls">
-      <button type="button" className="dr-chip" onClick={() => setCat(null)}>← All categories</button>
+    <div className="dr-artpanel">
+      {search}
+      <div className="dr-arthead">
+        {!found && (
+          <button type="button" className="dr-chip" onClick={() => setCat(null)}>
+            ← All groups
+          </button>
+        )}
+        <span>{found ? `${found.length} found for “${q.trim()}”` : `${cat.name} · ${list.length} free`}</span>
+      </div>
       <div className="dr-artgrid">
-        {list.map((d) => (
+        {list.slice(0, shown).map((d) => (
           <button key={d._id} type="button" className="dr-artitem" onClick={() => onPick(d)}>
-            <img src={imageUrl(d.imageUrl, 240)} alt={d.name} />
+            <img src={imageUrl(d.imageUrl, 240)} alt={d.name} loading="lazy" decoding="async" />
             <span>{d.name}</span>
             <b>Free</b>
           </button>
         ))}
-        {list.length === 0 && <p className="dr-empty">Loading designs…</p>}
       </div>
+      {found && !found.length && <p className="dr-empty">Nothing called “{q.trim()}”. Try a shorter word, like “car” or “bike”.</p>}
+      {list.length > shown && (
+        <button type="button" className="dr-artmore" onClick={() => setShown((n) => n + ART_PAGE)}>
+          Show more · {list.length - shown} left
+        </button>
+      )}
     </div>
   );
 }

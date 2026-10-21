@@ -6,6 +6,7 @@ import { imageUrl } from "../../utils/imageUrl";
 import { colourHex, isLight } from "../../utils/colours";
 import { money } from "../../utils/money";
 import { SHOPS } from "../../utils/shopNames";
+import artDesignService from "../../services/artDesignService";
 
 const PRINTS = ["YOUR NAME", "TEAM 07", "BIRTHDAY SQUAD", "SAY IT LOUD"];
 const reduceMotion = () => typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
@@ -200,7 +201,42 @@ function useTypedExample(stop) {
   // stopped (they clicked in or typed): the current example in full, not a half-typed line
   return calm ? IDEA_EXAMPLE : stop ? IDEA_EXAMPLES[n] : IDEA_EXAMPLES[n].slice(0, len);
 }
+// The free art library on the "Ready art" card: how many designs there are, the biggest groups, and one of them
+// printed on the card's tee — so people know it's there (fetched once the page has settled; the card works without it).
+function useArtTeaser() {
+  const [teaser, setTeaser] = useState(null);
+  useEffect(() => {
+    let off = false;
+    const t = setTimeout(() => {
+      artDesignService
+        .getArtDesigns()
+        .then((list) => {
+          if (off || !Array.isArray(list) || !list.length) return;
+          const groups = new Map();
+          for (const d of list) {
+            const name = d.category?.name;
+            if (!name) continue;
+            if (!groups.has(name)) groups.set(name, []);
+            groups.get(name).push(d);
+          }
+          const big = [...groups.entries()].sort((a, b) => b[1].length - a[1].length);
+          if (!big.length) return;
+          // a design with a real name (not "Car 12") from the biggest group, for the picture
+          const pick = big[0][1].find((d) => !/\d/.test(d.name)) || big[0][1][0];
+          setTeaser({ count: list.length, groups: big.slice(0, 2).map(([n]) => n), pic: pick.imageUrl });
+        })
+        .catch(() => {});
+    }, 1200);
+    return () => {
+      off = true;
+      clearTimeout(t);
+    };
+  }, []);
+  return teaser;
+}
+
 export function HomeCreate({ colours }) {
+  const art = useArtTeaser();
   const navigate = useNavigate();
   const [idea, setIdea] = useState("");
   const [missing, setMissing] = useState(false);
@@ -219,7 +255,13 @@ export function HomeCreate({ colours }) {
     { title: "Your photo", text: "As it is, or turned into art.", to: go("&photo=1"), slug: "white", ov: <span className="ov box">YOUR<br />PHOTO</span> },
     { title: "Your words", text: "Names, quotes, dates — in any font.", to: go("&start=text"), slug: "black", ov: <span className="ov" style={{ color: "#F0D585", fontSize: 15 }}>SAY IT<br />LOUD</span> },
     { title: "Describe it", text: "We draw what you describe.", to: go("&start=draw"), slug: "navy", ov: <span className="ov" style={{ color: "#fff" }}>✦ DRAWN<br />FOR YOU</span> },
-    { title: "Ready art", text: "Designs from our art library.", to: go("&start=art"), slug: "cream", ov: <span className="ov" style={{ color: "#7A5B12" }}>◆ ART<br />LIBRARY</span> },
+    {
+      title: "Ready art",
+      text: art ? `${art.count} free designs: ${art.groups.join(", ")}…` : "Designs from our art library.",
+      to: go("&start=art"),
+      slug: "cream",
+      ov: art?.pic ? <span className="ov pic"><img src={imageUrl(art.pic, 240)} alt="" loading="lazy" /></span> : <span className="ov" style={{ color: "#7A5B12" }}>◆ ART<br />LIBRARY</span>,
+    },
     { title: "Names & numbers", text: "A different one on every tee.", to: SHOPS.team.to, slug: "bottle-green", ov: <span className="ov" style={{ color: "#fff" }}>ARUN<br /><span style={{ fontSize: 22 }}>07</span></span> },
     { title: "Your logo", text: "For a shop, college or office.", to: go("&start=upload"), slug: "red", ov: <span className="ov dash">YOUR LOGO</span> },
   ];
