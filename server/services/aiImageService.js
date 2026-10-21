@@ -136,11 +136,17 @@ export const nearestRatio = (wOverH) => {
 // design out afterwards.
 // oneLine: for the tall, thin print areas (Vertical Front 10 × 52 cm …): the words go on one line, like a
 // banner, and the Design Room turns the picture on its side to run along the strip.
+// a customer's (or the text AI's) words as one sentence: ends with exactly one full stop ("…and white." used to
+// become "…and white.." in the prompt); a ! or ? is kept as it is
+const sentence = (text) => {
+  const t = String(text || "").trim().replace(/[.\s]+$/, "");
+  return /[!?]$/.test(t) ? t : `${t}.`;
+};
 export function newDesignPrompt({ subject, style, teeColour, teeIsDark, variation, of, oneLine = false }) {
   const bg = teeIsDark ? "black" : "white";
   return [
     `Artwork to be printed on a ${teeColour} t-shirt.`,
-    `Subject: ${subject}.`,
+    `Subject: ${sentence(subject)}`,
     `Style: ${AI_STYLES[style] || AI_STYLES["Bold mascot"]}.`,
     `Rules: one centred design that fills most of the picture. The background must be flat pure ${bg} and nothing else: no scenery, no texture, no shadow on it.`,
     "Do not draw a t-shirt, a mockup, a person wearing it, a frame or a border. No watermark or signature.",
@@ -153,7 +159,7 @@ export function newDesignPrompt({ subject, style, teeColour, teeIsDark, variatio
     .join(" ");
 }
 export const changeDesignPrompt = (change) =>
-  `Edit this t-shirt design: ${change}. Keep everything else the same, including the flat plain background. Do not add a t-shirt, a frame or a watermark.`;
+  `Edit this t-shirt design: ${sentence(change)} Keep everything else the same, including the flat plain background. Do not add a t-shirt, a frame or a watermark.`;
 
 // "Copy this design" (a photo sent in the chat): the customer photographed a t-shirt, hoodie, poster… with a print
 // on it and wants that print on their tee. Only the print comes back — flat, straight, clean, as close as possible.
@@ -170,7 +176,7 @@ export const copyDesignPrompt = ({ change = "", design = "", words = [], teeColo
     "Straighten it as if it had been scanned flat: undo the camera angle and the curve of the fabric.",
     "Keep the same shapes, colours, layout and proportions as exactly as possible, and spell every word exactly as it appears.",
     "Make it sharp and high resolution, with crisp edges; do not add anything that is not in the design.",
-    change ? `Then make this change to it: ${change}. Keep everything else the same.` : "",
+    change ? `Then make this change to it: ${sentence(change)} Keep everything else the same.` : "",
     `The background must be flat pure ${teeIsDark ? "black" : "white"} and nothing else. Do not draw a t-shirt, a mockup, a frame or a watermark.`,
   ]
     .filter(Boolean)
