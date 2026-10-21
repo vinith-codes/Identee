@@ -9,6 +9,7 @@ import { mailer, fromAddress, shopInbox } from "../utils/mailer.js";
 import Razorpay from "razorpay";
 import crypto from "crypto";
 import Counter from "../models/counterModel.js";
+import DeletedOrder from "../models/deletedOrderModel.js";
 import { generateInvoicePdfBuffer } from "../utils/generateInvoicePdf.js";
 import {
   buildQuote,
@@ -1071,7 +1072,62 @@ const razorpayWebhook = async (req, res) => {
   }
 };
 
+// @desc   Delete orders — for clearing the TEST orders made while checking the site (Admin → Orders → tick →
+//         "Delete selected"; to be taken out again after the clean-up, 21 Oct 2026). For each order: a copy is
+//         saved first (DeletedOrder), its stock is put back (a cancelled order already gave it back), then it is
+//         deleted — with its invoice, which lives inside the order. restartInvoiceNumbers: when no invoice of this
+//         year is left, the next invoice is IDT-<year>-000001 again (never while one is left: no two alike).
+// @route  POST /api/orders/admin/delete   { ids: [...], restartInvoiceNumbers?: boolean }
+// @access Admin only
+const deleteOrders = asyncHandler(async (req, res) => {
+  const ids = [...new Set((Array.isArray(req.body.ids) ? req.body.ids : []).map(String))]
+    .filter((id) => mongoose.isValidObjectId(id))
+    .slice(0, 500);
+  if (!ids.length) {
+    res.status(400);
+    throw new Error("Choose the orders to delete.");
+  }
+  const orders = await Order.find({ _id: { $in: ids } }).lean();
+  let deleted = 0;
+  let invoices = 0;
+  for (const order of orders) {
+    await DeletedOrder.create({ order, deletedBy: req.user._id }); // (if this fails, nothing is deleted)
+    if (order.orderStatus !== "CANCELLED") {
+      await returnStock((order.orderItems || []).map((i) => ({ product: i.product || null, size: i.size, qty: i.qty })));
+    }
+    await Order.deleteOne({ _id: order._id });
+    deleted += 1;
+    if (order.invoiceDetails) invoices += 1;
+  }
+
+  let restarted = false;
+  let note = "";
+  if (req.body.restartInvoiceNumbers) {
+    const year = new Date().getFullYear();
+    const left = await Order.countDocuments({ "invoiceDetails.invoiceNumber": { $regex: `^IDT-${year}-` } });
+    if (left === 0) {
+      await Counter.updateOne({ _id: `invoice-${year}` }, { $set: { seq: 0 } });
+      restarted = true;
+    } else {
+      note = ` Invoice numbers weren't restarted: ${left} invoice${left === 1 ? " is" : "s are"} from ${year} still there.`;
+    }
+  }
+  const year = new Date().getFullYear();
+  res.json({
+    deleted,
+    invoices,
+    restarted,
+    message:
+      `${deleted} order${deleted === 1 ? "" : "s"} deleted` +
+      (invoices ? `, with ${invoices} invoice${invoices === 1 ? "" : "s"}` : "") +
+      "." +
+      (restarted ? ` The next invoice will be IDT-${year}-000001.` : "") +
+      note,
+  });
+});
+
 export {
+  deleteOrders,
   addorderitems,
   getOrderById,
   updateOrderToPaid,
