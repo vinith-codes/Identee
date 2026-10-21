@@ -41,6 +41,11 @@ const app = express();
 // IP — otherwise every visitor shares one IP and per-IP rate limits misfire.
 if (process.env.TRUST_PROXY) {
   app.set("trust proxy", Number(process.env.TRUST_PROXY) || 1);
+} else {
+  // not set: trust only a proxy on this same machine (the web server in front of the backend on the live server
+  // forwards each request from 127.0.0.1 with the visitor's address) — so the per-visitor limits (contact form 5 per
+  // 15 min, login codes) count each visitor, not everyone together; a request from outside can't fake its address
+  app.set("trust proxy", "loopback");
 }
 // Which website addresses may call this API. On the live server: CORS_ORIGIN in .env, comma-separated, e.g.
 //   CORS_ORIGIN=https://identee.co.in,https://www.identee.co.in

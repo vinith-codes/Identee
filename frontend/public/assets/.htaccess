@@ -1,0 +1,14 @@
+# IDENTEE website — the page files (assets/). Each file's name has a fingerprint and the file never changes,
+# so browsers may keep it for a year. A file that isn't here is a real "not found" (never the home page), so a
+# browser holding an old page notices and the site reloads itself once to get the new version.
+# Only directives that every Apache version understands, each inside <IfModule>.
+
+<IfModule mod_headers.c>
+  Header set Cache-Control "public, max-age=31536000, immutable"
+</IfModule>
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteRule ^ - [R=404,L]
+</IfModule>
