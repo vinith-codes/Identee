@@ -1424,3 +1424,8 @@ p.pc-area { margin: 0; font-size: 13px; color: var(--muted); }
 @media (max-width: 760px) {
   .dr-stage:has(.dr-starts) .dr-undo { top: 92px; }
 }
+
+/* every scrolling area in the room (the colour card, the editors, the art, the chat, Review, the area rows) keeps
+   the swipe to itself: reaching its end never drags the page, bounces it, or pulls to refresh (phones) */
+.dr-app, .dr-app * { overscroll-behavior: contain; }
+.dr-app :is(.dr-fit, .dr-controls, .dr-review, .dr-sidebody, .dr-chatlog, .dr-pickpop, .dr-areas) { -webkit-overflow-scrolling: touch; }

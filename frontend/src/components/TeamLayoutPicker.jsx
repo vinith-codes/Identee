@@ -4,6 +4,7 @@
 // Each layout is drawn on the real tee photos (front and back), inside the photos' print areas.
 import { useEffect, useRef, useState } from "react";
 import { imageUrl } from "../utils/imageUrl";
+import { useLockBodyScroll } from "../utils/lockScroll";
 
 const YEAR = String(new Date().getFullYear());
 // where each line sits, in % of the print area on the photo (ax, ay = its middle), s = letter size in % of the area's
@@ -62,7 +63,7 @@ function Side({ photo, area, lines, label, light }) {
 const css = `
   .tlp-back { position: fixed; inset: 0; z-index: 200; background: rgba(21,19,15,.6); display: grid; place-items: center; padding: 16px; box-sizing: border-box; }
   .tlp-back *, .tlp-back *::before, .tlp-back *::after { box-sizing: border-box; }
-  .tlp { width: min(1040px, 100%); max-height: calc(100vh - 32px); overflow-y: auto; overflow-x: hidden; background: #fff; border-radius: 24px; padding: 28px 28px 22px; color: #15130F; font-family: Inter, "Helvetica Neue", Arial, sans-serif; }
+  .tlp { width: min(1040px, 100%); max-height: calc(100vh - 32px); max-height: calc(100dvh - 32px); overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; background: #fff; border-radius: 24px; padding: 28px 28px 22px; color: #15130F; font-family: Inter, "Helvetica Neue", Arial, sans-serif; }
   .tlp-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 20px; }
   .tlp-steps { display: flex; align-items: center; gap: 8px; margin: 0; font: 700 11px/1 Inter, sans-serif; letter-spacing: .14em; text-transform: uppercase; color: #9A9184; }
   .tlp-steps b { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: #EFEAE0; color: #6B6559; font-size: 10.5px; letter-spacing: 0; }
@@ -120,6 +121,7 @@ const css = `
  * @param onClose   () => void
  */
 export default function TeamLayoutPicker({ garment, photos, onChoose, onClose }) {
+  useLockBodyScroll(); // the page behind stays still while this is open
   const [pick, setPick] = useState(null);
   const first = useRef(null);
   useEffect(() => {

@@ -8,6 +8,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import customizationService from "../services/customizationService";
 import { THEME } from "../theme/theme";
+import { useLockBodyScroll } from "../utils/lockScroll";
 
 const SIDES = [
   ["front", "Front"],
@@ -28,6 +29,7 @@ const AREA_NAMES = {
  * @param {object} [extra]   e.g. { size, qty } from an order line
  */
 export default function DesignPreview({ designId, onClose, extra }) {
+  useLockBodyScroll(); // the page behind stays still while this is open
   const [design, setDesign] = useState(null);
   const [error, setError] = useState("");
   const [side, setSide] = useState("front");
@@ -121,7 +123,7 @@ function Fact({ label, value }) {
 
 const sx = {
   backdrop: { position: "fixed", inset: 0, zIndex: 2000, background: "rgba(20,17,16,.55)", display: "grid", placeItems: "center", padding: 16 },
-  card: { width: "min(860px, 100%)", maxHeight: "100%", overflowY: "auto", background: "#FBF8F1", borderRadius: 20, padding: 20, boxSizing: "border-box", fontFamily: THEME.fontBody },
+  card: { width: "min(860px, 100%)", maxHeight: "100%", overflowY: "auto", overscrollBehavior: "contain", background: "#FBF8F1", borderRadius: 20, padding: 20, boxSizing: "border-box", fontFamily: THEME.fontBody },
   head: { display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, marginBottom: 14 },
   eyebrow: { margin: 0, fontSize: 11, letterSpacing: ".2em", textTransform: "uppercase", fontWeight: 800, color: THEME.goldDeep },
   title: { margin: "4px 0 0", fontSize: 22, fontWeight: 800, color: THEME.text },

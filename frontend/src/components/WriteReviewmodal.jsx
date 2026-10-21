@@ -17,6 +17,7 @@ import { useSelector } from "react-redux";
 import { THEME } from "../theme/theme";
 import reviewService from "../services/reviewServices";
 import { imageUrl } from "../utils/imageUrl";
+import { SCREEN_H, useLockBodyScroll } from "../utils/lockScroll";
 
 
 function getImageUrl(path) {
@@ -70,6 +71,7 @@ export default function WriteReviewModal({
   const [askClose, setAskClose] = useState(false);
   const hasWork = !success && (rating > 0 || comment.trim().length > 0 || images.length > 0);
   const tryClose = () => (hasWork ? setAskClose(true) : onClose());
+  useLockBodyScroll(open); // the page behind stays still while this is open
   useEffect(() => {
     if (!open) return;
     const onKey = (e) => e.key === "Escape" && tryClose();
@@ -164,8 +166,10 @@ export default function WriteReviewModal({
           padding: 28,
           width: "100%",
           maxWidth: 480,
-          maxHeight: "90vh",
+          // the visible screen (90vh on iPhones could reach under the browser's bottom bar)
+          maxHeight: `calc(${SCREEN_H} - 32px)`,
           overflowY: "auto",
+          overscrollBehavior: "contain",
           boxShadow: THEME.shadow,
           fontFamily: THEME.fontBody,
         }}
