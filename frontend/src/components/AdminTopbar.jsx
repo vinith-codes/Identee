@@ -5,6 +5,7 @@
 import { useLocation, useNavigate } from "react-router-dom";
 import { backTarget, findMenuPage } from "../utils/adminMenu";
 import { useUnsavedChanges } from "../utils/unsavedChanges";
+import { shopHref } from "../utils/siteUrls";
 
 
 export default function AdminTopbar() {
@@ -65,7 +66,7 @@ export default function AdminTopbar() {
         )}
         <button
           type="button"
-          onClick={() => window.open("/", "_blank", "noopener,noreferrer")}
+          onClick={() => window.open(shopHref("/"), "_blank", "noopener,noreferrer")}
           style={btn(true)}
         >
           View website ↗

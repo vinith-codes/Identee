@@ -9,6 +9,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useSelector } from "react-redux";
 import axios from "axios";
+import { shopHref } from "../../utils/siteUrls";
 
 const BACKEND_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
@@ -229,7 +230,7 @@ export default function AdminHome() {
                     {q.label}
                   </Link>
                 ))}
-                <a href="/" target="_blank" rel="noopener noreferrer" className="ah-pill">
+                <a href={shopHref("/")} target="_blank" rel="noopener noreferrer" className="ah-pill">
                   View website ↗
                 </a>
               </div>

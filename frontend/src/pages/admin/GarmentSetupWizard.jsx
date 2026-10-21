@@ -22,6 +22,7 @@ import PhotosStep from "./garmentSetup/PhotosStep";
 import PrintAreasStep from "./garmentSetup/PrintAreasStep";
 import SaveRow from "./garmentSetup/SaveRow";
 import { isDesignYourOwn } from "../../utils/categoryKinds";
+import { shopHref } from "../../utils/siteUrls";
 
 const BACKEND_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 const VIEWS = ["front", "back", "left", "right"];
@@ -550,7 +551,7 @@ Its colours, photos and print areas are removed. This cannot be undone.`)) retur
       <div style={{ display: "flex", gap: 10, marginTop: 18, flexWrap: "wrap", alignItems: "center" }}>
         {garment.isActive ? (
           <>
-            <a className="aw-btn light" href={`/customize/${garment.key}?color=${firstColour || ""}`} target="_blank" rel="noopener noreferrer">
+            <a className="aw-btn light" href={shopHref(`/customize/${garment.key}?color=${firstColour || ""}`)} target="_blank" rel="noopener noreferrer">
               Open in customizer ↗
             </a>
             <button type="button" className="aw-btn light" disabled={saving} onClick={() => save({ isActive: false }, "Unpublished — hidden from customers")}>

@@ -1,6 +1,7 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import App from "./App";
+// the shop, the admin, or both together — chosen by the build (vite.config.js, utils/siteUrls.js)
+import App from "@identee-app";
 import "./index.css";
 import { Provider } from "react-redux";
 import { store } from "./redux/store";

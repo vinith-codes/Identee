@@ -647,6 +647,9 @@ const siteAddress = async () => {
   const fromCors = String(process.env.CORS_ORIGIN || "").split(",")[0].trim();
   return String(set || fromCors || "https://identee.co.in").replace(/\/+$/, "");
 };
+// where the team logs in: the admin website (ADMIN_URL in .env, e.g. https://admin.identee.co.in) once the shop and
+// the admin are two websites; until it is set, the shop's address (the admin pages are still part of it)
+const teamAddress = async () => String(process.env.ADMIN_URL || "").trim().replace(/\/+$/, "") || siteAddress();
 // @desc   Give admin / seller / delivery access to an email (making the account if needed)
 // @route  POST /api/users/team   { email, name?, role: "admin" | "seller" | "delivery" }
 // @access Admin only
@@ -675,7 +678,7 @@ const addTeamMember = asyncHandler(async (req, res) => {
 
   let emailed = false;
   try {
-    const site = await siteAddress();
+    const site = await teamAddress();
     const who = req.user?.name ? ` by ${req.user.name}` : "";
     await mailer().sendMail({
       from: fromAddress(),

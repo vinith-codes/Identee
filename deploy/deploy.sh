@@ -17,14 +17,17 @@ cd "$APP_DIR/server"
 PUPPETEER_SKIP_DOWNLOAD=true npm ci --omit=dev
 npx puppeteer browsers install chrome || echo "  ! Chrome for invoice PDFs didn't download — the site works; run 'npx puppeteer browsers install chrome' in server/ later"
 
-echo "→ 3/4  Building the website"
+echo "→ 3/4  Building the two websites: the shop (dist) and the admin (dist-admin)"
 cd "$APP_DIR/frontend"
 npm ci
-# build into a new folder first, then swap it in — the live site keeps working until the new build is ready
-npx vite build --outDir dist-new --emptyOutDir
-rm -rf dist-old
+# build into new folders first, then swap them in — the live sites keep working until the new builds are ready
+npx vite build --mode shop --outDir dist-new --emptyOutDir
+npx vite build --mode admin --outDir dist-admin-new --emptyOutDir
+rm -rf dist-old dist-admin-old
 [ -d dist ] && mv dist dist-old
 mv dist-new dist
+[ -d dist-admin ] && mv dist-admin dist-admin-old
+mv dist-admin-new dist-admin
 
 echo "→ 4/4  Restarting the backend"
 cd "$APP_DIR/server"

@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { useDispatch } from "react-redux";
 import authService from "../services/authService";
 import { setCredentials } from "../redux/slices/authSlice";
+import { APP } from "../utils/siteUrls";
 
 const gold = "#C9A24B";
 const goldBright = "#F0D585";
@@ -135,6 +136,11 @@ export default function LoginPage() {
 
     const from = location.state?.from;
     setTimeout(() => {
+      // the shop website (identee.co.in): everyone stays in the shop — the team's pages are a separate website
+      // with its own login (utils/siteUrls.js), so an admin shopping here is treated like any customer
+      if (APP === "shop") return navigate(next || from || "/", { replace: true });
+      // the admin website: a customer has nothing here
+      if (APP === "admin" && !user.isAdmin && !user.isSeller) return navigate("/no-access", { replace: true });
       // (after an expired login: back to that page — an admin to an admin page, a seller to a seller page)
       if (user.isAdmin) navigate(next.startsWith("/admin") ? next : "/admin/dashboard", { replace: true });
       else if (user.isSeller) navigate(next.startsWith("/seller") ? next : "/seller/dashboard", { replace: true });
@@ -219,7 +225,8 @@ export default function LoginPage() {
   };
 
   const headings = {
-    identifier: ["Welcome", `Log in or sign up with your ${ID_LABEL.toLowerCase()}`],
+    // (the admin website: only the team logs in there — a new account is made by an admin, Customers → Add an admin)
+    identifier: APP === "admin" ? ["IDENTEE Admin", "Team members log in with their email"] : ["Welcome", `Log in or sign up with your ${ID_LABEL.toLowerCase()}`],
     otp: ["Enter the code", sentTo],
     profile: ["Almost there", "Tell us your name to finish creating your account"],
   };
@@ -347,7 +354,7 @@ export default function LoginPage() {
           </p>
           {expired && step === "identifier" && (
             <p role="status" className="text-sm mb-6" style={{ color: "#F0D585", background: "#C9A24B1A", border: "1px solid #C9A24B55", borderRadius: 10, padding: "10px 12px", lineHeight: 1.5 }}>
-              Your login has expired — please log in again. Anything you were designing is still here.
+              {APP === "admin" ? "Your login has expired — please log in again." : "Your login has expired — please log in again. Anything you were designing is still here."}
             </p>
           )}
 
@@ -381,8 +388,9 @@ export default function LoginPage() {
                 className="text-xs text-center mt-6 leading-relaxed"
                 style={{ color: "#5A5852" }}
               >
-                New to IDENTEE? We'll create your account after you verify
-                the code.
+                {APP === "admin"
+                  ? "Not on the team list yet? Ask an IDENTEE admin to add your email."
+                  : "New to IDENTEE? We'll create your account after you verify the code."}
               </p>
             </>
           )}

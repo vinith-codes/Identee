@@ -205,6 +205,32 @@ curl -s -H "Host: identee.co.in" http://127.0.0.1/api/settings/public | head -c 
 
 The first shows HTML (`<!doctype html>…`), the second shows the shop's settings as JSON.
 
+## 6e. The admin website (admin.identee.co.in)
+
+The shop and the team's pages are **two websites built from the one `frontend` folder**:
+
+| Build command | Folder it makes | Goes to | What's in it |
+|---|---|---|---|
+| `npm run build:shop` | `frontend/dist-shop` | `identee.co.in` | the customer pages only |
+| `npm run build:admin` | `frontend/dist-admin` | `admin.identee.co.in` | the admin and seller pages only |
+| `npm run build` | `frontend/dist` | (one website, as before) | both together — only for the laptop, or until the admin address is ready |
+
+(Both read `VITE_API_URL` from `.env.production`. `deploy/deploy.sh` builds the shop into `dist` and the admin
+into `dist-admin`.)
+
+What the admin address needs on the server, **before** the split builds go live:
+
+1. **DNS:** an `A` record `admin` → the server's IP (the same as `identee.co.in`).
+2. **A website for it** (Apache or Nginx), its folder holding the admin build, with the same `.htaccess` (it is
+   inside the build) / the same "every address opens index.html" rule.
+3. **HTTPS** for `admin.identee.co.in`.
+4. **Backend `.env`:** add the address to `CORS_ORIGIN`
+   (`CORS_ORIGIN=https://identee.co.in,https://www.identee.co.in,https://admin.identee.co.in`) and set
+   `ADMIN_URL=https://admin.identee.co.in` (the "you've been added to the team" email links there), then restart.
+
+After that, `identee.co.in/admin/...` sends people to the same page on `admin.identee.co.in`. The team logs in
+there once (a browser keeps a separate login per website) — the same email code as before.
+
 ## 7. Point the domain here (DNS)
 
 In GoDaddy → My Products → identee.co.in → **DNS**. **Take a screenshot of everything first.** Then:
