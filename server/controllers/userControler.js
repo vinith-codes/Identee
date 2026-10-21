@@ -677,8 +677,8 @@ const addTeamMember = asyncHandler(async (req, res) => {
   }
 
   let emailed = false;
+  const site = await teamAddress();
   try {
-    const site = await teamAddress();
     const who = req.user?.name ? ` by ${req.user.name}` : "";
     await mailer().sendMail({
       from: fromAddress(),
@@ -701,7 +701,7 @@ const addTeamMember = asyncHandler(async (req, res) => {
 
   const done = created ? `Account made for ${email} — they're now ${label}.` : `${user.name || email} is now ${label}.`;
   res.status(created ? 201 : 200).json({
-    message: `${done} ${emailed ? "We emailed them how to log in." : `The email to them didn't go out, so tell them yourself: log in at the website with ${email}.`}`,
+    message: `${done} ${emailed ? "We emailed them how to log in." : `The email to them didn't go out, so tell them yourself: log in at ${site}/login with ${email}.`}`,
     created,
     emailed,
     user: { _id: user._id, name: user.name, email: user.email, isAdmin: user.isAdmin, isSeller: user.isSeller, isDelivery: user.isDelivery, orderCount: 0, createdAt: user.createdAt },

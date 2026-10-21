@@ -8,6 +8,7 @@ import { store } from "./redux/store";
 import axios from "axios";
 import api, { img } from "../api.js";
 import { watchForExpiredLogin } from "./utils/sessionExpiry";
+import { ToastContainer } from "react-toastify";
 
 // an expired or invalid login logs out cleanly and opens the login page (utils/sessionExpiry.js)
 watchForExpiredLogin([axios, api, img], import.meta.env.VITE_API_URL || "http://localhost:5000");
@@ -37,5 +38,7 @@ window.addEventListener("vite:preloadError", (event) => {
 ReactDOM.createRoot(document.getElementById("root")).render(
   <Provider store={store}>
     <App />
+    {/* the short messages pages show with toast(…) — "Payment failed…", "Account deleted" (missing since June: none showed) */}
+    <ToastContainer position="top-right" autoClose={4000} newestOnTop />
   </Provider>,
 );

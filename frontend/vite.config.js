@@ -52,10 +52,12 @@ export default defineConfig(({ command, mode }) => {
     // main.jsx imports "@identee-app": the shop, the admin, or both, depending on the mode
     resolve: { alias: { "@identee-app": fileURLToPath(new URL(APPS[app], import.meta.url)) } },
     define,
+    // the shop and the admin test servers run side by side: each keeps its own prepared libraries (sharing one
+    // folder, each kept redoing it and the other's pages failed to load — "Outdated Optimize Dep")
+    cacheDir: app === "all" ? "node_modules/.vite" : `node_modules/.vite-${app}`,
     assetsInclude: ["**/*.glb"],
     // jszip is only loaded when an admin downloads print files; listing it here
     // stops the dev server from reloading the page the first time that happens
-    // (the same goes for the background remover's AI library)
-    optimizeDeps: { include: ["jszip", "@huggingface/transformers"] },
+    optimizeDeps: { include: ["jszip"] },
   };
 });

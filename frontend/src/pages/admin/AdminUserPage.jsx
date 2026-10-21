@@ -167,7 +167,7 @@ const AdminUsersPage = () => {
       {addOpen ? (
         <form className="aw-card cu-add" onSubmit={handleAdd}>
           <h2>Add an admin by email</h2>
-          <p>They don't need an account yet. They'll get an email, then log in at the website with this address — a code is sent to it, there's no password.</p>
+          <p>They don't need an account yet. They'll get an email saying where to log in, then log in there with this address — a code is sent to it, there's no password.</p>
           <div className="cu-addrow">
             <label>
               Email
