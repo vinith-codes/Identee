@@ -56,15 +56,18 @@ export const deleteArtDesign = asyncHandler(async (req, res) => {
     res.status(404);
     throw new Error("Design not found");
   }
-  // customer designs (and orders) point at this picture: deleting it would leave them blank
+  // Customer designs (and orders) point at this picture. The design always leaves the library, but its picture
+  // file is kept while any customer design uses it — those designs and their print files keep showing it.
+  // (Before 21 Oct 2026 a used design couldn't be deleted at all, so test designs couldn't be cleared.)
   const used = await Customization.countDocuments({ $or: [{ "elements.artDesignId": design._id }, ...(design.imageUrl ? [{ "elements.src": design.imageUrl }] : [])] });
-  if (used) {
-    res.status(409);
-    throw new Error(`"${design.name}" is used in ${used} customer design${used === 1 ? "" : "s"}, so it can't be deleted. Hide it instead — those designs and their print files keep the picture.`);
-  }
-  if (design.imageUrl) await deleteStoredFile(design.imageUrl);
+  if (design.imageUrl && !used) await deleteStoredFile(design.imageUrl);
   await design.deleteOne();
-  res.json({ message: "Design deleted" });
+  res.json({
+    message: used
+      ? `"${design.name}" was removed from the library. ${used} customer design${used === 1 ? " uses" : "s use"} its picture, so the picture is kept for ${used === 1 ? "it" : "them"}.`
+      : "Design deleted",
+    keptPicture: Boolean(used),
+  });
 });
 
 // PUT /api/art-designs/:id/visibility  { isActive }  — hide from customers / show again (nothing is lost)

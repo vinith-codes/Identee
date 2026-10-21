@@ -49,7 +49,7 @@ export const deleteArtCategory = asyncHandler(async (req, res) => {
   const inside = await ArtDesign.countDocuments({ category: category._id });
   if (inside) {
     res.status(409);
-    throw new Error(`"${category.name}" still has ${inside} design${inside === 1 ? "" : "s"}. Delete or hide them first.`);
+    throw new Error(`"${category.name}" still has ${inside} design${inside === 1 ? "" : "s"}. Delete ${inside === 1 ? "it" : "them"} first (Design library → Designs), then the group.`);
   }
   if (category.thumbnail) await deleteStoredFile(category.thumbnail);
   await category.deleteOne();
