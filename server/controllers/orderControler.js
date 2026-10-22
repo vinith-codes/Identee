@@ -502,10 +502,20 @@ const emailInvoiceToCustomer = asyncHandler(async (req, res) => {
 
   // Two steps that can fail for different reasons — the admin is told which one (it used to be one message for
   // both, so nobody knew whether to fix Chrome on the server or the email settings).
-  // 1. the PDF (the SAME template as the admin's InvoiceDocument), made with Chrome on the server
+  // 1. the PDF. Normally the admin page sends the one it made in the browser (the same file as Download PDF) —
+  //    the live server can't run Chrome (22 Oct 2026: its restricted login has no /tmp and none of Chrome's
+  //    system libraries). Without one, Chrome on the server makes it from the same template.
   let pdfBuffer;
+  const sent = typeof req.body?.pdfBase64 === "string" ? Buffer.from(req.body.pdfBase64, "base64") : null;
+  if (sent) {
+    if (sent.length > 10 * 1024 * 1024 || sent.subarray(0, 5).toString("latin1") !== "%PDF-") {
+      res.status(400);
+      throw new Error("The invoice PDF from the page isn't a valid PDF. Reload the page and try again.");
+    }
+    pdfBuffer = sent;
+  }
   try {
-    pdfBuffer = await generateInvoicePdfBuffer(order.invoiceDetails);
+    pdfBuffer ||= await generateInvoicePdfBuffer(order.invoiceDetails);
   } catch (err) {
     console.error("❌ Invoice PDF failed (Chrome for invoice PDFs on the server):", err?.message || err);
     return res.status(500).json({

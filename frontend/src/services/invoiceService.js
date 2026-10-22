@@ -22,10 +22,12 @@ const getAllInvoices = async (token) => {
   return res.data;
 };
 
-const emailInvoice = async (orderId, token) => {
+// pdfBase64: the invoice PDF made in the admin's browser (the same file as Download PDF). The live server can't
+// run Chrome (22 Oct 2026), so the backend attaches this one; without it the backend tries its own Chrome.
+const emailInvoice = async (orderId, token, pdfBase64) => {
   const res = await axios.post(
     `${API_URL}/admin/order/${orderId}/invoice/email`,
-    {},
+    pdfBase64 ? { pdfBase64 } : {},
     authHeader(token),
   );
   return res.data;

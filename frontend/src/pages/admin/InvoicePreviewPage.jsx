@@ -86,6 +86,7 @@ export default function InvoicePreviewPage() {
           unit: "mm",
           format: [pageWidthMm, pageHeightMm],
           orientation: "portrait",
+          compress: true, // 22 Oct 2026: was an 11 MB file, now about 0.2 MB — the same sharp png picture
         },
         pagebreak: { mode: ["avoid-all", "css", "legacy"] },
       })
@@ -112,6 +113,7 @@ export default function InvoicePreviewPage() {
           unit: "mm",
           format: [pageWidthMm, pageHeightMm],
           orientation: "portrait",
+          compress: true,
         },
         pagebreak: { mode: ["avoid-all", "css", "legacy"] },
       })
@@ -130,10 +132,41 @@ export default function InvoicePreviewPage() {
     });
   };
 
+  // The invoice PDF as base64, made here in the browser exactly like Print Invoice does (null if that fails —
+  // the backend then tries to make it with its own Chrome).
+  const makePdfBase64 = async () => {
+    const el = printRef.current;
+    if (!el) return null;
+    try {
+      const pxToMm = (px) => (px * 25.4) / 96;
+      const pageHeightMm = pxToMm(el.offsetHeight * (210 / pxToMm(el.offsetWidth)));
+      const blob = await html2pdf()
+        .set({
+          margin: 0,
+          image: { type: "png" },
+          html2canvas: { scale: 2, useCORS: true },
+          jsPDF: { unit: "mm", format: [210, pageHeightMm], orientation: "portrait", compress: true }, // ~0.2 MB, not 11 MB
+          pagebreak: { mode: ["avoid-all", "css", "legacy"] },
+        })
+        .from(el)
+        .outputPdf("blob");
+      const dataUrl = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+      return String(dataUrl).split(",")[1] || null;
+    } catch {
+      return null;
+    }
+  };
+
   const handleEmail = async () => {
     setEmailing(true);
     try {
-      const res = await invoiceService.emailInvoice(orderId, user.token);
+      const pdfBase64 = await makePdfBase64();
+      const res = await invoiceService.emailInvoice(orderId, user.token, pdfBase64);
       toast.success(res.message || "Invoice emailed");
       setShowEmailConfirm(true);
     } catch (err) {

@@ -15,9 +15,15 @@
   RewriteEngine On
   RewriteBase /
 
+  # http → https (22 Oct 2026: http://identee.co.in opened without the padlock and its login failed, because the
+  # backend only accepts the https addresses). The live Apache serves https itself; the X-Forwarded-Proto line stops
+  # an endless loop if the hosting ever puts a proxy in front of Apache that handles https.
+  RewriteCond %{HTTPS} off
+  RewriteCond %{HTTP:X-Forwarded-Proto} !https
+  RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [R=301,L]
+
   # one address for the site: www.identee.co.in → identee.co.in (a browser keeps a separate login per address, so
-  # opening the www one asked people to log in again). (http → https is left to the hosting panel's "Force HTTPS":
-  # done here it can loop forever on servers where HTTPS is handled in front of Apache.)
+  # opening the www one asked people to log in again).
   RewriteCond %{HTTP_HOST} ^www\.identee\.co\.in$ [NC]
   RewriteRule ^ https://identee.co.in%{REQUEST_URI} [R=301,L]
 
