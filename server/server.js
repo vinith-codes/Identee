@@ -16,6 +16,7 @@ import subscriptionsRoutes from "./routes/subscriptionRoutes.js";
 import offerRoutes from "./routes/offerRoutes.js";
 import shippingRoutes from "./routes/shippingRoutes.js";
 import contactRoutes from "./routes/contactRoutes.js";
+import waitlistRoutes from "./routes/waitlistRoutes.js";
 import enquiryRoutes from "./routes/Enquiryroutes.js";
 import customizationRoutes from "./routes/customizationRoutes.js";
 import { notFound, errorHandler } from "./middleware/errorMiddleware.js";
@@ -112,6 +113,7 @@ app.use("/api/offers", offerRoutes);
 app.use("/api/enquiry", enquiryRoutes);
 app.use("/api/shipping", shippingRoutes);
 app.use("/api/contact", contactRoutes);
+app.use("/api/waitlist", waitlistRoutes); // "Notify me" (22 Oct 2026)
 app.use("/api/customizations", customizationRoutes);
 app.use("/api/garment-images", garmentColorImageRoutes);
 app.use("/api/garment-types", garmentTypeRoutes);

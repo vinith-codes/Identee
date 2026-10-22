@@ -5,6 +5,9 @@ import asyncHandler from "express-async-handler";
 
 const sendContactEmail = asyncHandler(async (req, res) => {
   const { email, message } = req.body;
+  // the page also asks for a name and a phone (both optional) — they go into the email to the shop (22 Oct 2026)
+  const name = String(req.body.name || "").trim().slice(0, 100);
+  const phone = String(req.body.phone || "").trim().slice(0, 30);
 
   if (!email || !message) {
     return res.status(400).json({ message: "All fields are required" });
@@ -24,7 +27,7 @@ const sendContactEmail = asyncHandler(async (req, res) => {
       to: await shopInbox(),
       replyTo: String(email).trim(),
       subject: "New message from the IDENTEE contact page",
-      text: `From: ${email}\n\nMessage:\n${message}`,
+      text: `From: ${name ? `${name} <${email}>` : email}${phone ? `\nPhone: ${phone}` : ""}\n\nMessage:\n${message}`,
     });
 
     res.status(200).json({ message: "Message sent successfully" });

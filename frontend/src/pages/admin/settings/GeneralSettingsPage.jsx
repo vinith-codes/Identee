@@ -259,6 +259,20 @@ export default function GeneralSettingsPage() {
         />
       </SettingCard>
 
+      <SettingCard title="Notify me strip">
+        <ToggleField
+          label="Show the “under development · Notify me” strip"
+          description="A thin strip at the very top of every customer page. Visitors leave their email and you tell them when the new designs are here (Customers → Notify me list). Turn it off once the site is complete."
+          checked={form["general.notifyStrip"] !== false}
+          onChange={(v) => set("general.notifyStrip", v)}
+        />
+        <TextField
+          label="Words in the strip (on phones it says “We're under development”)"
+          value={form["general.notifyStripText"] || ""}
+          onChange={(v) => set("general.notifyStripText", v)}
+        />
+      </SettingCard>
+
       <SettingCard
         title="Maintenance Mode"
         danger={!!form["general.maintenanceMode"]}

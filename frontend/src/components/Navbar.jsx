@@ -12,6 +12,7 @@ import { fetchCategories } from "../redux/slices/categorySlice";
 import { isReadyMade } from "../utils/categoryKinds";
 import { SHOPS } from "../utils/shopNames";
 import OfferStrip from "./OfferStrip";
+import NotifyStrip from "./NotifyStrip";
 import { imageUrl } from "../utils/imageUrl";
 
 
@@ -154,6 +155,9 @@ export default function Navbar() {
 
   return (
     <>
+      {/* ─── "We're under development · Notify me" (Admin → Settings → General; the list: Customers → Notify me list) ─── */}
+      <NotifyStrip user={user} />
+
       {/* ─── Offer strip: the live coupon + free shipping, and the Offer banner text (/admin/offer-banner) ─── */}
       <OfferStrip adminText={activeOffer?.offerText} />
 

@@ -24,6 +24,7 @@ const AdminShippingPage = lazy(() => import("../pages/admin/AdminShippingPage"))
 const OffersPage = lazy(() => import("../pages/admin/OffersPage"));
 const SubscriptionPlansPage = lazy(() => import("../pages/admin/SubscriptionPlansPage"));
 const SubscribersPage = lazy(() => import("../pages/admin/SubscribersPage"));
+const WaitlistPage = lazy(() => import("../pages/admin/WaitlistPage"));
 const GarmentPhotosPage = lazy(() => import("../pages/admin/GarmentPhotosPage"));
 const GarmentTypesPage = lazy(() => import("../pages/admin/GarmentTypesPage"));
 const ArtCategoriesPage = lazy(() => import("../pages/admin/ArtCategoriesPage"));
@@ -132,6 +133,7 @@ export function adminRoutes() {
         <Route path="invoices/:orderId" element={<InvoicePreviewPage />} />
         <Route path="/admin/subscriptions" element={<SubscriptionPlansPage />} />
         <Route path="/admin/subscribers" element={<SubscribersPage />} />
+        <Route path="/admin/waitlist" element={<WaitlistPage />} />
         {/* Review moderation */}
         <Route path="reviews" element={<AdminReviewsPage />} />
       </Route>

@@ -20,7 +20,7 @@ import {
 } from "../utils/otp.js";
 import Subscription from "../models/subscriptionModel.js";
 import Order from "../models/orderModel.js";
-import Setting from "../models/settingModel.js";
+import { siteAddress, withScheme } from "../utils/siteAddress.js";
 import { mailer, fromAddress } from "../utils/mailer.js";
 import ShippingCost from "../models/shippingcostModel.js";
 import { addressProblem } from "../utils/address.js";
@@ -641,16 +641,6 @@ const TEAM_ROLES = {
   admin: { field: "isAdmin", label: "an admin" },
   seller: { field: "isSeller", label: "a seller" },
   delivery: { field: "isDelivery", label: "a delivery person" },
-};
-// an address as a link that opens: "identee.co.in" (as Settings → General may hold it) → "https://identee.co.in"
-const withScheme = (url) => {
-  const u = String(url || "").trim().replace(/\/+$/, "");
-  return u && !/^https?:\/\//i.test(u) ? `https://${u}` : u;
-};
-const siteAddress = async () => {
-  const set = (await Setting.findOne({ key: "general.websiteUrl" }).select("value").lean())?.value;
-  const fromCors = String(process.env.CORS_ORIGIN || "").split(",")[0].trim();
-  return withScheme(set || fromCors || "https://identee.co.in");
 };
 // where the team logs in: the admin website (ADMIN_URL in .env, e.g. https://admin.identee.co.in) once the shop and
 // the admin are two websites; until it is set, the shop's address (the admin pages are still part of it)

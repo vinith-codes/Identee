@@ -173,7 +173,8 @@ function ContactForm() {
     setStatus("sending");
     setErrorMsg("");
     try {
-      const res = await fetch(`${BACKEND_URL}/api/contact`, {
+      // (22 Oct 2026: this posted to /api/contact, which doesn't exist — every message got a 404 and was lost)
+      const res = await fetch(`${BACKEND_URL}/api/contact/send`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),

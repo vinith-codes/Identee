@@ -76,6 +76,7 @@ export const ADMIN_MENU = [
     children: [
       { to: "/admin/users", label: "All customers" },
       { to: "/admin/subscribers", label: "Subscribers" },
+      { to: "/admin/waitlist", label: "Notify me list" },
       { to: "/admin/subscriptions", label: "Subscription plans" },
     ],
   },

@@ -135,6 +135,21 @@ export const GENERAL_SETTINGS_DEFAULTS = [
     description: "Shop your IDENTEE is open (off: Coming soon)",
   },
   {
+    // the thin "under development · Notify me" strip at the very top of every customer page (22 Oct 2026)
+    key: "general.notifyStrip",
+    value: true,
+    type: "boolean",
+    isPublic: true,
+    description: "Show the “under development · Notify me” strip on the site",
+  },
+  {
+    key: "general.notifyStripText",
+    value: "We're under development · new designs coming soon",
+    type: "string",
+    isPublic: true,
+    description: "The words in the Notify me strip",
+  },
+  {
     key: "general.maintenanceMode",
     value: false,
     type: "boolean",

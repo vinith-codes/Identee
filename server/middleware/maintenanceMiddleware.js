@@ -13,7 +13,8 @@ import User from "../models/userModel.js";
 // Path prefixes that must always stay reachable, maintenance mode or
 // not — the settings API itself (so an admin can turn it back off),
 // auth (so an admin can log in), and static uploads.
-const ALWAYS_ALLOWED_PREFIXES = ["/api/settings", "/api/users", "/uploads"];
+// (/api/waitlist: "Notify me" keeps working, so visitors can ask to be told when the site is back)
+const ALWAYS_ALLOWED_PREFIXES = ["/api/settings", "/api/users", "/uploads", "/api/waitlist"];
 
 export const checkMaintenanceMode = async (req, res, next) => {
   try {
