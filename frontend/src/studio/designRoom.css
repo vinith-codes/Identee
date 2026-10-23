@@ -1561,3 +1561,17 @@ p.pc-area { margin: 0; font-size: 13px; color: var(--muted); }
   .dr-ask.dr-place { max-height: 86vh; max-height: 86dvh; }
   .dr-mypics-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
+/* "Add more" (23 Oct 2026): Text · Upload · Art · My pictures, each straight to its tab and drawn like the tabs
+   (one "+ Add more" didn't say what it opens) — four equal columns at every width. On phones only the buttons show. */
+.dr-app .dr-addhead { flex-direction: column; align-items: stretch; gap: 6px; }
+.dr-addmore { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 5px; }
+.dr-addmore-btn { display: grid; justify-items: center; align-content: center; gap: 3px; min-height: 52px; padding: 6px 2px; border: 1px solid var(--line); border-radius: 12px;
+  background: #fff; color: var(--ink-soft); font: inherit; font-size: 11.5px; font-weight: 700; line-height: 1.15; text-align: center; cursor: pointer; }
+.dr-addmore-btn svg { width: 18px; height: 18px; }
+.dr-addmore-label { display: none; }
+@media (max-width: 760px) {
+  /* (phones hide the long hint above, so the buttons get a short label) */
+  .dr-addmore-label { display: block; font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--gold-deep); }
+}
+.dr-addmore-btn:hover { border-color: var(--gold); color: var(--ink); }
+.dr-addmore-btn span { min-width: 0; } /* ("My pictures" may take two lines in a narrow panel, split between the words) */

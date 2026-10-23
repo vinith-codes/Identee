@@ -2901,7 +2901,10 @@ export default function DesignRoomPage() {
                 onLayer={layerSel}
                 onRemoveBg={removeBg}
                 onFix={ai.available ? fixPicture : null}
-                onAddMore={() => setSelectedId(null)}
+                onAddMore={(tab) => {
+                  setAddTab(tab);
+                  setSelectedId(null);
+                }}
                 canEnlarge={ai.available}
               />
             ) : (
@@ -3373,8 +3376,19 @@ function Controls({ sel, areaCmW, areaRatio, onPatch, onDelete, onDuplicate, onL
   return (
     <div className="dr-controls">
       <div className="dr-addhead">
-        <span>Tap another item on the print area to edit it</span>
-        <button type="button" className="dr-chip" onClick={onAddMore}>+ Add more</button>
+        <span>Tap another item on the print area to edit it, or add more:</span>
+        <small className="dr-addmore-label">Add more</small>
+        {/* (one "+ Add more" didn't say what it opens: each one goes straight to its tab, and looks like it) */}
+        <div className="dr-addmore" role="group" aria-label="Add more to this print area">
+          {ADD_TABS.map(([k, label, icon]) => (
+            <button key={k} type="button" className="dr-addmore-btn" onClick={() => onAddMore(k)} aria-label={`Add ${label.toLowerCase()}`}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d={icon} />
+              </svg>
+              <span>{label}</span>
+            </button>
+          ))}
+        </div>
       </div>
       {sel?.type === "text" && (
         <>
