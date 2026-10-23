@@ -24,6 +24,8 @@ const getCategoryGarments = async (slug) =>
 
 /* ---------- admin ---------- */
 const adminGetCategories = async () => (await axios.get(`${API_URL}/admin/all`, auth())).data;
+// the styles your products and garments really have: { readymade: [{ style, count }], customizable: [{ style, garments }] }
+const adminGetStyles = async () => (await axios.get(`${API_URL}/admin/styles`, auth())).data;
 // formData: name, description, styles (JSON array), isActive, isCustomizable,
 // comingSoon, image (file), bannerImage (file), remove_image, remove_bannerImage
 const createCategory = async (formData) => (await axios.post(API_URL, formData, auth())).data;
@@ -40,6 +42,7 @@ export default {
   getCategoryProducts,
   getCategoryGarments,
   adminGetCategories,
+  adminGetStyles,
   createCategory,
   updateCategory,
   reorderCategories,

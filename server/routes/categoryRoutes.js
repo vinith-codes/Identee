@@ -5,6 +5,7 @@ import {
   getCategoryProducts,
   getCategoryGarments,
   adminGetCategories,
+  adminGetStyles,
   createCategory,
   updateCategory,
   reorderCategories,
@@ -18,6 +19,8 @@ const router = express.Router();
 
 // Admin (declared before "/:slug" so "admin"/"reorder" aren't read as slugs)
 router.get("/admin/all", protect, admin, adminGetCategories);
+// the styles your products and garments really have, to tick in "What goes in it?"
+router.get("/admin/styles", protect, admin, adminGetStyles);
 router.put("/reorder", protect, admin, reorderCategories);
 router.post("/", protect, admin, uploadCategoryImages, createCategory);
 router.put("/:id", protect, admin, uploadCategoryImages, updateCategory);

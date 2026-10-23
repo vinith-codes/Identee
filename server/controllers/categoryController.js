@@ -212,6 +212,38 @@ export const adminGetCategories = asyncHandler(async (req, res) => {
   );
 });
 
+// @desc   The styles that really exist, to tick in "What goes in it?" (Admin → Storefront → Categories, 23 Oct 2026):
+//         the ready-made products' Garment Styles (how many products on the website have each) and the designable
+//         garments' styles (which garments). Same spelling merged, whatever the upper/lower case.
+// @route  GET /api/categories/admin/styles   -> { readymade: [{ style, count }], customizable: [{ style, garments }] }
+export const adminGetStyles = asyncHandler(async (req, res) => {
+  const merged = new Map(); // lower-case style -> { style, groups: Set }
+  const rows = await Product.find({ "productdetails.garmentStyle": { $nin: [null, ""] } })
+    .select("productdetails.garmentStyle productGroupId isHidden")
+    .lean();
+  for (const p of rows) {
+    const style = String(p.productdetails?.garmentStyle || "").trim();
+    if (!style) continue;
+    const k = style.toLowerCase();
+    if (!merged.has(k)) merged.set(k, { style, groups: new Set() });
+    if (p.isHidden !== true) merged.get(k).groups.add(String(p.productGroupId || p._id));
+  }
+  const garments = await GarmentType.find().select("label category").lean();
+  const byStyle = new Map();
+  for (const g of garments) {
+    const style = String(g.category || "").trim();
+    if (!style) continue;
+    const k = style.toLowerCase();
+    if (!byStyle.has(k)) byStyle.set(k, { style, garments: [] });
+    byStyle.get(k).garments.push(g.label);
+  }
+  const sort = (a, b) => a.style.localeCompare(b.style);
+  res.json({
+    readymade: [...merged.values()].map((m) => ({ style: m.style, count: m.groups.size })).sort(sort),
+    customizable: [...byStyle.values()].sort(sort),
+  });
+});
+
 const applyBody = (category, body) => {
   if (body.name !== undefined) {
     const name = String(body.name).trim();
