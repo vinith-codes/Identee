@@ -36,7 +36,8 @@ const removeBg = async (body) => (await axios.post(`${API_URL}/remove-background
 const photoPlan = async (body) => (await axios.post(`${API_URL}/photo-plan`, body, { ...auth(), timeout: 30000 })).data;
 
 // the smart Assistant (23 Oct 2026): one typed message, read by Google's text AI (login optional)
-// { message, history: [{ who, text }], design, facts, areas } -> { reply, ideas, do, chips }
+// { message, history: [{ who, text }], earlier, memory, design, facts, areas } -> { reply, ideas, do, chips, memory? }
+// (earlier / memory: a long chat's older messages not in its memory note yet, and the note — a new one comes back)
 const chat = async (body) => (await axios.post(`${API_URL}/chat`, body, { ...auth(), timeout: 30000 })).data;
 
 // admin

@@ -8,6 +8,8 @@ const aiChatUsageSchema = new mongoose.Schema(
     user: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null }, // null: a visitor not logged in
     costInr: { type: Number, default: 0 },
     model: { type: String, default: "" },
+    // "reply": one answer · "memory": a long chat's memory note rewritten (23 Oct 2026) — costed, not a message
+    kind: { type: String, enum: ["reply", "memory"], default: "reply" },
   },
   { timestamps: true },
 );

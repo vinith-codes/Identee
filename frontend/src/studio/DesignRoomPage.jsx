@@ -24,6 +24,12 @@ import { areaCm, blockersOf, clashesIn, modelForGarment, placeArea } from "./tee
 import AreaThumb from "./AreaThumb";
 import Rolling from "./Rolling";
 import Assistant from "./Assistant";
+import ChatsPanel from "./ChatsPanel";
+import MyPictures from "./MyPictures";
+import PlaceSheet from "./PlaceSheet";
+import { PICTURES_CHANGED } from "./pictureHelpers";
+import myPicturesService from "../services/myPicturesService";
+import { chatTitle, historyFor, listChats, loadChat, moveLocalChats, saveChat } from "./chatStore";
 import { AFTER_AI_SLOGANS, AFTER_DESIGN_CHIPS, BACK, CHANGE_IDEA, DRAW_MINE, PHOTO_AS_IS, PHOTO_CHOICES, PHOTO_CUT, PHOTO_REVERT, PROMPT_MAX, bot as botSays, checkMessages, chips as chipRow, firstMessages, firstState, smartPlan } from "./assistantScript";
 import { styleIn } from "./styleInfo";
 import { areasFromWords, photoJobFrom, SAME_THEME } from "./photoIntent";
@@ -47,6 +53,8 @@ const ADD_TABS = [
   ["text", "Text", "M5 6V4h14v2M12 4v16M9 20h6"],
   ["upload", "Upload", "M12 16V4m0 0-4 4m4-4 4 4M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"],
   ["art", "Art", "M4 5h16v14H4zM8 13l3-3 5 5M15 9h.01"],
+  // the pictures made or uploaded before, in any chat (23 Oct 2026)
+  ["mine", "My pictures", "M8 4h12v12H8zM4 8v12h12M11 13l2.5-2.5L17 14"],
 ];
 // (drawing and photos happen in the chat — the Assistant — since 20 Oct 2026; there are no Draw / Photo pages)
 const ICON_AI = "m12 3 1.8 4.7L18 9.5l-4.2 1.8L12 16l-1.8-4.7L6 9.5l4.2-1.8L12 3Z";
@@ -185,6 +193,8 @@ export default function DesignRoomPage() {
   const [earlier, setEarlier] = useState(() => (fresh && stored?.elements?.length && !stored.designId ? stored : null));
   const draft = fresh ? null : stored;
   const session = useMemo(() => (fresh ? null : readJSON(ROOM_KEY(type))), [type]); // eslint-disable-line react-hooks/exhaustive-deps
+  // the room as it was before "Start designing": its chat goes to Chats before the new one starts (below)
+  const oldRoom = useMemo(() => (fresh ? readJSON(ROOM_KEY(type)) : null), [type]); // eslint-disable-line react-hooks/exhaustive-deps
   const [step, setStep] = useState(draft?.elements?.length || session?.entered ? "design" : "fit");
   // the colour in the address starts a NEW design; a design in progress keeps its own colour
   const [colourSlug, setColourSlug] = useState((fresh && params.get("color")) || draft?.colour || session?.colour || params.get("color") || null);
@@ -215,6 +225,12 @@ export default function DesignRoomPage() {
   // the assistant's conversation (kept while you switch tabs, and across a reload of the page)
   const [chat, setChat] = useState(() => (Array.isArray(session?.chat) && session.chat.length ? session.chat : firstMessages()));
   const [chatState, setChatState] = useState(() => session?.chatState || firstState());
+  // Chats (23 Oct 2026, studio/chatStore.js): this conversation's id, the memory note of a long chat, the list open
+  const [chatId, setChatId] = useState(() => session?.chatId || makeId());
+  const [chatMemory, setChatMemory] = useState(() => (typeof session?.memory === "string" ? session.memory : ""));
+  const [chatsOpen, setChatsOpen] = useState(false);
+  // the design in My designs this chat is about: opening another one from My designs starts (or finds) its own chat
+  const chatDesign = useRef(draft?.designId || null);
   // the AI design maker: whether it is on, how many requests are left today, and where its designs sit on the tee
   const [ai, setAi] = useState({ available: false, reason: "setup", styles: [], photoStyles: [], left: null });
   const photoRef = useRef(null); // the file picker for "photo to art"
@@ -393,68 +409,8 @@ export default function DesignRoomPage() {
     if (!type) return;
     if (step !== "fit") entered.current = true;
     if (!entered.current) return;
-    writeJSON(ROOM_KEY(type), { entered: step !== "fit", colour: colour?.slug, size: sizeNow, assist, chat: chat.slice(-CHAT_KEPT), chatState, aiPlaced });
-  }, [type, step, colour?.slug, sizeNow, assist, chat, chatState, aiPlaced]);
-
-  // Drop ?new=1 and ?color= from the address so a reload keeps the design in progress. (The colour in
-  // the address is only where a new design starts; left there, a reload brought it back over the colour
-  // the customer had picked since.)
-  useEffect(() => {
-    if (!fresh && !params.get("color") && !params.get("team") && !params.get("start")) return;
-    const next = new URLSearchParams(params);
-    next.delete("new");
-    next.delete("color");
-    next.delete("team");
-    next.delete("start");
-    navigate(`${location.pathname}${next.toString() ? `?${next}` : ""}`, { replace: true });
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const continueEarlier = () => {
-    if (!earlier) return;
-    setElements(earlier.elements);
-    if (earlier.colour) setColourSlug(earlier.colour);
-    if (earlier.size) setSize(earlier.size);
-    setDesignId(earlier.designId || null);
-    setDesignName(earlier.name || "");
-    setPlayers((earlier.players || []).map((p) => ({ id: makeId(), ...p })));
-    setTeam(Boolean(earlier.players?.length));
-    setEarlier(null);
-    setStep("design");
-    setCamRequest({ view: "front", ms: 1600, n: nextReq() });
-  };
-
-  /* ---------- open a saved design: /customize/<garment>?design=<id> ---------- */
-  const openId = params.get("design");
-  const onScreenId = useRef(keepLocal ? draft.designId : null); // id of the saved design currently shown (set on load and on save)
-  useEffect(() => {
-    // after Save the address gets ?design=<id> of the design already on screen —
-    // nothing to load (re-loading would jump back from Review to Design)
-    if (!openId || !isLoggedIn() || openId === onScreenId.current) return;
-    let alive = true;
-    customizationService
-      .getCustomizationById(openId)
-      .then((d) => {
-        if (!alive) return;
-        if (d.garmentType !== type) return navigate(`/customize/${d.garmentType}?design=${d._id}`, { replace: true });
-        setElements(d.elements.map((e) => ({ ...e, id: e._id || e.id || makeId() })));
-        setColourSlug(d.color);
-        if (d.size) setSize(d.size);
-        onScreenId.current = d._id;
-        unsaved.current = false;
-        setDesignId(d._id);
-        setDesignName(d.name || "");
-        setLocked(!!d.orderedAt);
-        setPlayers((d.players || []).map((p) => ({ id: makeId(), name: p.name, number: p.number, size: p.size })));
-        setTeam(Boolean(d.players?.length));
-        setStep("design");
-        setCamRequest({ view: "front", ms: 1400, n: nextReq() });
-        if (d.orderedAt) setToast("This design was ordered. Changes will be saved as a new design.");
-      })
-      .catch(() => alive && setToast("Couldn't open that design. It may have been deleted."));
-    return () => {
-      alive = false;
-    };
-  }, [openId, type]); // eslint-disable-line react-hooks/exhaustive-deps
+    writeJSON(ROOM_KEY(type), { entered: step !== "fit", colour: colour?.slug, size: sizeNow, assist, chat: chat.slice(-CHAT_KEPT), chatState, aiPlaced, chatId, memory: chatMemory });
+  }, [type, step, colour?.slug, sizeNow, assist, chat, chatState, aiPlaced, chatId, chatMemory]);
 
   /* ---------- history (undo / redo) ---------- */
   const elementsRef = useRef(elements);
@@ -601,6 +557,214 @@ export default function DesignRoomPage() {
     clearTimeout(toastTimer.current);
     toastTimer.current = setTimeout(() => setToast(""), action ? 8000 : 4500);
   };
+
+  /* ---------- Chats: this conversation and its tee, saved as the customer goes (studio/chatStore.js) ---------- */
+  const chatRecord = () => {
+    const kept = chat.slice(-CHAT_KEPT);
+    return {
+      id: chatId,
+      type,
+      title: chatTitle(kept, designName || `${garment?.label || "My"} design`),
+      colour: colour?.slug || "",
+      designId,
+      updatedAt: Date.now(),
+      body: {
+        chat: kept,
+        chatState,
+        aiPlaced,
+        memory: chatMemory,
+        design: { elements, colour: colour?.slug, size: sizeNow, designId, name: designName, dirty: unsaved.current, locked, players: players.filter(filled).map(({ name, number, size: sz }) => ({ name, number, size: sz })) },
+      },
+    };
+  };
+  const recordNow = useRef(chatRecord);
+  useEffect(() => {
+    recordNow.current = chatRecord;
+  });
+  const saveTimer = useRef(0);
+  // save the open chat now (leaving: the page is closing). Nothing before the customer has stepped into the room.
+  const saveChatNow = (opts) => {
+    clearTimeout(saveTimer.current);
+    if (!entered.current) return Promise.resolve();
+    return saveChat(recordNow.current(), opts).catch(() => {});
+  };
+  // a couple of seconds after each change (typing, dragging and the chat come in bursts)
+  useEffect(() => {
+    if (!type || !entered.current) return;
+    clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => saveChat(recordNow.current()).catch(() => {}), 2000);
+  }, [type, step, chatId, chat, chatState, aiPlaced, chatMemory, elements, colour?.slug, sizeNow, designId, designName, players, locked]);
+  useEffect(() => {
+    // the tab hidden (phones: another app) or closed, and leaving the room for another page
+    const hidden = () => document.visibilityState === "hidden" && saveChatNow({ leaving: true });
+    const gone = () => saveChatNow({ leaving: true });
+    document.addEventListener("visibilitychange", hidden);
+    window.addEventListener("pagehide", gone);
+    moveLocalChats(); // chats made before logging in go to the account
+    return () => {
+      document.removeEventListener("visibilitychange", hidden);
+      window.removeEventListener("pagehide", gone);
+      saveChatNow();
+    };
+  }, []);
+
+  // "Start designing" (?new=1) begins a new chat: the one this device had open goes to Chats first
+  const archivedId = useRef(oldRoom?.chatId || makeId());
+  useEffect(() => {
+    if (!fresh || (!oldRoom && !stored)) return;
+    const d = stored || {};
+    const body = { chat: Array.isArray(oldRoom?.chat) ? oldRoom.chat : [], chatState: oldRoom?.chatState || null, aiPlaced: oldRoom?.aiPlaced || {}, memory: oldRoom?.memory || "", design: { elements: Array.isArray(d.elements) ? d.elements : [], colour: d.colour || oldRoom?.colour, size: d.size || oldRoom?.size, designId: d.designId || null, name: d.name || "", dirty: Boolean(d.dirty), locked: Boolean(d.locked), players: d.players || [] } };
+    saveChat({ id: archivedId.current, type, title: chatTitle(body.chat, d.name || "My design"), colour: body.design.colour || "", designId: body.design.designId, updatedAt: Date.now(), body }).catch(() => {});
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Put a chat in the room: the conversation only (a design opened from My designs keeps its own tee) …
+  const applyConversation = (rec) => {
+    const b = rec?.body || {};
+    setChatId(rec?.id || makeId());
+    setChat(Array.isArray(b.chat) && b.chat.length ? b.chat : firstMessages());
+    setChatState(b.chatState || firstState());
+    setAiPlaced(b.aiPlaced && typeof b.aiPlaced === "object" ? b.aiPlaced : {});
+    setChatMemory(typeof b.memory === "string" ? b.memory : "");
+  };
+  // … or the conversation and its tee (Chats, New chat)
+  const applyChat = (rec) => {
+    const d = rec?.body?.design || {};
+    applyConversation(rec);
+    hadElements.current = true; // (an empty tee is written over the one before)
+    hist.current = { past: [], future: [] };
+    bumpHistory();
+    setElements(Array.isArray(d.elements) ? d.elements : []);
+    if (d.colour) setColourSlug(d.colour);
+    if (d.size) setSize(d.size);
+    unsaved.current = Boolean(d.dirty);
+    chatDesign.current = d.designId || null;
+    setDesignId(d.designId || null);
+    setDesignName(d.name || "");
+    setLocked(Boolean(d.locked));
+    setPlayers((Array.isArray(d.players) ? d.players : []).map((p) => ({ id: makeId(), ...p })));
+    setTeam(Boolean(d.players?.length));
+    setSelectedId(null);
+    setActive(null);
+    setStep("design");
+    setAssist(true);
+    setCamRequest({ view: "front", ms: 1400, n: nextReq() });
+    // (a plain address: ?design=<id> would load the saved design over this one; a reload keeps it from this device)
+    navigate(`/customize/${type}`, { replace: true });
+  };
+  const newChat = async () => {
+    setChatsOpen(false);
+    await saveChatNow();
+    applyChat({ id: makeId(), body: { design: { colour: colour?.slug, size: sizeNow } } });
+    say("New chat started. Your earlier chat is saved in Chats.");
+  };
+  const openChat = async (c) => {
+    await saveChatNow();
+    // another garment's chat opens in that garment's room
+    if (c.type && c.type !== type) return window.location.assign(`/customize/${c.type}?chat=${c.id}`);
+    setChatsOpen(false);
+    const rec = await loadChat(c.id);
+    if (!rec) return say("Couldn’t open that chat. Check your connection and try again.");
+    applyChat(rec);
+  };
+  // /customize/<garment>?chat=<id>: a chat opened from another garment's room
+  const [chatLink] = useState(() => params.get("chat"));
+  useEffect(() => {
+    if (!chatLink) return;
+    let alive = true;
+    loadChat(chatLink).then(async (rec) => {
+      if (!alive) return;
+      if (!rec) {
+        navigate(location.pathname, { replace: true });
+        return say("Couldn’t open that chat. It may have been deleted.");
+      }
+      await saveChatNow(); // the chat this device had open here
+      applyChat(rec);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // a short line for a chat in the list: the garment and the tee colour
+  const chatAbout = (c) => {
+    const g = garments.find((x) => x.key === c.type);
+    const col = g?.colors?.find((x) => x.slug === c.colour);
+    return { text: [g?.label, col?.name].filter(Boolean).join(" · "), hex: col?.hex };
+  };
+
+  // Drop ?new=1 and ?color= from the address so a reload keeps the design in progress. (The colour in
+  // the address is only where a new design starts; left there, a reload brought it back over the colour
+  // the customer had picked since.)
+  useEffect(() => {
+    if (!fresh && !params.get("color") && !params.get("team") && !params.get("start")) return;
+    const next = new URLSearchParams(params);
+    next.delete("new");
+    next.delete("color");
+    next.delete("team");
+    next.delete("start");
+    navigate(`${location.pathname}${next.toString() ? `?${next}` : ""}`, { replace: true });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const continueEarlier = () => {
+    if (!earlier) return;
+    setElements(earlier.elements);
+    if (earlier.colour) setColourSlug(earlier.colour);
+    if (earlier.size) setSize(earlier.size);
+    setDesignId(earlier.designId || null);
+    setDesignName(earlier.name || "");
+    setPlayers((earlier.players || []).map((p) => ({ id: makeId(), ...p })));
+    setTeam(Boolean(earlier.players?.length));
+    // and its conversation (saved to Chats when the page opened, under the same id)
+    if (oldRoom) applyConversation({ id: archivedId.current, body: oldRoom });
+    chatDesign.current = earlier.designId || null;
+    setEarlier(null);
+    setStep("design");
+    setCamRequest({ view: "front", ms: 1600, n: nextReq() });
+  };
+
+  /* ---------- open a saved design: /customize/<garment>?design=<id> ---------- */
+  const openId = params.get("design");
+  const onScreenId = useRef(keepLocal ? draft.designId : null); // id of the saved design currently shown (set on load and on save)
+  useEffect(() => {
+    // after Save the address gets ?design=<id> of the design already on screen —
+    // nothing to load (re-loading would jump back from Review to Design)
+    if (!openId || !isLoggedIn() || openId === onScreenId.current) return;
+    let alive = true;
+    customizationService
+      .getCustomizationById(openId)
+      .then((d) => {
+        if (!alive) return;
+        if (d.garmentType !== type) return navigate(`/customize/${d.garmentType}?design=${d._id}`, { replace: true });
+        // another design than the one this chat is about: the chat goes to Chats, and the design gets its own —
+        // the one it had before if there is one, else a new chat
+        const other = d._id !== chatDesign.current;
+        if (other) {
+          saveChatNow();
+          applyConversation(null);
+          listChats().then(({ chats }) => {
+            const was = chats.find((c) => c.designId === d._id && c.type === type);
+            if (was) loadChat(was.id).then((rec) => alive && rec && chatDesign.current === d._id && applyConversation(rec));
+          });
+        }
+        chatDesign.current = d._id;
+        setElements(d.elements.map((e) => ({ ...e, id: e._id || e.id || makeId() })));
+        setColourSlug(d.color);
+        if (d.size) setSize(d.size);
+        onScreenId.current = d._id;
+        unsaved.current = false;
+        setDesignId(d._id);
+        setDesignName(d.name || "");
+        setLocked(!!d.orderedAt);
+        setPlayers((d.players || []).map((p) => ({ id: makeId(), name: p.name, number: p.number, size: p.size })));
+        setTeam(Boolean(d.players?.length));
+        setStep("design");
+        setCamRequest({ view: "front", ms: 1400, n: nextReq() });
+        if (d.orderedAt) setToast("This design was ordered. Changes will be saved as a new design.");
+      })
+      .catch(() => alive && setToast("Couldn't open that design. It may have been deleted."));
+    return () => {
+      alive = false;
+    };
+  }, [openId, type]); // eslint-disable-line react-hooks/exhaustive-deps
   // areas that already carry a print, and old designs' overlapping pairs
   const usedKeys = [...new Set(elements.map((e) => e.position))];
   const clashes = clashesIn(positions, usedKeys);
@@ -736,16 +900,18 @@ export default function DesignRoomPage() {
     const height = (len / shape / H) * 100;
     return { rotation: -90, width, height, x: 50 - width / 2, y: 50 - height / 2 };
   };
-  const addImage = (pos, src, natW, natH, extra = {}) => {
+  // a picture sized to sit well in the print area (turned along a tall strip)
+  const imageEl = (pos, src, natW, natH, extra = {}) => {
     const turned = turnedFit(pos, natW, natH, 80);
-    if (turned) return addElement(pos, { type: "image", src, ...turned, ...extra });
+    if (turned) return { type: "image", src, ...turned, ...extra };
     const { W, H } = areaPx(pos);
     const widthPct = 60;
     const heightPct = ((widthPct / 100) * W * (natH / natW) / H) * 100;
     const h = Math.min(heightPct, 90);
     const w = h < heightPct ? (widthPct * h) / heightPct : widthPct;
-    addElement(pos, { type: "image", src, x: 50 - w / 2, y: 50 - h / 2, width: w, height: h, ...extra });
+    return { type: "image", src, x: 50 - w / 2, y: 50 - h / 2, width: w, height: h, ...extra };
   };
+  const addImage = (pos, src, natW, natH, extra = {}) => addElement(pos, imageEl(pos, src, natW, natH, extra));
   // Linked texts (the team name on the chest and on the back) always say the same thing: when the words of
   // one were changed, the others with the same link get the new words too — each keeps its own size, place
   // and look, and is made smaller if the new words would not fit its print area.
@@ -1030,24 +1196,16 @@ export default function DesignRoomPage() {
   // { fallback } hands the message to the fixed script, exactly as before.
   const chatSmart = async (a, progress, run) => {
     const c = assistantCtx();
-    // the chat so far, in words (pictures and cards as a short note), for the AI to follow the conversation
-    const history = chat
-      .slice(-16)
-      .map((m) =>
-        m.from === "me" ? { who: "customer", text: m.text || (m.photo ? "(sent a photo)" : "") }
-        : m.from === "bot" ? { who: "assistant", text: m.text }
-        : m.slogans ? { who: "assistant", text: `Slogans shown: ${m.slogans.join(" | ")}` }
-        : m.ideas ? { who: "assistant", text: `Ideas shown: ${m.ideas.map((i) => i.title).join(" | ")}` }
-        : m.plan ? { who: "assistant", text: `Drawing plan shown: ${m.plan.items.map((x) => x.subject).join(" | ")}` }
-        : m.designs ? { who: "assistant", text: `${m.designs.length} new picture${m.designs.length === 1 ? "" : "s"} shown` }
-        : null,
-      )
-      .filter((h) => h?.text);
+    // the chat so far, in words (pictures and cards as a short note), for the AI to follow the conversation. A long
+    // chat also sends its memory note and the older messages not in it yet (chatStore.historyFor).
+    const { history, earlier, fold } = historyFor(chat);
     let res;
     try {
       res = await aiService.chat({
         message: a.text,
         history,
+        earlier,
+        memory: chatMemory,
         design: describeDesign({ elements, positions, active, selectedId, fonts: FONTS, teeName: colour?.name || "", teeColours: colours.map((x) => x.name), areaPx }),
         // what the page shows the customer — the AI quotes these, never its own numbers
         facts: {
@@ -1073,6 +1231,12 @@ export default function DesignRoomPage() {
       if (err.response?.status === 503) return [{ fallback: { text: a.text } }];
       return [botSays("I couldn’t answer that just now — the connection was slow. Tap Try again and I’ll answer it."), { failed: true }];
     }
+    // the older messages are in the memory note now: they needn't be sent again
+    if (res.memory) {
+      const noted = new Set(fold);
+      setChatMemory(res.memory);
+      setChat((m) => m.map((x) => (noted.has(x) ? { ...x, folded: true } : x)));
+    }
     if (run?.stopped) return [];
     const d = res.do;
     // a change to the tee: the edit planner does it (its own reply says what changed; one Undo step)
@@ -1095,7 +1259,9 @@ export default function DesignRoomPage() {
       if (run?.stopped) return [];
       out.push(...lines.filter((m) => !m.from)); // (the AI already said its own words)
     }
-    if (d?.tool === "menu") out.push({ menu: d.item });
+    // (My pictures: the customer's own words find the closest pictures — "the lion from before")
+    if (d?.tool === "menu" && d.item === "My pictures") out.push(...(isLoggedIn() ? [{ mypics: true, find: a.text }] : [botSays("Log in and I’ll show the pictures you made or uploaded before."), chipRow(["Log in", "Something else"])]));
+    else if (d?.tool === "menu") out.push({ menu: d.item });
     // (slogans and helpers bring their own buttons — Show more, Change tone … — so the AI's follow-ups would be a
     // second row of chips under them)
     if (res.chips?.length && d?.tool !== "slogans" && d?.tool !== "menu") out.push({ chips: res.chips, smart: true });
@@ -1433,6 +1599,70 @@ export default function DesignRoomPage() {
       setBusy("");
     }
   };
+  /* ---------- My pictures (23 Oct 2026): a picture made or uploaded before, put on a print area again ---------- */
+  // "Where should it go?" (PlaceSheet): every print area of this tee, grouped like "Where to print", each free,
+  // with a design (what it has), or covered by another print (which one)
+  const placeGroups = () => {
+    const areas = positions.filter((p) => spots[p.key]);
+    const said = (key) => {
+      const on = elements.filter((e) => e.position === key);
+      const text = on.find((e) => e.type === "text" && e.text)?.text;
+      if (on.length > 1) return `${on.length} items`;
+      return text ? `“${text.length > 14 ? `${text.slice(0, 13)}…` : text}”` : "a picture";
+    };
+    return AREA_GROUPS.map(([group, sides]) => [
+      group,
+      areas
+        .filter((p) => sides.includes(p.side))
+        .map((p) => {
+          const { wCm, hCm } = areaPx(p);
+          const blockers = usedKeys.includes(p.key) ? [] : blockersOf(p.key, positions, usedKeys).map((b) => b.label);
+          const big = wCm * hCm >= 900;
+          return {
+            key: p.key,
+            label: p.label,
+            cm: [Math.round(wCm), Math.round(hCm)],
+            state: usedKeys.includes(p.key) ? "used" : blockers.length ? "blocked" : "free",
+            has: usedKeys.includes(p.key) ? said(p.key) : "",
+            blockers,
+            hint: big && p.main ? "best for big pictures" : wCm * hCm <= 200 ? "small, for a logo" : "",
+          };
+        }),
+    ]).filter(([, list]) => list.length);
+  };
+  // replace: what the area has comes off in the same Undo step
+  const placeMyPicture = async (key, replace) => {
+    const pic = placePic;
+    const pos = positions.find((p) => p.key === key);
+    if (!pic || !pos) return;
+    setPlacePic(null);
+    try {
+      let { width: w, height: h } = pic;
+      if (!w || !h) {
+        const img = await loadImage(pic.url);
+        w = img.naturalWidth;
+        h = img.naturalHeight;
+      }
+      const el = { id: makeId(), position: pos.key, side: pos.side, rotation: 0, zIndex: elements.length + 1, ...imageEl(pos, pic.url, w, h) };
+      commit((prev) => [...(replace ? prev.filter((e) => e.position !== pos.key) : prev), el]);
+      if (pos.key !== active) openArea(pos.key, { force: true });
+      setSelectedId(el.id);
+      say(replace ? `Replaced what was on ${pos.label}.` : `Added to ${pos.label}.`, { label: "Undo", onClick: undo });
+    } catch {
+      say("That picture couldn’t be loaded. Please try again.");
+    }
+  };
+  const forgetMyPicture = async () => {
+    const pic = placePic;
+    setPlacePic(null);
+    try {
+      await myPicturesService.remove(pic.id);
+      window.dispatchEvent(new Event(PICTURES_CHANGED)); // (the open lists load again)
+      say("Taken off My pictures.");
+    } catch {
+      say("Couldn’t take it off just now. Please try again.");
+    }
+  };
   // where each AI design is on the tee right now (a removed or replaced one drops out)
   const aiOn = {};
   for (const [key, put] of Object.entries(aiPlaced)) {
@@ -1494,6 +1724,8 @@ export default function DesignRoomPage() {
   // "Your photo", the "Your photo" start card, the Upload tab) open it at the right question instead:
   //   "draw"  → "What should I draw?"        "photo" → "Send me a photo with 📎…" (and 📎 lights up)
   const [photoNudge, setPhotoNudge] = useState(0);
+  // My pictures (23 Oct 2026): the picture tapped, waiting for "Where should it go?" (PlaceSheet)
+  const [placePic, setPlacePic] = useState(null);
   const openAiTab = (tab) => {
     setAiTab("chat");
     setAssist(true);
@@ -1873,6 +2105,7 @@ export default function DesignRoomPage() {
     if (a.type === "unplace") return removeAiDesign(a.url);
     if (a.type === "adjustPlaced") return adjustAiDesign(a.url);
     if (a.type === "login") return goToLogin();
+    if (a.type === "mypic") return setPlacePic(a.picture);
     if (a.type === "text") return addText(a.text);
     if (a.type === "tab") {
       // "Open the art library" / "Upload a picture": over to the manual tools
@@ -2026,6 +2259,7 @@ export default function DesignRoomPage() {
         copied = !!(designId && locked);
       }
       onScreenId.current = saved._id;
+      chatDesign.current = saved._id;
       unsaved.current = false;
       setDesignId(saved._id);
       setDesignName(saved.name);
@@ -2568,6 +2802,13 @@ export default function DesignRoomPage() {
                 </div>
               </div>
               <div className="dr-assisthead">
+                {/* earlier chats and New chat (ChatsPanel) */}
+                <button type="button" className="dr-chatsbtn" aria-pressed={chatsOpen} aria-label="Your chats" title="Your chats and New chat" onClick={() => setChatsOpen((o) => !o)}>
+                  <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M4 5h16v11H9l-5 4V5ZM8 9h8M8 12h5" />
+                  </svg>
+                  <span>Chats</span>
+                </button>
                 {/* more room for the chat: about half the screen, and back */}
                 <button
                   type="button"
@@ -2593,7 +2834,20 @@ export default function DesignRoomPage() {
               </div>
             </header>
             <div className="dr-aipane">
-              <Assistant messages={chat} setMessages={setChat} state={chatState} setState={setChatState} ctx={assistantCtx} onAct={assistantAct} onFix={applyFix} placed={aiOn} fabric={fabricHex} autoSay={chatAuto} onAutoSaid={() => setChatAuto("")} onWorking={setAiWorking} photoNudge={photoNudge} />
+              {chatsOpen && (
+                <ChatsPanel
+                  currentId={chatId}
+                  saveNow={saveChatNow}
+                  onOpen={openChat}
+                  onNew={newChat}
+                  onClose={() => setChatsOpen(false)}
+                  about={chatAbout}
+                  loggedIn={isLoggedIn()}
+                  onLogin={goToLogin}
+                  locked={aiWorking || Boolean(busy)}
+                />
+              )}
+              <Assistant key={chatId} messages={chat} setMessages={setChat} state={chatState} setState={setChatState} ctx={assistantCtx} onAct={assistantAct} onFix={applyFix} placed={aiOn} fabric={fabricHex} autoSay={chatAuto} onAutoSaid={() => setChatAuto("")} onWorking={setAiWorking} photoNudge={photoNudge} />
               {elements.length > 0 && (
                 <button type="button" className="dr-handoff" onClick={editByHand}>
                   Not quite right? Edit it by hand →
@@ -2695,11 +2949,15 @@ export default function DesignRoomPage() {
 
                 {addTab === "art" && <ArtPanel categories={artCategories} onPick={pickArt} />}
 
+                {addTab === "mine" && <MyPictures loggedIn={isLoggedIn()} onLogin={goToLogin} onPick={setPlacePic} />}
+
                 </div>
               </>
             )}
           </section>
         )}
+
+        {placePic && <PlaceSheet picture={placePic} groups={placeGroups()} suggest={active} onPlace={placeMyPicture} onForget={forgetMyPicture} onClose={() => setPlacePic(null)} />}
 
         {step === "review" && (
           <>

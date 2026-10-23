@@ -21,13 +21,15 @@ import Setting from "../models/settingModel.js";
 import { AI_ADDON_DEFAULT, AI_ADDON_KEY, isAiDesignUrl } from "../utils/aiPricing.js";
 import AiUsage from "../models/aiUsageModel.js";
 import AiChatUsage from "../models/aiChatUsageModel.js";
-import { chatConfigured, chatModel, chatReply } from "../services/aiChatService.js";
+import { MEMORY_MAX, chatConfigured, chatModel, chatReply } from "../services/aiChatService.js";
 import Customization from "../models/customizationModel.js";
 import GarmentType from "../models/garmentTypeModel.js";
 import { uploadFile, deleteStoredFile } from "../utils/imageStorage.js";
 import { cutOutPlainBackground, onPlainBackground } from "../services/cutoutService.js";
 import { aiTextConfigured, improveIdea, planEdit, readPhotoRequest, writeSlogans } from "../services/aiTextService.js";
 import { removePhotoBackground } from "../services/backgroundService.js";
+import MyPicture from "../models/myPictureModel.js";
+import { rememberPictures } from "./myPictureController.js";
 import sharp from "sharp";
 import { artFilters, FILTER_STYLE } from "../services/artFilterService.js";
 import { xaiConfigured, xaiEditImage, xaiModel, xaiNewImage } from "../services/xaiImageService.js";
@@ -95,7 +97,7 @@ async function monthSpend() {
   const grok = part(rows.find((r) => r._id === true));
   const google = part(rows.find((r) => r._id === false));
   // the smart Assistant's messages (Google's text AI): their cost counts toward Google's cap, not as picture requests
-  const [chatRow] = await AiChatUsage.aggregate([{ $match: { createdAt: { $gte: startOfMonth() } } }, { $group: { _id: null, cost: { $sum: "$costInr" }, messages: { $sum: 1 } } }]);
+  const [chatRow] = await AiChatUsage.aggregate([{ $match: { createdAt: { $gte: startOfMonth() } } }, { $group: { _id: null, cost: { $sum: "$costInr" }, messages: { $sum: { $cond: [{ $eq: ["$kind", "memory"] }, 0, 1] } } } }]);
   const chat = { cost: chatRow?.cost || 0, messages: chatRow?.messages || 0 };
   google.cost += chat.cost;
   return { cost: grok.cost + google.cost, images: grok.images + google.images, requests: grok.requests + google.requests, grok, google, chat };
@@ -126,7 +128,8 @@ export const getAiStatus = asyncHandler(async (req, res) => {
 });
 
 // POST /api/ai/chat  (login optional) — the smart Assistant: one typed message, answered by Google's text AI
-// { message, history: [{ who, text }], design, facts, areas: [{ key, label, free }] } -> { reply, ideas, do, chips }
+// { message, history: [{ who, text }], earlier?, memory?, design, facts, areas: [{ key, label, free }] }
+//   -> { reply, ideas, do, chips, memory? }   (earlier / memory: a long chat's older messages and its note)
 // Not a picture request: it is counted apart (AiChatUsage) and its cost is part of Google's monthly cap.
 export const makeChat = asyncHandler(async (req, res) => {
   const settings = await readSettings();
@@ -143,10 +146,15 @@ export const makeChat = asyncHandler(async (req, res) => {
     res.status(400);
     throw new Error("Type a message.");
   }
-  const history = (Array.isArray(req.body?.history) ? req.body.history : [])
-    .slice(-14)
-    .map((h) => ({ who: h?.who === "customer" ? "customer" : "assistant", text: String(h?.text || "").slice(0, 500) }))
-    .filter((h) => h.text);
+  const said = (list, n) =>
+    (Array.isArray(list) ? list : [])
+      .slice(-n)
+      .map((h) => ({ who: h?.who === "customer" ? "customer" : "assistant", text: String(h?.text || "").slice(0, 500) }))
+      .filter((h) => h.text);
+  const history = said(req.body?.history, 14);
+  // a long chat: the older messages not in its memory note yet, and the note (aiChatService.chatReply)
+  const earlier = said(req.body?.earlier, 40);
+  const memory = String(req.body?.memory || "").slice(0, MEMORY_MAX);
   const areas = (Array.isArray(req.body?.areas) ? req.body.areas : [])
     .slice(0, 30)
     .map((a) => ({ key: String(a?.key || "").slice(0, 40), label: String(a?.label || "").slice(0, 60), free: a?.free !== false }))
@@ -159,13 +167,15 @@ export const makeChat = asyncHandler(async (req, res) => {
   );
   let answer;
   try {
-    answer = await chatReply({ message: message.slice(0, PROMPT_MAX), history, design: req.body?.design || {}, facts: { ...facts, loggedIn: Boolean(req.user) }, areas, styles: Object.keys(AI_STYLES) });
+    answer = await chatReply({ message: message.slice(0, PROMPT_MAX), history, earlier, memory, design: req.body?.design || {}, facts: { ...facts, loggedIn: Boolean(req.user) }, areas, styles: Object.keys(AI_STYLES) });
   } catch (err) {
     console.error("💥 ERROR: smart Assistant failed:", err?.message || err);
     res.status(err.status === 503 ? 503 : 502);
     throw new Error("The Assistant couldn’t answer just now.");
   }
   await AiChatUsage.create({ user: req.user?._id || null, costInr: settings.chatPricePerMessageInr, model: chatModel() }).catch(() => {});
+  // the memory note was rewritten too: a second, smaller text request (counted at the same price, to be safe)
+  if (answer.memory) await AiChatUsage.create({ user: req.user?._id || null, costInr: settings.chatPricePerMessageInr, model: chatModel(), kind: "memory" }).catch(() => {});
   res.json(answer);
 });
 
@@ -390,6 +400,19 @@ export const makeAiDesign = asyncHandler(async (req, res) => {
     costInr: Math.round(made.length * (byGrok ? settings.grokPricePerImageInr : settings.pricePerImageInr) * 100) / 100,
     model: byGrok ? xaiModel() : aiImageModel(),
   });
+  // My pictures: what the picture shows, in the customer's words — a changed or fixed picture keeps the words of
+  // the one it was made from ("a lion with a crown, make it blue")
+  const wasAbout = async (url) => (url ? (await MyPicture.findOne({ user: req.user._id, url: String(url) }).lean())?.about || "" : "");
+  const about = copying
+    ? `Copied from your photo${req.body.change ? `: ${text.replace(/^Copy a design from a photo: /, "")}` : ""}`
+    : fromPhoto
+      ? `Your photo as ${PHOTO_STYLES[req.body.artStyle] ? req.body.artStyle : "Cartoon"}`
+      : fixing
+        ? [await wasAbout(req.body.fixUrl), req.body.fixKind === "recolour" ? "recoloured" : "sharper"].filter(Boolean).join(", ")
+        : changing
+          ? [await wasAbout(req.body.baseUrl), text].filter(Boolean).join(", ")
+          : text;
+  await rememberPictures(req.user._id, stored.map((s, i) => ({ url: s.url, kind: "ai", about, style: fromPhoto ? req.body.artStyle : AI_STYLES[req.body.style] ? req.body.style : "", width: cut[i].width, height: cut[i].height })));
   res.status(201).json({ images: stored.map((s, i) => ({ url: s.url, width: cut[i].width, height: cut[i].height })), left: Math.max(0, settings.dailyPerUser - used - 1) });
 });
 
@@ -713,5 +736,8 @@ export const makeBackgroundRemoval = asyncHandler(async (req, res) => {
     throw new Error(err?.status === 503 ? err.message : "The background couldn’t be removed just now. Please try again.");
   }
   const stored = await uploadFile(cut.buffer, "image/png", "designs", "cut-out.png");
+  // (My pictures: the photo without its background is one of theirs too, under the photo's own words)
+  const was = (await MyPicture.findOne({ user: req.user._id, url: String(req.body.url) }).lean())?.about || "";
+  await rememberPictures(req.user._id, [{ url: stored.url, kind: "photo", about: [was, "background removed"].filter(Boolean).join(", "), width: cut.width, height: cut.height }]);
   res.status(201).json({ url: stored.url, width: cut.width, height: cut.height });
 });

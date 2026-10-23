@@ -12,6 +12,7 @@ import WaitCard from "./WaitCard";
 import IdeaPreview from "./IdeaPreview";
 import PlanCard from "./PlanCard";
 import PhotoPlanCard from "./PhotoPlanCard";
+import MyPictures from "./MyPictures";
 import { PhotoError, shrinkPhoto } from "./shrinkPhoto";
 
 const PICTURE_HINT = "Usually 20–40 seconds. You can look around the room meanwhile.";
@@ -351,6 +352,15 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
               <div key={i} className={`dr-chatchips${m.done ? " done" : ""}`}>
                 <button type="button" className="dr-chip dr-retry" disabled={m.done || !!thinking} onClick={() => retry(i, m)}>↻ Try again</button>
                 <button type="button" className="dr-chip" disabled={m.done || !!thinking} onClick={() => say("Something else", true)}>Something else</button>
+              </div>
+            );
+          }
+          if (m.mypics) {
+            // "My pictures": the pictures made or uploaded before (in any chat); tapping one asks where it goes
+            const c = ctx();
+            return (
+              <div key={i} className="dr-mypics-card">
+                <MyPictures loggedIn={c.ai.loggedIn} onLogin={() => onAct({ type: "login" })} find={m.find} limit={6} onPick={(picture) => onAct({ type: "mypic", picture })} onLoaded={() => i === messages.length - 1 && log.current && (log.current.scrollTop = log.current.scrollHeight)} />
               </div>
             );
           }

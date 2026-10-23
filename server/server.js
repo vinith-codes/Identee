@@ -17,6 +17,8 @@ import offerRoutes from "./routes/offerRoutes.js";
 import shippingRoutes from "./routes/shippingRoutes.js";
 import contactRoutes from "./routes/contactRoutes.js";
 import waitlistRoutes from "./routes/waitlistRoutes.js";
+import designChatRoutes from "./routes/designChatRoutes.js";
+import myPictureRoutes from "./routes/myPictureRoutes.js";
 import enquiryRoutes from "./routes/Enquiryroutes.js";
 import customizationRoutes from "./routes/customizationRoutes.js";
 import { notFound, errorHandler } from "./middleware/errorMiddleware.js";
@@ -114,6 +116,8 @@ app.use("/api/enquiry", enquiryRoutes);
 app.use("/api/shipping", shippingRoutes);
 app.use("/api/contact", contactRoutes);
 app.use("/api/waitlist", waitlistRoutes); // "Notify me" (22 Oct 2026)
+app.use("/api/chats", designChatRoutes); // the design room's saved Assistant chats (23 Oct 2026)
+app.use("/api/my-pictures", myPictureRoutes); // "My pictures": earlier AI pictures and photos (23 Oct 2026)
 app.use("/api/customizations", customizationRoutes);
 app.use("/api/garment-images", garmentColorImageRoutes);
 app.use("/api/garment-types", garmentTypeRoutes);

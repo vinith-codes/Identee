@@ -48,7 +48,7 @@ test("an empty or broken answer still says something", () => {
 });
 
 test("every helper the AI may open is one the Assistant already has", () => {
-  for (const item of Object.keys(MENU_ITEMS)) assert.ok(["Colour help", "Where to print", "Size help", "Start from a template", "Check my design", "Team order", "Remove a background", "Photo to art", "Style it for me", "Open the art library", "Upload a picture", "Continue to review"].includes(item), item);
+  for (const item of Object.keys(MENU_ITEMS)) assert.ok(["Colour help", "Where to print", "Size help", "Start from a template", "Check my design", "Team order", "Remove a background", "Photo to art", "Style it for me", "Open the art library", "Upload a picture", "My pictures", "Continue to review"].includes(item), item);
 });
 
 test("slogans keep only a known tone", () => {

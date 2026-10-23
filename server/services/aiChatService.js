@@ -29,6 +29,7 @@ export const MENU_ITEMS = {
   "Style it for me": "restyle the text on the tee for a mood",
   "Open the art library": "the free ready-made designs (cars, bikes …)",
   "Upload a picture": "put their own picture on the tee",
+  "My pictures": "the pictures they made with the Assistant or uploaded before, in any chat — to put one on this tee again (free, no new drawing)",
   "Continue to review": "go to the review and order step",
 };
 export const TONES = ["Funny", "Bold", "Emotional", "Simple"];
@@ -39,24 +40,52 @@ const lines = (v, n) => String(v ?? "").replace(/[ \t]+/g, " ").replace(/\n{3,}/
 
 /**
  * @param message  what the customer typed now
- * @param history  the chat so far, oldest first: [{ who: "customer" | "assistant", text }]
+ * @param history  the latest messages, oldest first: [{ who: "customer" | "assistant", text }]
+ * @param earlier  older messages of a long chat that aren't in the memory note yet (same shape, oldest first)
+ * @param memory   the chat's memory note: what was said before `earlier`, in a few lines
  * @param design   the tee now (studio/aiOps.js describeDesign: items, areas, tee colour …)
  * @param facts    what the page shows the customer: { garment, teeColour, size, sizes, price, wasPrice, pictureAddOn,
  *                 shipping, offer, loggedIn, picturesLeft, canDraw }
  * @param areas    the print areas [{ key, label, free }]; styles: the picture styles
- * @returns {Promise<{ reply, ideas: [{ title, about, picture, area, words, style }], do: object|null, chips: string[] }>}
+ * @returns {Promise<{ reply, ideas: [{ title, about, picture, area, words, style }], do: object|null, chips: string[], memory?: string }>}
+ *          memory: the new note, when `earlier` was long enough to be folded into it
  */
-export async function chatReply({ message, history = [], design = {}, facts = {}, areas = [], styles = [] }) {
+export async function chatReply({ message, history = [], earlier = [], memory = "", design = {}, facts = {}, areas = [], styles = [] }) {
   const said = clip(message, 2000);
-  const raw = mock() ? mockAnswer(said, areas, styles) : await askJson(buildPrompt({ said, history, design, facts, areas, styles }), 0.8, chatModel());
-  return cleanChatAnswer(raw, { areas, styles });
+  // A long chat (23 Oct 2026): the answer reads the note + the older messages + the latest ones, and meanwhile (no
+  // extra wait) the older messages are folded into the note, so later messages needn't send them again.
+  const [raw, note] = await Promise.all([
+    mock() ? mockAnswer(said, areas, styles) : askJson(buildPrompt({ said, history, earlier, memory, design, facts, areas, styles }), 0.8, chatModel()),
+    earlier.length >= FOLD_AT ? foldMemory(memory, earlier).catch(() => null) : null,
+  ]);
+  const answer = cleanChatAnswer(raw, { areas, styles });
+  return note ? { ...answer, memory: note } : answer;
 }
 
-function buildPrompt({ said, history, design, facts, areas, styles }) {
-  const past = history
-    .slice(-14)
-    .map((h) => `${h.who === "customer" ? "Customer" : "Assistant"}: ${clip(h.text, 500)}`)
-    .join("\n");
+// How many older messages not in the note yet make a new note: one small extra text request about every 8 messages.
+export const FOLD_AT = 8;
+export const MEMORY_MAX = 900;
+const asLines = (list) => list.map((h) => `${h.who === "customer" ? "Customer" : "Assistant"}: ${clip(h.text, 500)}`).join("\n");
+
+// The memory note: what matters from the earlier part of the chat, in a few short lines (English).
+async function foldMemory(memory, earlier) {
+  if (mock()) return clip(`${memory ? `${memory} ` : ""}MOCK NOTE: ${earlier.filter((h) => h.who === "customer").map((h) => h.text).join(" / ")}`, MEMORY_MAX);
+  const out = await askJson(
+    [
+      "You keep the notes for the IDENTEE design assistant (an Indian custom t-shirt shop). Below are the note so far and the next part of the chat with a customer.",
+      `Write the updated note: at most ${MEMORY_MAX - 200} characters, short plain sentences in English. Keep what matters for designing and ordering their tee: what they want, the occasion, names, words, dates and numbers to print, colours, styles, ideas they liked or turned down, decisions made, questions still open. Leave out greetings and small talk. Never invent anything.`,
+      'Answer with ONE JSON object and nothing else: {"note": string}.',
+      "The note so far: " + (memory ? JSON.stringify(memory) : "(none)"),
+      "The next part of the chat:\n" + asLines(earlier),
+    ].join("\n"),
+    0.2,
+    chatModel(),
+  );
+  return clip(out?.note, MEMORY_MAX) || null;
+}
+
+function buildPrompt({ said, history, earlier = [], memory = "", design, facts, areas, styles }) {
+  const past = asLines(history.slice(-14));
   return [
     "You are the IDENTEE Assistant: a friendly, creative designer inside the design room of IDENTEE, an Indian custom t-shirt shop (identee.co.in). Help the customer design their tee: answer any question about it, give ideas, and act on the design with the tools below.",
     "Answer with ONE JSON object and nothing else: {\"reply\": string, \"ideas\": array, \"do\": object|null, \"chips\": array}.",
@@ -77,7 +106,9 @@ function buildPrompt({ said, history, design, facts, areas, styles }) {
     "Stay on topic: their tee, designs, printing and ordering at IDENTEE. For anything else, answer kindly in one sentence and steer back to their design.",
     "Print areas: " + JSON.stringify(areas.map((a) => ({ key: a.key, label: a.label, free: a.free !== false }))) + ". For \"front\" use centre-front and for \"back\" use full-back (as the rest of the Assistant does), unless they name another area or that one isn't free. Picture styles: " + JSON.stringify(styles) + ".",
     "The tee now: " + JSON.stringify(design).slice(0, 6000),
-    past ? "The chat so far:\n" + past : "",
+    memory ? "Notes from earlier in this chat (the customer's own wishes, keep to them): " + JSON.stringify(clip(memory, MEMORY_MAX)) : "",
+    earlier.length ? "Earlier messages:\n" + asLines(earlier) : "",
+    past ? `The chat so far${memory || earlier.length ? " (the latest messages)" : ""}:\n` + past : "",
     "The customer's new message: " + JSON.stringify(said),
   ]
     .filter(Boolean)

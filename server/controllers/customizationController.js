@@ -8,6 +8,7 @@ import PrintSheetDay from "../models/printSheetDayModel.js";
 import User from "../models/userModel.js";
 import { customizationLine } from "../services/checkoutService.js";
 import { uploadFile, deleteStoredFile } from "../utils/imageStorage.js";
+import { rememberPictures } from "./myPictureController.js";
 import { positionsForGarment, catalogForGarment, overlappingPairs, SIZES, SIZE_GROUPS } from "../data/printPositions.js";
 
 const MAX_ELEMENTS = 40;
@@ -101,8 +102,15 @@ export const getPrintPositions = async (req, res) => {
 };
 
 // POST /api/customizations/upload-design  (login required; multipart "design")
-export const uploadDesignImage = (req, res) => {
+export const uploadDesignImage = async (req, res) => {
   if (!req.file) return res.status(400).json({ message: "No file uploaded" });
+  // the customer's own photo or logo goes on My pictures, its file name kept for finding it again ("college logo").
+  // (ai-design.png: an older AI picture the design room cut out again — it is on My pictures already)
+  const name = String(req.file.originalname || "");
+  if (!/^ai-design/i.test(name)) {
+    const words = name.replace(/\.[a-z0-9]+$/i, "").replace(/[-_.]+/g, " ").replace(/\b(img|image|photo|cut out|dsc|whatsapp|screenshot|pxl)\b|\d{3,}/gi, " ").replace(/\s+/g, " ").trim();
+    await rememberPictures(req.user?._id, [{ url: req.file.path, kind: "photo", about: words }]);
+  }
   res.status(201).json({ path: req.file.path });
 };
 

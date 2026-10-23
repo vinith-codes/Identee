@@ -59,7 +59,13 @@ const KEEP_EDITING = "Keep editing";
 const OUT = "Something else";
 const orOut = (list) => chips([...list, OUT]);
 const MOODS = ["Royal", "Sporty", "Cute", "Minimal", "Retro", "Bold"];
-const MORE = ["Colour help", "Where to print", "Size help", MORE_PHOTO, MORE_STYLE, "Remove a background", "Make a design", IMPROVE];
+const MORE = ["Colour help", "Where to print", "Size help", MORE_PHOTO, MORE_STYLE, "Remove a background", "Make a design", "My pictures", IMPROVE];
+// "My pictures" (23 Oct 2026): pictures made or uploaded before, in any chat — "use my lion from before",
+// "show my old designs". Answered here (free, instant), not by the smart chat.
+export const MY_PICTURES = "My pictures";
+// ("my design" alone is NOT this: "Check my design", "Add to my design", "Continue my design" are buttons)
+const MY_PICS_WORDS = /\bmy\s+(pictures|images|photos|drawings|logos|ai pictures)\b|\b(old|earlier|previous|saved)\s+(pictures?|images?|designs?|photos?|drawings?|logos?)\b|\b(made|drew|drawn|uploaded|created)\s+(before|earlier|last time|yesterday)\b|\bmy\s+\w+\s+from\s+(before|earlier|last time|yesterday)\b/i;
+export const wantsMyPictures = (text) => String(text || "").trim() === MY_PICTURES || MY_PICS_WORDS.test(String(text || ""));
 const AFTER_SLOGANS = ["Show more", "Add a name or year", "Change tone", "Something else"];
 const PRINT_FOR = {
   "A small logo": [["left-chest", "right-chest", "left-sleeve"], "A small logo sits best on the chest or a sleeve."],
@@ -154,6 +160,7 @@ export function smartCanAnswer(text, ctx, st) {
   if (st?.wait) return false;
   if (t.startsWith(IMPROVE)) return false; // the ✨ button
   if (BUTTON_WORDS.has(t) || /^(use size \S+|open .+)$/i.test(t)) return false;
+  if (wantsMyPictures(t)) return false; // (the pictures they made before: shown straight away, no AI needed)
   // a pasted player list: one tee per player (the script reads names, numbers and sizes exactly)
   const list = parsePlayers(t, ctx.sizes || [], ctx.sizeNow);
   if (list.length >= 2 && list.every((p) => p.name && p.number)) return false;
@@ -277,6 +284,12 @@ export function replyTo(text, ctx, st, { tapped = false } = {}) {
       bot(`This tee is cut oversized, so your usual ${usual}${fit} already gives the loose, dropped-shoulder look.${smaller ? ` If you want it closer to a regular fit, go one down to ${smaller}.` : ""}`),
       chips([`Use size ${usual}`, ...(smaller ? [`Use size ${smaller}`] : []), "Something else"]),
     ]);
+  }
+
+  // the pictures they made or uploaded before (the card is MyPictures.jsx; tapping one asks where it goes)
+  if (wantsMyPictures(t)) {
+    if (!ctx.ai.loggedIn) return done([bot("Log in and I’ll show the pictures you made or uploaded before. Your design stays here."), chips(["Log in", "Something else"])]);
+    return done([bot(t === MY_PICTURES ? "Here are your pictures. Tap one and pick where it goes. Using one again doesn’t use a picture request." : "Here are your pictures, the closest matches first. Tap one and pick where it goes."), { mypics: true, find: t === MY_PICTURES ? "" : t }]);
   }
 
   /* ----- the design maker's questions ----- */
