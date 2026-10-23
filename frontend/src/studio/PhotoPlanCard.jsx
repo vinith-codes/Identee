@@ -9,7 +9,8 @@
 //   art       the photo redrawn in a style (1 request; the free looks cost nothing)
 //   inspired  a new design that takes the look from the photo (1 request)
 import { imageUrl } from "../utils/imageUrl";
-import { STYLE_INFO, styleSample } from "./styleInfo";
+import StylePicker from "./StylePicker";
+import { SAME_THEME } from "./photoIntent";
 
 // the art styles for the photo itself, in plain words
 const ART_INFO = {
@@ -25,7 +26,7 @@ const ART_INFO = {
 const isFree = (plan) => plan.job === "photo" && !plan.enhance;
 // the other ways to use the same photo (a switch on the card, nothing is spent)
 const SWITCH = {
-  copy: [["photo", "Keep it as a photo instead · free"]],
+  copy: [["inspired", "Make my own design from it instead"], ["photo", "Keep it as a photo instead · free"]],
   photo: [["copy", "Copy just the design from it"], ["art", "Turn it into art"]],
   art: [["photo", "Keep it as a photo instead · free"]],
   inspired: [["copy", "Copy the design instead"]],
@@ -58,7 +59,8 @@ export default function PhotoPlanCard({ plan, areas, styles, photoStyles, ai, li
       ? `Your photo, print-ready: ${[plan.cutOut && "background removed", plan.enhance && "made sharper"].filter(Boolean).join(", ") || "as it is"}`
       : plan.cutOut ? "Your photo, with its background removed" : "Your photo, as it is",
     art: `Your photo redrawn as ${plan.style ? plan.style.toLowerCase() : "art"}`,
-    inspired: `A new design inspired by your photo${plan.subject ? `: ${plan.subject}` : ""}`,
+    // (nothing new named: the same theme and feel as the photo, drawn as new artwork — never a copy)
+    inspired: !plan.subject || plan.subject.startsWith(SAME_THEME) ? "A new design inspired by your photo: the same theme and feel, with new artwork (not a copy)" : `A new design inspired by your photo: ${plan.subject}`,
   }[job];
   return (
     <div className={`pc ppc${live ? "" : " done"}`}>
@@ -86,15 +88,21 @@ export default function PhotoPlanCard({ plan, areas, styles, photoStyles, ai, li
           {aiOk && plan.sharpenWhy === "small" && <p className="ppc-why">Your photo is small for this print area, so I ticked “Make it sharper” — it would print a bit soft otherwise. Untick it to keep it free.</p>}
         </div>
       )}
-      {(job === "art" || job === "inspired") && styleList.length > 0 && (
+      {/* a new design from the photo: the compact picker (the four best, the rest under More styles), as on the Draw card */}
+      {job === "inspired" && styleList.length > 0 && (
+        <>
+          <p className="pc-h">Style</p>
+          <StylePicker styles={styleList} value={plan.style} onPick={(s) => set({ style: s })} live={live} subject={plan.subject && !plan.subject.startsWith(SAME_THEME) ? plan.subject : ""} />
+        </>
+      )}
+      {job === "art" && styleList.length > 0 && (
         <>
           <p className="pc-h">Style</p>
           <div className="pc-styles" role="radiogroup" aria-label="Style">
             {styleList.map((s) => (
               <button key={s} type="button" role="radio" aria-checked={s === plan.style} className={`pc-style${s === plan.style ? " on" : ""}`} disabled={!live} onClick={() => set({ style: s })}>
-                {job === "inspired" && styleSample(s) ? <img src={styleSample(s)} alt="" width="160" height="160" /> : null}
                 <b>{s}</b>
-                <span>{job === "art" ? ART_INFO[s] || "" : STYLE_INFO[s]?.[0] || ""}</span>
+                <span>{ART_INFO[s] || ""}</span>
               </button>
             ))}
           </div>
@@ -130,7 +138,7 @@ export default function PhotoPlanCard({ plan, areas, styles, photoStyles, ai, li
           </p>
           <div className="pc-more">
             {(SWITCH[job] || []).map(([to, label]) => (
-              <button key={to} type="button" className="dr-chip" onClick={() => set({ job: to, style: to === "art" ? (aiOk ? photoStyles[0] : null) : to === "inspired" ? plan.style : null, cutOut: to === "photo" ? true : plan.cutOut, enhance: false })}>{label}</button>
+              <button key={to} type="button" className="dr-chip" onClick={() => set({ job: to, style: to === "art" ? (aiOk ? photoStyles[0] : null) : to === "inspired" ? plan.style || styles[0] || null : null, ...(to === "inspired" && !plan.subject ? { subject: SAME_THEME } : {}), cutOut: to === "photo" ? true : plan.cutOut, enhance: false })}>{label}</button>
             ))}
             <button type="button" className="dr-chip" onClick={onCancel}>Not now</button>
           </div>

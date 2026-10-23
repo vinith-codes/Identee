@@ -6,7 +6,7 @@
 // print-area / size help). The paid AI parts can replace those scripted
 // replies later (see docs/AI_PLAN.md).
 import { useEffect, useRef, useState } from "react";
-import { CANCEL, EXAMPLES, IMPROVE, NOT_NOW, PROMPT_MAX, replyTo } from "./assistantScript";
+import { CANCEL, EXAMPLES, IMPROVE, NOT_NOW, PROMPT_MAX, replyTo, smartCanAnswer, smartPlan } from "./assistantScript";
 import { imageUrl } from "../utils/imageUrl";
 import WaitCard from "./WaitCard";
 import IdeaPreview from "./IdeaPreview";
@@ -15,9 +15,13 @@ import PhotoPlanCard from "./PhotoPlanCard";
 import { PhotoError, shrinkPhoto } from "./shrinkPhoto";
 
 const PICTURE_HINT = "Usually 20–40 seconds. You can look around the room meanwhile.";
+// the acts that take a while (an AI or the server): the chat waits for them with a wait card
+const SLOW = ["generate", "slogans", "edit", "improve", "drawPlan", "photoPlace", "photoUnderstand", "photoMake", "smart"];
 // What the wait card says for an AI job: { label, expect (usual seconds), hint }
 const waitFor = (a) =>
-  a.type === "edit"
+  a.type === "smart"
+    ? { label: "Thinking…", expect: 5 }
+    : a.type === "edit"
     ? { label: "Working on it…", expect: 8, hint: "If you asked for pictures, each one takes about 20–40 seconds." }
     : a.type === "slogans"
       ? { label: "Writing a few…", expect: 6 }
@@ -122,8 +126,15 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
         job.current = null;
         setThinking(false);
         onWorking?.(false);
+        // the smart chat couldn't answer (offline, switched off, out of credit): the fixed replies answer, as before
+        const back = made.find((x) => x.fallback);
+        if (back) {
+          setMessages((m) => m.filter((x) => !x.pending));
+          answer(back.fallback.text, false);
+          return;
+        }
         // { failed: true } from the page = this request can simply be tried again; { retry: act } = try that one
-        const out = made.map((x) => (x.failed ? { retry: act, wait } : x.retry && !x.wait ? { ...x, wait: waitFor(x.retry) } : x));
+        const out = made.flatMap((x) => (x.menu ? helper(x.menu) : [x])).map((x) => (x.failed ? { retry: act, wait } : x.retry && !x.wait ? { ...x, wait: waitFor(x.retry) } : x));
         setMessages((m) => [...m.filter((x) => !x.pending), ...out, ...after]);
       });
   };
@@ -156,6 +167,19 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
     // the chips just answered can't be tapped again
     // ("Not now" on a plan card closes that card too)
     setMessages((m) => [...m.map((x) => (x.chips || x.retry || ((x.plan || x.photoPlan) && text === NOT_NOW) ? { ...x, done: true } : x)), { from: "me", text }]);
+    // the smart Assistant (23 Oct 2026): a typed message goes to Google's text AI — unless it answers a question the
+    // fixed chat just asked, is a button's own words, or is a pasted player list (assistantScript.smartCanAnswer).
+    // Taps never go there. If it can't answer, the fixed replies below answer instead.
+    if (!tapped && smartCanAnswer(text, ctx(), state)) {
+      const a = { type: "smart", text };
+      run(a, waitFor(a));
+      return true;
+    }
+    return answer(text, tapped);
+  };
+  // The fixed replies (assistantScript.replyTo), as before the smart Assistant: every tap, and typed messages when
+  // the smart chat is off or couldn't answer.
+  const answer = (text, tapped = false) => {
     const { out, st } = replyTo(text, ctx(), state, { tapped });
     setState(st);
     const fill = out.find((o) => o.fill);
@@ -164,7 +188,7 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
       setTimeout(() => box.current?.focus(), 500);
     }
     const reply = out.filter((o) => !o.act && !o.fill);
-    const slow = out.find((o) => ["generate", "slogans", "edit", "improve", "drawPlan", "photoPlace", "photoUnderstand", "photoMake"].includes(o.act?.type));
+    const slow = out.find((o) => SLOW.includes(o.act?.type));
     if (slow) {
       // the AI: wait for the answer, then show what the page hands back
       run(slow.act, waitFor(slow.act), reply);
@@ -179,6 +203,22 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
       setMessages((m) => [...m, ...reply]);
     }, 450);
     return true;
+  };
+  // A built-in helper the smart chat opened ("Size help", "Where to print" …): the fixed chat's own answer, as if its
+  // button was tapped (a quick page action — opening a tab, the review — happens at once).
+  const helper = (item) => {
+    const { out, st } = replyTo(item, ctx(), state, { tapped: true });
+    setState(st);
+    out.filter((o) => o.act && !SLOW.includes(o.act.type) && o.act.type !== "photoPick").forEach((o) => onAct(o.act));
+    return out.filter((o) => !o.act && !o.fill);
+  };
+  // An idea the smart chat gave: "Draw this" shows the plan card (nothing is drawn until Draw is tapped)
+  const drawIdea = (idea) => {
+    if (thinking) return;
+    const c = ctx();
+    if (!c.ai.loggedIn) return onAct({ type: "login" });
+    const plan = smartPlan(c, [{ subject: idea.picture, area: idea.area }], idea.style);
+    setMessages((m) => [...m.map((x) => (x.chips ? { ...x, done: true } : x)), { from: "me", text: `Draw: ${idea.title}` }, ...plan]);
   };
   // the idea typed on the home page: sent once the chat is open (a moment later, so the room is ready)
   useEffect(() => {
@@ -298,8 +338,9 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
           if (m.chips) {
             return (
               <div key={i} className={`dr-chatchips${m.done ? " done" : ""}`}>
+                {/* (the smart chat's follow-ups are sent as if typed, so the smart chat answers them too) */}
                 {m.chips.map((c) => (
-                  <button key={c} type="button" className="dr-chip" disabled={m.done || !!thinking} onClick={() => say(c, true)}>{c}</button>
+                  <button key={c} type="button" className="dr-chip" disabled={m.done || !!thinking} onClick={() => say(c, !m.smart)}>{c}</button>
                 ))}
               </div>
             );
@@ -310,6 +351,32 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
               <div key={i} className={`dr-chatchips${m.done ? " done" : ""}`}>
                 <button type="button" className="dr-chip dr-retry" disabled={m.done || !!thinking} onClick={() => retry(i, m)}>↻ Try again</button>
                 <button type="button" className="dr-chip" disabled={m.done || !!thinking} onClick={() => say("Something else", true)}>Something else</button>
+              </div>
+            );
+          }
+          if (m.ideas) {
+            // the smart chat's ideas: each with the Assistant's own tools — draw it (the plan card first), put its
+            // words on the tee, or ask for more like it
+            const c = ctx();
+            return (
+              <div key={i} className="dr-ideas">
+                {m.ideas.map((idea, n) => (
+                  <div key={`${n}-${idea.title}`} className="dr-idea">
+                    <b>{idea.title}</b>
+                    {idea.about && <p>{idea.about}</p>}
+                    <div className="dr-idea-acts">
+                      {idea.picture && c.ai.available && (
+                        <button type="button" className="dr-mini" disabled={!!thinking} onClick={() => drawIdea(idea)}>
+                          {c.ai.loggedIn ? "Draw this" : "Log in to draw"}
+                        </button>
+                      )}
+                      {idea.words && (
+                        <button type="button" className="dr-mini" onClick={() => onAct({ type: "text", text: idea.words })}>Add “{idea.words}” to tee</button>
+                      )}
+                      <button type="button" className="dr-dact" disabled={!!thinking} onClick={() => say(`More ideas like “${idea.title}”`)}>More like this</button>
+                    </div>
+                  </div>
+                ))}
               </div>
             );
           }

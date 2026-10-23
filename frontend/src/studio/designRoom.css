@@ -479,6 +479,14 @@
 .dr-chatcards { display: grid; gap: 8px; }
 .dr-chatcard { display: grid; gap: 8px; border: 1px solid var(--line); border-radius: 14px; padding: 12px; background: #fff; }
 .dr-chatcard b { font: 700 16px/1.2 var(--display); text-wrap: balance; }
+/* the smart Assistant's ideas (23 Oct 2026): one card each, its buttons wrap on a phone */
+.dr-ideas { display: grid; gap: 8px; animation: dr-in .22s ease-out; }
+.dr-idea { display: grid; gap: 6px; border: 1px solid var(--line); border-radius: 14px; padding: 12px; background: #fff; min-width: 0; }
+.dr-idea b { font: 700 15px/1.25 var(--display); text-wrap: balance; }
+.dr-idea p { margin: 0; font-size: 13px; line-height: 1.45; color: #4A463F; overflow-wrap: anywhere; }
+.dr-idea-acts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px; }
+.dr-idea-acts .dr-mini { min-height: 34px; max-width: 100%; overflow-wrap: anywhere; text-align: left; }
+@media (prefers-reduced-motion: reduce) { .dr-ideas { animation: none; } }
 .dr-mini { justify-self: start; border: 0; border-radius: 999px; background: var(--ink); color: #fff; padding: 7px 13px; font-size: 12px; font-weight: 600; }
 .dr-typing { font-size: 12.5px; color: var(--muted); }
 /* a slow AI job (WaitCard.jsx): what is happening, a live seconds count and a bar towards the usual time */
@@ -1216,6 +1224,20 @@ button.dr-back { padding: 0; font: inherit; font-weight: 700; cursor: pointer; }
 @media (max-width: 760px) {
   .pc-style { flex: 0 0 118px; }
 }
+/* the compact style picker (StylePicker.jsx, 23 Oct 2026): four small tiles in one row on every screen, and
+   "More styles" folding open the rest, grouped — so 14 styles never make the card screens tall on a phone */
+.pc-pick { display: grid; gap: 6px; }
+.pc-pick .pc-styles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; overflow: visible; margin: 0; padding: 0; scroll-snap-type: none; }
+.pc-pick .pc-style { flex: none; min-width: 0; min-height: 0; padding: 0 0 5px; row-gap: 0; border-radius: 10px; }
+.pc-pick .pc-style img { margin-bottom: 3px; }
+.pc-pick .pc-style > i { width: 100%; height: auto; aspect-ratio: 1; margin: 0 0 3px; border: 0; border-radius: 0; border-bottom: 1px solid var(--line); }
+.pc-pick .pc-style b { padding-inline: 3px; font-size: 11px; line-height: 1.15; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+.pc-pick .pc-style span { display: none; }
+.pc.done .pc-pick .pc-styles { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.pc-allstyles { min-height: 36px; border: 1px dashed var(--gold); border-radius: 10px; background: var(--gold-soft); color: var(--gold-deep); font: 700 12.5px/1.2 var(--body); cursor: pointer; }
+.pc-allstyles:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.pc-groups { display: grid; gap: 8px; }
+.pc-gh { margin: 2px 0 4px; font-size: 10.5px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
 .dr-designlinks { flex-wrap: wrap; row-gap: 4px; }
 /* "Other area" for a picture already on the tee: keep it on both, or move it */
 .dr-moveask { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 8px; border-radius: 10px; background: var(--gold-soft); }

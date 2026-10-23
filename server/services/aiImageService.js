@@ -70,6 +70,14 @@ export const AI_STYLES = {
   // when the customer asks for words "as an image", "typography", "a design that says …")
   "Hand lettering":
     "expressive hand-lettered typography where the words are the whole design: brush or marker lettering stacked in short lines, mixing letter sizes and lettering styles (a flowing script with rough bold capitals), a few ink splatters or small flourishes, one or two ink colours, no picture unless the subject asks for one. Spell every word exactly as given and add no other words",
+  // (23 Oct 2026: six more looks customers ask for; the Draw card shows the four that suit the idea best, the rest
+  // under "More styles")
+  Anime: "Japanese anime illustration with crisp clean line art, cel shading, expressive eyes and vivid saturated colours, like a modern anime poster",
+  Graffiti: "urban graffiti street-art piece with a spray-paint texture, bold outlines, a few paint drips and splatters and vibrant colours, wild and energetic",
+  "Vintage distressed": "vintage 70s–90s screen-print t-shirt graphic with a faded, cracked, distressed ink texture and a limited muted palette, like a well-worn old band tee",
+  "Pop art": "pop-art comic illustration with bold black outlines, halftone dots and bright flat primary colours, in the spirit of 1960s pop art",
+  Mandala: "intricate Indian mandala and ethnic ornament art: symmetric, finely detailed decorative line patterns and motifs woven into the subject, elegant and traditional",
+  "Pixel art": "retro 8-bit pixel art with clearly visible square pixels and a small bright palette, like a classic video-game sprite",
 };
 
 // "Photo to art": the styles a customer's own photo can be redrawn in.
@@ -184,8 +192,9 @@ export const copyDesignPrompt = ({ change = "", design = "", words = [], teeColo
 
 // "Something like this, but…" (a photo sent in the chat as a reference): a new design in the requested style that
 // takes its look, layout or mood from the photo.
+// (23 Oct 2026: made stricter — customers asking for "a design like this" got the same design back)
 export const inspiredDesignPrompt = (ask) =>
-  `${newDesignPrompt(ask)} Use the attached image only as a reference for the look, layout and mood the customer likes — make a new design of the subject above, not a copy of the image.`;
+  `${newDesignPrompt(ask)} The attached image is only a REFERENCE the customer likes: take its style, colour palette, mood and theme, and create completely new, original artwork of the subject above. Do not copy or trace the image: use a different composition and layout, different characters or figures, and do not reuse its text, names, logos or brand marks (only words the subject asks for). Someone comparing the two should see a new design in the same spirit, not the same picture.`;
 
 // The answer's shape differs a little between models, so the picture is found by looking for it.
 function findImage(node, depth = 0) {

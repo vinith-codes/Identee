@@ -137,6 +137,45 @@ const planFor = (ctx, subject, areaKey, { style, improvable = false, label } = {
 const ideaPlan = (ctx, idea, opts) =>
   idea.multi && ctx.ai.text ? [act({ type: "edit", message: idea.subject })] : [bot(PLAN_SAYS), planFor(ctx, idea.subject, idea.areaKey, opts)];
 
+/* ----- the smart Assistant (23 Oct 2026): typed messages read by Google's text AI (server: /api/ai/chat) -----
+   replyTo() below stays exactly as it was: it answers every tap, every answer to a question it just asked, and any
+   typed message when the smart chat is off or fails. */
+
+// the words of a button: typed exactly, they get that button's own answer (not the smart chat)
+const BUTTON_WORDS = new Set([...MENU, ...MORE, TEAM_ORDER, ADD_PLAYERS, BACK, CHANGE_IDEA, CANCEL, NOT_NOW, DRAW_THIS, DRAW_MINE, IN_DRAW_TAB, KEEP_DESIGN, KEEP_EDITING, OUT, ...PHOTO_CHOICES, PHOTO_REVERT, ...AFTER_SLOGANS, "Make more", "What can you do?", "Log in", "Continue to review", "Start fresh", "Add to my design", "Check again", "Upload a photo", "Use the picture on my tee", ...TEMPLATES.map((x) => x.label)]);
+
+/** Whether a TYPED message goes to the smart chat (taps never do). */
+export function smartCanAnswer(text, ctx, st) {
+  if (!ctx?.ai?.smart) return false;
+  const t = String(text || "").trim();
+  if (!t) return false;
+  // the script just asked something (a size, a slogan topic, what to draw, what to do with the photo …): this is
+  // the answer to its own question
+  if (st?.wait) return false;
+  if (t.startsWith(IMPROVE)) return false; // the ✨ button
+  if (BUTTON_WORDS.has(t) || /^(use size \S+|open .+)$/i.test(t)) return false;
+  // a pasted player list: one tee per player (the script reads names, numbers and sizes exactly)
+  const list = parsePlayers(t, ctx.sizes || [], ctx.sizeNow);
+  if (list.length >= 2 && list.every((p) => p.name && p.number)) return false;
+  return true;
+}
+
+/** The plan card for pictures the smart chat suggested ([{ subject, area }]): nothing is drawn until Draw is tapped. */
+export function smartPlan(ctx, pictures, style) {
+  const items = [];
+  for (const p of pictures || []) {
+    if (!p?.subject) continue;
+    // each picture on its own free area (the one named, else the next free one)
+    const taken = items.map((x) => x.areaKey);
+    const named = (ctx.areas || []).some((a) => a.key === p.area && a.free && !taken.includes(a.key)) ? p.area : null;
+    const areaKey = named || areaForPlan({ ...ctx, areas: (ctx.areas || []).filter((a) => !taken.includes(a.key)) }, null);
+    items.push({ subject: p.subject, areaKey });
+  }
+  if (!items.length) return [];
+  const styles = ctx.ai?.styles || [];
+  return [bot(PLAN_SAYS), { plan: { items: items.slice(0, 3), style: styles.includes(style) ? style : styleIn(items[0].subject, styles) || styles[0] } }];
+}
+
 const showSlogans = (st, ctx, lead) => [bot(lead || `${st.tone} lines for a ${st.occasion.toLowerCase()} tee. Tap one to put it on ${ctx.areaLabel}.`), { slogans: slogansFor(st.occasion, st.tone, st.shown) }, chips(AFTER_SLOGANS)];
 
 // The design check as chat messages (also used when Review is pressed).

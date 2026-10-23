@@ -9,8 +9,8 @@
 //     2. Spider-Man    [Full Back ▾]
 //    Style: (Bold mascot) (Cartoon) (Realistic) …
 //    [Draw both · 2 requests]   4 left today"
-import { useEffect, useRef, useState } from "react";
-import { STYLE_INFO, styleSample } from "./styleInfo";
+import { useState } from "react";
+import StylePicker from "./StylePicker";
 
 const COUNT = ["", "it", "both", "all 3"];
 // a long, detailed description (prompts can be 2,000 characters): plain weight and 4 lines, with Show all — in bold
@@ -48,13 +48,6 @@ export default function PlanCard({ plan, areas, styles, left, live, onChange, on
   // a picture's choices: the free print areas, and the one it has now
   const choices = (key) => areas.filter((a) => a.free || a.key === key);
   const labelOf = (key) => areas.find((a) => a.key === key)?.label || "Choose…";
-  // phones: the style row starts at the picked style, so the customer sees what is chosen
-  const row = useRef(null);
-  useEffect(() => {
-    const box = row.current;
-    const on = box?.querySelector(".pc-style.on");
-    if (box && on && box.scrollWidth > box.clientWidth) box.scrollLeft = Math.max(0, box.scrollLeft + on.getBoundingClientRect().left - box.getBoundingClientRect().left - 12);
-  }, [style]);
   return (
     <div className={`pc${live ? "" : " done"}`}>
       <ol className="pc-items">
@@ -78,16 +71,8 @@ export default function PlanCard({ plan, areas, styles, left, live, onChange, on
         ))}
       </ol>
       <p className="pc-h">Style</p>
-      <div className="pc-styles" role="radiogroup" aria-label="Style" ref={row}>
-        {styles.map((s) => (
-          <button key={s} type="button" role="radio" aria-checked={s === style} className={`pc-style${s === style ? " on" : ""}`} disabled={!live} onClick={() => set({ style: s })}>
-            {/* the same man drawn in this style, so the customer sees what each style looks like */}
-            {styleSample(s) ? <img src={styleSample(s)} alt="" width="160" height="160" /> : STYLE_INFO[s] && <i style={{ background: STYLE_INFO[s][1] }} aria-hidden="true" />}
-            <b>{s}</b>
-            {STYLE_INFO[s] && <span>{STYLE_INFO[s][0]}</span>}
-          </button>
-        ))}
-      </div>
+      {/* the four that suit the idea, the rest under "More styles" (each tile: the same man drawn in that style) */}
+      <StylePicker styles={styles} value={style} onPick={(s) => set({ style: s })} live={live} subject={items.map((x) => x.subject).join(" ")} />
       {live && (
         <>
           <button type="button" className="pc-go" disabled={!n || short || items.some((x) => !x.areaKey)} onClick={() => onDraw(plan)}>

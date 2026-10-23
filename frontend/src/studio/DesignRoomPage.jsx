@@ -24,9 +24,9 @@ import { areaCm, blockersOf, clashesIn, modelForGarment, placeArea } from "./tee
 import AreaThumb from "./AreaThumb";
 import Rolling from "./Rolling";
 import Assistant from "./Assistant";
-import { AFTER_AI_SLOGANS, AFTER_DESIGN_CHIPS, BACK, CHANGE_IDEA, DRAW_MINE, PHOTO_AS_IS, PHOTO_CHOICES, PHOTO_CUT, PHOTO_REVERT, PROMPT_MAX, bot as botSays, checkMessages, chips as chipRow, firstMessages, firstState } from "./assistantScript";
+import { AFTER_AI_SLOGANS, AFTER_DESIGN_CHIPS, BACK, CHANGE_IDEA, DRAW_MINE, PHOTO_AS_IS, PHOTO_CHOICES, PHOTO_CUT, PHOTO_REVERT, PROMPT_MAX, bot as botSays, checkMessages, chips as chipRow, firstMessages, firstState, smartPlan } from "./assistantScript";
 import { styleIn } from "./styleInfo";
-import { areasFromWords, photoJobFrom } from "./photoIntent";
+import { areasFromWords, photoJobFrom, SAME_THEME } from "./photoIntent";
 import aiService from "../services/aiService";
 import { applyAiOps, areaFor, describeDesign } from "./aiOps";
 import WaitCard from "./WaitCard";
@@ -1024,6 +1024,83 @@ export default function DesignRoomPage() {
     // an uploaded picture on the tee (not library art, not an AI design) — "photo to art" can use it
     photoOnTee: [...elements].reverse().find((e) => e.type === "image" && !e.artDesignId && !aiCuts.current.has(e.src))?.src || null,
   });
+  // The smart Assistant (23 Oct 2026): a typed message read by Google's text AI. It answers in words and may use
+  // ONE of the Assistant's own tools — the edit planner, slogans, a drawing plan card (nothing drawn until Draw is
+  // tapped) or a built-in helper ({ menu }, answered by the fixed script in Assistant.jsx). When it can't answer,
+  // { fallback } hands the message to the fixed script, exactly as before.
+  const chatSmart = async (a, progress, run) => {
+    const c = assistantCtx();
+    // the chat so far, in words (pictures and cards as a short note), for the AI to follow the conversation
+    const history = chat
+      .slice(-16)
+      .map((m) =>
+        m.from === "me" ? { who: "customer", text: m.text || (m.photo ? "(sent a photo)" : "") }
+        : m.from === "bot" ? { who: "assistant", text: m.text }
+        : m.slogans ? { who: "assistant", text: `Slogans shown: ${m.slogans.join(" | ")}` }
+        : m.ideas ? { who: "assistant", text: `Ideas shown: ${m.ideas.map((i) => i.title).join(" | ")}` }
+        : m.plan ? { who: "assistant", text: `Drawing plan shown: ${m.plan.items.map((x) => x.subject).join(" | ")}` }
+        : m.designs ? { who: "assistant", text: `${m.designs.length} new picture${m.designs.length === 1 ? "" : "s"} shown` }
+        : null,
+      )
+      .filter((h) => h?.text);
+    let res;
+    try {
+      res = await aiService.chat({
+        message: a.text,
+        history,
+        design: describeDesign({ elements, positions, active, selectedId, fonts: FONTS, teeName: colour?.name || "", teeColours: colours.map((x) => x.name), areaPx }),
+        // what the page shows the customer — the AI quotes these, never its own numbers
+        facts: {
+          garment: garment?.label || "",
+          teeColour: colour?.name || "",
+          teeColours: colours.map((x) => x.name),
+          size: sizeNow,
+          sizes,
+          price: unitPrice,
+          wasPrice: wasPrice || null,
+          pictureAddOn: Number(ai.designAddOnInr ?? 100),
+          shipping: shipRule ? `₹${shipRule.rate} shipping, free from ${shipRule.freeFrom} pieces` : "",
+          offer: siteOffer?.code ? `Extra ${siteOffer.offerPercentage}% off at checkout with code ${siteOffer.code}` : "",
+          picturesLeft: ai.left,
+          canDraw: ai.available && isLoggedIn() && ai.left !== 0,
+          pieces,
+        },
+        areas: c.areas.map(({ key, label, free }) => ({ key, label, free })),
+      });
+    } catch (err) {
+      // switched off or paused on purpose (503): the fixed replies answer, as before. Only a hiccup (slow internet,
+      // Google busy): say so, with "Try again" for the same message — never a general menu instead of an answer
+      if (err.response?.status === 503) return [{ fallback: { text: a.text } }];
+      return [botSays("I couldn’t answer that just now — the connection was slow. Tap Try again and I’ll answer it."), { failed: true }];
+    }
+    if (run?.stopped) return [];
+    const d = res.do;
+    // a change to the tee: the edit planner does it (its own reply says what changed; one Undo step)
+    if (d?.tool === "edit") {
+      const done = await chatEdit({ message: d.message }, progress, run);
+      return done.length ? done : [botSays(res.reply)];
+    }
+    const out = res.reply ? [botSays(res.reply)] : [];
+    if (res.ideas?.length) out.push({ ideas: res.ideas });
+    if (d?.tool === "draw") {
+      if (!ai.available) out.push(botSays("Pictures can’t be drawn right now. You can pick from the free designs or upload your own."), chipRow(["Open the art library", "Upload a picture"]));
+      else if (!isLoggedIn()) out.push(botSays("Log in and I’ll draw it for you. Your design stays here."), chipRow(["Log in", "Something else"]));
+      else if (ai.left === 0) out.push(botSays("You’ve used today’s picture requests. They reset tomorrow."));
+      else out.push(...smartPlan(c, d.pictures, d.style));
+    }
+    if (d?.tool === "slogans") {
+      // (remembered like the fixed chat's slogans, so "Show more" brings new ones)
+      setChatState((st) => ({ ...st, ask: d.about, tone: d.tone || null, said: [] }));
+      const lines = await writeSlogans({ ask: d.about, tone: d.tone, avoid: [] });
+      if (run?.stopped) return [];
+      out.push(...lines.filter((m) => !m.from)); // (the AI already said its own words)
+    }
+    if (d?.tool === "menu") out.push({ menu: d.item });
+    // (slogans and helpers bring their own buttons — Show more, Change tone … — so the AI's follow-ups would be a
+    // second row of chips under them)
+    if (res.chips?.length && d?.tool !== "slogans" && d?.tool !== "menu") out.push({ chips: res.chips, smart: true });
+    return out.length ? out : [{ fallback: { text: a.text } }];
+  };
   // Edit the tee by chat: the text AI suggests changes, aiOps checks and applies them (one Undo step).
   // progress(now): tells the assistant's wait card what is happening now (drawing the pictures asked for)
   const chatEdit = async (a, progress, run) => {
@@ -1552,6 +1629,9 @@ export default function DesignRoomPage() {
     if (!photo) return [botSays("I don’t have your photo any more. Tap 📎 and send it again.")];
     const areas = assistantCtx().areas;
     let plan = a.job ? { job: a.job, areaKey: chatState.photoAreaKey || null, areaKeys: chatState.photoAreaKeys || [] } : photoJobFrom(a.text, { areas, photoStyles: ai.photoStyles || [] });
+    // their words make the photo a reference ("a design like this", "in this style"): a new design, even if the photo
+    // reading says copy — only clear words ("same design", "copy this") make a copy (23 Oct 2026)
+    const wordsSayNew = !a.job && plan?.job === "inspired";
     let seen = "";
     let question = "";
     if (a.text && ai.available && ai.text && isLoggedIn()) {
@@ -1559,7 +1639,8 @@ export default function DesignRoomPage() {
         const r = await aiService.photoPlan({ photoUrl: photo.url, message: a.text, areas: areas.filter((x) => x.free).map(({ key, label }) => ({ key, label })) });
         seen = r.seen || "";
         if (r.job && r.job !== "unclear") {
-          plan = { ...(plan || {}), job: r.job, style: r.style || plan?.style || null, areaKey: r.area || plan?.areaKey || null, areaKeys: r.areas?.length ? r.areas : plan?.areaKeys || [], change: r.change || plan?.change || null, subject: r.subject || plan?.subject || null, design: r.design || null, words: r.words || [] };
+          const job = wordsSayNew && r.job === "copy" ? "inspired" : r.job;
+          plan = { ...(plan || {}), job, style: r.style || plan?.style || null, areaKey: r.area || plan?.areaKey || null, areaKeys: r.areas?.length ? r.areas : plan?.areaKeys || [], change: r.change || plan?.change || null, subject: r.subject || plan?.subject || null, design: r.design || null, words: r.words || [] };
         } else if (!plan) question = r.question || "";
       } catch {
         // the AI couldn't read it (off, out of credit, offline): our own rules decide, or we ask
@@ -1597,7 +1678,8 @@ export default function DesignRoomPage() {
       // (what the photo reading found in the design: given to the picture AI so the copy's words come out right)
       design: plan.design || null,
       words: plan.words || [],
-      subject: plan.job === "inspired" ? plan.subject || a.text : null,
+      // (nothing new named: the photo's theme as new artwork, with their own words for anything else they said)
+      subject: plan.job === "inspired" ? (plan.subject && plan.subject !== SAME_THEME ? plan.subject : a.text ? `${SAME_THEME} (the customer asked: “${a.text}”)` : SAME_THEME) : null,
       style: plan.job === "art" ? artStyle : plan.job === "inspired" ? (ai.styles.includes(plan.style) ? plan.style : styleIn(plan.subject || a.text, ai.styles) || ai.styles[0]) : null,
       cutOut: plan.cutOut !== false,
       enhance: Boolean(small),
@@ -1780,6 +1862,7 @@ export default function DesignRoomPage() {
     if (a.type === "photoMake") return chatPhotoMake(a, progress);
     if (a.type === "photoPlace") return chatPhotoPlace(a, progress);
     if (a.type === "edit") return chatEdit(a, progress, run);
+    if (a.type === "smart") return chatSmart(a, progress, run);
     if (a.type === "photoPick") return openPhotoStudio();
     if (a.type === "aiTab") {
       // (from chats saved before the Draw / Photo pages went: a drawing with words becomes its plan card)

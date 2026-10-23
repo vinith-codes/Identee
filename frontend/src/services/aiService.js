@@ -35,6 +35,10 @@ const improve = async (body) => (await axios.post(`${API_URL}/improve`, body, { 
 const removeBg = async (body) => (await axios.post(`${API_URL}/remove-background`, body, { ...auth(), timeout: 90000 })).data;
 const photoPlan = async (body) => (await axios.post(`${API_URL}/photo-plan`, body, { ...auth(), timeout: 30000 })).data;
 
+// the smart Assistant (23 Oct 2026): one typed message, read by Google's text AI (login optional)
+// { message, history: [{ who, text }], design, facts, areas } -> { reply, ideas, do, chips }
+const chat = async (body) => (await axios.post(`${API_URL}/chat`, body, { ...auth(), timeout: 30000 })).data;
+
 // admin
 const getAdmin = async () => (await axios.get(`${API_URL}/admin`, auth())).data;
 const saveAdmin = async (values) => (await axios.put(`${API_URL}/admin`, values, auth())).data;
@@ -45,4 +49,4 @@ const printPicture = async (body) => (await axios.post(`${API_URL}/admin/print-p
 // print the original again
 const dropPrintPicture = async (body) => (await axios.delete(`${API_URL}/admin/print-picture`, { ...auth(), data: body })).data;
 
-export default { status, design, slogans, edit, improve, photoPlan, removeBg, getAdmin, saveAdmin, printPicture, dropPrintPicture };
+export default { status, design, slogans, edit, improve, photoPlan, removeBg, chat, getAdmin, saveAdmin, printPicture, dropPrintPicture };

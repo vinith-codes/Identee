@@ -20,6 +20,8 @@ import mongoose from "mongoose";
 import Setting from "../models/settingModel.js";
 import { AI_ADDON_DEFAULT, AI_ADDON_KEY, isAiDesignUrl } from "../utils/aiPricing.js";
 import AiUsage from "../models/aiUsageModel.js";
+import AiChatUsage from "../models/aiChatUsageModel.js";
+import { chatConfigured, chatModel, chatReply } from "../services/aiChatService.js";
 import Customization from "../models/customizationModel.js";
 import GarmentType from "../models/garmentTypeModel.js";
 import { uploadFile, deleteStoredFile } from "../utils/imageStorage.js";
@@ -44,11 +46,15 @@ const DEFAULTS = {
   "ai.grokPricePerImageInr": { value: 6, type: "number", description: "What one Grok picture costs, in rupees (for the spending figures)" },
   // what the CUSTOMER pays extra per tee with a picture — AI-made, art library or upload (utils/aiPricing.js)
   [AI_ADDON_KEY]: { value: AI_ADDON_DEFAULT, type: "number", description: "Extra price per tee with a picture (₹)" },
+  // the smart Assistant (23 Oct 2026): Google reads every typed message; off = the fixed replies, as before
+  "ai.smartChat": { value: true, type: "boolean", description: "Smart Assistant: Google reads every typed message" },
+  "ai.chatPricePerMessageInr": { value: 0.2, type: "number", description: "What one smart Assistant message costs, in rupees (for the spending figures)" },
 };
 // how much a customer may type for the AI (a long, detailed idea is fine; 2,000 characters ≈ 300 words — the
 // cut-off only stops something pasted by mistake, like a whole page, from being sent to the AI)
 const PROMPT_MAX = 2000;
-const LIMITS = { "ai.dailyPerUser": [1, 50], "ai.imagesPerRequest": [1, 4], "ai.monthlyCapInr": [0, 1000000], "ai.grokMonthlyCapInr": [0, 1000000], "ai.pricePerImageInr": [0, 100], "ai.grokPricePerImageInr": [0, 100], [AI_ADDON_KEY]: [0, 5000] };
+const LIMITS = { "ai.dailyPerUser": [1, 50], "ai.imagesPerRequest": [1, 4], "ai.monthlyCapInr": [0, 1000000], "ai.grokMonthlyCapInr": [0, 1000000], "ai.pricePerImageInr": [0, 100], "ai.grokPricePerImageInr": [0, 100], [AI_ADDON_KEY]: [0, 5000], "ai.chatPricePerMessageInr": [0, 10] };
+const BOOLEAN_KEYS = ["ai.enabled", "ai.smartChat"];
 
 
 const startOfDay = () => {
@@ -75,6 +81,8 @@ async function readSettings() {
     pricePerImageInr: Number(get("ai.pricePerImageInr")),
     grokPricePerImageInr: Number(get("ai.grokPricePerImageInr")),
     designAddOnInr: Number(get(AI_ADDON_KEY)),
+    smartChat: get("ai.smartChat") !== false,
+    chatPricePerMessageInr: Number(get("ai.chatPricePerMessageInr")),
   };
 }
 // This month's use, in total and for Grok alone (a Grok row's model starts with "grok").
@@ -86,7 +94,11 @@ async function monthSpend() {
   const part = (r) => ({ cost: r?.cost || 0, images: r?.images || 0, requests: r?.requests || 0 });
   const grok = part(rows.find((r) => r._id === true));
   const google = part(rows.find((r) => r._id === false));
-  return { cost: grok.cost + google.cost, images: grok.images + google.images, requests: grok.requests + google.requests, grok, google };
+  // the smart Assistant's messages (Google's text AI): their cost counts toward Google's cap, not as picture requests
+  const [chatRow] = await AiChatUsage.aggregate([{ $match: { createdAt: { $gte: startOfMonth() } } }, { $group: { _id: null, cost: { $sum: "$costInr" }, messages: { $sum: 1 } } }]);
+  const chat = { cost: chatRow?.cost || 0, messages: chatRow?.messages || 0 };
+  google.cost += chat.cost;
+  return { cost: grok.cost + google.cost, images: grok.images + google.images, requests: grok.requests + google.requests, grok, google, chat };
 }
 // Each service has its own cap (0 = no cap).
 const googleCapped = (settings, month) => settings.monthlyCapInr > 0 && month.google.cost >= settings.monthlyCapInr;
@@ -108,7 +120,53 @@ export const getAiStatus = asyncHandler(async (req, res) => {
   const left = req.user ? Math.max(0, settings.dailyPerUser - (await usedToday(req.user._id))) : null;
   // text: the assistant can write slogans to order (same key; switched off together with the design maker)
   // designAddOnInr: what an AI-made or uploaded picture adds to the tee's price (art library: free; the Design Room shows it)
-  res.json({ available: !reason, reason, text: aiTextConfigured() && settings.enabled, styles: Object.keys(AI_STYLES), photoStyles: Object.keys(PHOTO_STYLES) /* (the free art filters were taken away, 20 Oct 2026) */, dailyPerUser: settings.dailyPerUser, left, designAddOnInr: settings.designAddOnInr });
+  // smart: typed messages go to the smart Assistant (switch in Admin → Settings → AI; paused with Google's cap)
+  const smart = settings.enabled && settings.smartChat && chatConfigured() && reason !== "cap";
+  res.json({ available: !reason, reason, text: aiTextConfigured() && settings.enabled, smart, styles: Object.keys(AI_STYLES), photoStyles: Object.keys(PHOTO_STYLES) /* (the free art filters were taken away, 20 Oct 2026) */, dailyPerUser: settings.dailyPerUser, left, designAddOnInr: settings.designAddOnInr });
+});
+
+// POST /api/ai/chat  (login optional) — the smart Assistant: one typed message, answered by Google's text AI
+// { message, history: [{ who, text }], design, facts, areas: [{ key, label, free }] } -> { reply, ideas, do, chips }
+// Not a picture request: it is counted apart (AiChatUsage) and its cost is part of Google's monthly cap.
+export const makeChat = asyncHandler(async (req, res) => {
+  const settings = await readSettings();
+  if (!settings.enabled || !settings.smartChat || !chatConfigured()) {
+    res.status(503);
+    throw new Error("The smart Assistant is off.");
+  }
+  if (googleCapped(settings, await monthSpend())) {
+    res.status(503);
+    throw new Error("The Assistant is taking a break until next month.");
+  }
+  const message = String(req.body?.message || "").trim();
+  if (message.length < 1) {
+    res.status(400);
+    throw new Error("Type a message.");
+  }
+  const history = (Array.isArray(req.body?.history) ? req.body.history : [])
+    .slice(-14)
+    .map((h) => ({ who: h?.who === "customer" ? "customer" : "assistant", text: String(h?.text || "").slice(0, 500) }))
+    .filter((h) => h.text);
+  const areas = (Array.isArray(req.body?.areas) ? req.body.areas : [])
+    .slice(0, 30)
+    .map((a) => ({ key: String(a?.key || "").slice(0, 40), label: String(a?.label || "").slice(0, 60), free: a?.free !== false }))
+    .filter((a) => a.key);
+  // what the page shows the customer (prices, shipping, the tee): only these fields, each kept short
+  const FACT_KEYS = ["garment", "teeColour", "teeColours", "size", "sizes", "price", "wasPrice", "pictureAddOn", "shipping", "offer", "picturesLeft", "canDraw", "pieces"];
+  const given = req.body?.facts && typeof req.body.facts === "object" ? req.body.facts : {};
+  const facts = Object.fromEntries(
+    FACT_KEYS.filter((k) => given[k] !== undefined && given[k] !== null).map((k) => [k, Array.isArray(given[k]) ? given[k].slice(0, 20).map((x) => String(x).slice(0, 40)) : typeof given[k] === "number" || typeof given[k] === "boolean" ? given[k] : String(given[k]).slice(0, 200)]),
+  );
+  let answer;
+  try {
+    answer = await chatReply({ message: message.slice(0, PROMPT_MAX), history, design: req.body?.design || {}, facts: { ...facts, loggedIn: Boolean(req.user) }, areas, styles: Object.keys(AI_STYLES) });
+  } catch (err) {
+    console.error("💥 ERROR: smart Assistant failed:", err?.message || err);
+    res.status(err.status === 503 ? 503 : 502);
+    throw new Error("The Assistant couldn’t answer just now.");
+  }
+  await AiChatUsage.create({ user: req.user?._id || null, costInr: settings.chatPricePerMessageInr, model: chatModel() }).catch(() => {});
+  res.json(answer);
 });
 
 // Only pictures this feature made may be sent back to be changed.
@@ -459,11 +517,13 @@ export const saveAiAdmin = asyncHandler(async (req, res) => {
     "ai.pricePerImageInr": req.body.pricePerImageInr,
     "ai.grokPricePerImageInr": req.body.grokPricePerImageInr,
     [AI_ADDON_KEY]: req.body.designAddOnInr,
+    "ai.smartChat": req.body.smartChat,
+    "ai.chatPricePerMessageInr": req.body.chatPricePerMessageInr,
   };
   for (const [key, raw] of Object.entries(incoming)) {
     if (raw === undefined) continue;
     let value = raw;
-    if (key === "ai.enabled") value = Boolean(raw);
+    if (BOOLEAN_KEYS.includes(key)) value = Boolean(raw);
     else {
       value = Number(raw);
       const [min, max] = LIMITS[key];

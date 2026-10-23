@@ -11,6 +11,7 @@
     "build:shop": "vite build --mode shop --outDir dist-shop",
     "build:admin": "vite build --mode admin --outDir dist-admin",
     "lint": "eslint .",
+    "test": "node --import ./tests/register.mjs --test \"tests/*.test.mjs\"",
     "preview": "vite preview"
   },
   "dependencies": {

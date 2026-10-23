@@ -17,6 +17,14 @@ const ART = [
 ];
 const escapeRe = (x) => x.replace(/[.*+?^$(){}|[\]\\]/g, "\\$&");
 
+// words that make the photo a reference for a new design, and words that ask for that exact design
+const REFERENCE = /\b(like (this|that|it|the (photo|picture|pic|image|one))|similar|something like|in (this|that|the same) (style|vibe|theme|look)|same (style|vibe|theme|feel|look|mood|concept)|based on (this|that|it)|inspired( by)?|inspiration|(as|for) (a |my )?ref(erence)?|reference|ref (image|pic|photo))\b/;
+const EXACT = /\b(exact(ly)?|same (design|print|one|thing|logo|graphic|picture)|copy|replicate|recreate|identical|only (the |this )?(design|print|logo)|just (the |this )?(design|print|logo))\b/;
+// "print it like it is" / "as it is": the photo itself, not a reference
+const AS_IT_IS = /\b(as|like) (it|this|that) is\b|\bas is\b/;
+// what an inspired design shows when the customer named nothing new: the photo's theme, as new artwork
+export const SAME_THEME = "a new, original design on the same theme as the reference picture";
+
 // The print area named in the words ("on the back", "left chest") — the longest name wins ("vertical front" over
 // "front"); "the front" / "the back" is that side's main free area. null when none is named.
 export function areaFromWords(text, areas = []) {
@@ -76,8 +84,13 @@ export function photoJobFrom(text, { areas = [], photoStyles = [] } = {}) {
   const art = ART.find(([name, re]) => photoStyles.includes(name) && re.test(low));
   if (art) return { ...base, job: "art", style: art[0] };
 
+  // the photo as a reference, nothing new named: "make a design like this", "something similar", "in this style",
+  // "use this as reference" — a NEW design on the same theme, not a copy (23 Oct 2026: these came back as the same
+  // design). Only clear words ("same design", "exactly", "copy this") make a copy.
+  if (REFERENCE.test(low) && !EXACT.test(low) && !AS_IT_IS.test(low)) return { ...base, job: "inspired", subject: SAME_THEME };
+
   // only the print, copied ("only the design", "same design", "copy this", "the print on this tee")
-  const copy = /\b(only|just) (the |this )?(design|print|logo|graphic|art(work)?|picture on it)\b|\b(same|this|that|the) (design|print|graphic|logo)\b|\bcopy\b|\bextract\b|\b(design|print|logo) (from|on|of) (this|it|the (t-?shirt|tee|hoodie|shirt|cap|poster))\b/.test(low);
+  const copy = /\b(only|just) (the |this )?(design|print|logo|graphic|art(work)?|picture on it)\b|\b(same|this|that|the) (design|print|graphic|logo)\b|\bcopy\b|\bextract\b|\b(exact(ly)?|identical|replicate|recreate)\b|\b(design|print|logo) (from|on|of) (this|it|the (t-?shirt|tee|hoodie|shirt|cap|poster))\b/.test(low);
   if (copy) {
     // what to change while copying: "… but with KINGS XI", "… change the name to RAJ", "… instead of LIONS"
     const ch = /\b(?:but|except|and)\s+((?:change|replace|make|put|with|use|write)\b.{2,})$/i.exec(t) || /\b((?:change|replace)\b.{2,})$/i.exec(t) || /\b(with\s+(?:the )?(?:name|text|word|number)s?\b.{2,})$/i.exec(t) || /(\S+(?:\s+\S+){0,4}\s+instead of\s+.{2,})$/i.exec(t);

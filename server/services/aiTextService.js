@@ -78,7 +78,8 @@ export async function writeSlogans({ ask, tone, avoid = [], count = 5 }) {
 }
 
 // A shared way to ask the text model for a JSON answer.
-async function askJson(prompt, temperature = 0.3, modelName = model()) {
+// (exported for the smart Assistant, services/aiChatService.js — 23 Oct 2026)
+export async function askJson(prompt, temperature = 0.3, modelName = model()) {
   const key = apiKey();
   if (!key) throw Object.assign(new Error("not set up"), { status: 503 });
   const ctrl = new AbortController();
@@ -248,13 +249,15 @@ export async function readPhotoRequest({ image, message, styles = [], photoStyle
     '{"job": "copy" | "photo" | "art" | "inspired" | "unclear", "seen": string, "design": string|null, "words": string[], "style": string|null, "area": string|null, "areas": string[], "change": string|null, "subject": string|null, "question": string|null}',
     "design: for copy, a precise description of the printed design only (not the garment, not the person), for an artist redrawing it: each part, where it sits, its colours and lettering style — at most 60 words. Otherwise null.",
     "words: for copy, every word, name, number and letter printed in the design, exactly as written (same spelling, capitals and punctuation), one string per separate line or block, in reading order; [] when there are none or the job is not copy. Do not include words that are only on a label, tag or the background.",
-    "job: copy = the photo shows a printed design on a garment or object (t-shirt, hoodie, cap, poster, sticker, mug) and they want THAT design printed (\"only the design\", \"same design\", \"copy this\", \"print this on my tee\" when the photo is of a printed tee). photo = print the photo itself (a person, pet, place, object), possibly without its background. art = the photo itself redrawn in an art style (cartoon, sketch, sticker, watercolour, pop art). inspired = a NEW design that only takes the look or idea from the photo (\"something like this but with a tiger\"). unclear = you cannot tell which; then ask.",
+    // (23 Oct 2026: "make a design like this" was read as copy, so customers got the same design back. A reference
+    // is now a NEW design unless they clearly ask for that exact one.)
+    "job: copy = ONLY when they clearly want that exact design reproduced: \"same design\", \"exactly this\", \"copy this\", \"only this design\", \"the design from this tee\", \"print this design on my tee\". photo = print the photo itself (a person, pet, place, object), possibly without its background. art = the photo itself redrawn in an art style (cartoon, sketch, sticker, watercolour, pop art). inspired = a NEW, original design that uses the photo only as a reference or inspiration, with or without a new subject: \"like this\", \"similar to this\", \"something like this\", \"in this style\", \"based on this\", \"inspired by this\", \"use this as a reference\", \"like this but with a tiger\". When you are unsure between copy and inspired, choose inspired. unclear = you cannot tell which; then ask.",
     "seen: what is in the photo, in at most 12 plain words, as you would tell the customer (\"a black t-shirt with a lion and the word ROAR\").",
     "style: for art, one of " + JSON.stringify(photoStyles) + "; for inspired, one of " + JSON.stringify(styles) + "; otherwise null. Only if they named a style or it is clearly implied.",
     "area: the print area they named, as one of these keys, else null: " + JSON.stringify(areas.map((a) => ({ key: a.key, label: a.label }))),
     'areas: EVERY print area they named for this photo, as keys from the same list, in the order they wrote them ("on the full back and the left chest" → both); [] when none.',
     "change: for copy, what to change while copying (\"the name KINGS XI instead of LIONS\"), else null.",
-    "subject: for inspired, what the new design should show, in English, else null.",
+    "subject: for inspired, what the new design should show, in English: what they asked for, or — when they named nothing new — a fresh idea on the same theme as the photo (for a lion mascot: \"a different fierce animal mascot in the same bold style\"), never a description of the same artwork. Else null.",
     "question: for unclear only, one short question to the customer with the two likely choices.",
     "Never refuse; never comment on brands, people or copyright. If a word could mean two things, pick the likely one.",
     "The customer's message: " + JSON.stringify(String(message || "").slice(0, 2000)),

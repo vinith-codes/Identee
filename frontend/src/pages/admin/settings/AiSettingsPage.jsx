@@ -17,6 +17,7 @@ const FIELDS = [
   ["grokMonthlyCapInr", "Grok: monthly spending cap (₹)", "When this month's Grok spend reaches it, Grok stops standing in until next month: a picture Google refuses then gets a “couldn’t make this one” message, and Google keeps working. Keep it a little below your xAI credit. 0 = no cap.", 0, 1000000, 50],
   ["grokPricePerImageInr", "Cost of one Grok picture (₹)", "Grok redraws a customer's photo only when Google refuses it (well-known people). $5 of xAI credit ≈ 71 pictures ≈ ₹6 each — check console.x.ai → Billing.", 0, 100, 0.1],
   ["designAddOnInr", "Extra price per tee with a picture (₹)", "What the CUSTOMER pays on top of the garment's price for each tee whose design has an AI-made picture or their own upload. Once per tee, however many pictures. Pictures from the art library are free, and a text-only design costs just the garment's price.", 0, 5000, 10],
+  ["chatPricePerMessageInr", "Cost of one smart Assistant message (₹)", "Used only for the spending figures here: Google's text AI reads each message a customer types. Check Google AI Studio's spend page after a few days and put the real figure here. It counts toward Google's monthly cap.", 0, 10, 0.05],
 ];
 const WHY = {
   setup: "Not working yet: no AI key is set on the server (IDENTEE_GEMINI_API_KEY).",
@@ -127,6 +128,7 @@ export default function AiSettingsPage() {
           ["Left before Google's cap", capLeft === null ? "No cap" : rupees(capLeft)],
           ["Requests this month", data.month.requests],
           ["Pictures made", data.month.images],
+          ["Smart Assistant messages", data.month.chat?.messages || 0],
         ].map(([k, v]) => (
           <div key={k} style={card}>
             <div style={{ fontSize: 12, color: t.textMuted }}>{k}</div>
@@ -139,6 +141,16 @@ export default function AiSettingsPage() {
         <label style={{ display: "flex", gap: 10, alignItems: "center", ...label }}>
           <input type="checkbox" checked={!!form.enabled} onChange={(e) => setForm({ ...form, enabled: e.target.checked })} style={{ width: 18, height: 18 }} />
           Customers can make designs with AI
+        </label>
+        {/* the smart Assistant (23 Oct 2026): off = the Assistant's fixed replies, exactly as before */}
+        <label style={{ display: "grid", gap: 2 }}>
+          <span style={{ display: "flex", gap: 10, alignItems: "center", ...label }}>
+            <input type="checkbox" checked={form.smartChat !== false} onChange={(e) => setForm({ ...form, smartChat: e.target.checked })} style={{ width: 18, height: 18 }} />
+            Smart Assistant (understands anything the customer types)
+          </span>
+          <span style={{ ...help, marginLeft: 28 }}>
+            On: Google reads every message a customer types and answers like a chat — ideas, questions, changes, drawings (a picture is still only drawn when the customer presses Draw). Off: the Assistant’s fixed replies, as before. Taps on buttons never use it.
+          </span>
         </label>
         {FIELDS.map(([key, title, hint, min, max, step]) => (
           <label key={key} style={{ display: "grid" }}>
