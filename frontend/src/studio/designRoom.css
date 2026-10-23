@@ -1575,3 +1575,8 @@ p.pc-area { margin: 0; font-size: 13px; color: var(--muted); }
 }
 .dr-addmore-btn:hover { border-color: var(--gold); color: var(--ink); }
 .dr-addmore-btn span { min-width: 0; } /* ("My pictures" may take two lines in a narrow panel, split between the words) */
+/* phones (23 Oct 2026): no blur behind the small panels over the 3D tee in the room — a phone had to blur them again on
+   every frame the tee was drawn; their backgrounds are nearly solid anyway (the first screen is left as it is) */
+@media (max-width: 760px) {
+  .dr-app:is([data-step="design"], [data-step="review"]) :is(.dr-rail, .dr-cam, .dr-sizechip, .dr-spinbar) { backdrop-filter: none; -webkit-backdrop-filter: none; }
+}

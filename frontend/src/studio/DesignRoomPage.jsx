@@ -2674,7 +2674,9 @@ export default function DesignRoomPage() {
                 onPickArea={(k) => step === "design" && pickAreaByHand(k)}
                 camRequest={camRequest}
                 interactive={step === "design"}
-                still={!!active}
+                // (phones, 23 Oct 2026: the Assistant covers the tee when it is full-screen, so the tee stops redrawing every
+                // frame behind it — it kept the phone busy and made the chat lag; with "Show the tee" it moves as before)
+                still={!!active || (narrow && assist && !assistSmall)}
                 hotspots={step === "design" ? hotspots : undefined}
                 glowKey={step === "design" ? hoverKey : null}
                 activeKey={active}
