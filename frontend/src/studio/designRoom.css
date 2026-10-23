@@ -1451,3 +1451,7 @@ p.pc-area { margin: 0; font-size: 13px; color: var(--muted); }
    the swipe to itself: reaching its end never drags the page, bounces it, or pulls to refresh (phones) */
 .dr-app, .dr-app * { overscroll-behavior: contain; }
 .dr-app :is(.dr-fit, .dr-controls, .dr-review, .dr-sidebody, .dr-chatlog, .dr-pickpop, .dr-areas) { -webkit-overflow-scrolling: touch; }
+/* …except inside the chat (23 Oct 2026): a style tile clips its sample picture, which makes it a scroll box of its
+   own, and "keep the swipe to yourself" then held the mouse wheel there — with the pointer over a style the chat
+   didn't scroll. Inside the chat only the chat list keeps the scroll; everything in it hands the wheel on to it. */
+.dr-app .dr-chatlog * { overscroll-behavior: auto; }
