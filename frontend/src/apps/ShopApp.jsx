@@ -7,6 +7,7 @@ import { BrandFavicon } from "../utils/brandLogo";
 import { ADMIN_URL } from "../utils/siteUrls";
 import { PageLoading, getUserInfo } from "./common";
 import { shopRoutes } from "./shopRoutes";
+import MaintenanceGate from "../components/MaintenanceGate";
 
 // Guests only — a logged-in person goes to the home page (an admin too: the admin website has its own login)
 const GuestRoute = ({ children }) => (getUserInfo() ? <Navigate to="/" replace /> : children);
@@ -22,13 +23,16 @@ export default function ShopApp() {
   return (
     <Router>
       <BrandFavicon />
-      <Suspense fallback={<PageLoading />}>
-        <Routes>
-          <Route path="/admin/*" element={<ToAdminWebsite />} />
-          <Route path="/seller/*" element={<ToAdminWebsite />} />
-          {shopRoutes({ Guest: GuestRoute })}
-        </Routes>
-      </Suspense>
+      {/* Maintenance Mode on (Admin → Settings → General): every shop page says "back soon" */}
+      <MaintenanceGate>
+        <Suspense fallback={<PageLoading />}>
+          <Routes>
+            <Route path="/admin/*" element={<ToAdminWebsite />} />
+            <Route path="/seller/*" element={<ToAdminWebsite />} />
+            {shopRoutes({ Guest: GuestRoute })}
+          </Routes>
+        </Suspense>
+      </MaintenanceGate>
     </Router>
   );
 }

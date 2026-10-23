@@ -36,6 +36,10 @@ export const getPublicSettings = asyncHandler(async (req, res) => {
   settings.forEach((s) => {
     map[s.key] = s.value;
   });
+  // Maintenance Mode isn't a public setting, but the shop must know it is on to show its "back soon" page instead of
+  // a half-empty shop (components/MaintenanceGate.jsx) — only whether it is on is sent
+  const maintenance = await Setting.findOne({ key: "general.maintenanceMode" }).select("value").lean();
+  map["general.maintenanceMode"] = maintenance?.value === true;
   res.json(map);
 });
 

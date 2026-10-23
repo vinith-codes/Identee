@@ -226,6 +226,20 @@ function BasicsStep({ garment, save, saving, next, styles }) {
 
   const toggleFabric = (f) =>
     setFabrics((list) => (list.some((x) => x.key === f.key) ? list.filter((x) => x.key !== f.key) : [...list, f]));
+  // Fabric options (23 Oct 2026): the two from the product sheet, plus any other fabric typed here (and the ones this
+  // garment already has). A new one is ticked as soon as it is added; the server keeps up to 10.
+  const fabricKey = (name) => name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  const [added, setAdded] = useState(() => garment.fabrics.filter((f) => !SHEET_FABRICS.some((x) => x.key === f.key)));
+  const [newFabric, setNewFabric] = useState("");
+  const fabricChoices = [...SHEET_FABRICS, ...added];
+  const addFabric = () => {
+    const name = newFabric.replace(/\s+/g, " ").trim().slice(0, 60);
+    const key = fabricKey(name);
+    if (!name || !key) return;
+    if (!fabricChoices.some((x) => x.key === key)) setAdded((list) => [...list, { key, name }]);
+    setFabrics((list) => (list.some((x) => x.key === key) ? list : [...list, { key, name }]));
+    setNewFabric("");
+  };
 
   const styleKnown = styles.some((s) => s.style.toLowerCase() === category.toLowerCase());
   const shownIn = styles.find((s) => s.style.toLowerCase() === category.toLowerCase())?.category;
@@ -269,21 +283,41 @@ function BasicsStep({ garment, save, saving, next, styles }) {
       <div style={{ marginTop: 18 }}>
         <span className="aw-lbl">Fabric options</span>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-          {SHEET_FABRICS.map((f) => {
+          {fabricChoices.map((f) => {
             const on = fabrics.some((x) => x.key === f.key);
             return (
               <button key={f.key} type="button" className={`aw-sw${on ? " on" : ""}`} style={{ width: "auto", maxWidth: 340 }} onClick={() => toggleFabric(f)}>
                 <span style={{ fontSize: 16 }}>{on ? "☑" : "☐"}</span>
                 <span>
                   {f.name}
-                  <span style={{ display: "block", fontSize: 11.5, color: "#6B6559", fontWeight: 500 }}>{f.detail}</span>
+                  {f.detail && <span style={{ display: "block", fontSize: 11.5, color: "#6B6559", fontWeight: 500 }}>{f.detail}</span>}
                 </span>
               </button>
             );
           })}
         </div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10, maxWidth: 460 }}>
+          <input
+            className="aw-inp"
+            style={{ flex: "1 1 180px", width: "auto", minWidth: 0 }}
+            value={newFabric}
+            maxLength={60}
+            placeholder="Another fabric, e.g. 180 GSM Cotton"
+            aria-label="Another fabric"
+            onChange={(e) => setNewFabric(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                addFabric();
+              }
+            }}
+          />
+          <button type="button" className="aw-btn light" disabled={!newFabric.trim() || fabrics.length >= 10} onClick={addFabric}>
+            + Add fabric
+          </button>
+        </div>
         <p className="aw-help">
-          Customers pick one when ordering.{fromSheet && " Pre-filled from your product sheet — press Save to keep it."}
+          Customers pick one when ordering. Tick the ones this garment comes in (up to 10).{fromSheet && " Pre-filled from your product sheet — press Save to keep it."}
         </p>
       </div>
 

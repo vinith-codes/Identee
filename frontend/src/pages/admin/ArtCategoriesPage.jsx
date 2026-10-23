@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import {
   fetchArtCategories,
-  createArtCategory,
   deleteArtCategory,
 } from "../../redux/slices/artCategorySlice";
 import { imageUrl } from "../../utils/imageUrl";
@@ -24,10 +24,11 @@ function imgUrl(path) {
   return imageUrl(path.replace(/^\//, ""));
 }
 
+// Admin → Art → Design groups: the groups of the free art library and their delete button. (A new group is made in
+// "Add many designs", together with its designs — the separate "Add category" form here was taken out, 23 Oct 2026.)
 export default function ArtCategoriesPage() {
   const dispatch = useDispatch();
   const { items, isLoading } = useSelector((s) => s.artCategory);
-  const [name, setName] = useState("");
   const [asking, setAsking] = useState(null); // the group waiting for "Yes, delete"
   const [deleteNote, setDeleteNote] = useState({}); // group id → why it can't be deleted
   const removeGroup = async (id) => {
@@ -38,54 +39,22 @@ export default function ArtCategoriesPage() {
       setDeleteNote((n) => ({ ...n, [id]: typeof err === "string" ? err : "That didn't work. Please try again." }));
     }
   };
-  const [file, setFile] = useState(null);
-  const [preview, setPreview] = useState(null);
-  const fileRef = useRef(null);
 
   useEffect(() => {
     dispatch(fetchArtCategories());
   }, [dispatch]);
 
-  const handleFileChange = (e) => {
-    const f = e.target.files?.[0];
-    if (!f) return;
-    setFile(f);
-    setPreview(URL.createObjectURL(f));
-  };
-
-  const handleCreate = (e) => {
-    e.preventDefault();
-    if (!name.trim() || !file) return;
-    dispatch(createArtCategory({ name: name.trim(), thumbnailFile: file }));
-    setName("");
-    setFile(null);
-    setPreview(null);
-    if (fileRef.current) fileRef.current.value = "";
-  };
-
   return (
     <div style={{ minHeight: "100vh", background: C.bg, color: C.ink, padding: "32px 40px", fontFamily: "'Inter', sans-serif" }}>
       <p style={{ margin: 0, fontSize: 11, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", color: C.gold }}>Admin</p>
-      <h1 style={{ margin: "4px 0 24px", fontSize: 26, fontWeight: 600, fontFamily: "'Bricolage Grotesque', 'Helvetica Neue', Arial, sans-serif" }}>Art Categories</h1>
-
-      <form onSubmit={handleCreate} style={{ display: "flex", gap: 12, marginBottom: 28, alignItems: "flex-start", flexWrap: "wrap" }}>
-        <input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="Category name (e.g. Marvel, Anime)"
-          style={{ padding: "10px 14px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.panel, color: C.ink, fontSize: 13, minWidth: 240 }}
-        />
-        <div>
-          <input ref={fileRef} type="file" accept="image/*" onChange={handleFileChange} style={{ display: "none" }} />
-          <button type="button" onClick={() => fileRef.current?.click()} style={{ padding: "10px 16px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.panel, color: C.ink, fontSize: 12, cursor: "pointer" }}>
-            {preview ? "Change Thumbnail" : "Choose Thumbnail"}
-          </button>
-        </div>
-        {preview && <img src={preview} alt="" style={{ width: 44, height: 44, borderRadius: 8, objectFit: "cover" }} />}
-        <button type="submit" style={{ padding: "10px 18px", borderRadius: 8, border: "none", background: C.gold, color: "#0B0B0C", fontWeight: 700, fontSize: 12, cursor: "pointer" }}>
-          Add Category
-        </button>
-      </form>
+      <h1 style={{ margin: "4px 0 8px", fontSize: 26, fontWeight: 600, fontFamily: "'Bricolage Grotesque', 'Helvetica Neue', Arial, sans-serif" }}>Design groups</h1>
+      <p style={{ margin: "0 0 24px", fontSize: 13, color: C.muted, lineHeight: 1.5 }}>
+        To make a new group, use{" "}
+        <Link to="/admin/art-bulk-upload" style={{ color: C.gold, fontWeight: 600 }}>
+          Add many designs
+        </Link>{" "}
+        and pick “A new category…”.
+      </p>
 
       {isLoading && <p style={{ color: C.muted }}>Loading…</p>}
 

@@ -8,7 +8,6 @@ import {
   updateOrderStatus,
 } from "../../redux/slices/orderSlice";
 import { THEME, labelStyle } from "../../theme/theme";
-import orderService from "../../services/orderService";
 import OrderDesignsModal from "./OrderDesignsModal";
 
 const STATUS_COLORS = {
@@ -212,64 +211,6 @@ function StatusEditor({ order, updating, onChange, onUndo }) {
   );
 }
 
-// "Delete selected": what will go, typed DELETE to be sure, and (when every invoice goes) restarting the numbers
-function DeleteOrdersDialog({ orders, allInvoicedPicked, onCancel, onDone }) {
-  const [typed, setTyped] = useState("");
-  const [restart, setRestart] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const invoiced = orders.filter((o) => o.invoiceDetails).length;
-  const label = (o) => o.invoiceNumber || o._id.slice(-8);
-  const shown = orders.slice(0, 8).map(label).join(", ") + (orders.length > 8 ? ` and ${orders.length - 8} more` : "");
-  const go = async () => {
-    setBusy(true);
-    try {
-      const token = JSON.parse(localStorage.getItem("userInfo") || "{}")?.token;
-      const res = await orderService.deleteOrders({ ids: orders.map((o) => o._id), restartInvoiceNumbers: restart && allInvoicedPicked }, token);
-      onDone(res);
-    } catch (err) {
-      toast.error(err.response?.data?.message || "Couldn't delete the orders. Please try again.");
-      setBusy(false);
-    }
-  };
-  return (
-    <div role="presentation" onClick={(e) => e.target === e.currentTarget && !busy && onCancel()} style={{ position: "fixed", inset: 0, zIndex: 60, display: "grid", placeItems: "center", padding: 16, background: "rgba(20, 17, 16, .5)" }}>
-      <div role="alertdialog" aria-modal="true" aria-labelledby="del-orders-h" style={{ width: "min(460px, 100%)", boxSizing: "border-box", background: "#fff", color: "#141110", borderRadius: 16, padding: 22, display: "grid", gap: 12, boxShadow: "0 30px 70px -20px rgba(20,17,16,.55)" }}>
-        <h2 id="del-orders-h" style={{ margin: 0, fontSize: 18 }}>
-          Delete {orders.length} order{orders.length === 1 ? "" : "s"}?
-        </h2>
-        <p style={{ margin: 0, fontSize: 13.5, lineHeight: 1.5, color: "#3B342B" }}>{shown}</p>
-        <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, lineHeight: 1.55, color: "#3B342B" }}>
-          <li>{invoiced ? `Their ${invoiced} invoice${invoiced === 1 ? " is" : "s are"} deleted too.` : "None of them has an invoice."}</li>
-          <li>Stock is put back (a cancelled order already gave it back).</li>
-          <li>The customers&apos; accounts and saved designs stay.</li>
-          <li>A copy of each order is kept in a backup, so a mistake can be put back by your developer.</li>
-        </ul>
-        {invoiced > 0 && (
-          <label style={{ display: "flex", gap: 8, alignItems: "flex-start", fontSize: 13, color: allInvoicedPicked ? "#141110" : "#A39C8C" }}>
-            <input type="checkbox" checked={restart && allInvoicedPicked} disabled={!allInvoicedPicked} onChange={(e) => setRestart(e.target.checked)} style={{ marginTop: 2 }} />
-            <span>
-              Start invoice numbers again from IDT-{new Date().getFullYear()}-000001
-              {!allInvoicedPicked && " (only when every invoice is being deleted)"}
-            </span>
-          </label>
-        )}
-        <label style={{ display: "grid", gap: 6, fontSize: 13, fontWeight: 600 }}>
-          Type DELETE to confirm
-          <input value={typed} onChange={(e) => setTyped(e.target.value)} autoFocus autoComplete="off" style={{ padding: "9px 12px", borderRadius: 8, border: "1px solid #D7CCB3", fontSize: 16 }} />
-        </label>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
-          <button type="button" onClick={onCancel} disabled={busy} style={{ padding: "10px 16px", borderRadius: 999, border: "1px solid #D7CCB3", background: "#fff", fontWeight: 600, cursor: "pointer" }}>
-            Cancel
-          </button>
-          <button type="button" onClick={go} disabled={busy || typed.trim() !== "DELETE"} style={{ padding: "10px 16px", borderRadius: 999, border: 0, background: typed.trim() === "DELETE" ? "#B42318" : "#E8B4AD", color: "#fff", fontWeight: 700, cursor: busy || typed.trim() !== "DELETE" ? "not-allowed" : "pointer" }}>
-            {busy ? "Deleting…" : `Delete ${orders.length} order${orders.length === 1 ? "" : "s"}`}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export default function AdminOrdersPage() {
   const dispatch = useDispatch();
   const navigate = useNavigate();
@@ -294,9 +235,6 @@ export default function AdminOrdersPage() {
   const anyFilter = FILTER_KEYS.some((k) => f[k]);
   const clearFilters = () => setParams({}, { replace: true });
   const [designsFor, setDesignsFor] = useState(null); // order id → custom designs + print files
-  // "Delete selected" — for clearing the test orders made while checking the site (to be taken out afterwards)
-  const [picked, setPicked] = useState(() => new Set());
-  const [confirmDelete, setConfirmDelete] = useState(false);
 
   useEffect(() => {
     dispatch(fetchAllOrders());
@@ -346,23 +284,6 @@ export default function AdminOrdersPage() {
     (a, b) => new Date(b.createdAt) - new Date(a.createdAt),
   );
   const filtered = applyFilters(sorted, f);
-  // (only orders still in the list count as picked — a filter or a reload can hide some)
-  const pickedOrders = sorted.filter((o) => picked.has(o._id));
-  const allShownPicked = filtered.length > 0 && filtered.every((o) => picked.has(o._id));
-  const togglePick = (id) =>
-    setPicked((cur) => {
-      const next = new Set(cur);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  const toggleAllShown = () =>
-    setPicked((cur) => {
-      const next = new Set(cur);
-      if (allShownPicked) filtered.forEach((o) => next.delete(o._id));
-      else filtered.forEach((o) => next.add(o._id));
-      return next;
-    });
   const control = {
     padding: "8px 12px",
     minHeight: 38,
@@ -454,17 +375,6 @@ export default function AdminOrdersPage() {
           </button>
         )}
       </div>
-      {pickedOrders.length > 0 && (
-        <div role="region" aria-label="Selected orders" style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 10, margin: "0 0 12px", padding: "10px 14px", borderRadius: 10, background: "#FEF3F2", border: "1px solid #F5C2BC" }}>
-          <b style={{ fontSize: 13 }}>{pickedOrders.length} order{pickedOrders.length === 1 ? "" : "s"} selected</b>
-          <button type="button" onClick={() => setConfirmDelete(true)} style={{ ...control, background: "#B42318", borderColor: "#B42318", color: "#fff", fontWeight: 700, cursor: "pointer" }}>
-            Delete selected
-          </button>
-          <button type="button" onClick={() => setPicked(new Set())} style={{ ...control, background: "none", cursor: "pointer" }}>
-            Clear selection
-          </button>
-        </div>
-      )}
       {!allOrdersLoading && !allOrdersError && (allOrders || []).length > 0 && (
         <p aria-live="polite" style={{ margin: "0 0 14px", fontSize: 12.5, color: THEME.textMuted }}>
           {anyFilter ? `Showing ${filtered.length} of ${(allOrders || []).length} orders` : `${(allOrders || []).length} orders`}
@@ -504,9 +414,6 @@ export default function AdminOrdersPage() {
           >
             <thead>
               <tr style={{ background: THEME.surface2, textAlign: "left" }}>
-                <th style={{ padding: "10px 0 10px 16px", width: 28 }}>
-                  <input type="checkbox" checked={allShownPicked} onChange={toggleAllShown} aria-label={allShownPicked ? "Unselect the orders shown" : "Select all the orders shown"} style={{ width: 17, height: 17, cursor: "pointer" }} />
-                </th>
                 {[
                   "Order",
                   "Customer",
@@ -534,11 +441,8 @@ export default function AdminOrdersPage() {
               {filtered.map((order) => (
                 <tr
                   key={order._id}
-                  style={{ borderTop: `1px solid ${THEME.border}`, background: picked.has(order._id) ? "#FEF3F2" : undefined }}
+                  style={{ borderTop: `1px solid ${THEME.border}` }}
                 >
-                  <td style={{ padding: "12px 0 12px 16px" }}>
-                    <input type="checkbox" checked={picked.has(order._id)} onChange={() => togglePick(order._id)} aria-label={`Select order ${order.invoiceNumber || order._id.slice(-8)}`} style={{ width: 17, height: 17, cursor: "pointer" }} />
-                  </td>
                   <td
                     style={{
                       padding: "12px 16px",
@@ -646,19 +550,6 @@ export default function AdminOrdersPage() {
         </div>
       )}
       {designsFor && <OrderDesignsModal orderId={designsFor} onClose={() => setDesignsFor(null)} />}
-      {confirmDelete && (
-        <DeleteOrdersDialog
-          orders={pickedOrders}
-          allInvoicedPicked={sorted.filter((o) => o.invoiceDetails).every((o) => picked.has(o._id))}
-          onCancel={() => setConfirmDelete(false)}
-          onDone={(res) => {
-            setConfirmDelete(false);
-            setPicked(new Set());
-            toast.success(res.message, { autoClose: 9000 });
-            dispatch(fetchAllOrders());
-          }}
-        />
-      )}
     </div>
   );
 }
