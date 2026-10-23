@@ -1,10 +1,14 @@
 import axios from "axios";
+import { APP } from "../utils/siteUrls";
+import { isTeamAccount } from "../utils/teamAccount";
 
 const BACKEND_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
 const API_URL = `${BACKEND_URL}/api/users`;
 
 const saveUser = (user) => {
+  // the shop never keeps an admin/seller login (23 Oct 2026) — the login page sends them to the admin website
+  if (APP === "shop" && isTeamAccount(user)) return user;
   localStorage.setItem("userInfo", JSON.stringify(user));
   return user;
 };

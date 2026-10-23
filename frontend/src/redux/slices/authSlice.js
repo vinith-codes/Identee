@@ -1,8 +1,29 @@
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 
 import authService from "../../services/authService";
+import { APP } from "../../utils/siteUrls";
+import { isTeamAccount } from "../../utils/teamAccount";
 
-const user = JSON.parse(localStorage.getItem("userInfo"));
+const readUser = () => {
+  let saved;
+  try {
+    saved = JSON.parse(localStorage.getItem("userInfo"));
+  } catch {
+    return null;
+  }
+  // the shop is for customers only (23 Oct 2026): an admin/seller login saved here from before is dropped, so the
+  // shop treats them as logged out (their admin website login is a separate one and stays)
+  if (APP === "shop" && isTeamAccount(saved)) {
+    try {
+      localStorage.removeItem("userInfo");
+    } catch {
+      /* nothing saved to remove */
+    }
+    return null;
+  }
+  return saved;
+};
+const user = readUser();
 
 const initialState = {
   user: user || null,

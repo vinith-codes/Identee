@@ -3,7 +3,8 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { useDispatch } from "react-redux";
 import authService from "../services/authService";
 import { setCredentials } from "../redux/slices/authSlice";
-import { APP } from "../utils/siteUrls";
+import { APP, adminHref } from "../utils/siteUrls";
+import { isTeamAccount } from "../utils/teamAccount";
 
 const gold = "#C9A24B";
 const goldBright = "#F0D585";
@@ -104,6 +105,7 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [toast, setToast] = useState({ show: false, msg: "" });
+  const [teamWho, setTeamWho] = useState(""); // a team account that tried the shop's login (step "team")
 
   const otpRef = useRef(null);
   // came here because the saved login expired (utils/sessionExpiry.js): say so, and go back there afterwards
@@ -130,6 +132,13 @@ export default function LoginPage() {
   };
 
   const finishLogin = (user) => {
+    // the shop is for customers only (23 Oct 2026), the same way the admin website is for the team only: an admin
+    // or seller is not logged in here and is sent to the admin website instead
+    if (APP === "shop" && isTeamAccount(user)) {
+      setTeamWho(user.email || user.phone || user.name || "");
+      setStep("team");
+      return;
+    }
     dispatch(setCredentials(user));
     window.dispatchEvent(new Event("storage")); // Navbar reads localStorage
     showToast(`Welcome, ${user.name}!`);
@@ -229,6 +238,7 @@ export default function LoginPage() {
     identifier: APP === "admin" ? ["IDENTEE Admin", "Team members log in with their email"] : ["Welcome", `Log in or sign up with your ${ID_LABEL.toLowerCase()}`],
     otp: ["Enter the code", sentTo],
     profile: ["Almost there", "Tell us your name to finish creating your account"],
+    team: ["This is a team account", "IDENTEE team accounts log in on the admin website, not in the shop"],
   };
 
   return (
@@ -485,6 +495,34 @@ export default function LoginPage() {
                 style={{ background: "none", border: 0, color: "#6B6559", cursor: "pointer" }}
               >
                 Not you? Start again
+              </button>
+            </>
+          )}
+
+          {step === "team" && (
+            <>
+              <p className="text-sm mb-6" style={{ color: "#B9B4A8", lineHeight: 1.6, overflowWrap: "anywhere" }}>
+                <strong style={{ color: "#F3EFE6" }}>{teamWho}</strong> is an admin or seller account, so it isn't logged
+                in here. To shop as a customer, use a different email.
+              </p>
+              <a
+                href={adminHref("/login")}
+                className="block w-full py-2.5 text-sm font-medium rounded-lg text-center transition-all active:scale-[0.98]"
+                style={{ background: `linear-gradient(135deg, ${gold}, ${goldBright})`, color: "#0B0B0C", textDecoration: "none" }}
+              >
+                Go to the admin website
+              </a>
+              <button
+                type="button"
+                onClick={() => {
+                  setIdentifier("");
+                  setTeamWho("");
+                  changeIdentifier();
+                }}
+                className="mt-4 w-full text-sm underline underline-offset-4"
+                style={{ background: "none", border: 0, color: "#8A877F", cursor: "pointer" }}
+              >
+                Log in with another email
               </button>
             </>
           )}
