@@ -1,0 +1,286 @@
+/* Shop your IDENTEE: the ready designs (grid on /ready-made and one design's page), 25 Oct 2026 */
+.rd-section {
+  margin: 8px 0 40px;
+}
+.rd-section h2 {
+  margin: 0 0 4px;
+  font-family: "Bricolage Grotesque", "Helvetica Neue", Arial, sans-serif;
+  font-size: 22px;
+  color: #15130f;
+}
+.rd-section > p {
+  margin: 0 0 16px;
+  color: #71695b;
+  font-size: 14px;
+}
+.rd-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 18px;
+}
+.rd-card {
+  display: flex;
+  flex-direction: column;
+  text-decoration: none;
+  color: #15130f;
+  border-radius: 14px;
+  overflow: hidden;
+  border: 1px solid #eee6d3;
+  background: #fff;
+  min-width: 0;
+  transition: box-shadow 0.2s, transform 0.2s;
+}
+.rd-card:hover {
+  box-shadow: 0 10px 30px rgba(20, 17, 16, 0.1);
+  transform: translateY(-2px);
+}
+.rd-card-pic {
+  position: relative;
+  aspect-ratio: 4 / 5;
+  background: #f1ede3;
+}
+.rd-card-pic img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: opacity 0.25s;
+}
+.rd-card-pic img + img {
+  opacity: 0;
+}
+.rd-card:hover .rd-card-pic img + img {
+  opacity: 1;
+}
+.rd-card-body {
+  padding: 12px 14px 14px;
+  display: grid;
+  gap: 4px;
+}
+.rd-card-name {
+  font-weight: 700;
+  font-size: 15px;
+}
+.rd-card-sub {
+  font-size: 12.5px;
+  color: #71695b;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.rd-dot {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  border: 1px solid rgba(0, 0, 0, 0.18);
+  flex: none;
+}
+
+/* one design */
+.rd-page {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 24px 20px 64px;
+  box-sizing: border-box;
+}
+.rd-page *,
+.rd-page *::before,
+.rd-page *::after {
+  box-sizing: border-box;
+}
+.rd-back {
+  display: inline-block;
+  margin-bottom: 16px;
+  color: #8c6a1f;
+  font-weight: 600;
+  font-size: 14px;
+  text-decoration: none;
+}
+.rd-main {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+  gap: 36px;
+  align-items: start;
+}
+.rd-gallery-big {
+  aspect-ratio: 4 / 5;
+  border-radius: 16px;
+  overflow: hidden;
+  background: #f1ede3;
+}
+.rd-gallery-big img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.rd-thumbs {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 10px;
+}
+.rd-thumbs button {
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: 10px;
+  overflow: hidden;
+  cursor: pointer;
+  background: #f1ede3;
+  aspect-ratio: 4 / 5;
+}
+.rd-thumbs button[aria-pressed="true"] {
+  border-color: #c9a24b;
+}
+.rd-thumbs img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.rd-info h1 {
+  margin: 0 0 6px;
+  font-family: "Bricolage Grotesque", "Helvetica Neue", Arial, sans-serif;
+  font-size: 30px;
+  line-height: 1.15;
+  color: #15130f;
+}
+.rd-blurb {
+  margin: 0 0 12px;
+  color: #4a443b;
+  font-size: 15px;
+  line-height: 1.55;
+}
+.rd-sizes {
+  margin: 18px 0 6px;
+  display: grid;
+  gap: 6px;
+}
+.rd-size {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px;
+  border-radius: 10px;
+  border: 1px solid #eee6d3;
+}
+.rd-size[data-on="true"] {
+  background: #fbf3df;
+  border-color: #f0d7a6;
+}
+.rd-size b {
+  font-size: 14px;
+}
+.rd-size small {
+  color: #71695b;
+  font-size: 12.5px;
+  min-width: 0;
+}
+.rd-qty {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.rd-qty button {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 1px solid #e3dac6;
+  background: #fff;
+  font-size: 16px;
+  cursor: pointer;
+  line-height: 1;
+}
+.rd-qty span {
+  min-width: 18px;
+  text-align: center;
+  font-weight: 700;
+}
+.rd-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 16px;
+}
+.rd-btn {
+  padding: 13px 20px;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 15px;
+  cursor: pointer;
+  border: 1px solid #15130f;
+  background: #fff;
+  color: #15130f;
+  font-family: inherit;
+}
+.rd-btn-dark {
+  background: #15130f;
+  color: #fff;
+}
+.rd-btn-gold {
+  border-color: #c9a24b;
+  background: linear-gradient(135deg, #c9a24b, #e8b94d);
+}
+.rd-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.rd-link {
+  background: none;
+  border: none;
+  padding: 0;
+  color: #8c6a1f;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  text-decoration: underline;
+  font-family: inherit;
+}
+.rd-note {
+  margin: 10px 0 0;
+  color: #71695b;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.rd-msg {
+  margin: 12px 0 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 14px;
+  line-height: 1.45;
+  background: #f7f4ec;
+}
+.rd-msg-bad {
+  background: #c0392b14;
+  color: #8e2a20;
+}
+
+@media (max-width: 820px) {
+  .rd-main {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 20px;
+  }
+  .rd-info h1 {
+    font-size: 25px;
+  }
+}
+@media (max-width: 480px) {
+  .rd-page {
+    padding: 16px 14px 48px;
+  }
+  .rd-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+  .rd-card-body {
+    padding: 9px 10px 11px;
+  }
+  .rd-card-name {
+    font-size: 13.5px;
+  }
+  .rd-actions .rd-btn {
+    flex: 1 1 100%;
+  }
+}

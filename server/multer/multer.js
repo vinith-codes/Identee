@@ -25,6 +25,7 @@ const folderFor = (req, file) => {
   if (file.fieldname === "design") return "designs";
   if (file.fieldname === "settingsAsset") return "settings";
   if (file.fieldname === "photo") return "garments";
+  if (file.fieldname === "image" && req.originalUrl.includes("/api/collections")) return "collections"; // the Collection maker's example picture
   if (file.fieldname === "thumbnail") return "art-categories";
   if (file.fieldname === "image" && req.originalUrl.includes("/art-designs")) return "art-designs";
   if (

@@ -9,7 +9,8 @@ const aiChatUsageSchema = new mongoose.Schema(
     costInr: { type: Number, default: 0 },
     model: { type: String, default: "" },
     // "reply": one answer · "memory": a long chat's memory note rewritten (23 Oct 2026) — costed, not a message
-    kind: { type: String, enum: ["reply", "memory"], default: "reply" },
+    // "collection": the Collection maker's text steps (brief, facts, plans — 25 Oct 2026) — costed, not a message
+    kind: { type: String, enum: ["reply", "memory", "collection"], default: "reply" },
   },
   { timestamps: true },
 );

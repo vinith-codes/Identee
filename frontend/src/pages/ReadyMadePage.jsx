@@ -11,6 +11,7 @@ import { isReadyMade } from "../utils/categoryKinds";
 import { SHOPS } from "../utils/shopNames";
 import { useShopOpen } from "../utils/shopOpen";
 import ShopComingSoon from "../components/ShopComingSoon";
+import ReadyDesignGrid from "../components/shop/ReadyDesignGrid";
 
 export default function ReadyMadePage() {
   const dispatch = useDispatch();
@@ -35,6 +36,8 @@ export default function ReadyMadePage() {
           text="Finished designs, ready to wear. Pick a category."
           switchTo={{ to: SHOPS.create.to, label: `${SHOPS.create.name} instead →` }}
         />
+        {/* the IDENTEE designs made with the Collection maker (25 Oct 2026); nothing shows while there are none */}
+        <ReadyDesignGrid />
         <CategoryGrid categories={categories} loading={status === "loading" || status === "idle"} />
         {status === "succeeded" && categories.length === 0 && (
           <p style={{ color: "#71695B" }}>New collections are coming soon.</p>

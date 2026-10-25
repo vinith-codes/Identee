@@ -120,7 +120,7 @@ const MOCKUP_VIEWS = ["front", "back", "left", "right"];
 const MAX_MOCKUP_BYTES = 800 * 1024;
 const DATA_URL = /^data:image\/(jpeg|png|webp);base64,([A-Za-z0-9+/=]+)$/;
 
-async function storeMockups(mockups) {
+export async function storeMockups(mockups) {
   if (!mockups || typeof mockups !== "object") return null;
   // checked first, then the four uploaded together (one after another made every Save wait four times as long)
   const files = [];
@@ -147,7 +147,7 @@ async function dropMockups(mockups, exceptId) {
 }
 
 // Validates garment / colour / size / elements; returns the fields to store.
-async function cleanDesign(body) {
+export async function cleanDesign(body) {
   const { garmentType, color, elements, size, name, players } = body;
   if (!garmentType || !color) throw badRequest("garmentType and color are required");
   if (!Array.isArray(elements) || elements.length === 0) throw badRequest("Add at least one design element before saving");

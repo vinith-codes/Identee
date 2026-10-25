@@ -40,6 +40,7 @@ export const ADMIN_MENU = [
     to: "/admin/products",
     children: [
       { to: "/admin/products", label: "All products" },
+      { to: "/admin/collection-maker", label: "Collection maker (AI)" },
       { to: "/admin/upload-product", label: "Add a product" },
       { to: "/admin/bulk-upload", label: "Add many (spreadsheet)" },
     ],

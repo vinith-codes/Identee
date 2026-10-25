@@ -70,7 +70,7 @@ const startOfMonth = () => {
   return d;
 };
 
-async function readSettings() {
+export async function readSettings() {
   const rows = await Setting.find({ category: CATEGORY }).select("key value").lean();
   const saved = Object.fromEntries(rows.map((r) => [r.key, r.value]));
   const get = (key) => (saved[key] === undefined || saved[key] === null ? DEFAULTS[key].value : saved[key]);
@@ -88,7 +88,7 @@ async function readSettings() {
   };
 }
 // This month's use, in total and for Grok alone (a Grok row's model starts with "grok").
-async function monthSpend() {
+export async function monthSpend() {
   const rows = await AiUsage.aggregate([
     { $match: { createdAt: { $gte: startOfMonth() } } },
     { $group: { _id: { $regexMatch: { input: { $ifNull: ["$model", ""] }, regex: /^grok/ } }, cost: { $sum: "$costInr" }, images: { $sum: "$images" }, requests: { $sum: 1 } } },
@@ -97,14 +97,14 @@ async function monthSpend() {
   const grok = part(rows.find((r) => r._id === true));
   const google = part(rows.find((r) => r._id === false));
   // the smart Assistant's messages (Google's text AI): their cost counts toward Google's cap, not as picture requests
-  const [chatRow] = await AiChatUsage.aggregate([{ $match: { createdAt: { $gte: startOfMonth() } } }, { $group: { _id: null, cost: { $sum: "$costInr" }, messages: { $sum: { $cond: [{ $eq: ["$kind", "memory"] }, 0, 1] } } } }]);
+  const [chatRow] = await AiChatUsage.aggregate([{ $match: { createdAt: { $gte: startOfMonth() } } }, { $group: { _id: null, cost: { $sum: "$costInr" }, messages: { $sum: { $cond: [{ $in: ["$kind", ["memory", "collection"]] }, 0, 1] } } } }]);
   const chat = { cost: chatRow?.cost || 0, messages: chatRow?.messages || 0 };
   google.cost += chat.cost;
   return { cost: grok.cost + google.cost, images: grok.images + google.images, requests: grok.requests + google.requests, grok, google, chat };
 }
 // Each service has its own cap (0 = no cap).
-const googleCapped = (settings, month) => settings.monthlyCapInr > 0 && month.google.cost >= settings.monthlyCapInr;
-const grokCapped = (settings, month) => settings.grokMonthlyCapInr > 0 && month.grok.cost >= settings.grokMonthlyCapInr;
+export const googleCapped = (settings, month) => settings.monthlyCapInr > 0 && month.google.cost >= settings.monthlyCapInr;
+export const grokCapped = (settings, month) => settings.grokMonthlyCapInr > 0 && month.grok.cost >= settings.grokMonthlyCapInr;
 // Why the feature is off (null = it is on). Google makes every picture, so its cap pauses the feature;
 // Grok's cap only stops Grok standing in for refused pictures.
 async function whyOff(settings) {

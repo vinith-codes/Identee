@@ -39,6 +39,7 @@ import WaitCard from "./WaitCard";
 import PriceTag from "../components/PriceTag";
 import { shippingNote, useShippingRule, useSiteOffer } from "../utils/sitePricing";
 import { checkDesign, inksFor, printSharpness } from "./designCheck";
+import { cropMockup } from "./mockupCrop";
 import { TEMPLATES } from "./designTemplates";
 import TeamModeChoice from "./TeamModeChoice";
 import SizeFinder from "./SizeFinder.jsx";
@@ -123,23 +124,6 @@ const rupees = (n) => `₹${n.toLocaleString("en-IN")}`;
 const SHOWROOM = { position: [0, 0.8, 6.5], look: [0, 0.55, 0] };
 const makeId = () => `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
 
-// A 4:5 picture of the tee from a full 3D-view snapshot (for mockups).
-function cropMockup(dataUrl, outW = 640, outH = 800) {
-  return new Promise((resolve) => {
-    const img = new Image();
-    img.onload = () => {
-      const h = img.height * 0.96;
-      const w = h * (outW / outH);
-      const c = document.createElement("canvas");
-      c.width = outW;
-      c.height = outH;
-      c.getContext("2d").drawImage(img, (img.width - w) / 2, (img.height - h) / 2, w, h, 0, 0, outW, outH);
-      resolve(c.toDataURL("image/jpeg", 0.85));
-    };
-    img.onerror = () => resolve(null);
-    img.src = dataUrl;
-  });
-}
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // Load the studio fonts once (Konva needs them in the document).

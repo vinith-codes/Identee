@@ -743,3 +743,45 @@ Group order links for schools/companies, brand-kit lock + approval for corporate
 ### 8.4 Small UI clean-ups noted
 - Payment step shows separate "UPI" and "Card" options that both open the same Razorpay popup → replace with one "Pay online" option.
 - Remove the obsolete admin **Settings → Security → change password** form.
+
+---
+
+## 9. Shop your IDENTEE — Collection maker (25 Oct 2026, branch `feature/collection-maker`)
+
+**Before:** Shop your IDENTEE could only sell stock products (photos + stock per size). Making a new themed collection
+(e.g. tees for a film release) meant designing every tee by hand.
+
+**Now:** Admin → Shop your IDENTEE → **Collection maker (AI)**. A fixed **pipeline** (same steps every time):
+
+| # | Step | Who / what | Cost |
+|---|---|---|---|
+| 1 | Prompt (+ optional example picture) | admin | – |
+| 2 | Brief: theme, how many, mood, language, colours, avoid, real people (Grok) tick, budget | Gemini text (reads the example too) | ~₹0.2 |
+| 3 | Admin checks / changes the brief → **Start** | admin | – |
+| 4 | Facts: names, dates, famous lines | Gemini + Google Search | small (free quota first) |
+| 5 | Plan each tee: idea, one of 5 tested layouts, tee colour (light art → dark tee), words, font, picture subject | Gemini text | ~₹0.2 |
+| 6 | Picture, cut out, trimmed | Nano Banana; Grok only for real people and only when ticked | ₹2.9 / ₹6 each |
+| 7 | Placed at true print size; words fitted; print check; 3D mockups | server + the admin's browser | free |
+| 8 | Review: Publish / Unpublish / Reject / New picture / Edit name | admin | – |
+
+- Limits: at most 10 tees and 20 pictures a run (the brief's budget), plus the monthly Google / Grok caps (Admin → Settings → AI).
+  Pictures are logged as `AiUsage` kind `collection`; text steps as `AiChatUsage` kind `collection` (count in Google's cap).
+- Layouts (`server/services/collectionService.js` LAYOUTS): back-poster (centre back + front right vertical words),
+  front-type (big words centre front + full back picture), front-badge (centre front + top back words), back-sleeve
+  (full back + left sleeve word), back-chest (centre back + right chest word).
+- **Selling = print on demand:** published designs show on /ready-made ("IDENTEE designs") and /ready-made/design/:slug.
+  Add to cart / Buy now makes the customer's own copy (`Customization.fromReady`) — the normal design cart, checkout,
+  order lock and print sheets are used unchanged. "Change something" opens that copy in the design room. Price = the
+  garment's price + the picture amount (₹699 + ₹100 = ₹799). Only while Shop your IDENTEE is open (also checked at checkout).
+- Test without spending: `AI_TEXT_PROVIDER=mock` + `AI_IMAGE_PROVIDER=mock` (stand-in answers and pictures, ₹0).
+
+**Files:** server `models/designCollectionModel.js`, `models/readyDesignModel.js`, `services/collectionService.js`,
+`controllers/collectionController.js`, `controllers/readyDesignController.js`, `routes/collectionRoutes.js`,
+`routes/readyDesignRoutes.js`, `tests/collection.test.mjs`; frontend `pages/admin/CollectionMakerPage.jsx` (+ css),
+`pages/ReadyDesignPage.jsx`, `components/shop/ReadyDesignGrid.jsx` (+ `pages/readyDesign.css`),
+`studio/MockupCamera.jsx`, `studio/designFinish.js`, `studio/mockupCrop.js`, `services/collectionService.js`,
+`services/readyDesignService.js`.
+
+**Tested (throwaway DB, stand-in AI):** brief → start → facts → plans → 3 pictures → words fitted → 3D mockups → publish;
+shop closed = nothing listed / no copy / no checkout; shop open = listed, Add to cart (₹799 per piece, quote ₹1,698 for 2
+with shipping), Buy now, Change something → design room; phone 360/375 and laptop 1280; both builds; 14 server + 76 shop tests.

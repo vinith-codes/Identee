@@ -69,6 +69,8 @@ export const customizationLine = async (customizationId, qty, size, user) => {
   if (customization.user && customization.user.toString() !== user._id.toString()) {
     throw new HttpError(403, "This design belongs to another account");
   }
+  // a Shop your IDENTEE design (a copy of a ready design) is only sold while that shop is open (25 Oct 2026)
+  if (customization.fromReady && !(await shopOpen())) throw new HttpError(403, SHOP_CLOSED);
 
   const garment = await GarmentType.findOne({ key: customization.garmentType });
   if (!garment || !garment.isActive) {
@@ -88,7 +90,8 @@ export const customizationLine = async (customizationId, qty, size, user) => {
   return {
     product: null,
     customization: customization._id.toString(),
-    name: `${garment.label} — Custom Design`,
+    // a Shop your IDENTEE design keeps its own name on the order (25 Oct 2026)
+    name: customization.fromReady ? `${customization.name} — ${garment.label}`.slice(0, 120) : `${garment.label} — Custom Design`,
     image: customization.mockups?.front || "", // picture of the designed tee
     size: chosen || "Custom",
     qty,

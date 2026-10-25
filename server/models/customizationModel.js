@@ -94,6 +94,8 @@ const customizationSchema = new mongoose.Schema(
     },
     orderedAt: { type: Date, default: null }, // set when ordered → the design is locked
     hiddenAt: { type: Date, default: null }, // "deleted" by the customer but kept for an order
+    // a copy of a Shop your IDENTEE design (ReadyDesign), made when the customer bought it (25 Oct 2026)
+    fromReady: { type: mongoose.Schema.Types.ObjectId, ref: "ReadyDesign", default: null },
     elements: {
       type: [elementSchema],
       validate: (v) => Array.isArray(v) && v.length > 0,

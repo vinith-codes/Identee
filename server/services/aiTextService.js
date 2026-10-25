@@ -198,8 +198,48 @@ export async function planEdit({ message, design }) {
   return { reply: String(out?.reply || "").slice(0, 400), ops: Array.isArray(out?.ops) ? out.ops.slice(0, 12) : [] };
 }
 
+// The text model with Google Search (the Collection maker's facts step, 25 Oct 2026): it looks things up before
+// answering — a film's release date, its characters, its famous lines. Search can't be combined with the JSON
+// answer mode, so the JSON is asked for in the prompt. Returns { json, sources: [{ title, url }] }.
+export async function askGrounded(prompt, temperature = 0.3, modelName = ideaModel()) {
+  const key = apiKey();
+  if (!key) throw Object.assign(new Error("not set up"), { status: 503 });
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 45_000); // a search takes longer than a plain answer
+  let res;
+  try {
+    res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent`, {
+      method: "POST",
+      headers: { "x-goog-api-key": key, "Content-Type": "application/json" },
+      body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: prompt }] }], tools: [{ google_search: {} }], generationConfig: { temperature } }),
+      signal: ctrl.signal,
+    });
+  } catch {
+    throw Object.assign(new Error("unreachable"), { status: 502 });
+  } finally {
+    clearTimeout(timer);
+  }
+  const json = await res.json().catch(() => null);
+  if (!res.ok) {
+    console.error("[ai] search request failed:", res.status, json?.error?.message || "");
+    throw Object.assign(new Error("failed"), { status: 502 });
+  }
+  const candidate = json?.candidates?.[0];
+  const text = (candidate?.content?.parts || []).map((p) => p.text || "").join("");
+  // the answer may wrap the JSON in words or a ``` block: take the outermost { … }
+  const start = text.indexOf("{");
+  const end = text.lastIndexOf("}");
+  if (start < 0 || end <= start) throw Object.assign(new Error("no JSON in the answer"), { status: 502 });
+  const sources = (candidate?.groundingMetadata?.groundingChunks || [])
+    .map((c) => ({ title: String(c?.web?.title || "").slice(0, 120), url: String(c?.web?.uri || "") }))
+    .filter((s) => /^https?:\/\//.test(s.url))
+    .slice(0, 8);
+  return { json: JSON.parse(text.slice(start, end + 1)), sources };
+}
+
 // The text model with a picture: the same as askJson, with the photo sent along (Gemini reads images).
-async function askJsonWithImage(prompt, image, temperature = 0.2, modelName = ideaModel()) {
+// (exported for the Collection maker's example picture, 25 Oct 2026)
+export async function askJsonWithImage(prompt, image, temperature = 0.2, modelName = ideaModel()) {
   const key = apiKey();
   if (!key) throw Object.assign(new Error("not set up"), { status: 503 });
   const ctrl = new AbortController();
