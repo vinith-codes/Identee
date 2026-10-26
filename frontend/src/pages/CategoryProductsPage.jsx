@@ -64,7 +64,9 @@ export default function CategoryProductsPage() {
     );
   }
 
-  const header = category?.bannerImage || category?.image;
+  // only a banner picture (wide, set under "More options" in Admin → Categories) goes behind the heading; the
+  // tile picture is portrait and looked bad stretched across (the client, 26 Oct 2026: "remove this, it is not nice")
+  const header = category?.bannerImage || null;
   return (
     <div style={{ minHeight: "100vh", background: "#fff" }}>
       <div

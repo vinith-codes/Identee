@@ -1083,4 +1083,10 @@ until the four pictures are in (two camera jobs at once would mix their pictures
 read `elRef.current` now, so a change made in the same tick is what gets checked, saved and sharpened. Pictures with
 their own background are the one thing it cannot fix (the note stays). Mock-tested: 2 edge + 2 blurry warnings → 0.
 
+**Category page heading (26 Oct 2026 evening, the client: "remove this, it is not nice"):** the band behind the
+category heading used the tile picture (portrait) stretched wide; now only a category's `bannerImage` goes there
+(`CategoryProductsPage.jsx`), otherwise the plain ink-to-gold fade. The tile picture stays on the Shop your
+IDENTEE card. Release -i (shop only). The T-Shirts tile picture itself was made for the client from the SCENE
+tee's mockup (shop-design-samples/T-SHIRTS-category-tile.jpg, cut out with the server's background remover).
+
 **Later:** the Studio's own art-library upload, a tee from a saved tee (duplicate), a print-ready check before every publish.
