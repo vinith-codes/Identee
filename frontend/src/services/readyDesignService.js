@@ -13,10 +13,11 @@ const auth = () => {
   }
 };
 
-const list = async () => (await axios.get(API)).data; // { open, designs }
+// { open, designs }; category: only the tees listed under that storefront category (its slug)
+const list = async (category) => (await axios.get(API, { params: category ? { category } : {} })).data;
 const get = async (slug) => (await axios.get(`${API}/${encodeURIComponent(slug)}`)).data;
 // the customer's own copy of the design (login) -> { customizationId, garmentType }
-const copy = async (slug) => (await axios.post(`${API}/${encodeURIComponent(slug)}/copy`, {}, auth())).data;
+const copy = async (slug, colour) => (await axios.post(`${API}/${encodeURIComponent(slug)}/copy`, colour ? { colour } : {}, auth())).data;
 
 const readyDesignService = { list, get, copy };
 export default readyDesignService;

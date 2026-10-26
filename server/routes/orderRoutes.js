@@ -29,12 +29,14 @@ import {
   createRazorpayOrder,
   verifyRazorpayPayment,
   getIncomeByPincode,
+  deleteOrders,
 } from "../controllers/orderControler.js";
 import {
   protect,
   admin,
   adminOrSeller,
   isDelivery,
+  adminOnly,
 } from "../middleware/authMiddleware.js";
 
 
@@ -72,6 +74,9 @@ router
 router.route("/admin/order/:id/invoice").get(protect, admin, generateInvoice);
 
 router.route("/admin/invoices").get(protect, adminOrSeller, getAllInvoices);
+
+// Admin → Orders → "Delete selected" (clearing test orders — to be taken out after the clean-up)
+router.post("/admin/delete", protect, adminOnly, deleteOrders);
 
 router
   .route("/admin/order/:id/invoice/email")

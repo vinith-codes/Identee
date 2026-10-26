@@ -51,6 +51,7 @@ export default function ReadyDesignPage() {
   const [design, setDesign] = useState(null);
   const [missing, setMissing] = useState(false);
   const [side, setSide] = useState(null);
+  const [colourSlug, setColourSlug] = useState(null); // the colour chosen (one the tee is sold in)
   const [qtys, setQtys] = useState({});
   const [busy, setBusy] = useState("");
   const [msg, setMsg] = useState(null); // { text, bad }
@@ -84,6 +85,13 @@ export default function ReadyDesignPage() {
   if (!design) return <Page style={{ minHeight: "60vh" }} />;
 
   const shown = side || design.hero || "front";
+  // the colours on sale (the designed one first), each with its own pictures
+  const colours = design.colours?.length ? design.colours : [{ slug: design.color, name: design.colourName, hex: design.colourHex, mockups: design.mockups }];
+  const picked = colours.find((c) => c.slug === colourSlug) || colours[0];
+  const mockups = picked.mockups || design.mockups;
+  // the pictures: the four sides, then the photos of a person wearing it (this colour)
+  const photos = picked.photos || [];
+  const bigSrc = shown.startsWith("photo:") ? photos[Number(shown.slice(6))]?.url : mockups?.[shown];
   const chosen = Object.entries(qtys)
     .filter(([, n]) => n > 0)
     .map(([size, qty]) => ({ size, qty }));
@@ -97,7 +105,7 @@ export default function ReadyDesignPage() {
       navigate("/login", { state: { from: location.pathname } });
       return null;
     }
-    return readyDesignService.copy(design.slug);
+    return readyDesignService.copy(design.slug, picked.slug);
   };
   const run = async (label, fn) => {
     setBusy(label);
@@ -126,7 +134,7 @@ export default function ReadyDesignPage() {
       if (!copy) return;
       navigate(`/buy-now/${copy.customizationId}`, {
         state: {
-          product: { _id: copy.customizationId, brandname: design.name, images: design.mockups?.front ? [design.mockups.front] : [], price: design.price },
+          product: { _id: copy.customizationId, brandname: design.name, images: mockups?.front ? [mockups.front] : [], price: design.price },
           items: chosen,
           isCustomization: true,
         },
@@ -145,11 +153,16 @@ export default function ReadyDesignPage() {
       </Link>
       <div className="rd-main">
         <div>
-          <div className="rd-gallery-big">{design.mockups?.[shown] && <img src={imageUrl(design.mockups[shown], 1000)} alt={`${design.name}, ${shown}`} />}</div>
+          <div className="rd-gallery-big">{bigSrc && <img src={imageUrl(bigSrc, 1000)} alt={`${design.name}, ${shown.startsWith("photo:") ? "worn" : shown}, ${picked.name}`} />}</div>
           <div className="rd-thumbs">
-            {SIDES.filter(([k]) => design.mockups?.[k]).map(([k, label]) => (
+            {SIDES.filter(([k]) => mockups?.[k]).map(([k, label]) => (
               <button key={k} type="button" aria-pressed={shown === k} aria-label={`Show the ${label.toLowerCase()}`} onClick={() => setSide(k)}>
-                <img src={imageUrl(design.mockups[k], 240)} alt="" />
+                <img src={imageUrl(mockups[k], 240)} alt="" />
+              </button>
+            ))}
+            {photos.map((p, i) => (
+              <button key={p.url} type="button" aria-pressed={shown === `photo:${i}`} aria-label={`Show it worn, ${p.side}`} onClick={() => setSide(`photo:${i}`)}>
+                <img src={imageUrl(p.url, 240)} alt="" />
               </button>
             ))}
           </div>
@@ -158,9 +171,17 @@ export default function ReadyDesignPage() {
           <h1>{design.name}</h1>
           {design.blurb && <p className="rd-blurb">{design.blurb}</p>}
           <p className="rd-note" style={{ margin: "0 0 10px", display: "flex", alignItems: "center", gap: 6 }}>
-            <span className="rd-dot" style={{ background: design.colourHex }} />
-            {design.garmentLabel} · {design.colourName}
+            <span className="rd-dot" style={{ background: picked.hex }} />
+            {design.garmentLabel} · {picked.name}
           </p>
+          {colours.length > 1 && (
+            <div className="rd-colours" role="radiogroup" aria-label="Colour">
+              {colours.map((c) => (
+                <button key={c.slug} type="button" role="radio" aria-checked={c.slug === picked.slug} title={c.name} aria-label={c.name} className={`rd-colour${c.slug === picked.slug ? " on" : ""}`} style={{ background: c.hex }} onClick={() => { setColourSlug(c.slug); if (String(side || "").startsWith("photo:")) setSide(null); }} />
+              ))}
+              <span className="rd-note" style={{ margin: 0 }}>{picked.name}</span>
+            </div>
+          )}
           <PriceTag price={design.price} was={design.comparePrice} offer size={22} />
           <div className="rd-sizes" role="group" aria-label="Sizes and quantities">
             {design.sizes.map((size) => {
@@ -191,17 +212,25 @@ export default function ReadyDesignPage() {
             <button type="button" className="rd-btn rd-btn-gold" onClick={buyNow} disabled={!!busy}>
               {busy === "buy" ? "One moment…" : `Buy now${pieces ? ` · ${pieces} pc` : ""}`}
             </button>
+            {/* the customer's own copy opens in the design room: change the words, move a picture, add their name… */}
+            <button type="button" className="rd-btn" onClick={changeIt} disabled={!!busy}>
+              {busy === "change" ? "Opening…" : "Edit this design"}
+            </button>
           </div>
           {msg && (
             <p className={`rd-msg${msg.bad ? " rd-msg-bad" : ""}`}>
               {msg.text} {!msg.bad && <Link to="/cart">See your cart →</Link>}
             </p>
           )}
+          {design.description && design.description !== design.blurb && <p className="rd-desc">{design.description}</p>}
+          {(design.fabric || design.washCare?.length > 0) && (
+            <p className="rd-note">
+              {[design.style, design.fabric, ...(design.washCare || [])].filter(Boolean).join(" · ")}
+            </p>
+          )}
           <p className="rd-note">
-            Printed for you after you order — every size at its own true print size.{" "}
-            <button type="button" className="rd-link" onClick={changeIt} disabled={!!busy}>
-              Change something in the design room
-            </button>
+            Printed for you after you order — every size at its own true print size. Edit this design opens your own copy in the design
+            room: change the words, move a picture, add your name — the original stays as it is.
           </p>
         </div>
       </div>

@@ -421,3 +421,216 @@
     white-space: normal;
   }
 }
+/* the brief: what the AI understood, and the questions (25 Oct 2026) */
+.cm-understood {
+  margin: 0;
+  padding: 10px 12px 10px 28px;
+  border-radius: 8px;
+  background: #f7f4ec;
+  font-size: 13.5px;
+  line-height: 1.55;
+  display: grid;
+  gap: 3px;
+}
+.cm-ask {
+  border-color: #c9a24b;
+  box-shadow: 0 0 0 3px #c9a24b26;
+}
+/* a tee's parts, and "change this tee" (25 Oct 2026) */
+.cm-parts {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 12px;
+  color: #3d3830;
+  line-height: 1.45;
+  display: grid;
+  gap: 2px;
+}
+.cm-change {
+  display: grid;
+  gap: 6px;
+  padding-top: 8px;
+  border-top: 1px dashed #eae3cf;
+}
+/* new collection: the three steps, and the layout picker (25 Oct 2026) */
+.cm-step {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 12px 0;
+  border-top: 1px solid #f1ecdf;
+}
+.cm-step-no {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #141110;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 2px;
+}
+.cm-lcards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 10px;
+}
+.cm-lcard {
+  display: grid;
+  gap: 4px;
+  text-align: left;
+  padding: 10px;
+  border-radius: 10px;
+  border: 1px solid #eae3cf;
+  background: #fff;
+  cursor: pointer;
+  font-family: "Inter", sans-serif;
+  color: #141110;
+  min-width: 0;
+}
+.cm-lcard[aria-pressed="true"] {
+  border-color: #c9a24b;
+  background: #c9a24b12;
+  box-shadow: 0 0 0 2px #c9a24b55;
+}
+.cm-lcard-name {
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+.cm-lcard-fit {
+  font-size: 11px;
+  color: #6b6559;
+  line-height: 1.35;
+}
+@media (max-width: 640px) {
+  /* phones: one layout per row, the drawing above its name */
+  .cm-lcards {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .cm-lcard > svg {
+    max-width: 240px;
+  }
+  .cm-step {
+    gap: 8px;
+  }
+}
+/* several example pictures (25 Oct 2026) */
+.cm-refs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+.cm-refpic {
+  position: relative;
+  width: 72px;
+  height: 72px;
+}
+.cm-refpic img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid #eae3cf;
+  display: block;
+}
+.cm-refpic button {
+  position: absolute;
+  top: -7px;
+  right: -7px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: none;
+  background: #141110;
+  color: #fff;
+  font-size: 14px;
+  line-height: 22px;
+  cursor: pointer;
+  padding: 0;
+}
+/* the tees after they are made: tidy cards, details on demand (25 Oct 2026) */
+.cm-tees {
+  align-items: start; /* (cards no longer stretch to the tallest one) */
+}
+.cm-tee-sub {
+  margin: 3px 0 0;
+  font-size: 12.5px;
+  color: #6b6559;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.cm-tee-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.cm-tee-actions .cm-btn[aria-pressed="true"] {
+  background: #141110;
+  color: #fff;
+  border-color: #141110;
+}
+.cm-btn-link {
+  background: none;
+  border: none;
+  padding: 6px 4px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: "Inter", sans-serif;
+  flex: none;
+}
+.cm-tee-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+}
+.cm-danger {
+  color: #c0392b;
+}
+.cm-panel {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border-radius: 10px;
+  background: #f7f4ec;
+}
+.cm-textarea-small {
+  min-height: 64px;
+  font-size: 13px;
+}
+.cm-notes-chip {
+  justify-self: start;
+  padding: 4px 9px;
+  border-radius: 999px;
+  border: 1px solid #f0d7a6;
+  background: #fbeed3;
+  color: #7a4e0e;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: "Inter", sans-serif;
+}
+.cm-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin-top: 16px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: #e3f2e8;
+}
+.cm-summary-done {
+  font-weight: 700;
+  color: #24522f;
+  font-size: 13.5px;
+}

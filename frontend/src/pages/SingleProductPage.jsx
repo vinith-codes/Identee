@@ -58,7 +58,12 @@ export default function SingleProductPage() {
     if (known) return;
     shopService
       .getProduct(id)
-      .then((d) => alive && setData({ id, product: d.product, variants: d.variants || [], error: null }))
+      .then((d) => {
+        if (!alive) return;
+        // a Studio tee (printed to order): its own page has the sizes, colours and "Edit this design"
+        if (d?.product?.readyDesignSlug) return navigate(`/ready-made/design/${d.product.readyDesignSlug}`, { replace: true });
+        setData({ id, product: d.product, variants: d.variants || [], error: null });
+      })
       .catch((err) => alive && setData({ id, product: null, variants: [], error: err.response?.status === 404 ? "notfound" : "error" }));
     return () => {
       alive = false;

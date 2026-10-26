@@ -2,7 +2,7 @@
 import express from "express";
 import { protect, admin } from "../middleware/authMiddleware.js";
 import rateLimit from "../middleware/rateLimit.js";
-import { uploadSingleImage } from "../multer/multer.js";
+import { uploadCollectionImages } from "../multer/multer.js";
 import {
   createBrief,
   finishDesign,
@@ -16,6 +16,8 @@ import {
   startCollection,
   unpublishDesign,
   updateDesignText,
+  changeOneDesign,
+  resumeCollection,
 } from "../controllers/collectionController.js";
 
 const router = express.Router();
@@ -24,7 +26,7 @@ const aiLimit = rateLimit({ windowMs: 60_000, max: 10, message: "Too many AI req
 
 router.get("/setup", protect, admin, getSetup);
 router.get("/", protect, admin, listCollections);
-router.post("/brief", protect, admin, aiLimit, uploadSingleImage, createBrief);
+router.post("/brief", protect, admin, aiLimit, uploadCollectionImages, createBrief);
 router.get("/:id", protect, admin, getCollection);
 router.post("/:id/start", protect, admin, aiLimit, startCollection);
 router.put("/designs/:id/finish", protect, admin, finishDesign);
@@ -34,5 +36,7 @@ router.post("/designs/:id/unpublish", protect, admin, unpublishDesign);
 router.post("/designs/:id/reject", protect, admin, rejectDesign);
 router.post("/designs/:id/restore", protect, admin, restoreDesign);
 router.post("/designs/:id/redo", protect, admin, aiLimit, redoDesign);
+router.post("/designs/:id/change", protect, admin, aiLimit, changeOneDesign);
+router.post("/:id/resume", protect, admin, aiLimit, resumeCollection);
 
 export default router;

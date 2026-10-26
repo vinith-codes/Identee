@@ -8,6 +8,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import productAdminService from "../../../services/productAdminService";
+import studioService from "../../../services/studioService";
+import { shopHref } from "../../../utils/siteUrls";
 import { imageUrl } from "../../../utils/imageUrl";
 import { AW } from "../garmentSetup/wizardStyles";
 import { colourHex, RM_CSS } from "./readymadeUi";
@@ -58,6 +60,7 @@ export default function ProductsPage() {
   const [data, setData] = useState(null);
   const [error, setError] = useState("");
   const [categories, setCategories] = useState([]);
+  const [designs, setDesigns] = useState([]); // the Studio's tees (26 Oct 2026): published ones sit with the products
   const [open, setOpen] = useState(null); // groupId with restock open
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [busy, setBusy] = useState("");
@@ -92,11 +95,42 @@ export default function ProductsPage() {
   useEffect(() => {
     load();
   }, [load]);
+  // the IDENTEE designs made in the Studio — the client: "if I click All products the published ones should be seen there"
+  const loadDesigns = useCallback(() => {
+    studioService
+      .listDesigns()
+      .then((list) => setDesigns(list.filter((d) => d.status === "ready" || (d.status === "published" && !d.productGroupId))))
+      .catch(() => {});
+  }, []);
+  useEffect(() => {
+    loadDesigns();
+  }, [loadDesigns]);
+  const designCards = designs.filter((d) => {
+    if (status === "live" && d.status !== "published") return false;
+    if (status === "hidden" && d.status === "published") return false;
+    if (status === "low") return false;
+    if (category === "none") return !d.category;
+    if (category && categories.find((c) => c.name === category)?.slug !== d.category) return false;
+    if (query && !d.name.toLowerCase().includes(query.toLowerCase())) return false;
+    return true;
+  });
+  const designAct = async (d, action) => {
+    setBusy(d._id);
+    try {
+      const doc = await studioService.act(d._id, action);
+      setDesigns((cur) => cur.map((x) => (x._id === doc._id ? doc : x)));
+      setNote({ groupId: d._id, text: action === "unpublish" ? "Taken out of the shop — it stays in the Studio as a ready tee." : "It's in the shop." });
+    } catch (err) {
+      setNote({ groupId: d._id, text: err.response?.data?.message || "That didn't work.", bad: true });
+    } finally {
+      setBusy("");
+    }
+  };
 
   useEffect(() => {
     productAdminService
       .options()
-      .then((o) => setCategories(o.categories.map((c) => c.name)))
+      .then((o) => setCategories(o.categories.map((c) => ({ name: c.name, slug: c.slug, hidden: !c.isActive }))))
       .catch(() => {});
   }, []);
 
@@ -112,9 +146,12 @@ export default function ProductsPage() {
   const toggleHidden = async (g) => {
     setBusy(g.groupId);
     try {
-      await productAdminService.setVisibility(g.groupId, !g.hidden);
-      setNote({ groupId: g.groupId, text: g.hidden ? "Back in the shop." : "Hidden — customers can't see or buy it now." });
+      // a Studio tee is unpublished / published as a design: its product follows (hiding the product alone would drift)
+      if (g.readyDesign) await studioService.act(g.readyDesign, g.hidden ? "publish" : "unpublish");
+      else await productAdminService.setVisibility(g.groupId, !g.hidden);
+      setNote({ groupId: g.groupId, text: g.hidden ? "Back in the shop." : g.readyDesign ? "Taken out of the shop — it stays in the Studio as a ready tee." : "Hidden — customers can't see or buy it now." });
       await load();
+      if (g.readyDesign) loadDesigns();
     } catch (err) {
       setNote({ groupId: g.groupId, text: err.response?.data?.message || "Couldn't change it.", bad: true });
     } finally {
@@ -162,7 +199,10 @@ export default function ProductsPage() {
         <select className="aw-inp" style={{ maxWidth: 220 }} value={category} onChange={(e) => setParam("category", e.target.value)} aria-label="Category">
           <option value="">All categories</option>
           {categories.map((c) => (
-            <option key={c}>{c}</option>
+            <option key={c.name} value={c.name}>
+              {c.name}
+              {c.hidden ? " (hidden from the shop)" : ""}
+            </option>
           ))}
           <option value="none">Not in any category</option>
         </select>
@@ -178,7 +218,7 @@ export default function ProductsPage() {
 
       {error && <p className="rm-problems" style={{ marginTop: 14 }}>{error}</p>}
       {!data && !error && <p style={{ color: "#6B6559" }}>Loading…</p>}
-      {data && data.groups.length === 0 && (
+      {data && data.groups.length === 0 && designCards.length === 0 && (
         <p className="rm-empty" style={{ marginTop: 16 }}>
           {data.counts.all === 0 && !query && !category ? (
             <>
@@ -191,6 +231,58 @@ export default function ProductsPage() {
       )}
 
       <div className="rp-grid">
+        {designCards.map((d) => {
+          const cat = categories.find((c) => c.slug === d.category);
+          const hero = (d.elements || []).find((e) => e.type === "image")?.side === "back" ? "back" : "front";
+          const live = d.status === "published";
+          return (
+            <article key={d._id} className={`aw-card rp-card${live ? "" : " is-off"}`}>
+              <div className="rp-img">{(d.mockups?.[hero] || d.mockups?.front) && <img src={imageUrl(d.mockups[hero] || d.mockups.front, 240)} alt="" loading="lazy" />}</div>
+              <div style={{ minWidth: 0 }}>
+                <p className="rp-name">{d.name}</p>
+                <p className="rp-sub">
+                  {!cat ? (
+                    <span style={{ color: "#8A2E12" }}>No category yet — open it in the Studio and pick one</span>
+                  ) : live ? (
+                    // published before tees became products (26 Oct 2026): one more publish lists it in its category
+                    <span style={{ color: "#8A2E12" }}>{cat.name} · not listed among the products yet — open it in the Studio, press Review, then Update in the shop</span>
+                  ) : (
+                    `${cat.name} → IDENTEE design (Studio)`
+                  )}
+                </p>
+                <div className="rp-row">
+                  <b>{d.priceInr > 0 ? money(d.priceInr) : "Shop price"}</b>
+                  <span style={{ color: "#6B6355" }}>· printed after each order, no stock</span>
+                </div>
+                <div className="rp-row">
+                  <span style={{ color: "#6B6355", fontSize: 12 }}>
+                    {(d.colours?.length || 1)} colour{(d.colours?.length || 1) === 1 ? "" : "s"} · {(d.sizes?.length ? d.sizes : ["all sizes"]).join(" · ")}
+                  </span>
+                </div>
+                <div className="rp-row">
+                  <span className={`rp-badge ${live ? "live" : "off"}`}>{live ? "In the shop" : "Ready, not published"}</span>
+                  <span className="rp-badge feat">Studio</span>
+                </div>
+              </div>
+              {note?.groupId === d._id && (
+                <p style={{ gridColumn: "1 / -1", margin: 0, fontSize: 13, color: note.bad ? "#A3341F" : "#24522F" }} role="status">
+                  {note.text}
+                </p>
+              )}
+              <div className="rp-actions">
+                <Link to={`/admin/studio/${d._id}`} className="aw-btn dark">{live ? "Edit in Studio" : "Open in Studio"}</Link>
+                {live ? (
+                  <>
+                    <a className="aw-btn light" href={shopHref(`/ready-made/design/${d.slug}`)} target="_blank" rel="noreferrer">See in shop</a>
+                    <button type="button" className="aw-btn light" disabled={busy === d._id} onClick={() => designAct(d, "unpublish")}>Unpublish</button>
+                  </>
+                ) : (
+                  <button type="button" className="aw-btn light" disabled={busy === d._id} onClick={() => designAct(d, "publish")}>Publish</button>
+                )}
+              </div>
+            </article>
+          );
+        })}
         {data?.groups.map((g) => (
           <article key={g.groupId} className={`aw-card rp-card${g.hidden ? " is-off" : ""}`} style={g.groupId === saved ? { borderColor: "#9CC3A6" } : undefined}>
             <div className="rp-img">{g.image && <img src={imageUrl(g.image, 240)} alt="" loading="lazy" />}</div>
@@ -201,7 +293,7 @@ export default function ProductsPage() {
               </p>
               <div className="rp-row">
                 <b>{g.priceMin === g.priceMax ? money(g.priceMin) : `${money(g.priceMin)}–${money(g.priceMax)}`}</b>
-                <span style={{ color: "#6B6355" }}>· {g.totalStock} in stock</span>
+                <span style={{ color: "#6B6355" }}>{g.readyDesign ? "· printed after each order" : `· ${g.totalStock} in stock`}</span>
               </div>
               <div className="rp-row">
                 {g.colours.map((c) => (
@@ -225,14 +317,24 @@ export default function ProductsPage() {
             )}
 
             <div className="rp-actions">
-              <Link to={`/admin/products/${g.groupId}/edit`} className="aw-btn dark">Edit</Link>
-              <button type="button" className="aw-btn light" aria-expanded={open === g.groupId} onClick={() => setOpen(open === g.groupId ? null : g.groupId)}>
-                {open === g.groupId ? "Close stock" : "Restock"}
-              </button>
+              {g.readyDesign ? (
+                <>
+                  {/* a Studio tee: its pictures, price and sizes come from the Studio; no stock to keep */}
+                  <Link to={`/admin/studio/${g.readyDesign}`} className="aw-btn dark">Edit in Studio</Link>
+                  <span className="rp-badge feat">Studio · printed to order</span>
+                </>
+              ) : (
+                <>
+                  <Link to={`/admin/products/${g.groupId}/edit`} className="aw-btn dark">Edit</Link>
+                  <button type="button" className="aw-btn light" aria-expanded={open === g.groupId} onClick={() => setOpen(open === g.groupId ? null : g.groupId)}>
+                    {open === g.groupId ? "Close stock" : "Restock"}
+                  </button>
+                </>
+              )}
               <button type="button" className="aw-btn light" disabled={busy === g.groupId} onClick={() => toggleHidden(g)}>
-                {g.hidden ? "Show in shop" : "Hide"}
+                {g.readyDesign ? (g.hidden ? "Publish" : "Unpublish") : g.hidden ? "Show in shop" : "Hide"}
               </button>
-              {confirmDelete === g.groupId ? (
+              {g.readyDesign ? null : confirmDelete === g.groupId ? (
                 <span className="rm-confirm">
                   Delete for good?
                   <button type="button" className="aw-btn light" style={{ color: "#A3341F" }} disabled={busy === g.groupId} onClick={() => remove(g)}>Delete</button>

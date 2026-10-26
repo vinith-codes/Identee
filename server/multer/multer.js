@@ -17,6 +17,7 @@ import { uploadFile } from "../utils/imageStorage.js";
    WHERE EACH FILE GOES (folder under identee/ in Cloudinary)
 ========================== */
 const folderFor = (req, file) => {
+  if (req.originalUrl.includes("/api/collections")) return "collections"; // the Collection maker's example pictures
   if (file.fieldname === "profilePicture") return "profiles";
   if (file.fieldname === "bannerImage") return "banners/images";
   if (file.fieldname === "images" && req.originalUrl.includes("/reviews")) return "reviews";
@@ -25,7 +26,6 @@ const folderFor = (req, file) => {
   if (file.fieldname === "design") return "designs";
   if (file.fieldname === "settingsAsset") return "settings";
   if (file.fieldname === "photo") return "garments";
-  if (file.fieldname === "image" && req.originalUrl.includes("/api/collections")) return "collections"; // the Collection maker's example picture
   if (file.fieldname === "thumbnail") return "art-categories";
   if (file.fieldname === "image" && req.originalUrl.includes("/art-designs")) return "art-designs";
   if (
@@ -83,7 +83,9 @@ const allFiles = (req) => {
   return [];
 };
 
-const storeFiles = async (req, res, next) => {
+// keepBuffer: the file's bytes stay on it after storing (for a route that also reads the picture itself — the
+// Collection maker sends its example pictures to the AI); otherwise they are let go to free memory
+const storeFilesWith = ({ keepBuffer = false } = {}) => async (req, res, next) => {
   try {
     await Promise.all(
       allFiles(req).map(async (f) => {
@@ -91,7 +93,7 @@ const storeFiles = async (req, res, next) => {
         f.path = url;
         f.filename = url;
         f.publicId = publicId;
-        f.buffer = undefined; // free memory
+        if (!keepBuffer) f.buffer = undefined; // free memory
       }),
     );
     next();
@@ -111,7 +113,8 @@ const withErrors = (handler) => (req, res, next) =>
     );
   });
 
-const pipeline = (handler) => [withErrors(handler), storeFiles];
+const storeFiles = storeFilesWith();
+const pipeline = (handler, opts) => [withErrors(handler), opts ? storeFilesWith(opts) : storeFiles];
 
 /* ==========================
    EXPORTS (names unchanged — routes keep working)
@@ -122,6 +125,10 @@ export const uploadReviewImages = pipeline(upload.array("images", 5));
 export const uploadProfileImage = pipeline(upload.single("profilePicture"));
 // Variant image replacement — up to 5 files
 export const uploadMultipleImages = pipeline(upload.array("images", 5));
+// the Collection maker's example pictures (25 Oct 2026: as many as the admin likes, up to 10)
+export const uploadCollectionImages = pipeline(upload.array("images", 10), { keepBuffer: true });
+// the Studio's reference pictures only go to the AI — they are read into memory, not stored (25 Oct 2026)
+export const readStudioRefs = withErrors(upload.array("images", 3));
 // Product create/update — "images" and "sizeChart"
 export const uploadProductFiles = pipeline(
   upload.fields([

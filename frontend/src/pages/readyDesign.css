@@ -152,6 +152,13 @@
   font-size: 15px;
   line-height: 1.55;
 }
+.rd-desc {
+  margin: 14px 0 6px;
+  color: #4a443b;
+  font-size: 14px;
+  line-height: 1.6;
+  white-space: pre-line;
+}
 .rd-sizes {
   margin: 18px 0 6px;
   display: grid;
@@ -284,3 +291,8 @@
     flex: 1 1 100%;
   }
 }
+
+/* the colours a tee is sold in (26 Oct 2026) */
+.rd-colours { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 0 0 12px; }
+.rd-colour { width: 28px; height: 28px; border-radius: 50%; border: 1px solid rgba(0, 0, 0, 0.2); padding: 0; cursor: pointer; }
+.rd-colour.on { box-shadow: 0 0 0 2px #fff, 0 0 0 4px #15130f; }

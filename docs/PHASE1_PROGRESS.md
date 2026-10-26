@@ -785,3 +785,293 @@ Group order links for schools/companies, brand-kit lock + approval for corporate
 **Tested (throwaway DB, stand-in AI):** brief → start → facts → plans → 3 pictures → words fitted → 3D mockups → publish;
 shop closed = nothing listed / no copy / no checkout; shop open = listed, Add to cart (₹799 per piece, quote ₹1,698 for 2
 with shipping), Buy now, Change something → design room; phone 360/375 and laptop 1280; both builds; 14 server + 76 shop tests.
+
+**Update (25 Oct 2026, same branch) — the client's changes:**
+- **The example picture is required.** It is only a reference: the AI writes its look into words (refNotes) and the
+  planner is told to make new, original artwork; the picture itself never goes to the picture maker.
+- **The AI improves the prompt:** the brief now starts with "What the AI understood" (line by line) and "The brief the
+  AI wrote from your request" (editable); the planner works from that brief.
+- **Missing details are asked:** if the prompt didn't say which products, how many tees or the words' language, a
+  "Please answer" card asks, and Start stays locked until it is answered (server checks it too).
+- **More products:** Oversized Tee, Boys Round Neck, Girls Round Neck (`GARMENTS` in collectionService.js — add more there;
+  only live garments are used). Each tee gets its product; the 3D mockup uses that product's model.
+- **11 layouts** (was 5): + front-poster, chest-logo, chest-words, vertical-back, front-caption, back-caption. A product
+  only gets the layouts its print areas allow (Oversized 11, Boys Round Neck 8, Girls Round Neck 6).
+- Tested with the stand-in AI: required picture, questions + locked Start, a 4-tee run over Oversized + Boys Round Neck,
+  a 10-tee run showing 10 layouts on 3D mockups (no print-check issues), phone 375; 15 server + 76 shop tests.
+
+**Update 2 (25 Oct 2026) — "any type of design", made to work reliably:**
+- A tee is now a list of **parts** (up to 5): AI pictures (up to 3), **art library pictures** (free) and lines of words
+  (straight or curved), each on any print area of its product and a place in it (whole, top, middle, bottom, small,
+  band at the top / bottom). So: words-only tees, picture-only tees, a chest logo + a big back print, a picture with
+  its caption… The 13 LAYOUTS are proven starting points the AI may use or not.
+- Brief: **Pictures from** AI pictures / our art library / both.
+- Every part is checked (the area is on that product, areas that overlap on the tee, places that overlap in one
+  area, picture limits, ink that shows on the tee); what can't be used is shown on the tee as a note.
+- **Change this tee** (per tee, in your own words): the AI rebuilds its parts, keeps its pictures unless asked for a
+  new one; the page fits, checks and photographs it again. **New pictures** makes the AI pictures again.
+- **Resume** carries on a run that stopped (server restart): tees and pictures made so far are kept.
+- An art library picture whose file is gone is drawn new (when AI pictures are allowed), with a note.
+- Tested with the stand-in AI: 6 tees over Oversized + Girls Round Neck with art library + AI pictures, Change it,
+  New pictures, Resume (with a missing art file), phone 375; 19 server + 76 shop tests; both builds.
+
+**Update 3 (25 Oct 2026) — the admin picks the layouts first:**
+- New collection now has 3 steps: 1. Products, 2. Layouts (**Let the AI choose** or **I'll pick the layouts** — cards
+  with a small front + back tee drawing: gold = a picture, dark = words; only layouts that fit the chosen products are
+  shown, with "Only on: …" when one fits some of them), 3. the request + the example picture.
+- With picked layouts the tees are spread over them (and, for each, over the chosen products that have its print areas);
+  the AI only fills each layout's places (picture subjects / art library pictures, words) and can't move them. Each
+  picture is still drawn to the shape of its place. A request that doesn't suit the picked layouts is flagged in
+  "What the AI understood" (Check).
+- The layouts can be changed again in the brief's details. Files: + `frontend/src/pages/admin/LayoutPicker.jsx`.
+- Tested (stand-in AI): 5 tees over 3 picked layouts on Oversized + Boys Round Neck (the front-strip layout only on
+  the Oversized Tee), phone 375; 21 server + 76 shop tests; both builds.
+
+**Update 4 (25 Oct 2026) — 30 layouts** (was 13): + back only, front only, pocket logo only, front and back pictures,
+back + sleeve icon, chest picture + a word on each sleeve, jersey style, title across the top of the back over the
+picture, curved title over a chest picture, words down the middle of the front + chest logo, full-front poster with
+its title, small emblem + big back words, logo + word on the two chests, big back words only, big chest words + a wide
+picture across the top of the back, chest picture + sleeve word, logo + back picture + sleeve word.
+Per product: Oversized Tee 30, Boys Round Neck 25, Girls Round Neck 19. Layouts made only of words are skipped when
+the tees are to have no words. Tested (stand-in AI) with 4 of the new ones on 3D mockups; 21 server tests.
+
+**Update 5 (25 Oct 2026) — several example pictures:** up to 10 (at least 1), added and removed with previews; the AI
+reads them together (made small first) and describes what they share — still only references, never copied. Fixed on
+the way: the upload code freed each picture's bytes after storing it, so the AI step got no picture (the stand-in AI
+never read it, the real one would have failed); the Collection maker's upload now keeps them (`keepBuffer`).
+
+**Update 6 (25 Oct 2026) — the first real run (Google AI, ₹9.70 in all):** "3 tees for Suriya's SCENE…" with the
+admin's example picture, Oversized + Boys Round Neck, 3 picked layouts. The brief, the facts (cast, DSP Inbaraj, 6 Nov,
+the teaser's "900 criminals" line, the song) and the plans were good; 3 pictures made first time. Fixed from it:
+- the plan request is long: the text AI now waits up to 90 s for the brief / plan / change (was 20 s — it stopped with
+  "unreachable"; Resume carried on); a stopped run now says so in plain words;
+- curved words carry one line only: two lines on a curve lost the second line, so curved words are joined;
+- a picture that comes back with its own background (it then prints as a rectangle) gets a note: try New pictures.
+- "Change this tee" tested for real: it kept the picture and only changed the words (₹0.20).
+Sheet: shop-design-samples/SCENE-real-run.jpg.
+
+**Update 7 (25 Oct 2026) — the tees' page made tidy** (the client: "after tees are generated it looks clumsy"): each tee
+card is the 3D tee, its name, product · colour and one row Publish · Change · Details (Reject beside the name); the
+parts, idea, notes, Edit name and New pictures open under Details, the change box under Change (a "⚠ notes" chip points
+to them). Cards no longer stretch to the tallest one (920 px → 420 px). When the run is done, the steps become one
+"✓ Done · spent · tees · published" line, and the long introduction shows only on the new-collection page.
+
+## 10. Shop your IDENTEE — Studio (25 Oct 2026, branch `feature/collection-maker`)
+
+The client's new direction after the Collection maker (25 Oct 2026): "We are going to design the t-shirt with human
+intervention only; we are just going to generate the image using AI. Before entering the design room we select the
+product, after that we make one assistant." One tee at a time, designed by hand, to the standard of the Instagram
+SCENE bootleg-poster tees they sent — and for any prompt, not only films.
+
+**Where:** Admin → Shop your IDENTEE → **Studio (design a tee)** — `/admin/studio`, `/admin/studio/:id` opens a saved tee.
+
+**Step 1 (built):**
+1. **Pick the product** (every live garment with print areas; a colour swatch per card; a product without a 3D model is
+   greyed out) → the room opens full-screen.
+2. **The room** = the customer design room's engine, reused as it is (studio/Room3D, AreaEditor, konvaRender, teeModel,
+   designCheck, fonts, MockupCamera, mockupCrop, designFinish.areaPx) with the admin's own page around it
+   (`pages/admin/studio/StudioRoom.jsx`, `.dr-*` styles + `studio.css`): "Where to print" cards (true cm per size),
+   the 3D tee with hotspots, the flat true-to-size editor, text tools (words, font, size, B/I/U, align, curved /
+   vertical, ink, spacing, outline), pictures (upload, art library, remove background in the browser), rotate / turn /
+   fill / centre / duplicate / layers / delete, Undo / Redo (Ctrl+Z / Y), colour + laid-out size popover.
+   No customer-only parts (team names, linked texts, daily limits, cart).
+3. **The picture assistant** (`PictureAssistant.jsx`, server `services/studioService.js`): the AI only makes
+   PICTURES, one at a time, from the admin's words. Each is asked for as a **kind** — whole artwork · title lettering ·
+   hero figure · background texture · small logo — with an optional **look** (the design room's styles + bootleg
+   poster, vintage photo print, halftone comic, movie poster, painted portrait, chrome Y2K, retro sports), **where it
+   goes** (its shape follows that print area and kind), up to **3 reference pictures** (a reference for the look only —
+   the AI is told to make new artwork, never a copy), and a **Real person** switch → Grok (with a reference photo:
+   Grok's edit for the likeness; costs more, so off by default — the client: "use only google"). Google refuses a named
+   person → a plain message says to switch Real person on. Pictures are cut out and trimmed (a background texture stays
+   a rectangle), stored under ai-designs, costed in AiUsage (kind `studio`) against the monthly caps, and listed in the
+   panel: **Add to <area>** places it by its kind (whole → fills the area, title → top band, hero → middle, background
+   → behind everything, logo → small at the top); "Use these words again" refills the form. A cost line in the top bar
+   shows the AI spend for this tee.
+4. **Review** → the four mockup pictures (off-screen 4:5 camera, so no black bars), the print check's notes, name and a
+   line for the shop → **Publish to Shop your IDENTEE** (saved as a ReadyDesign with `source: "studio"`, no
+   collection; the same publish / unpublish / reject routes as the Collection maker; sold print on demand like its
+   tees) or **Save draft**. The tee in progress is kept in the browser ("Continue" on the Studio page), and the Studio
+   page lists every Studio tee with Open / Publish / Unpublish / See in shop / Delete.
+
+**Server:** `routes/studioRoutes.js` → `/api/studio` (setup, picture, designs CRUD); `controllers/studioController.js`;
+`services/studioService.js` (KINDS, LOOKS, studioPrompt, makeStudioPicture, studioGarments);
+`readyDesignModel.collectionId` is now optional (+ `source`, `createdBy`); AiUsage kind `studio`; multer
+`readStudioRefs` (the reference pictures are read, not stored).
+
+**Tested (stand-in AI, test database):** pick → room → picture made → Add to Centre Front at true size → heading →
+Review (4 pictures, print-check note) → Publish → the tee appears in the public ready-designs list and its shop page
+(₹799). Laptop 1366 (four columns, no overflow) and phone 375 (sheets; the tool bar along the bottom); lint clean;
+21 server tests; both builds.
+
+**Real run (25 Oct 2026, ₹11.80, user's go-ahead):** black Oversized Tee, Full Front. Hero = "Actor Suriya as the
+film director from SCENE…" with Real person on → Grok (₹6): a strong likeness on a clean black background, cut out
+first time. Title = "SCENE in heavy condensed capitals, cracked gold-and-cream ink" → Google (₹2.9): clean lettering,
+cut out. Background = "dark moody backdrop, film grain, torn paper, black to smoky red" → Google (₹2.9): kept as a
+rectangle. Added in that order (background → hero → title), Review, Publish → in the test shop at ₹799.
+The print check warns all three are 1K pictures stretched to 18–35 cm (the 4K enlarge at publish is Step 3).
+Sheet: shop-design-samples/STUDIO-real-run/RESULT.jpg (+ the four mockups and the three pictures).
+
+**Step 2 (built 25 Oct 2026):**
+- **Layers** — the items on the open print area listed top first (picture thumbnail or the words): tap to select, ↑ ↓ to
+  reorder, ✕ to delete.
+- **Line it up** — Left / Centre / Right / Top / Middle / Bottom in the area, one tap each.
+- **See-through** (10–100 %) and **Mirror** (left–right, up–down) on any item. These are new element fields
+  (`opacity`, `flipH`, `flipV`): studio/konvaRender.js draws them (the group fades; the drawn node is mirrored inside
+  it, so the editor's handles are untouched) and the server keeps them (customizationController.cleanElement), so
+  they show the same on the 3D tee, in Review, in the shop and in the print files. The customer design room does not
+  offer them yet (the fields are simply absent there).
+- **Copy it to another area** — the same size in cm, centred, shrunk only if the other area is smaller.
+- **Change this picture** — one instruction ("make the lighting warmer") redraws the selected AI picture: Google's edit
+  with the stored picture (a cut-out is put on the tee's colour first), or Grok's when "Real person" is ticked; the
+  new picture takes the old one's place (same width and middle), Undo brings the old one back; costed like a new
+  picture (`POST /api/studio/picture/change`).
+- **Tries** — 1 / 2 / 3 pictures at once in the assistant (the cost shows ×N; each is told it is option i of N and
+  to differ clearly); all are listed, the admin keeps the best.
+Tested with the stand-in AI: 2 tries → both placed → layers reorder, align left, mirror, 50 % see-through, copy to
+Full Back (same cm), change-by-prompt swapped the picture, Save draft kept opacity / flip on the server; phone 375 and
+laptop; lint; 21 server + 76 shop tests; both builds.
+
+**Step 3 (built 25 Oct 2026):**
+- **Versions** — every Save draft keeps the state it replaces (up to 15, `ReadyDesign.versions`); "Versions · N" in the
+  top bar lists them with Restore (an Undo step, so it can be taken back).
+- **Sharpen for print (4K)** — in Review, every AI picture that would print under 150 DPI at its size on the tee gets a
+  4K copy (`POST /api/studio/designs/:id/enlarge`: the orders page's enlarge recipe — printPrompt, the picture on a
+  sheet of the nearest shape, the same part cut back out, the cut-out cleared again — stored under print-pictures as
+  `printSrc` / `printW` on the element; `cleanElement` now keeps those two fields). The design is unchanged; print
+  files and print sheets already use `printSrc` when it is there, and the shop's copy of the tee carries it, so every
+  order of that tee prints sharp without the admin redoing it per order. About 3 × a picture each; the print check
+  then stops warning.
+- **DTF print rules** — `studioCheck.js`: see-through words, items under 1 cm from the edge, letters under 8 mm,
+  outlines under 0.4 mm, pictures that came back with their own background — in plain sentences under "The print
+  check says", and the full list of rules behind a "DTF print rules" toggle in Review.
+- **Improve my words** — the text AI rewrites the admin's description as a stronger prompt for that kind of picture
+  and lists what it understood ("Use these words" / "Keep mine"); `POST /api/studio/improve`, costed as one chat
+  message (AiChatUsage kind `studio`); a stand-in answer with AI_TEXT_PROVIDER=mock.
+- **Art library in the assistant** — a search box; a match goes straight onto the chosen area at 60 % width (free).
+Tested with the stand-in AI: improve → suggestion → use; search "lion" → added to the area; align → Save → Versions · 1
+→ Restore brought the old place back; Review → DTF rules list, Sharpen gave every soft picture its print copy
+(mock); lint; 21 server + 76 shop tests; both builds.
+
+**Editing after publishing (25 Oct 2026, the client: "the customer can also edit after publishing"):**
+- **Customer:** the shop page of a published tee now has an **Edit this design** button beside Add to cart / Buy now
+  (it was a small underlined line). It opens the customer's own copy in the design room (readyDesignService.copy →
+  Customization with fromReady); the original on sale stays as it is. See-through / mirror and the 4K print copies
+  come along on the copy (shared renderer; cleanElement keeps printSrc).
+- **Admin:** a tee in the shop can be opened from the Studio list (**Edit**). The room shows an "In the shop" chip
+  instead of Save draft: changes go live only through Review → **Update in the shop** (the save carries the new
+  mockup pictures and the tee stays published; the server refuses a save without them, 409). The old state is kept
+  as a version. Customers who already bought it keep their copy as it was.
+
+**Release 25 Oct 2026 (identee-release/release-studio-25oct, SEND-TO-BOSS):** backend-changes 20 files, shop-changes
+35, admin-changes 39 (+ the full zips). Checks: case scan 0; fresh `npm ci --omit=dev` of the backend zip exit 0;
+Linux-style load 142/144 (the two known unused files); server.js starts; both builds point at
+backend.identee.co.in, no laptop addresses, forward slashes, every asset in index.html present; shop has no admin
+pages, admin has no shop pages (title "IDENTEE Admin", noindex, no razorpay); no package.json change, no new .env
+setting. Steps for the user: UPDATE-25-OCT-2026-STUDIO.txt. (The old lint errors in other pages are unchanged.)
+
+**After the release, same day (the client):** every picture the Studio's assistant makes (or changes) is kept in the
+admin's **My pictures** (rememberPictures, the kind in `style`), and the assistant lists them under the art library —
+tap one to put it on the open area again, free, on any tee. "Where to print" cards: the design room's 88 px tees
+spilled over the Studio's 74 px cards — the panel is 236 px with 70 px tees and even card heights now.
+
+**Collection maker parked (25 Oct 2026, night; the client: "I think the collection maker is not needed"):** taken out
+of the admin menu and the routes (`/admin/collection-maker` opens the Studio); the page, its server routes
+(`/api/collections`), service and tests stay — the Studio uses its publish / unpublish routes, and the pipeline can
+come back as a "rough drafts for the Studio" feature. Not built into the admin site any more.
+
+**The whole tee from one prompt (26 Oct 2026, the client: "designing the whole tee with one prompt … first analyse and ask
+whether the understanding is correct, like a plan card; user control should be there"):** the assistant has two
+ways in — *One picture at a time* (as before) and *Whole tee from one prompt*. The admin describes the tee in one
+go → `POST /api/studio/plan` (text AI, one chat message) answers a **plan card**: what it understood (3–6 lines), a
+name, a colour if asked, and the parts — AI pictures of one kind each (background / hero / title / logo / whole, with
+prompt, look, real-person switch, print area) and typed words (text, font, top / middle / bottom; free). Every line
+can be changed, unticked, moved to another area or added; the cost of the ticked parts is shown. **Make the tee**
+then draws the pictures through the normal picture endpoint (together; each is placed as it comes back, background
+→ figure → logo → title, then the words are typed in) and the admin carries on by hand; nothing is published by
+itself. With AI_TEXT_PROVIDER=mock a stand-in plan is returned. (`TeePlan.jsx`, `planStudioTee`, `cleanPlan`.)
+Tested with the stand-in: plan (4 parts) → Make → 3 pictures on Centre Front + the words on the Full Back; phone 375.
+
+**Orders: "Delete selected" is back (26 Oct 2026, the client: "keep the delete button in orders page like already we
+had done"):** the 21 Oct feature (56d0568) restored as it was by reversing its removal (bb88480) — tick orders →
+Delete → a backup copy goes to DeletedOrder first, the stock is put back, invoice numbers can restart when none are
+left (`POST /api/orders/admin/delete`). Taken out on 23 Oct at the client's request; wanted again to clear test orders.
+
+**All products: only the ready-made categories (26 Oct 2026, the client: "in filter it is showing more categories"):**
+the admin product pages listed every category, including Create your IDENTEE's "Design your own" ones (kind
+customizable) — `wizardOptions` now returns the ready-made kind (and unsorted) only, and the All products filter
+marks a switched-off category "(hidden from the shop)".
+
+**Before publishing: category, sizes, colours, price (26 Oct 2026, the client: "it should be seen in a category; before
+publishing it should get details like what sizes, what colours"):** the Review step has a "Before it goes in the shop"
+card — **category** (the ready-made shop's categories, hidden / coming-soon ones marked; required), **sizes on sale**
+(ticks, all by default), **colours on sale** (the designed colour always; each extra colour's four mockup pictures
+are taken off-screen when the tee is saved / published), **price** (the garment's price + the AI picture add-on by
+default, or the admin's own). `ReadyDesign` gained `category`, `sizes`, `colours [{slug, mockups}]`, `priceInr`;
+`POST /api/studio/designs/:id/publish` refuses until the pictures, a category and a size are there. The shop: a
+tee is listed on its category's page (`/category/<slug>`, above the products; `GET /api/ready-designs?category=`)
+as well as on Shop your IDENTEE; its page shows colour dots (each colour's own pictures) and only the sizes on
+sale; the customer's copy is made in the chosen colour (`copy` takes `colour`).
+
+**Photos of a person wearing the tee (26 Oct 2026, the client: "front side and back side with some pose; if the
+t-shirt can be worn by both boys and girls include both"):** Review → "Photos of a person wearing it" — man / woman
+(preset from the garment: girls' → woman, boys' → man, else both), front / back, a setting (studio / street / wall)
+→ "Make N photos" (₹2.9 each, confirmed first; the tee is saved first). Each photo is Google's picture AI editing
+that colour's mockup of that side with strict keep-the-print instructions (`modelPhoto`, 3:4, stored under
+model-photos, AiUsage kind studio). Kept per colour (`colours[].photos`, same wearer + side replaces); ✕ removes one;
+saving keeps them. The shop page shows them as thumbnails after the four sides (per colour); the Shop your IDENTEE
+card shows the first photo on hover. Mock-tested; the AI can alter small details, so the admin checks each one.
+
+**AI pictures tab + "Where should it go?" (26 Oct 2026, the client: "keep the generated pictures separately near
+Text, Upload, Art; if they click the picture it should ask where to add, with options"):** the editor's "What to
+add" has a fourth tab, **AI pictures** — this room's pictures (newest first, "on the tee" marked) and then My
+pictures. Tapping one opens the sheet (`PlacePicker.jsx`, the customer room's PlaceSheet look): **how** — Fill the
+area · Big, centred · At the top · In the middle · At the bottom · Small — preset from the picture's kind, and
+**where** — every print area as Free / Has a design (Add next to it / Replace it) / Covered. Nothing lands on the tee
+by itself any more: a new picture goes to the tab (the editor switches to it); the whole-tee plan still places
+its parts by kind. The assistant no longer lists pictures.
+
+**All products shows the Studio's tees (26 Oct 2026, the client: "if I click All products the published products
+should be seen there"):** the Studio's published and ready tees appear as cards at the top of Admin → Shop your
+IDENTEE → All products, with a "Studio" badge, their category, price, colours and sizes, and Edit in Studio / See in
+shop / Unpublish (or Publish). They follow the page's filters (In the shop / Hidden, category, search). They are not
+stock products, so no Restock and no Delete there (delete from the Studio list). `wizardOptions` now sends the
+category slug too.
+
+**A tee shows only under its category (26 Oct 2026, the client: "it is showing in IDENTEE designs also"):** the Shop
+your IDENTEE page's "IDENTEE designs" row now lists only tees **without** a category (`?category=none`); a tee with a
+category appears on that category's page only.
+
+**A published tee is a product of its category (26 Oct 2026, the client: "Shop your IDENTEE → T-Shirts → the
+t-shirt should be visible [among the products]; before publishing it should ask which category, which garment
+style, and everything Add a product collects"):** Publish / Update in the shop now makes **one Product per colour on
+sale** (`syncStudioProduct` in studioService: `readyDesign` on the product, `productGroupId` on the design;
+brandname = the tee's name, description, category name + `garmentStyle` from the chosen style, sizes with a 9999
+stand-in stock since it is printed to order, price = own price or garment + AI add-on, was-price → discount, images =
+the four mockups + model photos, SKU made from the name). So the category page, its filters, search and sorting treat
+it like any product; the product card and `/product/:id` lead to the design's own page (`readyDesignSlug` on the
+shop card and on `/api/products/:id/full`; SingleProductPage redirects). The ReadyDesignGrid row on the category
+page is gone (the tee is in the grid); the Shop your IDENTEE page keeps the row for tees without a category.
+Unpublish / reject / restore hide or show the products (collectionController too); delete removes them (an ordered
+colour is kept hidden). Studio Review asks **category → style** (the category's styles, like Add a product; a text
+box when the category has none), a **description** (the blurb when empty) and "More product details" with defaults:
+for (from the garment's wearers), age range, fabric 100% Cotton, type, was-price, sub-category, SKU, HSN 6109, wash
+care, weight + box, featured — saved on the design as `product` (`cleanProductDetails`). `missingForShop` adds "a
+style" and "a description". The design page shows description, style, fabric and wash care. Admin All products: a
+Studio product shows Edit in Studio + "Studio · printed to order" + Unpublish / Publish (acts on the design);
+published designs without a product yet say "not listed among the products yet — Review → Update in the shop".
+Fixed on the way: "Update in the shop" was refused since colours were added (the guard looked for `body.mockups`
+only; it now accepts `colours[].mockups`), and the update path now refreshes the products. Mock-tested on laptop and
+phone (375). Release -g (replaces the never-extracted -f).
+
+**One button for the print check (26 Oct 2026, the client: "give one button, if I click it corrects all"):** under
+"The print check says" in Review, **Fix all of this for me** (`fixAll` in StudioRoom, `dtfFixes` in studioCheck.js,
+tested in `tests/studioCheck.test.mjs`): first the free fixes in one Undo step — designCheck's own patches (inside
+the area, bigger letters, a colour that shows) and the DTF ones (every item ≥ 1 cm clear of the edge, shrunk around
+its centre only when it cannot fit; letters ≥ 8.5 mm; outlines ≥ 0.45 mm; see-through words and faint items made
+solid) — then a blurry picture: the Sharpen (4K, paid) confirm; Cancel shrinks it to a sharp width instead
+(designCheck's blurry patch); then Review runs again (issues recomputed, the four pictures retaken). The button waits
+until the four pictures are in (two camera jobs at once would mix their pictures). `toReview`, `save` and `sharpen`
+read `elRef.current` now, so a change made in the same tick is what gets checked, saved and sharpened. Pictures with
+their own background are the one thing it cannot fix (the note stays). Mock-tested: 2 edge + 2 blurry warnings → 0.
+
+**Later:** the Studio's own art-library upload, a tee from a saved tee (duplicate), a print-ready check before every publish.

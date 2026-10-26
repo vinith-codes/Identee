@@ -36,8 +36,9 @@ export default function ReadyMadePage() {
           text="Finished designs, ready to wear. Pick a category."
           switchTo={{ to: SHOPS.create.to, label: `${SHOPS.create.name} instead →` }}
         />
-        {/* the IDENTEE designs made with the Collection maker (25 Oct 2026); nothing shows while there are none */}
-        <ReadyDesignGrid />
+        {/* the IDENTEE designs that have no category yet (a tee with a category shows on its category's page instead,
+            26 Oct 2026); nothing shows while there are none */}
+        <ReadyDesignGrid category="none" />
         <CategoryGrid categories={categories} loading={status === "loading" || status === "idle"} />
         {status === "succeeded" && categories.length === 0 && (
           <p style={{ color: "#71695B" }}>New collections are coming soon.</p>

@@ -72,6 +72,7 @@ const summarise = (docs, categoryOf, owners) => {
     colours,
     owner: owners.get(String(base.user)) || null,
     ownerId: String(base.user),
+    readyDesign: base.readyDesign ? String(base.readyDesign) : null, // a Studio tee: edited in the Studio, not the wizard
     updatedAt: docs.reduce((t, d) => (d.updatedAt > t ? d.updatedAt : t), base.updatedAt),
   };
 };
@@ -99,7 +100,8 @@ export const listGroups = asyncHandler(async (req, res) => {
     byGroup.get(d.productGroupId).push(d);
   }
   const categoryOf = await categoryLookup();
-  const ownerIds = [...new Set(docs.map((d) => String(d.user)))];
+  // (a product saved without a user — old test data — must not break the whole list)
+  const ownerIds = [...new Set(docs.map((d) => String(d.user)))].filter((id) => mongoose.isValidObjectId(id));
   const owners = new Map(
     (await mongoose.model("User").find({ _id: { $in: ownerIds } }).select("name").lean()).map((u) => [String(u._id), u.name]),
   );
@@ -130,8 +132,10 @@ export const listGroups = asyncHandler(async (req, res) => {
 // @desc  Choices for the wizard: storefront categories with their styles
 // @route GET /api/products/admin/options
 export const wizardOptions = asyncHandler(async (req, res) => {
-  const cats = await Category.find().sort({ displayOrder: 1, name: 1 }).select("name styles isActive").lean();
-  res.json({ categories: cats.map((c) => ({ name: c.name, styles: c.styles, isActive: c.isActive })) });
+  // only the ready-made shop's categories (the "Design your own" ones belong to Create your IDENTEE — they showed up
+  // here too and confused the product list's filter, 26 Oct 2026); a category not sorted yet is kept
+  const cats = await Category.find({ kind: { $ne: "customizable" } }).sort({ displayOrder: 1, name: 1 }).select("name slug styles isActive").lean();
+  res.json({ categories: cats.map((c) => ({ name: c.name, slug: c.slug, styles: c.styles, isActive: c.isActive })) });
 });
 
 // @desc  One product (all colours) for the wizard

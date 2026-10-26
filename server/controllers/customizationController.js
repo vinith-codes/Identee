@@ -47,6 +47,10 @@ const cleanElement = (positionByKey) => (el, i) => {
     height: clampNum(el.height, 2, 200, 20),
     rotation: clampNum(el.rotation, -360, 360, 0),
     zIndex: clampNum(el.zIndex, -1000, 1000, 0),
+    // see-through and mirrored (the admin's Studio, 25 Oct 2026); left out when they are the defaults
+    ...(el.opacity != null && Number(el.opacity) < 1 ? { opacity: clampNum(el.opacity, 0.05, 1, 1) } : {}),
+    ...(el.flipH ? { flipH: true } : {}),
+    ...(el.flipV ? { flipV: true } : {}),
   };
 
   if (el.type === "image") {
@@ -55,6 +59,8 @@ const cleanElement = (positionByKey) => (el, i) => {
       ...base,
       src: el.src,
       artDesignId: mongoose.isValidObjectId(el.artDesignId) ? el.artDesignId : undefined,
+      // the 4K copy made for printing (the Studio's "Sharpen for print", 25 Oct 2026) and its width in px
+      ...(el.printSrc && isOurImage(el.printSrc) ? { printSrc: el.printSrc, printW: clampNum(el.printW, 1, 20000, 0) || undefined } : {}),
     };
   }
 

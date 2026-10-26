@@ -1349,6 +1349,11 @@ const getProductFullById = asyncHandler(async (req, res) => {
     ...LIVE,
   }).lean();
   const group = await ProductGroup.findById(product.productGroupId).lean();
+  // a Studio tee (printed to order): the shop page sends the customer to the design's own page
+  if (product.readyDesign) {
+    const design = await mongoose.model("ReadyDesign").findById(product.readyDesign).select("slug status").lean();
+    if (design?.slug) product.readyDesignSlug = design.slug;
+  }
 
   const { publicReviews, ratingBreakdown, numReviews } =
     buildPublicReviewData(product);

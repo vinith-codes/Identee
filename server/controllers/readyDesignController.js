@@ -15,10 +15,22 @@ const SLUG = /^[a-z0-9-]{3,60}$/;
 // what a customer pays per tee: the garment's price, + the picture amount (as a design-room tee — checkoutService)
 async function priceOf(design, garment, addOn) {
   const extra = (await hasPaidPicture(design.elements)) ? addOn : 0;
+  // the admin's own price for this tee (26 Oct 2026) wins over the garment's price + the picture add-on
+  if (design.priceInr > 0) return { price: design.priceInr, comparePrice: garment?.comparePrice > design.priceInr ? garment.comparePrice : 0 };
   const price = (garment?.basePrice || 0) + extra;
   const was = garment?.comparePrice > garment?.basePrice ? garment.comparePrice + extra : 0;
   return { price, comparePrice: was };
 }
+// the colours a tee is sold in: the designed one, plus the ones the admin ticked (each with its own pictures)
+const coloursOf = (design, garment) => {
+  const list = design.colours?.length ? design.colours : [{ slug: design.color, mockups: design.mockups }];
+  return list.map((c) => ({ slug: c.slug, name: colourOf(garment, c.slug)?.name || c.slug, hex: colourOf(garment, c.slug)?.hex || "#1C1C1D", mockups: c.mockups, photos: c.photos || [] }));
+};
+const sizesOf = (design, garment) => {
+  const all = garment.sizes?.length ? garment.sizes : ["S", "M", "L", "XL", "2XL", "3XL"];
+  const on = (design.sizes || []).filter((s) => all.includes(s));
+  return on.length ? on : all;
+};
 const colourOf = (garment, slug) => garment?.colors?.find((c) => c.slug === slug) || null;
 // the side the picture is printed on (the shop shows that side first)
 const heroOf = (design) => (design.elements || []).find((e) => e.type === "image")?.side === "back" ? "back" : "front";
@@ -26,7 +38,11 @@ const heroOf = (design) => (design.elements || []).find((e) => e.type === "image
 // GET /api/ready-designs  (public) -> { open, designs: [...] }
 export const listReadyDesigns = asyncHandler(async (req, res) => {
   if (!(await shopOpen())) return res.json({ open: false, designs: [] });
-  const designs = await ReadyDesign.find({ status: "published" }).sort({ publishedAt: -1 }).limit(120).lean();
+  // ?category=<slug>: only the tees listed under that storefront category; "none": the ones without a category
+  // (the Shop your IDENTEE page shows only those — a tee with a category lives on its category's page, 26 Oct 2026)
+  const category = String(req.query.category || "").slice(0, 60);
+  const where = category === "none" ? { $or: [{ category: "" }, { category: { $exists: false } }] } : category ? { category } : {};
+  const designs = await ReadyDesign.find({ status: "published", ...where }).sort({ publishedAt: -1 }).limit(120).lean();
   const garments = await GarmentType.find({ key: { $in: [...new Set(designs.map((d) => d.garmentType))] }, isActive: true }).lean();
   const addOn = await aiDesignAddOn();
   const out = [];
@@ -46,6 +62,10 @@ export const listReadyDesigns = asyncHandler(async (req, res) => {
       colourHex: colour?.hex || "#1C1C1D",
       mockups: d.mockups,
       hero: heroOf(d),
+      category: d.category || "",
+      colours: coloursOf(d, garment).map(({ slug, name, hex }) => ({ slug, name, hex })),
+      photo: coloursOf(d, garment)[0]?.photos?.[0]?.url || null, // a person wearing it (the card shows it on hover)
+      sizes: sizesOf(d, garment),
       ...(await priceOf(d, garment, addOn)),
     });
   }
@@ -68,6 +88,10 @@ export const getReadyDesign = asyncHandler(async (req, res) => {
     slug: design.slug,
     name: design.name,
     blurb: design.blurb,
+    description: design.product?.description || "", // the product page text given when publishing (26 Oct 2026)
+    style: design.product?.style || "",
+    fabric: design.product?.fabric || "",
+    washCare: design.product?.washCare || [],
     garmentType: design.garmentType,
     garmentLabel: garment.label,
     color: design.color,
@@ -76,7 +100,9 @@ export const getReadyDesign = asyncHandler(async (req, res) => {
     mockups: design.mockups,
     hero: heroOf(design),
     elements: design.elements,
-    sizes: garment.sizes?.length ? garment.sizes : ["S", "M", "L", "XL", "2XL", "3XL"],
+    category: design.category || "",
+    colours: coloursOf(design, garment),
+    sizes: sizesOf(design, garment),
     sizeChart: garment.sizeChart || [],
     ...(await priceOf(design, garment, await aiDesignAddOn())),
   });
@@ -96,16 +122,20 @@ export const copyReadyDesign = asyncHandler(async (req, res) => {
     res.status(404);
     throw new Error("This design isn't in the shop.");
   }
-  const mine = await Customization.findOne({ user: req.user._id, fromReady: design._id, orderedAt: null, hiddenAt: null }).sort({ updatedAt: -1 });
+  // the colour the customer chose (one the tee is sold in); its own pictures go on the copy
+  const garment = await GarmentType.findOne({ key: design.garmentType }).lean();
+  const wanted = String(req.body?.colour || design.color);
+  const chosen = coloursOf(design, garment).find((c) => c.slug === wanted) || coloursOf(design, garment)[0];
+  const mine = await Customization.findOne({ user: req.user._id, fromReady: design._id, color: chosen.slug, orderedAt: null, hiddenAt: null }).sort({ updatedAt: -1 });
   if (mine) return res.json({ customizationId: mine._id, garmentType: mine.garmentType });
   const copy = await Customization.create({
     garmentType: design.garmentType,
-    color: design.color,
+    color: chosen.slug,
     size: design.size || "M",
     user: req.user._id,
     layoutVersion: 2,
     elements: design.elements,
-    mockups: design.mockups,
+    mockups: chosen.mockups || design.mockups,
     name: design.name,
     fromReady: design._id,
   });

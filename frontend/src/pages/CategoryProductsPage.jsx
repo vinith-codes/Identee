@@ -101,6 +101,7 @@ export default function CategoryProductsPage() {
       </div>
 
       <div style={{ maxWidth: 1280, margin: "0 auto", padding: "24px 20px 64px" }}>
+        {/* a published Studio tee is a product of this category now (26 Oct 2026), so it sits in the grid below */}
         {category && <ShopGrid key={category.slug} category={category.slug} />}
       </div>
     </div>

@@ -243,6 +243,9 @@ const productSchema = mongoose.Schema(
     // Admin → Ready-made → "Hide from shop": kept (orders still link to it)
     // but not listed, not openable for buying, not addable to a cart.
     isHidden: { type: Boolean, default: false },
+    // a tee from the admin's Studio, printed after each order (26 Oct 2026): the product is its listing in the shop
+    // (category, style, filters); buying it goes through the design's own page / checkout. Its stock is a stand-in.
+    readyDesign: { type: mongoose.Schema.Types.ObjectId, ref: "ReadyDesign", default: null, index: true },
     // a colour removed in the wizard after it was ordered: hidden for good
     // (kept only so its orders still link to it)
     retired: { type: Boolean, default: false },

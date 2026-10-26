@@ -19,7 +19,8 @@ export default function ProductCard({ p }) {
   const price = p.subscriptionPrice && p.subscriptionPrice < p.price ? p.subscriptionPrice : p.price;
   const showOld = p.oldPrice > price;
   const off = showOld ? Math.round(((p.oldPrice - price) / p.oldPrice) * 100) : 0;
-  const href = `/product/${colour?._id || p._id}`;
+  // a Studio tee (printed to order) opens the design's own page (sizes, colours, Edit this design)
+  const href = p.readyDesignSlug ? `/ready-made/design/${p.readyDesignSlug}` : `/product/${colour?._id || p._id}`;
   const label = `${p.brandname}${colour?.name ? `, ${colour.name}` : ""}, ${money(price)}`;
 
   return (

@@ -7,6 +7,7 @@
 import asyncHandler from "express-async-handler";
 import Product, { LIVE } from "../models/productModel.js";
 import Category from "../models/categoryModel.js";
+import ReadyDesign from "../models/readyDesignModel.js";
 import { applySubscriptionPrice } from "../utils/applySubscriptionPrice.js";
 
 const SIZE_ORDER = ["XXS", "XS", "S", "M", "L", "XL", "XXL", "2XL", "3XL", "4XL", "5XL", "FREE SIZE"];
@@ -52,8 +53,11 @@ export const listShopProducts = asyncHandler(async (req, res) => {
 
   // every live colour document in scope
   const all = await Product.find(LIVE)
-    .select("brandname price oldPrice discount images productGroupId productdetails rating numReviews soldCount createdAt isFeatured")
+    .select("brandname price oldPrice discount images productGroupId productdetails rating numReviews soldCount createdAt isFeatured readyDesign")
     .lean();
+  // a Studio tee (printed to order) opens its own page: its slug goes on the card
+  const designIds = [...new Set(all.filter((d) => d.readyDesign).map((d) => String(d.readyDesign)))];
+  const designSlug = new Map(designIds.length ? (await ReadyDesign.find({ _id: { $in: designIds } }).select("slug").lean()).map((r) => [String(r._id), r.slug]) : []);
   const inScope = all.filter((d) => {
     const cat = categoryOfStyle.get(norm(d.productdetails?.garmentStyle));
     return cat && (!fixed || cat.slug === fixed.slug);
@@ -119,6 +123,7 @@ export const listShopProducts = asyncHandler(async (req, res) => {
       soldCount: colours.reduce((n, c) => n + (c.soldCount || 0), 0),
       createdAt: Math.max(...colours.map((c) => new Date(c.createdAt).getTime())),
       featured: !!rep.isFeatured,
+      readyDesignSlug: rep.readyDesign ? designSlug.get(String(rep.readyDesign)) || null : null,
     };
   });
   cards.sort(SORTS[sort]);

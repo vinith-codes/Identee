@@ -119,7 +119,11 @@ export function buildNodes(layer, elements, W, H, { full = false } = {}) {
     // stored box (top-left %) → centre in px
     const cx = ((el.x || 0) / 100) * W + (((el.width ?? (bw / W) * 100)) / 100) * W / 2;
     const cy = ((el.y || 0) / 100) * H + (((el.height ?? (bh / H) * 100)) / 100) * H / 2;
-    const g = new Konva.Group({ x: cx, y: cy, rotation: el.rotation || 0, offsetX: bw / 2, offsetY: bh / 2, id: String(el.id), name: "el" });
+    // opacity and mirror (the admin's Studio, 25 Oct 2026): the group fades; the drawn node is mirrored inside it, so the
+    // editor's handles (which read the group's scale) are not affected
+    const g = new Konva.Group({ x: cx, y: cy, rotation: el.rotation || 0, offsetX: bw / 2, offsetY: bh / 2, id: String(el.id), name: "el", opacity: el.opacity == null ? 1 : Math.max(0.05, Math.min(1, el.opacity)) });
+    if (el.flipH) node.setAttrs({ scaleX: -(node.scaleX() || 1), x: node.x() + bw });
+    if (el.flipV) node.setAttrs({ scaleY: -(node.scaleY() || 1), y: node.y() + bh });
     g.setAttr("boxW", bw);
     g.setAttr("boxH", bh);
     g.add(node);

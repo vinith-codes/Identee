@@ -4,7 +4,8 @@ import asyncHandler from "express-async-handler";
 import mongoose from "mongoose";
 import DesignCollection from "../models/designCollectionModel.js";
 import ReadyDesign from "../models/readyDesignModel.js";
-import { cleanBrief, garmentInfo, makeBrief, markStale, redoPicture, runCollection, LAYOUTS, MAX_BUDGET, MAX_TEES } from "../services/collectionService.js";
+import Product from "../models/productModel.js";
+import { changeDesign, cleanBrief, garmentInfos, partsOf, makeBrief, markStale, redoPicture, runCollection, LANGUAGES, LAYOUTS, PLACES, MAX_AI_PICTURES, MAX_BUDGET, MAX_PARTS, MAX_TEES, SOURCES } from "../services/collectionService.js";
 import { cleanDesign, storeMockups } from "./customizationController.js";
 import { readSettings } from "./aiController.js";
 import { xaiConfigured } from "../services/xaiImageService.js";
@@ -26,17 +27,30 @@ const designOr404 = async (req, res) => {
   return doc;
 };
 
-// GET /api/collections/setup  (admin) — what the brief form needs: colours, layouts, prices, limits
+// GET /api/collections/setup  (admin) — what the page needs: the products (their print areas, colours, layouts —
+// the admin's browser draws the 3D tee and fits the words with them), prices and limits
 export const getSetup = asyncHandler(async (req, res) => {
-  const { colours, layouts, garment, positions } = await garmentInfo();
+  const infos = await garmentInfos();
   const settings = await readSettings();
   res.json({
-    // (what the admin's browser needs to draw the 3D tee and fit the words)
-    garment: { key: garment.key, label: garment.label, category: garment.category, fit: garment.fit, sizes: garment.sizes, sizeChart: garment.sizeChart },
-    positions,
-    colours,
-    layouts: Object.entries(layouts).map(([key, l]) => ({ key, label: l.label })),
-    allLayouts: Object.keys(LAYOUTS).length,
+    garments: infos.map(({ key, garment, positions, colours, layouts }) => ({
+      key,
+      label: garment.label,
+      category: garment.category,
+      fit: garment.fit,
+      sizes: garment.sizes,
+      sizeChart: garment.sizeChart,
+      positions,
+      colours,
+      layouts: Object.entries(layouts).map(([k, l]) => ({ key: k, label: l.label })),
+    })),
+    // every layout, with its parts (the admin's page draws them on a small tee); each product lists the ones it fits
+    layouts: Object.entries(LAYOUTS).map(([key, l]) => ({ key, label: l.label, suits: l.suits, parts: l.parts })),
+    places: Object.fromEntries(Object.entries(PLACES).map(([k, p]) => [k, p.box])),
+    languages: LANGUAGES,
+    sources: Object.entries(SOURCES).map(([key, label]) => ({ key, label })),
+    maxParts: MAX_PARTS,
+    maxAiPictures: MAX_AI_PICTURES,
     pricePerImageInr: settings.pricePerImageInr,
     grokPricePerImageInr: settings.grokPricePerImageInr,
     grok: xaiConfigured(),
@@ -64,18 +78,40 @@ export const getCollection = asyncHandler(async (req, res) => {
   res.json({ collection, designs });
 });
 
-// POST /api/collections/brief  (admin; multipart: prompt + optional "image")
+// POST /api/collections/brief  (admin; multipart: prompt + "images", the example pictures — at least 1, up to 10)
 export const createBrief = asyncHandler(async (req, res) => {
   const prompt = String(req.body.prompt || "").trim();
   if (prompt.length < 3) {
     res.status(400);
     throw new Error("Type what the collection should be about.");
   }
-  const image = req.file ? { data: req.file.buffer, mime: req.file.mimetype } : null;
+  const files = Array.isArray(req.files) ? req.files : [];
+  if (!files.length) {
+    res.status(400);
+    throw new Error("Add an example picture — the AI takes its look as a reference (it doesn't copy it).");
+  }
+
+  // the products and layouts picked before the prompt (sent as JSON lists in the form)
+  const list = (v) => {
+    try {
+      const a = JSON.parse(String(v || "[]"));
+      return Array.isArray(a) ? a.map(String).slice(0, 20) : [];
+    } catch {
+      return [];
+    }
+  };
   try {
-    const collection = await makeBrief({ prompt, image, refImage: req.file?.path || "", userId: req.user._id });
+    const collection = await makeBrief({
+      prompt,
+      images: files.map((f) => ({ data: f.buffer, mime: f.mimetype })),
+      refImages: files.map((f) => f.path),
+      userId: req.user._id,
+      garments: list(req.body.garments),
+      layouts: list(req.body.layouts),
+    });
     res.status(201).json({ collection, designs: [] });
   } catch (err) {
+    console.error("[collection] brief failed:", err?.status || "", err?.message || err);
     res.status(err.status || 502);
     throw new Error(err.status === 400 || err.status === 429 || err.status === 503 ? err.message : "The AI couldn't read the request. Please try again.");
   }
@@ -88,12 +124,17 @@ export const startCollection = asyncHandler(async (req, res) => {
     res.status(409);
     throw new Error("This collection has already started.");
   }
-  const { colours } = await garmentInfo();
-  const brief = cleanBrief(req.body.brief || {}, colours);
+  const brief = cleanBrief(req.body.brief || {}, await garmentInfos());
   if (brief.realPeople && !xaiConfigured()) brief.realPeople = false; // only Grok draws real people
   if (!brief.theme) {
     res.status(400);
     throw new Error("Give the collection a theme.");
+  }
+  // the details the prompt didn't give must be answered first
+  const ASK = { garments: "which products", count: "how many tees", language: "the language of the words" };
+  if (brief.missing.length) {
+    res.status(400);
+    throw new Error(`Please choose ${brief.missing.map((k) => ASK[k]).join(", ")} first.`);
   }
   collection.brief = brief;
   collection.status = "running";
@@ -126,7 +167,8 @@ export const finishDesign = asyncHandler(async (req, res) => {
   }
   design.elements = fields.elements;
   design.mockups = mockups;
-  design.issues = (Array.isArray(req.body.issues) ? req.body.issues : []).map((s) => String(s).slice(0, 200)).slice(0, 10);
+  // the AI's notes (parts it couldn't use) + what the print check still says
+  design.issues = [...(design.plan?.notes || []), ...(Array.isArray(req.body.issues) ? req.body.issues : []).map((s) => String(s).slice(0, 200))].slice(0, 12);
   design.status = "ready";
   await design.save();
   res.json(design);
@@ -143,6 +185,8 @@ const setStatus = (to, from) =>
     design.status = to;
     design.publishedAt = to === "published" ? new Date() : design.publishedAt;
     await design.save();
+    // a Studio tee's product in the shop is shown / hidden with it (26 Oct 2026)
+    if (design.productGroupId) await Product.updateMany({ readyDesign: design._id }, { $set: { isHidden: to !== "published" } });
     res.json(design);
   });
 export const publishDesign = setStatus("published", ["ready"]);
@@ -164,16 +208,17 @@ export const updateDesignText = asyncHandler(async (req, res) => {
   res.json(design);
 });
 
-// POST /api/collections/designs/:id/redo  (admin) — a new picture, the same plan (costs one picture)
+// POST /api/collections/designs/:id/redo  (admin) — new AI pictures, the same parts (each costs one picture; art
+// library pictures stay)
 export const redoDesign = asyncHandler(async (req, res) => {
   const design = await designOr404(req, res);
   if (design.status === "published") {
     res.status(409);
     throw new Error("Unpublish the tee before making a new picture for it.");
   }
-  if (!design.plan?.subject) {
+  if (!partsOf(design).length) {
     res.status(409);
-    throw new Error("This tee has no plan to make a picture from.");
+    throw new Error("This tee has no plan to make pictures from.");
   }
   try {
     await redoPicture(design);
@@ -182,4 +227,42 @@ export const redoDesign = asyncHandler(async (req, res) => {
     throw new Error(err.message || "The picture could not be made.");
   }
   res.json(design);
+});
+
+// POST /api/collections/designs/:id/change  (admin) { instruction } — change one tee in your own words
+// ("make the words bigger", "put the picture on the front", "make it navy"). The AI rebuilds its parts; pictures it
+// keeps are reused, new ones cost one picture each.
+export const changeOneDesign = asyncHandler(async (req, res) => {
+  const design = await designOr404(req, res);
+  const instruction = String(req.body.instruction || "").trim();
+  if (instruction.length < 3) {
+    res.status(400);
+    throw new Error("Say what to change.");
+  }
+  if (design.status === "published") {
+    res.status(409);
+    throw new Error("Unpublish the tee before changing it.");
+  }
+  try {
+    const { design: doc, reply } = await changeDesign(design, instruction);
+    res.json({ design: doc, reply });
+  } catch (err) {
+    res.status(err.status || 502);
+    throw new Error(err.status === 422 || err.status === 429 || err.status === 409 ? err.message : "The change couldn't be made. Please try again.");
+  }
+});
+
+// POST /api/collections/:id/resume  (admin) — a run that stopped carries on (tees made so far are kept)
+export const resumeCollection = asyncHandler(async (req, res) => {
+  const collection = await collectionOr404(req, res);
+  if (collection.status !== "failed") {
+    res.status(409);
+    throw new Error("Only a stopped run can be resumed.");
+  }
+  collection.status = "running";
+  collection.step = "Carrying on";
+  collection.error = "";
+  await collection.save();
+  runCollection(collection._id).catch((e) => console.error("[collection] resume crashed:", e?.message || e));
+  res.json({ collection });
 });

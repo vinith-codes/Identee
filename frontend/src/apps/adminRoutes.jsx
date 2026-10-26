@@ -35,8 +35,9 @@ const InvoicePreviewPage = lazy(() => import("../pages/admin/InvoicePreviewPage"
 const AdminOrdersPage = lazy(() => import("../pages/admin/AdminOrdersPage"));
 const ProductBulkUploadPage = lazy(() => import("../pages/admin/ProductBulkUploadPage"));
 const ArtBulkUploadPage = lazy(() => import("../pages/admin/ArtBulkUploadPage"));
-// Shop your IDENTEE: ready designs made by the AI pipeline (25 Oct 2026)
-const CollectionMakerPage = lazy(() => import("../pages/admin/CollectionMakerPage"));
+// (the Collection maker page, pages/admin/CollectionMakerPage.jsx, is parked since 25 Oct 2026 — not routed, not built)
+// Shop your IDENTEE: the Studio — one tee designed by hand, AI pictures on request (25 Oct 2026)
+const StudioPage = lazy(() => import("../pages/admin/studio/StudioPage"));
 // Review moderation
 const AdminReviewsPage = lazy(() => import("../pages/admin/AdminReviewsPage"));
 // Settings module
@@ -132,8 +133,9 @@ export function adminRoutes() {
         <Route path="/admin/art-bulk-upload" element={<ArtBulkUploadPage />} />
         <Route path="invoices" element={<AdminInvoicesPage />} />
         <Route path="print-sheets" element={<PrintSheetsPage />} />
-        <Route path="collection-maker" element={<CollectionMakerPage />} />
-        <Route path="collection-maker/:id" element={<CollectionMakerPage />} />
+        <Route path="collection-maker" element={<Navigate to="/admin/studio" replace />} />
+        <Route path="studio" element={<StudioPage />} />
+        <Route path="studio/:id" element={<StudioPage />} />
         <Route path="invoices/:orderId" element={<InvoicePreviewPage />} />
         <Route path="/admin/subscriptions" element={<SubscriptionPlansPage />} />
         <Route path="/admin/subscribers" element={<SubscribersPage />} />

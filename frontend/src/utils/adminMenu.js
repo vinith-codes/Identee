@@ -40,7 +40,9 @@ export const ADMIN_MENU = [
     to: "/admin/products",
     children: [
       { to: "/admin/products", label: "All products" },
-      { to: "/admin/collection-maker", label: "Collection maker (AI)" },
+      { to: "/admin/studio", label: "Studio (design a tee)" },
+      // (the Collection maker — many tees from one prompt — is parked since 25 Oct 2026: the Studio does the job;
+      //  its code stays in pages/admin/CollectionMakerPage.jsx for a later "rough drafts" feature)
       { to: "/admin/upload-product", label: "Add a product" },
       { to: "/admin/bulk-upload", label: "Add many (spreadsheet)" },
     ],

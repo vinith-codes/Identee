@@ -79,11 +79,12 @@ export async function writeSlogans({ ask, tone, avoid = [], count = 5 }) {
 
 // A shared way to ask the text model for a JSON answer.
 // (exported for the smart Assistant, services/aiChatService.js — 23 Oct 2026)
-export async function askJson(prompt, temperature = 0.3, modelName = model()) {
+// timeoutMs: how long to wait (a long request, like the Collection maker's plan, takes Google longer — 25 Oct 2026)
+export async function askJson(prompt, temperature = 0.3, modelName = model(), { timeoutMs = TIMEOUT_MS } = {}) {
   const key = apiKey();
   if (!key) throw Object.assign(new Error("not set up"), { status: 503 });
   const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
   let res;
   try {
     res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent`, {
@@ -238,19 +239,20 @@ export async function askGrounded(prompt, temperature = 0.3, modelName = ideaMod
 }
 
 // The text model with a picture: the same as askJson, with the photo sent along (Gemini reads images).
-// (exported for the Collection maker's example picture, 25 Oct 2026)
-export async function askJsonWithImage(prompt, image, temperature = 0.2, modelName = ideaModel()) {
+// (exported for the Collection maker's example pictures, 25 Oct 2026; `image` may be a list — all are sent)
+export async function askJsonWithImage(prompt, image, temperature = 0.2, modelName = ideaModel(), { timeoutMs = TIMEOUT_MS } = {}) {
+  const images = Array.isArray(image) ? image : [image];
   const key = apiKey();
   if (!key) throw Object.assign(new Error("not set up"), { status: 503 });
   const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
   let res;
   try {
     res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent`, {
       method: "POST",
       headers: { "x-goog-api-key": key, "Content-Type": "application/json" },
       body: JSON.stringify({
-        contents: [{ role: "user", parts: [{ inline_data: { mime_type: image.mime || "image/jpeg", data: image.data.toString("base64") } }, { text: prompt }] }],
+        contents: [{ role: "user", parts: [...images.map((im) => ({ inline_data: { mime_type: im.mime || "image/jpeg", data: im.data.toString("base64") } })), { text: prompt }] }],
         generationConfig: { temperature, responseMimeType: "application/json" },
       }),
       signal: ctrl.signal,

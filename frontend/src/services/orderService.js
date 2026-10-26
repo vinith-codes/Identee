@@ -54,7 +54,15 @@ const cancelMyOrder = async (id, token) => {
   return data;
 };
 
+// Admin: delete orders (clearing test orders) — { ids, restartInvoiceNumbers } → { deleted, invoices, restarted, message }
+const deleteOrders = async (body, token) => {
+  const config = { headers: { Authorization: `Bearer ${token}` } };
+  const { data } = await api.post("/orders/admin/delete", body, config);
+  return data;
+};
+
 const orderService = {
+  deleteOrders,
   undoOrderStatus,
   cancelMyOrder,
   createOrder,
