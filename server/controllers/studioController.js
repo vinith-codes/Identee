@@ -293,10 +293,8 @@ export const printCheck = asyncHandler(async (req, res) => {
 // the tee's cost grows by each one. Returns the design and what was done.
 export const enlargeDesign = asyncHandler(async (req, res) => {
   const design = await designOr404(req, res);
-  if (design.status === "published") {
-    res.status(409);
-    throw new Error("Unpublish the tee before sharpening its pictures.");
-  }
+  // (26 Oct 2026: allowed on a published tee too — a 4K print copy changes nothing the customer sees, only what
+  // the printer gets; the client wants "Fix all" to sharpen a picture at its full size)
   const garments = await studioGarments();
   const garment = garments.find((g) => g.key === design.garmentType);
   const colour = garment?.colours.find((c) => c.slug === design.color);

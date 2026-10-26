@@ -24,8 +24,7 @@ export const aiImageModel = () => (mock() ? "mock" : process.env.AI_IMAGE_MODEL?
 
 // The stand-in picture for AI_IMAGE_PROVIDER=mock: a coloured disc with a
 // ring on a plain white (or black) background, as a real PNG.
-function mockPng(prompt) {
-  const N = 512;
+function mockPng(prompt, N = 512) {
   const dark = /pure black/.test(prompt);
   const hue = [...prompt].reduce((a, c) => (a * 31 + c.charCodeAt(0)) % 360, 7);
   const rgb = (h) => [0, 120, 240].map((o) => Math.round(127 + 110 * Math.cos(((h + o) * Math.PI) / 180)));
@@ -35,7 +34,7 @@ function mockPng(prompt) {
     raw[y * (N * 3 + 1)] = 0;
     for (let x = 0; x < N; x++) {
       const d = Math.hypot(x - N / 2, y - N / 2);
-      const c = d < 150 ? fill : d < 190 ? ring : bg;
+      const c = d < N * 0.293 ? fill : d < N * 0.371 ? ring : bg; // the same disc + ring at any size
       raw.set(c, y * (N * 3 + 1) + 1 + x * 3);
     }
   }
@@ -218,7 +217,8 @@ function findImage(node, depth = 0) {
  * @returns { buffer, mime }
  */
 export async function generateImage({ prompt, image, ratio = "1:1", size = "1K" }) {
-  if (mock()) return { buffer: mockPng(prompt + (image ? "changed" : "")), mime: "image/png" };
+  // (the stand-in honours the size too: a "4K" copy comes back 2,048 px wide, so print checks behave as with the real service)
+  if (mock()) return { buffer: mockPng(prompt + (image ? "changed" : ""), size === "4K" ? 2048 : 512), mime: "image/png" };
   const key = apiKey();
   if (!key) throw Object.assign(new Error("The design maker is not set up yet."), { status: 503 });
 

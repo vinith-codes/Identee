@@ -1068,8 +1068,12 @@ phone (375). Release -g (replaces the never-extracted -f).
 tested in `tests/studioCheck.test.mjs`): first the free fixes in one Undo step — designCheck's own patches (inside
 the area, bigger letters, a colour that shows) and the DTF ones (every item ≥ 1 cm clear of the edge, shrunk around
 its centre only when it cannot fit; letters ≥ 8.5 mm; outlines ≥ 0.45 mm; see-through words and faint items made
-solid) — then a blurry picture: the Sharpen (4K, paid) confirm; Cancel shrinks it to a sharp width instead
-(designCheck's blurry patch); then Review runs again (issues recomputed, the four pictures retaken). The button waits
+solid) — then every blurry picture is sharpened (4K print copy, paid; the button itself states the cost, so no
+confirm; the client: "I want it big, same as it is, but the quality improved") — it is never shrunk for
+sharpness; if the sharpening fails the layout fixes stay and the note says so. Then Review runs again (issues
+recomputed, the four pictures retaken). `enlargeDesign` no longer refuses a published tee (a print copy changes
+nothing the customer sees). The stand-in AI returns a 2,048 px picture for "4K" so laptop tests behave like the
+real service. The button waits
 until the four pictures are in (two camera jobs at once would mix their pictures). `toReview`, `save` and `sharpen`
 read `elRef.current` now, so a change made in the same tick is what gets checked, saved and sharpened. Pictures with
 their own background are the one thing it cannot fix (the note stays). Mock-tested: 2 edge + 2 blurry warnings → 0.

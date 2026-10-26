@@ -705,13 +705,14 @@ export default function StudioRoom({ setup, garment, colourSlug: firstColour, de
   };
   // Step 3: every soft AI picture gets a 4K copy for printing (the tee is saved first, so the server knows it)
   const soft = softPictures(withPx(elements), positions, { size });
-  // returns true when the pictures were sharpened (Fix all shrinks them instead when the admin says no)
-  const sharpen = async () => {
+  // returns true when the pictures were sharpened; ask = false when the button pressed already said the cost (Fix all)
+  const sharpenCostEach = Math.round((setup.pricePerImageInr || 0) * (setup.printCostFactor || 3) * 100) / 100;
+  const sharpen = async ({ ask = true } = {}) => {
     const list = elRef.current;
     const softNow = softPictures(withPx(list), positions, { size });
     if (!softNow.length) return true;
-    const costEach = Math.round((setup.pricePerImageInr || 0) * (setup.printCostFactor || 3) * 100) / 100;
-    if (!window.confirm(`Sharpen ${softNow.length} picture${softNow.length === 1 ? "" : "s"} for print at about ₹${costEach} each (₹${Math.round(costEach * softNow.length * 100) / 100})? Takes about half a minute a picture.`)) return false;
+    const costEach = sharpenCostEach;
+    if (ask && !window.confirm(`Sharpen ${softNow.length} picture${softNow.length === 1 ? "" : "s"} for print at about ₹${costEach} each (₹${Math.round(costEach * softNow.length * 100) / 100})? Takes about half a minute a picture.`)) return false;
     const saved = savedAt && designDoc ? designDoc : await save();
     if (!saved) return false;
     setBusy(`Sharpening ${softNow.length} picture${softNow.length === 1 ? "" : "s"} for print…`);
@@ -733,10 +734,11 @@ export default function StudioRoom({ setup, garment, colourSlug: firstColour, de
       setBusy("");
     }
   };
-  // One button for the print check (26 Oct 2026, the client: "give one button, if I click it corrects all"):
-  // the free fixes first (inside the area, 1 cm clear of the edge, words big enough, outlines thick enough, nothing
-  // faint), then a blurry picture is sharpened (4K, paid — asked first; "Cancel" shrinks it to a sharp width
-  // instead), and the four pictures are taken again. One Undo step brings the design back.
+  // One button for the print check (26 Oct 2026, the client: "give one button, if I click it corrects all" and
+  // "I want it big, same as it is, but the quality improved for printing"): the free fixes first (inside the area,
+  // 1 cm clear of the edge, words big enough, outlines thick enough, nothing faint), then every blurry picture is
+  // SHARPENED (4K print copy, paid — the button itself says the cost, so no second question) and keeps its size;
+  // it is never made smaller for sharpness. Then the four pictures are taken again. One Undo step brings the design back.
   const fixOne = (list, id, patch, measure) => list.map((e) => (e.id !== id ? e : measure && e.type === "text" ? textBox({ ...e, ...patch }, positions.find((p) => p.key === e.position)) : { ...e, ...patch }));
   const fixable = issues.some((t) => !/own background/.test(t));
   const fixAll = async () => {
@@ -746,13 +748,11 @@ export default function StudioRoom({ setup, garment, colourSlug: firstColour, de
     for (const i of designIssues(next).filter((x) => x.kind !== "blurry")) next = fixOne(next, i.elId, i.patch, i.measure);
     for (const f of dtfFixes(next, positions, { size })) next = fixOne(next, f.id, f.patch, f.measure);
     if (next !== before) commit(next);
-    if (softPictures(withPx(next), positions, { size }).length && !(await sharpen())) {
-      // no 4K copy: make the blurry ones small enough to print sharp
-      let after = elRef.current;
-      for (const i of designIssues(after).filter((x) => x.kind === "blurry")) after = fixOne(after, i.elId, i.patch, false);
-      if (after !== elRef.current) commit(after);
+    let note = "Done — taking the four pictures again. Undo (↶) in the design brings it back as it was.";
+    if (softPictures(withPx(next), positions, { size }).length && !(await sharpen({ ask: false }))) {
+      note = "The layout is fixed, but the blurry picture could not be sharpened (see the message above). It stays as it is — try Sharpen again in a moment.";
     }
-    say("Done — taking the four pictures again. Undo (↶) in the design brings it back as it was.");
+    say(note);
     await toReview();
   };
   // photos of a person wearing the tee, from the saved tee's pictures (the tee is saved first)
@@ -1156,10 +1156,10 @@ export default function StudioRoom({ setup, garment, colourSlug: firstColour, de
                 <ul>{[...new Set(issues)].map((t) => <li key={t}>{t}</li>)}</ul>
                 {fixable && (
                   <button type="button" className="dr-add st-sharpen st-fixall" disabled={!!busy || !shots} onClick={fixAll}>
-                    Fix all of this for me
+                    Fix all of this for me{soft.length > 0 ? ` · sharpens ${soft.length} picture${soft.length === 1 ? "" : "s"} for ₹${Math.round(sharpenCostEach * soft.length * 100) / 100}` : ""}
                     <small>
-                      Keeps everything 1 cm inside the edge (made smaller only when it must), makes small words and thin outlines bigger, and nothing faint.
-                      {soft.length > 0 ? ` A blurry picture is sharpened at about ₹${Math.round((setup.pricePerImageInr || 0) * (setup.printCostFactor || 3) * 100) / 100} each (you are asked first; Cancel makes it smaller instead).` : ""} Then the four pictures are taken again.
+                      Pictures keep their size: a blurry one gets a 4K print copy{soft.length > 0 ? ` (about ₹${sharpenCostEach} each, charged when you press this)` : ""}.
+                      Everything is pulled 1 cm in from the edge, small words and thin outlines are made bigger, nothing stays faint. Then the four pictures are taken again.
                     </small>
                   </button>
                 )}
