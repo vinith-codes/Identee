@@ -347,11 +347,23 @@ export async function enlargeStudioPicture({ userId, src, teeIsDark, note = "" }
   const sheetH = r >= shape ? meta.height : Math.round(meta.width / r);
   const small = await sharp(raw).rotate().flatten({ background: bg }).resize(sheetW, sheetH, { fit: "contain", background: bg }).resize(1536, 1536, { fit: "inside", withoutEnlargement: true }).jpeg({ quality: 95 }).toBuffer();
   let out;
+  let byGrok = false;
   try {
     out = await generateImage({ prompt: printPrompt({ dark: teeIsDark, plain: hasAlpha }), image: { data: small, mime: "image/jpeg" }, ratio, size: "4K" });
   } catch (err) {
-    if (err?.status === 422 || err?.noImage) throw fail("Google won't enlarge this picture (it refuses well-known people). Nothing was charged; it prints from the original.", 422);
-    throw fail(err?.message || "The picture could not be enlarged.", err?.status || 502);
+    if (!(err?.status === 422 || err?.noImage)) throw fail(err?.message || "The picture could not be enlarged.", err?.status || 502);
+    // Google refuses well-known people (the SCENE tees: a film star's face). Then Grok, which drew such pictures in
+    // the first place, makes the print copy — at its largest size, "2k" (about 2,000 px: sharp to about 34 cm wide).
+    // (26 Oct 2026, the client: "I want it big, same as it is, but the quality improved for printing")
+    if (!xaiConfigured()) throw fail("Google won't enlarge this picture (it refuses well-known people) and Grok is not set up on this server. Nothing was charged; it prints from the original.", 422);
+    if (grokCapped(settings, await monthSpend())) throw fail("Google won't enlarge this picture (a well-known person) and this month's Grok spending limit is reached. Nothing was charged; it prints from the original.", 429);
+    try {
+      out = await xaiEditImage({ prompt: `${printPrompt({ dark: teeIsDark, plain: hasAlpha })} Keep the same person, face, pose, colours and composition exactly; only add fine detail and sharpness.`, image: { data: small, mime: "image/jpeg" }, resolution: "2k" });
+      byGrok = true;
+    } catch (err2) {
+      if (err2?.status === 422) throw fail("Neither Google nor Grok would enlarge this picture. Nothing was charged; it prints from the original.", 422);
+      throw fail(err2?.message || "The picture could not be enlarged.", err2?.status || 502);
+    }
   }
   const big = await sharp(out.buffer).metadata();
   const keepW = Math.min(big.width, Math.round((big.width * meta.width) / sheetW));
@@ -365,9 +377,9 @@ export async function enlargeStudioPicture({ userId, src, teeIsDark, note = "" }
   }
   const webp = await sharp(picture).webp({ quality: 96, alphaQuality: 100, effort: 4 }).toBuffer();
   const { url } = await uploadFile(webp, "image/webp", "print-pictures", "print.webp");
-  const cost = aiImageModel() === "mock" ? 0 : round2(settings.pricePerImageInr * PRINT_COST_FACTOR);
-  await AiUsage.create({ user: userId, kind: "print", prompt: `Studio: sharpen for print${note ? ` (${note})` : ""}`.slice(0, 2200), images: 1, costInr: cost, model: aiImageModel() });
-  return { printSrc: url, width: keepW, height: keepH, cost };
+  const cost = byGrok ? round2(settings.grokPricePerImageInr || 0) : aiImageModel() === "mock" ? 0 : round2(settings.pricePerImageInr * PRINT_COST_FACTOR);
+  await AiUsage.create({ user: userId, kind: "print", prompt: `Studio: sharpen for print${byGrok ? " (Grok)" : ""}${note ? ` (${note})` : ""}`.slice(0, 2200), images: 1, costInr: cost, model: byGrok ? xaiModel() : aiImageModel() });
+  return { printSrc: url, width: keepW, height: keepH, cost, byGrok };
 }
 
 /* ---------- the whole tee from one prompt (26 Oct 2026) ---------- */

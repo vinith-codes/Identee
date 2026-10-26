@@ -726,9 +726,11 @@ export default function StudioRoom({ setup, garment, colourSlug: firstColour, de
       setDesignDoc(doc);
       setIssues((cur) => cur.filter((t) => !/will print blurry/.test(t)));
       say(`${done.length} sharpened (₹${more})${failed.length ? `; ${failed.length} couldn't be: ${failed[0].message}` : ""}.`);
+      setFixNote(failed.length ? `${failed.length === 1 ? "One picture" : `${failed.length} pictures`} could not be sharpened: ${failed[0].message}` : "");
       return failed.length === 0;
     } catch (err) {
       say(apiError(err));
+      setFixNote(`Sharpening did not work: ${apiError(err)}`);
       return false;
     } finally {
       setBusy("");
@@ -741,8 +743,10 @@ export default function StudioRoom({ setup, garment, colourSlug: firstColour, de
   // it is never made smaller for sharpness. Then the four pictures are taken again. One Undo step brings the design back.
   const fixOne = (list, id, patch, measure) => list.map((e) => (e.id !== id ? e : measure && e.type === "text" ? textBox({ ...e, ...patch }, positions.find((p) => p.key === e.position)) : { ...e, ...patch }));
   const fixable = issues.some((t) => !/own background/.test(t));
+  const [fixNote, setFixNote] = useState(""); // why the last Fix all left something (stays until the next try)
   const fixAll = async () => {
     if (busy) return;
+    setFixNote("");
     const before = elRef.current;
     let next = before;
     for (const i of designIssues(next).filter((x) => x.kind !== "blurry")) next = fixOne(next, i.elId, i.patch, i.measure);
@@ -1154,9 +1158,10 @@ export default function StudioRoom({ setup, garment, colourSlug: firstColour, de
               <div className="st-issues">
                 <b>The print check says</b>
                 <ul>{[...new Set(issues)].map((t) => <li key={t}>{t}</li>)}</ul>
+                {fixNote && <p className="st-pub-missing">{fixNote}</p>}
                 {fixable && (
                   <button type="button" className="dr-add st-sharpen st-fixall" disabled={!!busy || !shots} onClick={fixAll}>
-                    Fix all of this for me{soft.length > 0 ? ` · sharpens ${soft.length} picture${soft.length === 1 ? "" : "s"} for ₹${Math.round(sharpenCostEach * soft.length * 100) / 100}` : ""}
+                    {fixNote ? "Try again" : "Fix all of this for me"}{soft.length > 0 ? ` · sharpens ${soft.length} picture${soft.length === 1 ? "" : "s"} for ₹${Math.round(sharpenCostEach * soft.length * 100) / 100}` : ""}
                     <small>
                       Pictures keep their size: a blurry one gets a 4K print copy{soft.length > 0 ? ` (about ₹${sharpenCostEach} each, charged when you press this)` : ""}.
                       Everything is pulled 1 cm in from the edge, small words and thin outlines are made bigger, nothing stays faint. Then the four pictures are taken again.

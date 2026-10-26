@@ -1073,7 +1073,12 @@ confirm; the client: "I want it big, same as it is, but the quality improved") �
 sharpness; if the sharpening fails the layout fixes stay and the note says so. Then Review runs again (issues
 recomputed, the four pictures retaken). `enlargeDesign` no longer refuses a published tee (a print copy changes
 nothing the customer sees). The stand-in AI returns a 2,048 px picture for "4K" so laptop tests behave like the
-real service. The button waits
+real service. Live finding (26 Oct evening, the client: "after click it is again visible like a clickable"):
+Google refuses a well-known face (the SCENE tee's Suriya picture), so the 4K copy failed and the blurry line
+stayed. Now `enlargeStudioPicture` falls back to **Grok** at `resolution: "2k"` (xaiEditImage takes `resolution`;
+a size Grok rejects is retried without) when Google answers 422 — Grok price + cap apply, AiUsage model = Grok's;
+`byGrok` in the result. The room keeps the reason on screen (`fixNote`, red line in the issues box) and the
+button reads "Try again". Release -h. The button waits
 until the four pictures are in (two camera jobs at once would mix their pictures). `toReview`, `save` and `sharpen`
 read `elRef.current` now, so a change made in the same tick is what gets checked, saved and sharpened. Pictures with
 their own background are the one thing it cannot fix (the note stays). Mock-tested: 2 edge + 2 blurry warnings → 0.

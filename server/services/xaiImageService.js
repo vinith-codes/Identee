@@ -27,12 +27,16 @@ export const xaiModel = () => process.env.XAI_IMAGE_MODEL?.trim() || "grok-imagi
  * @param {{ prompt: string, image: { data: Buffer, mime: string } }} args
  * @returns {Promise<{ buffer: Buffer, mime: string }>}
  */
-export async function xaiEditImage({ prompt, image }) {
-  return askGrok(ENDPOINT, "image edit", {
+export async function xaiEditImage({ prompt, image, resolution }) {
+  const body = {
     model: xaiModel(),
     prompt,
     image: { type: "image_url", url: `data:${image.mime || "image/jpeg"};base64,${image.data.toString("base64")}` },
-  });
+  };
+  if (!resolution) return askGrok(ENDPOINT, "image edit", body);
+  // "2k" (about 2,000 px on the short side) for a print copy (26 Oct 2026); a size Grok doesn't take is not a
+  // refusal: then ask again at its usual size
+  return askGrok(ENDPOINT, "image edit", { ...body, resolution }).catch((err) => (err?.badRequest ? askGrok(ENDPOINT, "image edit", body) : Promise.reject(err)));
 }
 
 /**
