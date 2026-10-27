@@ -339,7 +339,8 @@ export default function DesignRoomPage() {
   }, [type]);
 
   /* ---------- derived ---------- */
-  const colours = useMemo(() => garment?.colors || [], [garment]);
+  // (a "Shop your IDENTEE only" colour is not offered here, except the one a copied Studio tee is already in)
+  const colours = useMemo(() => (garment?.colors || []).filter((c) => !c.shopOnly || c.slug === colourSlug), [garment, colourSlug]);
   const colour = colours.find((c) => c.slug === colourSlug) || colours[0];
   const sizes = garment?.sizes?.length ? garment.sizes : ["XS", "S", "M", "L", "XL", "2XL", "3XL"];
   const sizeNow = sizes.includes(size) ? size : sizes.includes("M") ? "M" : sizes[0];

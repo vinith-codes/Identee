@@ -1114,4 +1114,19 @@ picture is the right person; the product card links the design page with `?for=m
 that wearer's photos first there (none hidden). Tested in `tests/wearerFor.test.mjs`; the picture order itself is
 not mock-tested (needs a re-publish). Release -l (shop + 2 backend files, replaces -k).
 
+**Shop-your-IDENTEE-only colours (27 Oct 2026, the client's "Quartz set" fabrics: Grey, Bottle Green, Light Brown,
+Pink, Dark Brown — "add these five colours for the oversized tee in Shop your IDENTEE"):** a garment colour has
+`shopOnly` (garmentTypeModel colorSchema; kept by `updateGarmentType` and `addColor`). Wizard step 3 has a "Shop your
+IDENTEE only" tick per colour and on "Add another colour"; shop-only colours need no photos (progress and the photo
+table skip them, so "48 of 48" stays). The server keeps every colour in every answer (the Studio, ready designs,
+copies and orders need them); the customer's design room filters them out of its pickers, except the colour the
+design is already in (an "Edit this design" copy of a Studio tee keeps its colour); the garment card's colour count
+skips them. Mock-tested. Release -m (admin + shop + 2 backend files). Bottle Green already existed on the garment.
+
+**Colour dots (27 Oct 2026, release -n):** the shop's swatch colours come from a name list (`utils/colours.js`), not
+from the garment. Light Brown and Dark Brown were missing (both fell back to beige), and Grey / Pink / Yellow were
+other shades. Added light brown, dark brown, charcoal melange, burgundy and set grey, pink, yellow to the garments'
+hexes. The 11 SCENE Studio tees went on sale the same night in the client's colours only (light designs Grey / Light
+Brown / Pink, dark designs Bottle Green / Dark Brown), in Men's and Women's T-Shirts, Oversized.
+
 **Later:** the Studio's own art-library upload, a tee from a saved tee (duplicate), a print-ready check before every publish.

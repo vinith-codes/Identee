@@ -7,6 +7,9 @@ const colorSchema = new mongoose.Schema(
     hex: { type: String, required: true },    // "#1B1B1B" — used only for
                                                 // the tiny color-swatch dot,
                                                 // not for tinting anymore
+    // sold only in Shop your IDENTEE (the Studio's ready tees), hidden from Create your IDENTEE's colour pickers
+    // (27 Oct 2026, the client's "Quartz set" fabrics). It needs no photos: the Studio takes 3D pictures.
+    shopOnly: { type: Boolean, default: false },
   },
   { _id: false },
 );

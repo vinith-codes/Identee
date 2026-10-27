@@ -75,7 +75,7 @@ export default function PhotosStep({ garment, images, reloadImages, progress, ne
               </tr>
             </thead>
             <tbody>
-              {garment.colors.map((c) => {
+              {garment.colors.filter((c) => !c.shopOnly).map((c) => {
                 const doc = docFor(c.slug);
                 return (
                   <tr key={c.slug}>

@@ -160,7 +160,7 @@ export const updateGarmentType = asyncHandler(async (req, res) => {
       if (!name || !slug || seen.has(slug)) continue;
       if (!HEX.test(c?.hex || "")) badRequest(res, `Colour "${name}" needs a hex code like #1C1C1D`);
       seen.add(slug);
-      colors.push({ name: name.slice(0, 40), slug, hex: c.hex });
+      colors.push({ name: name.slice(0, 40), slug, hex: c.hex, shopOnly: c?.shopOnly === true });
     }
     item.colors = colors;
   }
@@ -230,7 +230,7 @@ export const adminGetGarmentType = asyncHandler(async (req, res) => {
 
 // POST /api/garment-types/:id/colors  — add a color
 export const addColor = asyncHandler(async (req, res) => {
-  const { name, hex } = req.body;
+  const { name, hex, shopOnly } = req.body;
   if (!name || !hex) {
     res.status(400);
     throw new Error("name and hex are required");
@@ -245,7 +245,7 @@ export const addColor = asyncHandler(async (req, res) => {
     res.status(400);
     throw new Error("This color already exists on this garment type");
   }
-  item.colors.push({ name, slug, hex });
+  item.colors.push({ name, slug, hex, shopOnly: shopOnly === true });
   await item.save();
   res.status(201).json(item);
 });

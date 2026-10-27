@@ -44,8 +44,10 @@ const errMsg = (err, fallback) => err?.response?.data?.message || fallback;
 function progress(g, images) {
   if (!g) return [];
   const docs = images.filter((d) => d.garmentType === g.key);
-  const photoTotal = g.colors.length * 4;
-  const photoCount = g.colors.reduce((n, c) => {
+  // (a Shop-your-IDENTEE-only colour needs no photos: the Studio takes its own 3D pictures)
+  const photoColours = g.colors.filter((c) => !c.shopOnly);
+  const photoTotal = photoColours.length * 4;
+  const photoCount = photoColours.reduce((n, c) => {
     const d = docs.find((x) => x.colorSlug === c.slug);
     return n + VIEWS.filter((v) => d?.[v]?.imageUrl).length;
   }, 0);
@@ -452,7 +454,7 @@ function SizesStep({ garment, save, saving, next }) {
 
 function ColoursStep({ garment, save, saving, next }) {
   const [colors, setColors] = useState(garment.colors);
-  const [custom, setCustom] = useState({ name: "", hex: "#888888" });
+  const [custom, setCustom] = useState({ name: "", hex: "#888888", shopOnly: false });
   const has = (slug) => colors.some((c) => c.slug === slug);
   const extras = colors.filter((c) => !SHEET_COLOURS.some((s) => s.slug === c.slug));
 
@@ -461,8 +463,8 @@ function ColoursStep({ garment, save, saving, next }) {
     const name = custom.name.trim();
     if (!name) return;
     const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
-    if (!has(slug)) setColors((list) => [...list, { name, slug, hex: custom.hex.toUpperCase() }]);
-    setCustom({ name: "", hex: "#888888" });
+    if (!has(slug)) setColors((list) => [...list, { name, slug, hex: custom.hex.toUpperCase(), shopOnly: custom.shopOnly }]);
+    setCustom({ name: "", hex: "#888888", shopOnly: custom.shopOnly });
   };
 
   const submit = async () => {
@@ -482,14 +484,28 @@ function ColoursStep({ garment, save, saving, next }) {
         </button>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 10, marginTop: 14 }}>
-        {[...SHEET_COLOURS, ...extras].map((c) => (
-          <button key={c.slug} type="button" className={`aw-sw${has(c.slug) ? " on" : ""}`} onClick={() => toggle(c)}>
-            <span className="aw-dot" style={{ background: c.hex }} />
-            <span style={{ flex: 1 }}>{c.name}</span>
-            <span>{has(c.slug) ? "✓" : ""}</span>
-          </button>
-        ))}
+        {[...SHEET_COLOURS, ...extras].map((c) => {
+          const mine = colors.find((x) => x.slug === c.slug);
+          return (
+            <div key={c.slug} style={{ display: "grid", gap: 4 }}>
+              <button type="button" className={`aw-sw${mine ? " on" : ""}`} onClick={() => toggle(c)}>
+                <span className="aw-dot" style={{ background: c.hex }} />
+                <span style={{ flex: 1 }}>{c.name}</span>
+                <span>{mine ? "✓" : ""}</span>
+              </button>
+              {mine && (
+                <label style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 12, color: "#6B6559", paddingLeft: 4 }}>
+                  <input type="checkbox" checked={!!mine.shopOnly} onChange={(e) => setColors((list) => list.map((x) => (x.slug === c.slug ? { ...x, shopOnly: e.target.checked } : x)))} />
+                  Shop your IDENTEE only
+                </label>
+              )}
+            </div>
+          );
+        })}
       </div>
+      <p style={{ ...AW.lead, fontSize: 12.5, marginTop: 8 }}>
+        "Shop your IDENTEE only": the colour is for the Studio's ready tees and is not offered in Create your IDENTEE. It needs no photos.
+      </p>
 
       <div style={{ marginTop: 20, display: "flex", gap: 10, alignItems: "flex-end", flexWrap: "wrap" }}>
         <label style={{ flex: "1 1 200px" }}>
@@ -499,6 +515,10 @@ function ColoursStep({ garment, save, saving, next }) {
         <label>
           <span className="aw-lbl">Colour</span>
           <input type="color" value={custom.hex} onChange={(e) => setCustom({ ...custom, hex: e.target.value })} style={{ width: 56, height: 44, border: "1px solid #D7CCB3", borderRadius: 10, padding: 2, background: "#fff" }} />
+        </label>
+        <label style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 13, minHeight: 44 }}>
+          <input type="checkbox" checked={custom.shopOnly} onChange={(e) => setCustom({ ...custom, shopOnly: e.target.checked })} />
+          Shop your IDENTEE only
         </label>
         <button type="button" className="aw-btn light" onClick={addCustom} disabled={!custom.name.trim()}>
           Add

@@ -40,7 +40,7 @@ function GarmentCard({ garment, photos, team, onStart, carry = "", idea = "", fr
   // carry / idea: what the customer chose on the home page (opens that tool in the room — utils/carryStart.js)
   const start = () => (onStart ? onStart(garment, colour) : navigate(`/customize/${garment.key}?new=1${colour ? `&color=${colour.slug}` : ""}${team ? "&team=1" : ""}${carry}${from ? `&from=${encodeURIComponent(from)}` : ""}`, idea ? { state: { idea } } : undefined));
 
-  const colourCount = garment.colors?.length || 0;
+  const colourCount = (garment.colors || []).filter((c) => !c.shopOnly).length;
   const facts = [
     sizeRange(garment.sizes),
     colourCount > 1 && `${colourCount} colours`,
