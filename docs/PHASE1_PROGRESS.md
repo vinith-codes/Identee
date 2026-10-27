@@ -1102,6 +1102,16 @@ won), so two categories sharing "Oversized" could never both list a product. Now
 category name written on the product first, against every active category, and falls back to the style only for
 products without a known name; then the page's scope applies — each product lands in exactly one category
 whichever page asks. Mock-tested: Maroon tee in T-Shirts + Women, 4 products in 2 groups, each list shows it once;
-phone 375 fits. Release -j (admin + 4 backend files).
+phone 375 fits. Release -j (admin + 4 backend files). Then (live finding, the client: "Women's T-shirts says 1
+product but the page is empty"): `categoryController` still counted by style — `productMatch(category)` now builds
+the same rule as a Mongo match (category name on the product, else style for products whose category name is not
+another active category's), used by the tile count, `GET /api/categories/:slug/products`, its facets and the
+admin's "N products on the website". Release -k (1 backend file). **Wearer per category (27 Oct, the client: "man
+photos for the men's category, woman photos for the women's"):** `wearerFor(name + slug)` (studioService and
+`frontend/src/utils/wearerFor.js`, same regex: men/boys → man, women/ladies/girls → woman, else both) — a
+listing's products carry [front, that wearer's photos, back, left, right, the other photos], so the card's hover
+picture is the right person; the product card links the design page with `?for=man|woman` and `photosFor` puts
+that wearer's photos first there (none hidden). Tested in `tests/wearerFor.test.mjs`; the picture order itself is
+not mock-tested (needs a re-publish). Release -l (shop + 2 backend files, replaces -k).
 
 **Later:** the Studio's own art-library upload, a tee from a saved tee (duplicate), a print-ready check before every publish.

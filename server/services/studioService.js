@@ -527,6 +527,14 @@ export async function modelPhoto({ userId, mockupUrl, wearer, side, setting, tee
 // style, with its pictures, so the category pages, filters, search and sorting treat it as a product. Buying it goes
 // through the design's own page (the product links there). Nothing is kept in stock: the stock figure is a stand-in.
 export const POD_STOCK = 9999;
+// Who wears a category's tees in its photos (27 Oct 2026): from the category's name or slug; anything else = both.
+// (the shop has the same rule in frontend/src/utils/wearerFor.js — keep them alike)
+export function wearerFor(text) {
+  const t = String(text || "").toLowerCase();
+  if (/\b(women|woman|womens|ladies|lady|girls?|female)\b/.test(t)) return "woman";
+  if (/\b(men|man|mens|boys?|male|gents)\b/.test(t)) return "man";
+  return null;
+}
 const WASH = ["Machine wash cold", "Hand wash only", "Do not bleach", "Tumble dry low", "Iron on low heat", "Dry clean only", "Do not wring"];
 const str = (v, n) => String(v ?? "").replace(/\s+/g, " ").trim().slice(0, n);
 const numOr = (v, d = 0) => (Number.isFinite(Number(v)) && Number(v) >= 0 ? Number(v) : d);
@@ -600,7 +608,13 @@ export async function syncStudioProduct(design, garment, userId) {
   for (const c of colours) {
     const colour = garment.colours.find((x) => x.slug === c.slug);
     if (!colour) continue;
-    const images = [c.mockups?.front, c.mockups?.back, c.mockups?.left, c.mockups?.right, ...(c.photos || []).map((p) => p.url)].filter(Boolean).slice(0, 8);
+    // the pictures for THIS category: front, then the photos of the person the category is for (the card shows the
+    // second picture on hover: a man for the men's category, a woman for the women's), then the other sides
+    const who = wearerFor(`${category.name} ${category.slug}`);
+    const photos = (c.photos || []).filter((p) => p.url);
+    const first = who ? photos.filter((p) => p.wearer === who) : photos;
+    const rest = photos.filter((p) => !first.includes(p));
+    const images = [c.mockups?.front, ...first.map((p) => p.url), c.mockups?.back, c.mockups?.left, c.mockups?.right, ...rest.map((p) => p.url)].filter(Boolean).slice(0, 8);
     const fields = {
       brandname: design.name,
       description: d.description || design.blurb || `${design.name} — printed to order on the ${garment.label}.`,

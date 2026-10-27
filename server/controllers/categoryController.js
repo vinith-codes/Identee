@@ -37,13 +37,28 @@ const publicShape = (c, productCount) => ({
   ...(productCount !== undefined ? { productCount } : {}),
 });
 
+// Which live products belong to a category — the same rule as the shop lists (27 Oct 2026, the client: "Women's
+// T-shirts says 1 product but the page is empty"): the category name written on the product first (two categories
+// can share a style, e.g. Men's and Women's both "Oversized"); the style only for products whose category name is
+// not a known category (older products, or a category renamed since).
+const productMatch = async (category) => {
+  const byName = { "productdetails.category": styleMatcher([category.name]) };
+  if (!category.styles.length) return byName;
+  // such a product counts in ONE category only (as the shop lists do): the first active one that has its style
+  const active = await Category.find({ isActive: true }).sort({ displayOrder: 1, name: 1 }).select("name styles").lean();
+  const mine = active.findIndex((c) => String(c._id) === String(category._id));
+  const earlier = active.slice(0, mine < 0 ? 0 : mine).flatMap((c) => c.styles || []).map((s) => s.trim().toLowerCase());
+  const styles = category.styles.filter((s) => !earlier.includes(s.trim().toLowerCase()));
+  const others = active.filter((c) => String(c._id) !== String(category._id)).map((c) => c.name).filter(Boolean);
+  if (!styles.length) return byName;
+  const byStyle = { "productdetails.garmentStyle": styleMatcher(styles), ...(others.length ? { "productdetails.category": { $nin: styleMatcher(others).$in } } : {}) };
+  return { $or: [byName, byStyle] };
+};
+
 // Number of distinct product groups (a product in 3 colours counts once).
-const countProducts = async (styles) => {
-  if (!styles.length) return 0;
-  const groups = await Product.distinct("productGroupId", {
-    "productdetails.garmentStyle": styleMatcher(styles),
-    ...LIVE,
-  });
+const countProducts = async (category) => {
+  if (!category.styles.length) return 0;
+  const groups = await Product.distinct("productGroupId", { ...(await productMatch(category)), ...LIVE });
   return groups.length;
 };
 
@@ -55,7 +70,7 @@ const countProducts = async (styles) => {
 export const getCategories = asyncHandler(async (req, res) => {
   const categories = await Category.find({ isActive: true }).sort({ displayOrder: 1, name: 1 });
   const withCounts = await Promise.all(
-    categories.map(async (c) => publicShape(c, await countProducts(c.styles))),
+    categories.map(async (c) => publicShape(c, await countProducts(c))),
   );
   res.set("Cache-Control", "public, max-age=60");
   res.json(withCounts);
@@ -78,7 +93,7 @@ export const getCategoryBySlug = asyncHandler(async (req, res) => {
     res.status(404);
     throw new Error("Category not found");
   }
-  res.json({ ...publicShape(category, await countProducts(category.styles)), matchedStyle });
+  res.json({ ...publicShape(category, await countProducts(category)), matchedStyle });
 });
 
 const SORTS = {
@@ -107,7 +122,8 @@ export const getCategoryProducts = asyncHandler(async (req, res) => {
     (s) => s.toLowerCase() === String(req.query.style).toLowerCase(),
   );
   const match = {
-    "productdetails.garmentStyle": styleMatcher(style ? [style] : category.styles),
+    ...(await productMatch(category)),
+    ...(style ? { "productdetails.garmentStyle": styleMatcher([style]) } : {}),
     ...LIVE,
   };
   if (req.query.size) {
@@ -159,7 +175,7 @@ export const getCategoryProducts = asyncHandler(async (req, res) => {
   ]);
 
   // Filter options: styles/sizes that actually have products in this category.
-  const all = { "productdetails.garmentStyle": styleMatcher(category.styles), ...LIVE };
+  const all = { ...(await productMatch(category)), ...LIVE };
   const [presentStyles, presentSizes] = await Promise.all([
     Product.distinct("productdetails.garmentStyle", all),
     Product.distinct("productdetails.stockBySize.size", all),
@@ -282,7 +298,7 @@ const usersOf = async (category) => {
   })
     .select("label")
     .lean();
-  return { garments: garments.map((g) => g.label), products: await countProducts(category.styles) };
+  return { garments: garments.map((g) => g.label), products: await countProducts(category) };
 };
 
 const saveImages = async (category, files = {}, body = {}) => {

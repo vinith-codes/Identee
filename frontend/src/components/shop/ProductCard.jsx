@@ -8,6 +8,7 @@ import { Link } from "react-router-dom";
 import { imageUrl } from "../../utils/imageUrl";
 import { colourHex, isLight } from "../../utils/colours";
 import { money } from "../../utils/money";
+import { wearerFor } from "../../utils/wearerFor";
 
 const MAX_DOTS = 5;
 
@@ -20,7 +21,10 @@ export default function ProductCard({ p }) {
   const showOld = p.oldPrice > price;
   const off = showOld ? Math.round(((p.oldPrice - price) / p.oldPrice) * 100) : 0;
   // a Studio tee (printed to order) opens the design's own page (sizes, colours, Edit this design)
-  const href = p.readyDesignSlug ? `/ready-made/design/${p.readyDesignSlug}` : `/product/${colour?._id || p._id}`;
+  // (the category's wearer goes along, so the design page shows a man's photos from the men's category, a woman's
+  // from the women's)
+  const who = p.readyDesignSlug ? wearerFor(`${p.category?.name || ""} ${p.category?.slug || ""}`) : null;
+  const href = p.readyDesignSlug ? `/ready-made/design/${p.readyDesignSlug}${who ? `?for=${who}` : ""}` : `/product/${colour?._id || p._id}`;
   const label = `${p.brandname}${colour?.name ? `, ${colour.name}` : ""}, ${money(price)}`;
 
   return (
