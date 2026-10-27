@@ -175,6 +175,14 @@ const saveBody = async (req, res, design) => {
     priceInr,
     product: cleanProductDetails(body.product, design?.product || {}),
   };
+  // where it is listed: every ticked category must exist; the first one is the tee's own category (27 Oct 2026)
+  const known = await shopCategories();
+  patch.product.listings = (patch.product.listings || []).filter((l) => known.some((c) => c.slug === l.category));
+  if (!patch.product.listings.length && patch.category && patch.product.style) patch.product.listings = [{ category: patch.category, style: patch.product.style }];
+  if (patch.product.listings.length) {
+    patch.category = patch.product.listings[0].category;
+    patch.product.style = patch.product.listings[0].style;
+  }
   if (colours?.length) {
     // the designed colour first (its pictures are the tee's main pictures); the others follow
     const main = colours.find((c) => c.slug === fields.color) || colours[0];
@@ -329,8 +337,9 @@ export const publishStudioDesign = asyncHandler(async (req, res) => {
   const design = await designOr404(req, res);
   const missing = [];
   if (!design.mockups?.front || !design.mockups?.back) missing.push("the mockup pictures (press Review)");
-  if (!design.category) missing.push("a category");
-  if (!design.product?.style) missing.push("a style");
+  const listings = design.product?.listings?.length ? design.product.listings : design.category ? [{ category: design.category, style: design.product?.style }] : [];
+  if (!listings.length) missing.push("a category");
+  else if (listings.some((l) => !l.style)) missing.push("a style for every ticked category");
   if (!(design.product?.description || design.blurb)) missing.push("a description");
   if (!design.sizes?.length) missing.push("at least one size");
   if (!["ready", "published"].includes(design.status) || missing.length) {

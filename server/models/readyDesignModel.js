@@ -64,7 +64,8 @@ const readyDesignSchema = new mongoose.Schema(
     // the product details the shop needs (26 Oct 2026, the same as Add a product): style, description, gender, fabric,
     // oldPrice, subcategory, sku, hsnCode, ageRange, type, washCare[], featured, shipping { weight, length, width, height }
     product: { type: mongoose.Schema.Types.Mixed, default: {} },
-    productGroupId: { type: String, default: "" }, // its product in the shop once published
+    productGroupId: { type: String, default: "" }, // its product in the shop once published (the first category's)
+    productGroups: { type: mongoose.Schema.Types.Mixed, default: {} }, // { categorySlug: productGroupId } — one group per category (27 Oct 2026)
     // the Studio's earlier saves of this tee, newest last (Step 3, 25 Oct 2026): Restore brings one back
     versions: { type: [new mongoose.Schema({ at: Date, note: String, color: String, size: String, elements: [mongoose.Schema.Types.Mixed] }, { _id: false })], default: [] },
     status: { type: String, enum: ["planned", "drafted", "ready", "published", "rejected", "failed"], default: "planned", index: true },

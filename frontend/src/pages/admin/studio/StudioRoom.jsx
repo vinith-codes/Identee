@@ -143,14 +143,26 @@ export default function StudioRoom({ setup, garment, colourSlug: firstColour, de
   const [name, setName] = useState(draft?.name || firstDesign?.name || "");
   const [blurb, setBlurb] = useState(draft?.blurb || firstDesign?.blurb || "");
   // the details before publishing (26 Oct 2026): category, sizes and colours on sale, a price of its own
-  const [category, setCategory] = useState(draft?.category ?? firstDesign?.category ?? "");
   const [sizesOn, setSizesOn] = useState(() => draft?.sizes || (firstDesign?.sizes?.length ? firstDesign.sizes : null));
   const [coloursOn, setColoursOn] = useState(() => draft?.coloursOn || (firstDesign?.colours?.length ? firstDesign.colours.map((c) => c.slug) : null));
   const [priceInr, setPriceInr] = useState(draft?.priceInr ?? (firstDesign?.priceInr || "") ?? "");
   // the product details the shop needs (the same as Add a product), with sensible defaults
-  const [product, setProduct] = useState(() => ({ style: "", description: "", gender: garment.wearers?.length === 1 ? (garment.wearers[0] === "woman" ? "Women" : "Men") : "Unisex", fabric: "100% Cotton", oldPrice: "", subcategory: "", sku: "", hsnCode: "6109", ageRange: "Adult", type: "Casual", washCare: ["Machine wash cold", "Do not bleach", "Iron on low heat"], featured: false, shipping: { weight: "", length: "", width: "", height: "" }, ...(firstDesign?.product || {}), ...(draft?.product || {}) }));
+  const [product, setProduct] = useState(() => {
+    const p = { style: "", description: "", gender: garment.wearers?.length === 1 ? (garment.wearers[0] === "woman" ? "Women" : "Men") : "Unisex", fabric: "100% Cotton", oldPrice: "", subcategory: "", sku: "", hsnCode: "6109", ageRange: "Adult", type: "Casual", washCare: ["Machine wash cold", "Do not bleach", "Iron on low heat"], featured: false, shipping: { weight: "", length: "", width: "", height: "" }, ...(firstDesign?.product || {}), ...(draft?.product || {}) };
+    // a tee saved before 27 Oct 2026 has one category + style: that is its one listing
+    if (!Array.isArray(p.listings) || !p.listings.length) {
+      const cat = draft?.category ?? firstDesign?.category ?? "";
+      p.listings = cat ? [{ category: cat, style: p.style || "" }] : [];
+    }
+    return p;
+  });
   const [moreOpen, setMoreOpen] = useState(false);
   const setP = (patch) => setProduct((cur) => ({ ...cur, ...patch }));
+  // where it is listed (27 Oct 2026, the client: "publish the same t-shirt to both men and women"): every ticked
+  // category with its style there; the first is the tee's own category (its design page, the no-category row)
+  const listings = Array.isArray(product.listings) ? product.listings : [];
+  const category = listings[0]?.category || "";
+  const setListings = (next) => setP({ listings: next, style: next[0]?.style || "" });
   const jobDone = useRef(null); // the off-screen mockup camera's resolver
   // model photos (a person wearing the tee): who, which sides, where
   const [photoWearers, setPhotoWearers] = useState(() => garment.wearers || ["man", "woman"]);
@@ -629,9 +641,11 @@ export default function StudioRoom({ setup, garment, colourSlug: firstColour, de
   // what is still missing before the tee can go into the shop
   const sizesChosen = sizesOn || sizes;
   const coloursChosen = [...new Set([colour.slug, ...(coloursOn || [])])].filter((s) => garment.colours.some((c) => c.slug === s));
-  const catNow = (setup.categories || []).find((c) => c.slug === category);
-  const styleOk = !!product.style && (!catNow || !catNow.styles?.length || catNow.styles.includes(product.style));
-  const missingForShop = [!shots?.every((s) => s.url) && "the four pictures", !category && "a category", category && !styleOk && "a style", !(product.description || blurb).trim() && "a description", !sizesChosen.length && "a size"].filter(Boolean);
+  const styleOkIn = (l) => {
+    const c = (setup.categories || []).find((x) => x.slug === l.category);
+    return !!l.style && (!c || !c.styles?.length || c.styles.includes(l.style));
+  };
+  const missingForShop = [!shots?.every((s) => s.url) && "the four pictures", !listings.length && "a category", listings.length > 0 && !listings.every(styleOkIn) && "a style for every ticked category", !(product.description || blurb).trim() && "a description", !sizesChosen.length && "a size"].filter(Boolean);
   // the price it will sell at: the admin's own, or the garment's price + the AI picture add-on
   const hasAiPicture = elements.some((e) => e.type === "image" && /\/ai-designs\//.test(e.src || ""));
   const defaultPrice = (garment.basePrice || 0) + (hasAiPicture ? setup.designAddOnInr || 0 : 0);
@@ -682,7 +696,7 @@ export default function StudioRoom({ setup, garment, colourSlug: firstColour, de
         category,
         sizes: sizesChosen,
         priceInr: Number(priceInr) > 0 ? Number(priceInr) : 0,
-        product: { ...product, description: product.description || blurb.trim() },
+        product: { ...product, listings, style: listings[0]?.style || "", description: product.description || blurb.trim() },
         ...(colours ? { colours } : {}),
       };
       let doc = await studioService.saveDesign({ ...body, versionNote: `${elements.length} item${elements.length === 1 ? "" : "s"}` }, designDoc?._id);
@@ -1232,33 +1246,35 @@ export default function StudioRoom({ setup, garment, colourSlug: firstColour, de
             </label>
             <div className="st-pub">
               <div className="eyebrow">Before it goes in the shop</div>
-              <label className="dr-field">
-                Category <small style={{ fontWeight: 400 }}>— where customers find it</small>
-                <select value={category} onChange={(e) => setCategory(e.target.value)}>
-                  <option value="">Choose a category…</option>
-                  {(setup.categories || []).map((c) => (
-                    <option key={c.slug} value={c.slug}>
-                      {c.name}
-                      {c.hidden ? " (hidden from the shop)" : c.comingSoon ? " (coming soon)" : ""}
-                    </option>
-                  ))}
-                </select>
+              <div className="dr-field">
+                Where it is listed <small style={{ fontWeight: 400 }}>— tick every category it belongs in, and its style there</small>
+                <div className="st-listings" role="group" aria-label="Categories">
+                  {(setup.categories || []).map((c) => {
+                    const on = listings.find((l) => l.category === c.slug);
+                    const setStyle = (style) => setListings(listings.map((l) => (l.category === c.slug ? { ...l, style } : l)));
+                    return (
+                      <div key={c.slug} className={`st-listing${on ? " on" : ""}`}>
+                        <label className={`dr-chip${on ? " on" : ""}`}>
+                          <input type="checkbox" checked={!!on} onChange={(e) => setListings(e.target.checked ? [...listings, { category: c.slug, style: c.styles?.length === 1 ? c.styles[0] : "" }] : listings.filter((l) => l.category !== c.slug))} />
+                          {c.name}
+                          {c.hidden ? " (hidden from the shop)" : c.comingSoon ? " (coming soon)" : ""}
+                        </label>
+                        {on &&
+                          (c.styles?.length ? (
+                            <select value={on.style} aria-label={`Style in ${c.name}`} onChange={(e) => setStyle(e.target.value)}>
+                              <option value="">Choose a style…</option>
+                              {c.styles.map((s) => <option key={s}>{s}</option>)}
+                            </select>
+                          ) : (
+                            <input type="text" value={on.style} maxLength={60} placeholder="e.g. Oversized" aria-label={`Style in ${c.name}`} onChange={(e) => setStyle(e.target.value)} />
+                          ))}
+                      </div>
+                    );
+                  })}
+                </div>
                 {!(setup.categories || []).length && <small>No ready-made categories yet — add one in Storefront → Categories.</small>}
-              </label>
-              {category && (
-                <label className="dr-field">
-                  Style <small style={{ fontWeight: 400 }}>— the style filter on the category page</small>
-                  {catNow?.styles?.length ? (
-                    <select value={product.style} onChange={(e) => setP({ style: e.target.value })}>
-                      <option value="">Choose a style…</option>
-                      {catNow.styles.map((s) => <option key={s}>{s}</option>)}
-                    </select>
-                  ) : (
-                    <input type="text" value={product.style} maxLength={60} placeholder="e.g. Oversized" onChange={(e) => setP({ style: e.target.value })} />
-                  )}
-                  <small>Missing a style? Add it to the category in Storefront → Categories.</small>
-                </label>
-              )}
+                <small>One product per ticked category. Missing a style? Add it to the category in Storefront → Categories.</small>
+              </div>
               <label className="dr-field">
                 Description <small style={{ fontWeight: 400 }}>— the product page's text (the line above is used when empty)</small>
                 <textarea rows={3} value={product.description} maxLength={3000} placeholder={blurb || "e.g. A bootleg-poster tribute to SCENE on heavyweight cotton. Printed to order, true to size."} onChange={(e) => setP({ description: e.target.value })} />

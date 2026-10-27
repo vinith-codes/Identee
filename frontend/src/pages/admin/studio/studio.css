@@ -236,3 +236,7 @@
 .st-more { display: grid; gap: 10px; padding: 10px; border: 1px solid var(--line); border-radius: 12px; background: #fff; }
 .st-more input[type=text], .st-more input[type=number], .st-more select { border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; background: #fff; font: inherit; font-size: 16px; min-height: 42px; width: 100%; box-sizing: border-box; min-width: 0; }
 .st-pub input[type=text] { border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; background: #fff; font: inherit; font-size: 16px; min-height: 42px; width: 100%; box-sizing: border-box; }
+.st-listings { display: grid; gap: 6px; }
+.st-listing { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.st-listing .dr-chip { flex: 0 0 auto; }
+.st-listing select, .st-listing input[type=text] { flex: 1 1 150px; min-width: 0; border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; background: #fff; font: inherit; font-size: 16px; min-height: 40px; }

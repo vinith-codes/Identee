@@ -48,8 +48,17 @@ export const listShopProducts = asyncHandler(async (req, res) => {
   if (req.query.category && !fixed) return res.status(404).json({ message: "Category not found" });
   // "coming soon" categories are left out of the all-products shop
   const categories = fixed ? [fixed] : active.filter((c) => !c.comingSoon);
+  // which category a product belongs to — decided against EVERY active category, so a product lands in exactly one
+  // whatever page asks (27 Oct 2026): the category name written on it first (Men and Women can both have
+  // "Oversized"); the style only decides for products that carry no known category name. Then the page's scope.
+  const categoryByName = new Map(active.map((c) => [norm(c.name), c]));
   const categoryOfStyle = new Map();
-  for (const c of categories) for (const s of c.styles) if (!categoryOfStyle.has(norm(s))) categoryOfStyle.set(norm(s), c);
+  for (const c of active) for (const s of c.styles) if (!categoryOfStyle.has(norm(s))) categoryOfStyle.set(norm(s), c);
+  const inPage = new Set(categories.map((c) => c.slug));
+  const categoryOf = (d) => {
+    const c = categoryByName.get(norm(d.productdetails?.category)) || categoryOfStyle.get(norm(d.productdetails?.garmentStyle));
+    return c && inPage.has(c.slug) ? c : null;
+  };
 
   // every live colour document in scope
   const all = await Product.find(LIVE)
@@ -58,10 +67,7 @@ export const listShopProducts = asyncHandler(async (req, res) => {
   // a Studio tee (printed to order) opens its own page: its slug goes on the card
   const designIds = [...new Set(all.filter((d) => d.readyDesign).map((d) => String(d.readyDesign)))];
   const designSlug = new Map(designIds.length ? (await ReadyDesign.find({ _id: { $in: designIds } }).select("slug").lean()).map((r) => [String(r._id), r.slug]) : []);
-  const inScope = all.filter((d) => {
-    const cat = categoryOfStyle.get(norm(d.productdetails?.garmentStyle));
-    return cat && (!fixed || cat.slug === fixed.slug);
-  });
+  const inScope = all.filter((d) => categoryOf(d));
 
   // filters
   const style = norm(req.query.style);
@@ -80,7 +86,7 @@ export const listShopProducts = asyncHandler(async (req, res) => {
     if (exclude && d.productGroupId === exclude) return false;
     if (featuredOnly && !d.isFeatured) return false;
     if (q) {
-      const hay = [d.brandname, pd.garmentStyle, pd.color, pd.fabric, categoryOfStyle.get(norm(pd.garmentStyle))?.name].map(norm).join(" ");
+      const hay = [d.brandname, pd.garmentStyle, pd.color, pd.fabric, categoryOf(d)?.name].map(norm).join(" ");
       if (!q.split(/\s+/).every((w) => hay.includes(w))) return false;
     }
     return true;
@@ -103,7 +109,7 @@ export const listShopProducts = asyncHandler(async (req, res) => {
     // the card shows the first matching colour (the one you filtered for)
     const rep = [...hits].sort((a, b) => a.createdAt - b.createdAt)[0];
     const priced = applySubscriptionPrice(rep, req.user);
-    const cat = categoryOfStyle.get(norm(rep.productdetails?.garmentStyle));
+    const cat = categoryOf(rep);
     return {
       _id: rep._id,
       groupId,
@@ -151,7 +157,7 @@ export const listShopProducts = asyncHandler(async (req, res) => {
       categories: fixed
         ? []
         : categories
-            .map((c) => ({ name: c.name, slug: c.slug, count: countGroups((d) => categoryOfStyle.get(norm(d.productdetails?.garmentStyle))?.slug === c.slug) }))
+            .map((c) => ({ name: c.name, slug: c.slug, count: countGroups((d) => categoryOf(d)?.slug === c.slug) }))
             .filter((c) => c.count > 0),
       styles: [...new Set(facetDocs.map((d) => d.productdetails?.garmentStyle).filter(Boolean))].sort(),
       sizes: sortSizes([...new Set(facetDocs.flatMap((d) => (d.productdetails?.stockBySize || []).filter((s) => s.stock > 0).map((s) => s.size)))]),

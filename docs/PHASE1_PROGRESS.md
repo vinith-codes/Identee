@@ -1089,4 +1089,19 @@ category heading used the tile picture (portrait) stretched wide; now only a cat
 IDENTEE card. Release -i (shop only). The T-Shirts tile picture itself was made for the client from the SCENE
 tee's mockup (shop-design-samples/T-SHIRTS-category-tile.jpg, cut out with the server's background remover).
 
+**One tee in several categories (27 Oct 2026, the client: "publish the same t-shirt to both men and women; both
+have oversized and round neck"):** the publish card's "Where it is listed" is a list of tick boxes, one per
+ready-made category, each with its own style select once ticked (`product.listings = [{ category, style }]`,
+cleaned in `cleanProductDetails`; the first listing is the tee's `category` and `product.style`, so the design page,
+the no-category row and old code keep working; an older tee's single category + style becomes its one listing).
+`syncStudioProduct` makes one product group per listing (`design.productGroups = { slug: groupId }`,
+`productGroupId` = the first), one product per category × colour, keyed by group + colour; dropped categories or
+colours are removed (kept hidden if ever ordered). Publish needs at least one listing with a style. **Shop fix on
+the way:** `listShopProducts` decided a product's category from its STYLE name (first category with that style
+won), so two categories sharing "Oversized" could never both list a product. Now `categoryOf(d)` reads the
+category name written on the product first, against every active category, and falls back to the style only for
+products without a known name; then the page's scope applies — each product lands in exactly one category
+whichever page asks. Mock-tested: Maroon tee in T-Shirts + Women, 4 products in 2 groups, each list shows it once;
+phone 375 fits. Release -j (admin + 4 backend files).
+
 **Later:** the Studio's own art-library upload, a tee from a saved tee (duplicate), a print-ready check before every publish.

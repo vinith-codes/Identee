@@ -534,8 +534,17 @@ const numOr = (v, d = 0) => (Number.isFinite(Number(v)) && Number(v) >= 0 ? Numb
 // the product details as saved on the design (checked and tidied)
 export function cleanProductDetails(raw = {}, before = {}) {
   const r = raw && typeof raw === "object" ? raw : {};
+  // where it is listed (27 Oct 2026, the client: "publish the same t-shirt to both men and women"): every category
+  // it belongs in, each with its style there; the first is the tee's own category
+  const rawList = Array.isArray(r.listings) ? r.listings : Array.isArray(before.listings) ? before.listings : [];
+  const seen = new Set();
+  const listings = rawList
+    .map((l) => ({ category: str(l?.category, 60).toLowerCase(), style: str(l?.style, 60) }))
+    .filter((l) => l.category && !seen.has(l.category) && seen.add(l.category))
+    .slice(0, 8);
   const out = {
-    style: str(r.style ?? before.style, 60),
+    listings,
+    style: listings[0]?.style || str(r.style ?? before.style, 60),
     description: str(r.description ?? before.description, 3000),
     gender: ["Unisex", "Men", "Women", "Kids"].includes(r.gender) ? r.gender : before.gender || "Unisex",
     fabric: str(r.fabric ?? before.fabric, 80),
@@ -571,16 +580,23 @@ export async function studioPrice(design, garment) {
  */
 export async function syncStudioProduct(design, garment, userId) {
   const d = design.product || {};
-  const category = await Category.findOne({ slug: design.category }).lean();
-  if (!category || !d.style) throw fail("Pick the category and style before publishing.", 409);
+  // every category it is listed in (the first is its own); an older tee has just category + style
+  const listings = d.listings?.length ? d.listings : design.category && d.style ? [{ category: design.category, style: d.style }] : [];
+  const cats = await Category.find({ slug: { $in: listings.map((l) => l.category) } }).lean();
+  const places = listings.map((l) => ({ ...l, cat: cats.find((c) => c.slug === l.category) })).filter((l) => l.cat && l.style);
+  if (!places.length) throw fail("Pick at least one category, each with its style, before publishing.", 409);
   const { price, oldPrice } = await studioPrice(design, garment);
   const discount = oldPrice > price ? Math.round(((oldPrice - price) / oldPrice) * 100) : 0;
   const sizes = design.sizes?.length ? design.sizes : garment.sizes;
   const colours = design.colours?.length ? design.colours : [{ slug: design.color, mockups: design.mockups, photos: [] }];
-  const groupId = design.productGroupId || new mongoose.Types.ObjectId().toString();
+  const groups = { ...(design.productGroups || {}) };
+  if (!groups[places[0].category] && design.productGroupId) groups[places[0].category] = design.productGroupId; // from before 27 Oct
   const base = d.sku || (String(design.name).toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 6) || "IDT") + Math.floor(100 + Math.random() * 900);
-  const existing = await Product.find({ productGroupId: groupId });
+  const existing = await Product.find({ readyDesign: design._id });
   const keep = new Set();
+  for (const place of places) {
+    const category = place.cat;
+    const groupId = groups[place.category] || (groups[place.category] = new mongoose.Types.ObjectId().toString());
   for (const c of colours) {
     const colour = garment.colours.find((x) => x.slug === c.slug);
     if (!colour) continue;
@@ -601,11 +617,11 @@ export async function syncStudioProduct(design, garment, userId) {
       productdetails: {
         gender: d.gender || "Unisex",
         category: category.name,
-        subcategory: d.subcategory || d.style,
+        subcategory: d.subcategory || place.style,
         type: d.type || "Casual",
         ageRange: d.ageRange || "Adult",
         color: colour.name,
-        garmentStyle: d.style,
+        garmentStyle: place.style,
         fabric: d.fabric || "100% Cotton",
         sizes,
         stockBySize: sizes.map((size) => ({ size, stock: POD_STOCK })),
@@ -614,7 +630,7 @@ export async function syncStudioProduct(design, garment, userId) {
       isHidden: design.status !== "published",
       retired: false,
     };
-    const doc = existing.find((x) => x.productdetails?.color === colour.name);
+    const doc = existing.find((x) => x.productGroupId === groupId && x.productdetails?.color === colour.name);
     if (doc) {
       doc.set(fields);
       await doc.save();
@@ -624,13 +640,17 @@ export async function syncStudioProduct(design, garment, userId) {
       keep.add(String(created._id));
     }
   }
-  // a colour no longer on sale goes (hidden if it was ever ordered: its orders still link to it)
+  }
+  // a colour or category no longer on sale goes (hidden if it was ever ordered: its orders still link to it)
   for (const doc of existing.filter((x) => !keep.has(String(x._id)))) {
     const ordered = await mongoose.model("Order").exists({ "orderItems.product": doc._id });
     if (ordered) await Product.updateOne({ _id: doc._id }, { $set: { isHidden: true, retired: true } });
     else await Product.deleteOne({ _id: doc._id });
   }
-  return groupId;
+  for (const slug of Object.keys(groups)) if (!places.some((p) => p.category === slug)) delete groups[slug];
+  design.productGroups = groups;
+  design.markModified("productGroups");
+  return groups[places[0].category];
 }
 // shown / hidden with the tee
 export const setStudioProductHidden = (designId, hidden) => Product.updateMany({ readyDesign: designId }, { $set: { isHidden: hidden } });
