@@ -7,7 +7,7 @@
 // style (Men's: Oversized + Round Neck) first shows a card per style; a card
 // opens that style's tees (the client, 28 Oct 2026).
 import { useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useLocation, useSearchParams } from "react-router-dom";
 import shopService from "../../services/shopService";
 import { colourHex, isLight } from "../../utils/colours";
 import { imageUrl } from "../../utils/imageUrl";
@@ -25,6 +25,9 @@ const SORTS = [
 const PRICE_STEPS = [499, 799, 999, 1499, 1999, 2999];
 const PAGE_SIZE = 12;
 const KEYS = ["cat", "style", "size", "color", "maxPrice", "q", "sort"];
+
+// "MEN'S T-SHIRTS" → "Men's T-shirts"
+const oneCategoryName = (name) => (name ? name.toLowerCase().replace(/(^|\s)\S/g, (c) => c.toUpperCase()) : "");
 
 // one list of products: the first page when the query changes, then "Show more" pages
 function useProductPages(query) {
@@ -63,14 +66,14 @@ function useProductPages(query) {
   return { data, loading: data.key !== key, error, more, loadMore };
 }
 
-function ProductGrid({ list, skeletons = 8 }) {
+function ProductGrid({ list, skeletons = 8, from = null }) {
   const { data, loading, more, loadMore } = list;
   return (
     <>
       <div className={`sh-grid${loading ? " is-loading" : ""}`}>
         {loading && !data.items.length
           ? Array.from({ length: skeletons }).map((_, i) => <div key={i} className="sh-skel" />)
-          : data.items.map((p) => <ProductCard key={p.groupId} p={p} />)}
+          : data.items.map((p) => <ProductCard key={p.groupId} p={p} from={from} />)}
       </div>
       {!loading && data.page < data.pages && (
         <div style={{ textAlign: "center", marginTop: 28 }}>
@@ -104,6 +107,7 @@ function StyleCard({ style, query, onOpen }) {
 }
 
 export default function ShopGrid({ category = null, id = "shop" }) {
+  const location = useLocation();
   const [params, setParams] = useSearchParams();
   const f = Object.fromEntries(KEYS.map((k) => [k, params.get(k) || ""]));
   const [search, setSearch] = useState(f.q);
@@ -169,6 +173,9 @@ export default function ShopGrid({ category = null, id = "shop" }) {
   // one category with several styles: a card per style until one is chosen
   const oneCategory = Boolean(category || f.cat);
   const byStyle = oneCategory && styles.length > 1;
+  // where a product card was opened from, for the product page's back link ("Men's T-shirts · Oversized")
+  const catName = oneCategory ? oneCategoryName(data.items[0]?.category?.name) : "";
+  const from = { to: location.pathname + location.search, label: [catName || "Shop your IDENTEE", f.style].filter(Boolean).join(" · ") };
 
   if (byStyle && !f.style) {
     return (
@@ -307,7 +314,7 @@ export default function ShopGrid({ category = null, id = "shop" }) {
 
       {error && <p className="sh-error">{error}</p>}
 
-      <ProductGrid list={list} />
+      <ProductGrid list={list} from={from} />
 
       {!loading && data.total === 0 && (
         <div className="sh-empty">

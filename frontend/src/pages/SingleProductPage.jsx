@@ -205,7 +205,12 @@ export default function SingleProductPage() {
     <Shell>
       <nav className="pp-crumbs" aria-label="Breadcrumb">
         <Link to="/">Home</Link> / <Link to="/ready-made">Shop your IDENTEE</Link>
-        {style && (
+        {location.state?.from ? (
+          <>
+            {" "}
+            / <Link to={location.state.from.to}>{location.state.from.label}</Link>
+          </>
+        ) : style && (
           <>
             {" "}
             / <Link to={`/category/${encodeURIComponent(style)}`}>{style}</Link>

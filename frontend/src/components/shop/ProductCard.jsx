@@ -2,7 +2,9 @@
 //
 // One ready-made product in a shop grid: photo (second photo on hover),
 // discount / out-of-stock badge, name, style, colour dots (tap one to see
-// that colour) and price. Opens the product page in the chosen colour.
+// that colour) and price. Opens the product page in the chosen colour;
+// `from` ({ to, label }) is the page it was opened from, so the product
+// page's back link returns there (e.g. Men's T-shirts · Oversized).
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { imageUrl } from "../../utils/imageUrl";
@@ -12,7 +14,7 @@ import { wearerFor } from "../../utils/wearerFor";
 
 const MAX_DOTS = 5;
 
-export default function ProductCard({ p }) {
+export default function ProductCard({ p, from = null }) {
   const [pick, setPick] = useState(null); // colour chosen on the card
   const colour = pick || p.colors?.find((c) => c._id === p._id) || null;
   const photo = pick?.image || p.images?.[0];
@@ -29,7 +31,7 @@ export default function ProductCard({ p }) {
 
   return (
     <article className={`sh-card${p.inStock ? "" : " is-out"}`}>
-      <Link to={href} className="sh-card-img" aria-label={label}>
+      <Link to={href} state={from ? { from } : undefined} className="sh-card-img" aria-label={label}>
         {photo ? (
           <>
             <img src={imageUrl(photo, 600)} alt="" loading="lazy" onError={(e) => (e.currentTarget.style.visibility = "hidden")} />
@@ -41,7 +43,7 @@ export default function ProductCard({ p }) {
         {!p.inStock ? <span className="sh-badge dark">Out of stock</span> : off >= 5 ? <span className="sh-badge gold">{off}% off</span> : null}
       </Link>
       <div className="sh-card-body">
-        <Link to={href} className="sh-card-name">
+        <Link to={href} state={from ? { from } : undefined} className="sh-card-name">
           {p.brandname}
         </Link>
         <p className="sh-card-sub">{[p.garmentStyle, p.colors?.length > 1 ? `${p.colors.length} colours` : colour?.name].filter(Boolean).join(" · ")}</p>

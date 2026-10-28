@@ -72,13 +72,33 @@ export default function ReadyDesignPage() {
     };
   }, [slug]);
 
+  // back to the page the tee was opened from (Men's T-shirts · Oversized), else the shop's start page; a real step
+  // back when there is one, so the phone's back button and this link agree (28 Oct 2026)
+  const from = location.state?.from;
+  const backLink = from ? (
+    <Link
+      className="rd-back"
+      to={from.to}
+      onClick={(e) => {
+        if (window.history.state?.idx > 0) {
+          e.preventDefault();
+          navigate(-1);
+        }
+      }}
+    >
+      ← {from.label}
+    </Link>
+  ) : (
+    <Link className="rd-back" to="/ready-made">
+      ← {SHOPS.shop.name}
+    </Link>
+  );
+
   if (shop.known && !shop.open) return <ShopComingSoon />;
   if (missing) {
     return (
       <Page>
-        <Link className="rd-back" to="/ready-made">
-          ← {SHOPS.shop.name}
-        </Link>
+        {backLink}
         <p className="rd-msg">This design isn't in the shop any more.</p>
       </Page>
     );
@@ -150,9 +170,7 @@ export default function ReadyDesignPage() {
 
   return (
     <Page>
-      <Link className="rd-back" to="/ready-made">
-        ← {SHOPS.shop.name}
-      </Link>
+      {backLink}
       <div className="rd-main">
         <div>
           <div className="rd-gallery-big">{bigSrc && <img src={imageUrl(bigSrc, 1000)} alt={`${design.name}, ${shown.startsWith("photo:") ? "worn" : shown}, ${picked.name}`} />}</div>
