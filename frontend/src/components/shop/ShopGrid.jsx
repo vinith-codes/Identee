@@ -4,12 +4,13 @@
 // categories) and on each category page (category fixed). Filters live in
 // the address (?size=M&color=Black&maxPrice=999&sort=price_asc&q=…), so a
 // filtered page can be shared or reloaded. A category with more than one
-// style (Men's: Oversized + Round Neck) shows each style as its own part
-// until one style is chosen (the client, 28 Oct 2026).
+// style (Men's: Oversized + Round Neck) first shows a card per style; a card
+// opens that style's tees (the client, 28 Oct 2026).
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import shopService from "../../services/shopService";
 import { colourHex, isLight } from "../../utils/colours";
+import { imageUrl } from "../../utils/imageUrl";
 import ProductCard from "./ProductCard";
 import { money } from "../../utils/money";
 import { SHOP_CSS } from "./shopStyles";
@@ -82,20 +83,23 @@ function ProductGrid({ list, skeletons = 8 }) {
   );
 }
 
-// one style's part of a category page; left out when the filters leave it empty
-function StyleSection({ style, query }) {
-  const list = useProductPages({ ...query, style });
-  if (!list.loading && list.data.total === 0) return null;
-  const id = `sh-style-${style.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
+// one style's card on a category page: its newest tee's photo and how many tees; left out when it has none
+function StyleCard({ style, query, onOpen }) {
+  const { data, loading } = useProductPages({ ...query, style, limit: 1 });
+  if (loading) return <div className="sh-skel sh-style-skel" />;
+  if (!data.total) return null;
+  const photo = data.items[0]?.images?.[0];
   return (
-    <section className="sh-section" aria-labelledby={id}>
-      <h2 id={id} className="sh-section-title">
-        <span>{style}</span>
-        {!list.loading && <span className="sh-count">({list.data.total})</span>}
-      </h2>
-      {list.error && <p className="sh-error">{list.error}</p>}
-      <ProductGrid list={list} skeletons={4} />
-    </section>
+    <button type="button" className="sh-style-card" onClick={() => onOpen(style)} aria-label={`${style}: ${data.total} tees`}>
+      {photo && <img src={imageUrl(photo, 600)} alt="" loading="lazy" />}
+      <span className="sh-style-text">
+        <b>{style}</b>
+        <span>
+          {data.total} product{data.total === 1 ? "" : "s"}
+        </span>
+        <span className="sh-style-go">Shop now →</span>
+      </span>
+    </button>
   );
 }
 
@@ -136,6 +140,14 @@ export default function ShopGrid({ category = null, id = "shop" }) {
     if (k === "cat") next.delete("style");
     setParams(next, { replace: true, preventScrollReset: true });
   }
+  // a style card / "All styles" is a step the phone's back button can undo
+  function pickStyle(style) {
+    const next = new URLSearchParams(params);
+    if (style) next.set("style", style);
+    else next.delete("style");
+    setParams(next, { preventScrollReset: true });
+    document.getElementById(id)?.scrollIntoView({ block: "start", behavior: "smooth" });
+  }
   const clearAll = () => {
     const next = new URLSearchParams(params);
     KEYS.filter((k) => k !== "sort").forEach((k) => next.delete(k));
@@ -154,12 +166,53 @@ export default function ShopGrid({ category = null, id = "shop" }) {
   ].filter(Boolean);
   const prices = PRICE_STEPS.filter((p) => !facets || p > facets.priceMin);
   const styles = facets?.styles || [];
-  // one category, no style chosen, several styles → a part per style
-  const bySection = Boolean(category || f.cat) && !f.style && styles.length > 1;
+  // one category with several styles: a card per style until one is chosen
+  const oneCategory = Boolean(category || f.cat);
+  const byStyle = oneCategory && styles.length > 1;
+
+  if (byStyle && !f.style) {
+    return (
+      <section id={id} className="sh-wrap" aria-label="Styles">
+        <style>{SHOP_CSS}</style>
+        {error && <p className="sh-error">{error}</p>}
+        <div className="sh-styles">
+          {styles.map((s) => (
+            <StyleCard key={s} style={s} query={query} onOpen={pickStyle} />
+          ))}
+        </div>
+        {active.length > 0 && (
+          <div className="sh-meta">
+            {active.map(([k, label]) => (
+              <button key={k} type="button" className="sh-pill" onClick={() => (k === "q" ? (setSearch(""), set("q", "")) : set(k, ""))} aria-label={`Remove filter ${label}`}>
+                {label} ×
+              </button>
+            ))}
+          </div>
+        )}
+        {!loading && data.total === 0 && (
+          <div className="sh-empty">
+            <b>No products match.</b>
+            <button type="button" className="sh-clear" onClick={clearAll}>
+              Clear the filters
+            </button>
+          </div>
+        )}
+      </section>
+    );
+  }
 
   return (
     <section id={id} className="sh-wrap" aria-label="Products">
       <style>{SHOP_CSS}</style>
+
+      {byStyle && (
+        <div className="sh-stylebar">
+          <button type="button" className="sh-back" onClick={() => pickStyle("")}>
+            ← All styles
+          </button>
+          <h2>{f.style}</h2>
+        </div>
+      )}
 
       {!category && facets?.categories.length > 1 && (
         <div className="sh-cats" role="group" aria-label="Category">
@@ -254,9 +307,7 @@ export default function ShopGrid({ category = null, id = "shop" }) {
 
       {error && <p className="sh-error">{error}</p>}
 
-      {bySection
-        ? data.total > 0 && styles.map((s) => <StyleSection key={s} style={s} query={query} />)
-        : <ProductGrid list={list} />}
+      <ProductGrid list={list} />
 
       {!loading && data.total === 0 && (
         <div className="sh-empty">
