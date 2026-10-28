@@ -31,6 +31,10 @@ export const SHOP_CSS = `
   .sh-more-btn { min-height: 46px; padding: 0 26px; border-radius: 999px; border: 1px solid var(--ink); background: #fff; color: var(--ink);
     font-weight: 700; font-size: 14px; font-family: inherit; cursor: pointer; }
   .sh-more-btn:hover { background: var(--ink); color: #fff; }
+  .sh-section + .sh-section { margin-top: 44px; }
+  .sh-section-title { display: flex; align-items: center; gap: 8px; margin: 4px 0 16px; color: var(--ink); font-size: 21px; font-weight: 800; }
+  .sh-section-title::after { content: ""; flex: 1; height: 1px; background: var(--line); margin-left: 6px; }
+  .sh-section-title .sh-count { font-size: 15px; }
 
   .sh-card { min-width: 0; }
   .sh-card-img { position: relative; display: block; aspect-ratio: 4 / 5; border-radius: 16px; overflow: hidden; background: #F3F1EC; }
@@ -66,5 +70,7 @@ export const SHOP_CSS = `
     .sh-filters.open { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .sh-filters select { width: 100%; min-width: 0; }
     .sh-card-name { font-size: 14px; }
+    .sh-section + .sh-section { margin-top: 34px; }
+    .sh-section-title { font-size: 18px; margin-bottom: 12px; }
   }
 `;

@@ -3,7 +3,9 @@
 // The ready-made product grid with its filters — used on /ready-made (all
 // categories) and on each category page (category fixed). Filters live in
 // the address (?size=M&color=Black&maxPrice=999&sort=price_asc&q=…), so a
-// filtered page can be shared or reloaded.
+// filtered page can be shared or reloaded. A category with more than one
+// style (Men's: Oversized + Round Neck) shows each style as its own part
+// until one style is chosen (the client, 28 Oct 2026).
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import shopService from "../../services/shopService";
@@ -23,13 +25,84 @@ const PRICE_STEPS = [499, 799, 999, 1499, 1999, 2999];
 const PAGE_SIZE = 12;
 const KEYS = ["cat", "style", "size", "color", "maxPrice", "q", "sort"];
 
+// one list of products: the first page when the query changes, then "Show more" pages
+function useProductPages(query) {
+  const key = JSON.stringify(query);
+  const [data, setData] = useState({ key: "", items: [], total: 0, page: 0, pages: 0, facets: null });
+  const [error, setError] = useState("");
+  const [more, setMore] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    shopService
+      .listProducts({ ...query, page: 1 })
+      .then((d) => {
+        if (!alive) return;
+        setData({ key, ...d });
+        setError("");
+      })
+      .catch(() => alive && setError("Couldn't load the products. Please try again."));
+    return () => {
+      alive = false;
+    };
+  }, [key]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const loadMore = async () => {
+    setMore(true);
+    try {
+      const d = await shopService.listProducts({ ...query, page: data.page + 1 });
+      setData((cur) => ({ ...d, key: cur.key, items: [...cur.items, ...d.items] }));
+    } catch {
+      setError("Couldn't load more products.");
+    } finally {
+      setMore(false);
+    }
+  };
+
+  return { data, loading: data.key !== key, error, more, loadMore };
+}
+
+function ProductGrid({ list, skeletons = 8 }) {
+  const { data, loading, more, loadMore } = list;
+  return (
+    <>
+      <div className={`sh-grid${loading ? " is-loading" : ""}`}>
+        {loading && !data.items.length
+          ? Array.from({ length: skeletons }).map((_, i) => <div key={i} className="sh-skel" />)
+          : data.items.map((p) => <ProductCard key={p.groupId} p={p} />)}
+      </div>
+      {!loading && data.page < data.pages && (
+        <div style={{ textAlign: "center", marginTop: 28 }}>
+          <button type="button" className="sh-more-btn" onClick={loadMore} disabled={more}>
+            {more ? "Loading…" : `Show more (${data.total - data.items.length} left)`}
+          </button>
+        </div>
+      )}
+    </>
+  );
+}
+
+// one style's part of a category page; left out when the filters leave it empty
+function StyleSection({ style, query }) {
+  const list = useProductPages({ ...query, style });
+  if (!list.loading && list.data.total === 0) return null;
+  const id = `sh-style-${style.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
+  return (
+    <section className="sh-section" aria-labelledby={id}>
+      <h2 id={id} className="sh-section-title">
+        <span>{style}</span>
+        {!list.loading && <span className="sh-count">({list.data.total})</span>}
+      </h2>
+      {list.error && <p className="sh-error">{list.error}</p>}
+      <ProductGrid list={list} skeletons={4} />
+    </section>
+  );
+}
+
 export default function ShopGrid({ category = null, id = "shop" }) {
   const [params, setParams] = useSearchParams();
   const f = Object.fromEntries(KEYS.map((k) => [k, params.get(k) || ""]));
   const [search, setSearch] = useState(f.q);
-  const [data, setData] = useState({ key: "", items: [], total: 0, page: 0, pages: 0, facets: null });
-  const [error, setError] = useState("");
-  const [more, setMore] = useState(false);
   const [open, setOpen] = useState(false); // filters drawer on phones
 
   const query = useMemo(
@@ -45,22 +118,8 @@ export default function ShopGrid({ category = null, id = "shop" }) {
     }),
     [category, f.cat, f.style, f.size, f.color, f.maxPrice, f.q, f.sort],
   );
-  const key = JSON.stringify(query);
-
-  useEffect(() => {
-    let alive = true;
-    shopService
-      .listProducts({ ...query, page: 1 })
-      .then((d) => {
-        if (!alive) return;
-        setData({ key, ...d });
-        setError("");
-      })
-      .catch(() => alive && setError("Couldn't load the products. Please try again."));
-    return () => {
-      alive = false;
-    };
-  }, [key, query]);
+  const list = useProductPages(query);
+  const { data, loading, error } = list;
 
   // search box → address, after a short pause
   useEffect(() => {
@@ -84,20 +143,7 @@ export default function ShopGrid({ category = null, id = "shop" }) {
     setParams(next, { replace: true, preventScrollReset: true });
   };
 
-  const loadMore = async () => {
-    setMore(true);
-    try {
-      const d = await shopService.listProducts({ ...query, page: data.page + 1 });
-      setData((cur) => ({ ...d, key: cur.key, items: [...cur.items, ...d.items] }));
-    } catch {
-      setError("Couldn't load more products.");
-    } finally {
-      setMore(false);
-    }
-  };
-
   const facets = data.facets;
-  const loading = data.key !== key;
   const active = [
     !category && f.cat && ["cat", facets?.categories.find((c) => c.slug === f.cat)?.name || f.cat],
     f.style && ["style", f.style],
@@ -108,6 +154,8 @@ export default function ShopGrid({ category = null, id = "shop" }) {
   ].filter(Boolean);
   const prices = PRICE_STEPS.filter((p) => !facets || p > facets.priceMin);
   const styles = facets?.styles || [];
+  // one category, no style chosen, several styles → a part per style
+  const bySection = Boolean(category || f.cat) && !f.style && styles.length > 1;
 
   return (
     <section id={id} className="sh-wrap" aria-label="Products">
@@ -206,11 +254,9 @@ export default function ShopGrid({ category = null, id = "shop" }) {
 
       {error && <p className="sh-error">{error}</p>}
 
-      <div className={`sh-grid${loading ? " is-loading" : ""}`}>
-        {loading && !data.items.length
-          ? Array.from({ length: 8 }).map((_, i) => <div key={i} className="sh-skel" />)
-          : data.items.map((p) => <ProductCard key={p.groupId} p={p} />)}
-      </div>
+      {bySection
+        ? data.total > 0 && styles.map((s) => <StyleSection key={s} style={s} query={query} />)
+        : <ProductGrid list={list} />}
 
       {!loading && data.total === 0 && (
         <div className="sh-empty">
@@ -222,14 +268,6 @@ export default function ShopGrid({ category = null, id = "shop" }) {
           ) : (
             <span>New ready-made tees are coming soon.</span>
           )}
-        </div>
-      )}
-
-      {!loading && data.page < data.pages && (
-        <div style={{ textAlign: "center", marginTop: 28 }}>
-          <button type="button" className="sh-more-btn" onClick={loadMore} disabled={more}>
-            {more ? "Loading…" : `Show more (${data.total - data.items.length} left)`}
-          </button>
         </div>
       )}
     </section>
