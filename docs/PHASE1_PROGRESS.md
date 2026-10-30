@@ -1179,3 +1179,8 @@ tee ₹599 + ₹100; mixed cart of 2 pays ₹100, of 3 free), light-only tee pag
   women's Round Neck take turns), each with "✎ Customizable", and "See all N tees". Only while the shop is open.
   It replaces the old "Featured tees" row lower down (the same tees twice).
 - Footer (every page): a last line "Designed by quindl.com".
+- Released live the same evening (-r). Then (-s): the home tees show White first (up to 4), Black (up to 3), at most
+  2 Bottle Green, each design once (utils/homeScene.js, tests/homeScene.test.mjs); a card opens the tee in its colour
+  (`?colour=` on the tee page). Backend: `etag` off and `Cache-Control: no-store` on /api — a browser that had opened
+  the admin kept the admin's /api/settings/public, Apache's 304 has no Access-Control header, so the shop showed
+  "Coming soon" in that browser.

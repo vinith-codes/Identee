@@ -549,17 +549,21 @@ export function HomeScene({ products, total }) {
           {products.map((p) => {
             const off = p.oldPrice > p.price ? Math.round(((p.oldPrice - p.price) / p.oldPrice) * 100) : 0;
             const who = wearerFor(`${p.category?.name || ""} ${p.category?.slug || ""}`);
-            const to = p.readyDesignSlug ? `/ready-made/design/${p.readyDesignSlug}${who ? `?for=${who}` : ""}` : `/product/${p._id}`;
+            // the colour Home.jsx picked for this card (its picture, and the tee page opens in it)
+            const shown = p.shownColour || { name: p.color, image: p.images?.[0] };
+            const own = shown.name === p.color; // the card's own colour: its back picture shows on hover
+            const ask = new URLSearchParams({ ...(who ? { for: who } : {}), colour: String(shown.name || "").toLowerCase().replace(/\s+/g, "-") });
+            const to = p.readyDesignSlug ? `/ready-made/design/${p.readyDesignSlug}?${ask}` : `/product/${p._id}`;
             return (
               <Link key={p.key || p.groupId} className="hm-card" to={to}>
                 <div className="ph">
-                  {p.images?.[0] && <img src={imageUrl(p.images[0], 600)} alt="" loading="lazy" onError={(e) => (e.currentTarget.style.visibility = "hidden")} />}
-                  {p.images?.[1] && <img className="alt" src={imageUrl(p.images[1], 600)} alt="" loading="lazy" />}
+                  {shown.image && <img src={imageUrl(shown.image, 600)} alt="" loading="lazy" onError={(e) => (e.currentTarget.style.visibility = "hidden")} />}
+                  {own && p.images?.[1] && <img className="alt" src={imageUrl(p.images[1], 600)} alt="" loading="lazy" />}
                   {p.customisable && <span className="badge">✎ Customizable</span>}
                   <span className="quick">View tee</span>
                 </div>
                 <h3>{p.brandname.replace(/^SCENE\s*·\s*/i, "")}</h3>
-                <small className="st">{[p.garmentStyle, p.gender].filter(Boolean).join(" · ")}</small>
+                <small className="st">{[p.garmentStyle, p.gender, shown.name].filter(Boolean).join(" · ")}</small>
                 <div className="pr">
                   {money(p.price)}
                   {off > 0 && <s>{money(p.oldPrice)}</s>}

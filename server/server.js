@@ -76,6 +76,16 @@ const corsOptions = {
 app.use(cors(corsOptions));
 app.options("*", cors(corsOptions));
 
+// The shop and the admin site ask for the same answers (e.g. /api/settings/public). A browser that opened both kept
+// the admin's copy, re-checked it, got Apache's "304 Not Modified" — which carries no Access-Control header — and
+// refused it on the shop: the shop showed "Coming soon" (30 Oct 2026). So: no ETags (no 304s), and API answers are
+// not kept unless a route says so (a few public lists keep theirs for a minute).
+app.set("etag", false);
+app.use("/api", (req, res, next) => {
+  res.set("Cache-Control", "no-store");
+  next();
+});
+
 // Razorpay webhook needs the exact raw body for its signature, so it is
 // mounted before express.json.
 app.post(

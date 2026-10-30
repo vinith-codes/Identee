@@ -106,7 +106,9 @@ export default function ReadyDesignPage() {
   const shown = side || design.hero || "front";
   // the colours on sale (the designed one first), each with its own pictures
   const colours = design.colours?.length ? design.colours : [{ slug: design.color, name: design.colourName, hex: design.colourHex, mockups: design.mockups }];
-  const picked = colours.find((c) => c.slug === colourSlug) || colours[0];
+  // ?colour=white (a home page card shows the tee in that colour) opens in it until another colour is tapped
+  const askedColour = String(new URLSearchParams(location.search).get("colour") || "").toLowerCase();
+  const picked = colours.find((c) => c.slug === colourSlug) || colours.find((c) => c.slug === askedColour) || colours[0];
   const mockups = picked.mockups || design.mockups;
   // the pictures: the four sides, then the photos of a person wearing it (this colour) — the person the category
   // the customer came from is for goes first (?for=man|woman from the product card)

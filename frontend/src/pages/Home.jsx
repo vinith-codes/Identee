@@ -14,6 +14,7 @@ import { fetchPublicSettings } from "../redux/slices/publicSettingsSlice";
 import { coverPhoto, isSellable } from "../utils/garments";
 import { imageUrl } from "../utils/imageUrl";
 import shopService from "../services/shopService";
+import { pickSceneTees } from "../utils/homeScene";
 import subVideo1 from "../assets/videos/sub-video1.mp4";
 import hoodieVideo from "../assets/videos/hoodie.mp4";
 import polosVideo from "../assets/videos/polos.mp4";
@@ -136,10 +137,7 @@ export default function Home() {
       setCollections(all.facets?.collections || []);
       // only tees whose photos are stored online (old local paths are broken)
       const pool = [...f.items, ...n.items].filter((p, i, a) => /^https?:\/\//.test(p.images?.[0] || "") && a.findIndex((x) => x.key === p.key) === i);
-      const byStyle = Object.values(pool.reduce((m, p) => ((m[`${p.garmentStyle}|${p.gender}`] ||= []).push(p), m), {}));
-      const mixed = [];
-      for (let i = 0; mixed.length < 10 && byStyle.some((l) => l[i]); i++) for (const l of byStyle) if (l[i] && mixed.length < 10) mixed.push(l[i]);
-      setScene(mixed);
+      setScene(pickSceneTees(pool)); // White first, Black next, at most two green (utils/homeScene.js)
     });
     return () => {
       alive = false;
