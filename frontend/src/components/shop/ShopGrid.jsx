@@ -6,7 +6,8 @@
 // filtered page can be shared or reloaded. A category with more than one
 // style (Men's: Oversized + Round Neck) first shows a card per style; a card
 // opens that style's tees (the client, 28 Oct 2026). A collection (SCENE Movie
-// Products, 30 Oct 2026) works the same, with Unisex / Men / Women to filter by.
+// Products, 30 Oct 2026) works the same, with Unisex / Men / Women to filter by. A design sold
+// for men and for women is one card with Men / Women buttons (31 Oct 2026).
 import { useEffect, useMemo, useState } from "react";
 import { useLocation, useSearchParams } from "react-router-dom";
 import shopService from "../../services/shopService";
@@ -14,6 +15,7 @@ import { colourHex, isLight } from "../../utils/colours";
 import { imageUrl } from "../../utils/imageUrl";
 import ProductCard from "./ProductCard";
 import { money } from "../../utils/money";
+import { pairMenWomen } from "../../utils/shopPairs";
 import { SHOP_CSS } from "./shopStyles";
 
 const SORTS = [
@@ -24,7 +26,7 @@ const SORTS = [
   ["discount", "Biggest discount"],
 ];
 const PRICE_STEPS = [499, 799, 999, 1499, 1999, 2999];
-const PAGE_SIZE = 12;
+const PAGE_SIZE = 24; // was 12; with Men's + Women's pairs on one card, 12 could fill only 6 cards (31 Oct 2026)
 const KEYS = ["cat", "style", "gender", "size", "color", "maxPrice", "q", "sort"];
 
 // "MEN'S T-SHIRTS" → "Men's T-shirts"
@@ -69,12 +71,14 @@ function useProductPages(query) {
 
 function ProductGrid({ list, skeletons = 8, from = null }) {
   const { data, loading, more, loadMore } = list;
+  // a design sold as Men's and as Women's is one card with Men / Women on it (utils/shopPairs.js)
+  const cards = useMemo(() => pairMenWomen(data.items), [data.items]);
   return (
     <>
       <div className={`sh-grid${loading ? " is-loading" : ""}`}>
         {loading && !data.items.length
           ? Array.from({ length: skeletons }).map((_, i) => <div key={i} className="sh-skel" />)
-          : data.items.map((p) => <ProductCard key={p.groupId} p={p} from={from} />)}
+          : cards.map((p) => <ProductCard key={p.groupId} p={p} from={from} />)}
       </div>
       {!loading && data.page < data.pages && (
         <div style={{ textAlign: "center", marginTop: 28 }}>
@@ -92,18 +96,20 @@ const forWhom = (genders = []) => genders.map((g) => g.name).join(genders.length
 
 // one style's card on a category page: its newest tee's photo and how many tees; left out when it has none
 function StyleCard({ style, query, onOpen }) {
-  const { data, loading } = useProductPages({ ...query, style, limit: 1 });
+  // up to 48, so a Men's + Women's pair counts once, as on the grid it opens
+  const { data, loading } = useProductPages({ ...query, style, limit: 48 });
   if (loading) return <div className="sh-skel sh-style-skel" />;
   if (!data.total) return null;
   const photo = data.items[0]?.images?.[0];
   const who = forWhom(data.facets?.genders);
+  const total = data.total - (data.items.length - pairMenWomen(data.items).length);
   return (
-    <button type="button" className="sh-style-card" onClick={() => onOpen(style)} aria-label={`${style}: ${data.total} tees${who ? `, ${who}` : ""}`}>
+    <button type="button" className="sh-style-card" onClick={() => onOpen(style)} aria-label={`${style}: ${total} tees${who ? `, ${who}` : ""}`}>
       {photo && <img src={imageUrl(photo, 600)} alt="" loading="lazy" />}
       <span className="sh-style-text">
         <b>{style}</b>
         <span>
-          {data.total} product{data.total === 1 ? "" : "s"}
+          {total} product{total === 1 ? "" : "s"}
           {who ? ` · ${who}` : ""}
         </span>
         <span className="sh-style-go">Shop now →</span>
@@ -136,6 +142,8 @@ export default function ShopGrid({ category = null, collection = null, collectio
   );
   const list = useProductPages(query);
   const { data, loading, error } = list;
+  // a Men's + Women's pair is one card, so it counts once
+  const shownTotal = data.total - (data.items.length - pairMenWomen(data.items).length);
 
   // search box → address, after a short pause
   useEffect(() => {
@@ -328,7 +336,7 @@ export default function ShopGrid({ category = null, collection = null, collectio
       )}
 
       <div className="sh-meta" aria-live="polite">
-        <span>{loading ? "Loading…" : `${data.total} product${data.total === 1 ? "" : "s"}`}</span>
+        <span>{loading ? "Loading…" : `${shownTotal} product${shownTotal === 1 ? "" : "s"}`}</span>
         {active.map(([k, label]) => (
           <button key={k} type="button" className="sh-pill" onClick={() => (k === "q" ? (setSearch(""), set("q", "")) : set(k, ""))} aria-label={`Remove filter ${label}`}>
             {label} ×

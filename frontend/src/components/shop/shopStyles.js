@@ -74,6 +74,11 @@ export const SHOP_CSS = `
   .sh-dot.on { box-shadow: 0 0 0 2px #fff, 0 0 0 3.5px var(--ink); }
   .sh-dot.big { width: 28px; height: 28px; }
   .sh-more { font-size: 12px; color: var(--muted); }
+  /* Men / Women on a design sold for both (31 Oct 2026); 36px tall so a thumb hits it on a phone */
+  .sh-pair { display: flex; gap: 6px; margin-top: 8px; }
+  .sh-pair-btn { flex: 1 1 0; min-width: 0; min-height: 36px; display: inline-flex; align-items: center; justify-content: center; padding: 0 10px;
+    border: 1px solid var(--line); border-radius: 999px; background: #fff; color: var(--ink); font-size: 13px; font-weight: 700; text-decoration: none; }
+  .sh-pair-btn:hover { background: var(--ink); color: #fff; border-color: var(--ink); }
   .sh-price { margin: 8px 0 0; display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; font-size: 15.5px; color: var(--ink); }
   .sh-price s { color: var(--muted); font-size: 13px; }
   .sh-member { font-size: 11px; font-weight: 800; color: #2E7D4F; }
