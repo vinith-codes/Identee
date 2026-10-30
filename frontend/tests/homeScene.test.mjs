@@ -1,5 +1,6 @@
 // The SCENE tees on the home page (utils/homeScene.js) — the client, 30 Oct 2026: white tees too, fewer green ones,
-// and the newly added tees first.
+// and the newly added tees first; the user, 31 Oct 2026: one Oversized card, then one Round Neck, and so on, with
+// Black, White and other colours mixed.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { pickSceneTees } from "../src/utils/homeScene.js";
@@ -10,12 +11,16 @@ const tee = (name, style, gender, colours) => ({
   gender,
   colors: colours.map((c) => ({ name: c, image: `https://x/${name}-${c}.jpg` })),
 });
-// like the live shop's list: the newest first
+const short = (p) => p.brandname.replace("SCENE · ", "");
+// like the live shop's list: the newest first (the Round Neck versions of the new designs are the newest)
 const cards = [
+  tee("New Black 1", "Round Neck", "Women", ["Black"]),
+  tee("New Black 1", "Round Neck", "Men", ["Black"]),
+  tee("New White 1", "Round Neck", "Women", ["White"]),
+  tee("New White 1", "Round Neck", "Men", ["White"]),
   tee("New Black 1", "Oversized", "Unisex", ["Black"]),
   tee("New White 1", "Oversized", "Unisex", ["White"]),
   tee("New Black 2", "Oversized", "Unisex", ["Black"]),
-  tee("New Black 3", "Oversized", "Unisex", ["Black"]),
   tee("New White 2", "Oversized", "Unisex", ["White"]),
   ...["A", "B", "C"].map((n) => tee(`${n} · Green Edition`, "Oversized", "Unisex", ["Bottle Green"])),
   tee("Crown Collage", "Round Neck", "Men", ["White"]),
@@ -24,45 +29,57 @@ const cards = [
   tee("The Profile", "Round Neck", "Men", ["Black", "White"]),
 ];
 
-test("the newest designs come first", () => {
-  const names = pickSceneTees(cards, 5).map((p) => p.brandname.replace("SCENE · ", ""));
-  assert.deepEqual(new Set(names), new Set(["New Black 1", "New White 1", "New Black 2", "New Black 3", "New White 2"]));
+test("one Oversized card, then one Round Neck, and so on", () => {
+  const out = pickSceneTees(cards, 6);
+  assert.deepEqual(
+    out.map((p) => p.garmentStyle),
+    ["Oversized", "Round Neck", "Oversized", "Round Neck", "Oversized", "Round Neck"],
+  );
 });
 
-test("White first, then White and dark in turn", () => {
-  const out = pickSceneTees(cards, 5).map((p) => p.shownColour.name);
-  assert.deepEqual(out, ["White", "Black", "White", "Black", "Black"]);
+test("a design shows once; with one colour only, each style keeps the newest first", () => {
+  const all = pickSceneTees(cards, 20);
+  assert.equal(new Set(all.map((p) => p.brandname)).size, all.length);
+  const black = ["O1", "O2", "O3"].map((n) => tee(n, "Oversized", "Unisex", ["Black"]));
+  assert.deepEqual(pickSceneTees(black).map(short), ["O1", "O2", "O3"]);
 });
 
-test("at most two green; each design once, in a colour it is sold in", () => {
-  const out = pickSceneTees(cards);
-  assert.ok(out.filter((p) => p.shownColour.name === "Bottle Green").length <= 2);
-  assert.equal(new Set(out.map((p) => p.brandname)).size, out.length);
-  for (const p of out) assert.ok(p.colors.some((c) => c.name === p.shownColour.name));
-  assert.equal(out.find((p) => p.brandname.endsWith("The Profile")).shownColour.name, "White");
-});
-
-test("a design sold as Round Neck and Oversized shows its Oversized card, even when the Round Neck is newer", () => {
-  const both = [
-    tee("Mass Mode", "Round Neck", "Men", ["Black"]),
-    tee("Mass Mode", "Round Neck", "Women", ["Black"]),
-    tee("Rain & Fire", "Round Neck", "Men", ["Black"]),
-    ...cards,
-    tee("Mass Mode", "Oversized", "Unisex", ["Black"]),
-    tee("Rain & Fire", "Oversized", "Unisex", ["Black"]),
+test("Black, White and other colours mix: no two cards side by side in one colour, an older tee brings another colour", () => {
+  const list = [
+    ...["N1", "N2", "N3", "N4"].map((n, i) => tee(n, "Oversized", "Unisex", [i % 2 ? "White" : "Black"])),
+    ...["R1", "R2", "R3", "R4"].map((n, i) => tee(n, "Round Neck", "Men", [i % 2 ? "Black" : "White"])),
+    tee("Old Navy", "Round Neck", "Men", ["Navy"]),
+    tee("Old Charcoal", "Oversized", "Unisex", ["Charcoal Melange", "Black"]),
   ];
-  const out = pickSceneTees(both, 20);
-  for (const name of ["Mass Mode", "Rain & Fire"]) {
-    const found = out.filter((p) => p.brandname === `SCENE · ${name}`);
-    assert.equal(found.length, 1);
-    assert.equal(found[0].garmentStyle, "Oversized");
-  }
-  // a design sold only as Round Neck still shows
-  assert.ok(out.some((p) => p.brandname.endsWith("The Profile") && p.garmentStyle === "Round Neck"));
+  const out = pickSceneTees(list, 8);
+  const colours = out.map((p) => p.shownColour.name);
+  for (let i = 1; i < colours.length; i += 1) assert.notEqual(colours[i], colours[i - 1], colours.join(", "));
+  assert.ok(colours.includes("Navy") && colours.includes("Charcoal Melange"), colours.join(", "));
+  assert.deepEqual(out.map((p) => p.garmentStyle), ["Oversized", "Round Neck", "Oversized", "Round Neck", "Oversized", "Round Neck", "Oversized", "Round Neck"]);
+});
+
+test("a Round Neck sold for men and women is one card: the men's tee, marked Men & Women", () => {
+  const out = pickSceneTees(cards, 20);
+  const nw = out.find((p) => short(p) === "New White 1");
+  assert.equal(nw.gender, "Men & Women");
+  assert.equal(nw.colors, cards[3].colors); // the men's listing
+  assert.equal(out.find((p) => short(p) === "Not Born Good").gender, "Women"); // sold for women only
+});
+
+test("when one style runs out the other fills the row", () => {
+  const few = [tee("R1", "Round Neck", "Men", ["Black"]), ...["O1", "O2", "O3"].map((n) => tee(n, "Oversized", "Unisex", ["Black"]))];
+  assert.deepEqual(pickSceneTees(few).map(short), ["O1", "R1", "O2", "O3"]);
+  assert.equal(pickSceneTees(cards, 20).length, 9); // 9 designs, the third green one left out
+});
+
+test("at most two green; each card in a colour it is sold in", () => {
+  const out = pickSceneTees(cards, 20);
+  assert.ok(out.filter((p) => p.shownColour.name === "Bottle Green").length <= 2);
+  for (const p of out) assert.ok(p.colors.some((c) => c.name === p.shownColour.name));
 });
 
 test("never more than asked for, and nothing from nothing", () => {
   assert.equal(pickSceneTees(cards, 4).length, 4);
-  assert.equal(pickSceneTees(cards).length, 10);
+  assert.equal(pickSceneTees(cards).length, 9);
   assert.deepEqual(pickSceneTees([]), []);
 });

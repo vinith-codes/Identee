@@ -563,7 +563,8 @@ export function HomeScene({ products, total }) {
                   <span className="quick">View tee</span>
                 </div>
                 <h3>{p.brandname.replace(/^SCENE\s*·\s*/i, "")}</h3>
-                <small className="st">{[p.garmentStyle, p.gender, shown.name].filter(Boolean).join(" · ")}</small>
+                {/* a Men & Women card (utils/homeScene.js) leaves the colour out, so the line fits a phone card */}
+                <small className="st">{[p.garmentStyle, p.gender, p.gender === "Men & Women" ? null : shown.name].filter(Boolean).join(" · ")}</small>
                 <div className="pr">
                   {money(p.price)}
                   {off > 0 && <s>{money(p.oldPrice)}</s>}
