@@ -12,6 +12,7 @@ const APPS = {
   admin: "src/apps/AdminApp.jsx",
   all: "src/App.jsx",
 };
+const GA_ID = "G-NH8YDV5LP9"; // IDENTEE's Google Analytics (the shop only)
 
 // https://vite.dev/config/
 export default defineConfig(({ command, mode }) => {
@@ -47,8 +48,31 @@ export default defineConfig(({ command, mode }) => {
     },
   };
 
+  // the shop's start page: the Google Analytics tag first in <head> (the user, 31 Oct 2026). Built shop only, so the
+  // admin pages and the laptop's test servers are not counted as visits. GA4's enhanced measurement counts each page
+  // change in the shop (browser history events), so nothing more is needed for the pages after the first.
+  const shopPage = {
+    name: "identee-shop-page",
+    transformIndexHtml(html) {
+      if (app !== "shop" || command !== "build") return html;
+      return html.replace(
+        "<head>",
+        `<head>
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=${GA_ID}"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+
+      gtag('config', '${GA_ID}');
+    </script>`,
+      );
+    },
+  };
+
   return {
-    plugins: [react(), tailwindcss(), adminPage],
+    plugins: [react(), tailwindcss(), adminPage, shopPage],
     // main.jsx imports "@identee-app": the shop, the admin, or both, depending on the mode
     resolve: { alias: { "@identee-app": fileURLToPath(new URL(APPS[app], import.meta.url)) } },
     define,
