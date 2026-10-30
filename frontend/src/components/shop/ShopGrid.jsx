@@ -26,7 +26,9 @@ const SORTS = [
   ["discount", "Biggest discount"],
 ];
 const PRICE_STEPS = [499, 799, 999, 1499, 1999, 2999];
-const PAGE_SIZE = 24; // was 12; with Men's + Women's pairs on one card, 12 could fill only 6 cards (31 Oct 2026)
+// was 12, then 24; with Men's + Women's pairs on one card, a pair split over two pages counted twice (Round Neck said 28
+// products for 20 designs once the 10 new designs came as Round Neck too, 31 Oct 2026). 48 is the most the API sends.
+const PAGE_SIZE = 48;
 const KEYS = ["cat", "style", "gender", "size", "color", "maxPrice", "q", "sort"];
 
 // "MEN'S T-SHIRTS" → "Men's T-shirts"

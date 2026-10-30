@@ -42,6 +42,25 @@ test("at most two green; each design once, in a colour it is sold in", () => {
   assert.equal(out.find((p) => p.brandname.endsWith("The Profile")).shownColour.name, "White");
 });
 
+test("a design sold as Round Neck and Oversized shows its Oversized card, even when the Round Neck is newer", () => {
+  const both = [
+    tee("Mass Mode", "Round Neck", "Men", ["Black"]),
+    tee("Mass Mode", "Round Neck", "Women", ["Black"]),
+    tee("Rain & Fire", "Round Neck", "Men", ["Black"]),
+    ...cards,
+    tee("Mass Mode", "Oversized", "Unisex", ["Black"]),
+    tee("Rain & Fire", "Oversized", "Unisex", ["Black"]),
+  ];
+  const out = pickSceneTees(both, 20);
+  for (const name of ["Mass Mode", "Rain & Fire"]) {
+    const found = out.filter((p) => p.brandname === `SCENE · ${name}`);
+    assert.equal(found.length, 1);
+    assert.equal(found[0].garmentStyle, "Oversized");
+  }
+  // a design sold only as Round Neck still shows
+  assert.ok(out.some((p) => p.brandname.endsWith("The Profile") && p.garmentStyle === "Round Neck"));
+});
+
 test("never more than asked for, and nothing from nothing", () => {
   assert.equal(pickSceneTees(cards, 4).length, 4);
   assert.equal(pickSceneTees(cards).length, 10);
