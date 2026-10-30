@@ -9,6 +9,7 @@ import User from "../models/userModel.js";
 import { customizationLine } from "../services/checkoutService.js";
 import { uploadFile, deleteStoredFile } from "../utils/imageStorage.js";
 import { rememberPictures } from "./myPictureController.js";
+import { readyPictures } from "../utils/shopRules.js";
 import { positionsForGarment, catalogForGarment, overlappingPairs, SIZES, SIZE_GROUPS } from "../data/printPositions.js";
 
 const MAX_ELEMENTS = 40;
@@ -352,7 +353,8 @@ export const getCustomizationById = async (req, res) => {
       customization &&
       (req.user.isAdmin || String(customization.user) === String(req.user._id));
     if (!allowed) return res.status(404).json({ message: "Customization not found" });
-    res.json(customization);
+    // a copy of a Shop your IDENTEE tee: its own pictures, which the design room leaves out of the picture add-on
+    res.json({ ...customization.toJSON(), readyPictures: await readyPictures(customization.fromReady) });
   } catch (err) {
     res.status(500).json({ message: err.message || "Could not fetch customization" });
   }
@@ -364,7 +366,7 @@ export const getCustomizationById = async (req, res) => {
 async function cartOf(userId) {
   const user = await User.findById(userId)
     .populate("cartItems.product", "brandname images price")
-    .populate("cartItems.customization", "name garmentType color size mockups orderedAt players");
+    .populate("cartItems.customization", "name garmentType color size mockups orderedAt players fromReady");
   return user.cartItems;
 }
 

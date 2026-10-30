@@ -8,8 +8,8 @@ import { THEME } from "../theme/theme";
 import { getActiveOffer } from "../redux/slices/bannerSlice";
 import { fetchFavorites, fetchCart } from "../redux/slices/cartWishlistSlice";
 import { fetchPublicSettings } from "../redux/slices/publicSettingsSlice";
-import { fetchCategories } from "../redux/slices/categorySlice";
-import { isReadyMade } from "../utils/categoryKinds";
+import shopService from "../services/shopService";
+import { collectionInfo, collectionLink } from "../utils/shopRules";
 import { SHOPS } from "../utils/shopNames";
 import OfferStrip from "./OfferStrip";
 import NotifyStrip from "./NotifyStrip";
@@ -97,24 +97,28 @@ export default function Navbar() {
   const phoneDigits = String(displayPhone || "").replace(/\D/g, "");
   const phoneHref = `tel:+${phoneDigits.length === 10 ? `91${phoneDigits}` : phoneDigits}`;
 
-  // ── Storefront categories (Admin → Categories), shared with the Home page.
-  const { items: storeCategories } = useSelector((s) => s.categories);
+  // ── Shop your IDENTEE's collections (SCENE Movie Products…, 30 Oct 2026 — no Men / Women split): each is a link
+  // in the dropdown and its styles (Oversized, Round Neck) show in the hover flyout.
+  const [collections, setCollections] = useState([]);
   useEffect(() => {
-    dispatch(fetchCategories());
-  }, [dispatch]);
-
-  // Build the "Products" mega-dropdown: each category is a link and its
-  // styles (Round Neck, V-Neck…) show in the hover flyout.
+    if (!shopOpen) return undefined;
+    let alive = true;
+    shopService
+      .listProducts({ limit: 1 })
+      .then((d) => alive && setCollections(d.facets?.collections || []))
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [shopOpen]);
   const productCategoryItems = useMemo(
     () =>
-      storeCategories
-        .filter((c) => !c.comingSoon && isReadyMade(c)) // the ready-made shop's categories only
-        .map((c) => ({
-          label: c.name,
-          to: `/category/${c.slug}`,
-          subcategories: c.styles || [],
-        })),
-    [storeCategories],
+      collections.map((c) => ({
+        label: collectionInfo(c.key, c.name).name,
+        to: collectionLink(c.key),
+        subcategories: c.styles || [],
+      })),
+    [collections],
   );
 
   // Home · Create your IDENTEE · Shop your IDENTEE (category dropdown) · Team / group · About · Contact —
@@ -131,10 +135,10 @@ export default function Navbar() {
         shopOpen && productCategoryItems.length > 0
           ? [
               {
-                category: "Shop by Category",
+                category: "Collections",
                 items: [
                   ...productCategoryItems,
-                  { label: "All products", to: "/products", subcategories: [] },
+                  { label: `All of ${SHOPS.shop.name}`, to: SHOPS.shop.to, subcategories: [] },
                 ],
               },
             ]

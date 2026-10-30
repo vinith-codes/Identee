@@ -313,6 +313,10 @@ export default function DesignRoomPage() {
   }, [busy, aiWorking]);
   // the saved design this is (My designs); locked = already ordered → saving makes a copy
   const [designId, setDesignId] = useState(params.get("design") || draft?.designId || null);
+  // a copy of a Shop your IDENTEE tee: { id, pictures } — its own pictures add nothing to the price and it ships
+  // free (30 Oct 2026); null for any other design
+  const [shopTee, setShopTee] = useState(null);
+  const shopTeeChecked = useRef(null); // the design id already checked for it
   const [designName, setDesignName] = useState(draft?.name || "");
   const [locked, setLocked] = useState(Boolean(draft?.locked));
   const [saveOpen, setSaveOpen] = useState(false);
@@ -353,7 +357,8 @@ export default function DesignRoomPage() {
   // Price per piece (launch, 16 Oct 2026): the garment's price + a set amount when the design has a picture —
   // AI-made or uploaded (Admin → Settings → AI designs); once per tee. Art library pictures and text only add
   // nothing. The server works it out the same way at checkout (checkoutService.customizationLine).
-  const hasPictureOn = elements.some((e) => e.type === "image" && e.src && !e.artDesignId);
+  const shopTeeNow = shopTee && shopTee.id === designId ? shopTee : null;
+  const hasPictureOn = elements.some((e) => e.type === "image" && e.src && !e.artDesignId && !shopTeeNow?.pictures.includes(e.src));
   const aiAddOn = hasPictureOn ? Number(ai.designAddOnInr ?? 100) : 0;
   const unitPrice = (garment?.basePrice || 0) + aiAddOn;
   // the struck-out "was" price, with the same AI amount on top so the saving stays the same
@@ -706,6 +711,21 @@ export default function DesignRoomPage() {
     setCamRequest({ view: "front", ms: 1600, n: nextReq() });
   };
 
+  /* ---------- a saved design shown from this browser's draft: is it a Shop your IDENTEE tee? ---------- */
+  useEffect(() => {
+    // (a design opened by its address is checked when it loads, below)
+    if (!designId || !isLoggedIn() || shopTeeChecked.current === designId || params.get("design") === designId) return undefined;
+    shopTeeChecked.current = designId;
+    let alive = true;
+    customizationService
+      .getCustomizationById(designId)
+      .then((d) => alive && d.fromReady && setShopTee({ id: d._id, pictures: d.readyPictures || [] }))
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [designId]); // eslint-disable-line react-hooks/exhaustive-deps
+
   /* ---------- open a saved design: /customize/<garment>?design=<id> ---------- */
   const openId = params.get("design");
   const onScreenId = useRef(keepLocal ? draft.designId : null); // id of the saved design currently shown (set on load and on save)
@@ -731,6 +751,8 @@ export default function DesignRoomPage() {
           });
         }
         chatDesign.current = d._id;
+        shopTeeChecked.current = d._id;
+        setShopTee(d.fromReady ? { id: d._id, pictures: d.readyPictures || [] } : null);
         setElements(d.elements.map((e) => ({ ...e, id: e._id || e.id || makeId() })));
         setColourSlug(d.color);
         if (d.size) setSize(d.size);
@@ -1202,7 +1224,7 @@ export default function DesignRoomPage() {
           price: unitPrice,
           wasPrice: wasPrice || null,
           pictureAddOn: Number(ai.designAddOnInr ?? 100),
-          shipping: shipRule ? `₹${shipRule.rate} shipping, free from ${shipRule.freeFrom} pieces` : "",
+          shipping: shopTeeNow ? "Free shipping (a Shop your IDENTEE tee)" : shipRule ? `₹${shipRule.rate} shipping, free from ${shipRule.freeFrom} pieces` : "",
           offer: siteOffer?.code ? `Extra ${siteOffer.offerPercentage}% off at checkout with code ${siteOffer.code}` : "",
           picturesLeft: ai.left,
           canDraw: ai.available && isLoggedIn() && ai.left !== 0,
@@ -3028,7 +3050,7 @@ export default function DesignRoomPage() {
                   {wasPrice > 0 && pieces > 0 && <s className="dr-was">₹{(wasPrice * pieces).toLocaleString("en-IN")}</s>}
                   <Rolling value={unitPrice * pieces} format={rupees} />
                   <small>{pieces} × ₹{unitPrice.toLocaleString("en-IN")}{aiAddOn ? ` (incl. ₹${aiAddOn} for the picture)` : ""} · incl. GST</small>
-                  {shippingNote(shipRule, pieces) && <small className="dr-shipnote">{shippingNote(shipRule, pieces)}</small>}
+                  {(shopTeeNow ? "Free shipping" : shippingNote(shipRule, pieces)) && <small className="dr-shipnote">{shopTeeNow ? "Free shipping" : shippingNote(shipRule, pieces)}</small>}
                   {siteOffer && <small className="dr-offernote">+ Extra {siteOffer.offerPercentage}% off at checkout with code <b>{siteOffer.code}</b></small>}
                 </div>
               </div>

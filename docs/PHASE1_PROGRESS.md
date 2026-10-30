@@ -1130,3 +1130,52 @@ hexes. The 11 SCENE Studio tees went on sale the same night in the client's colo
 Brown / Pink, dark designs Bottle Green / Dark Brown), in Men's and Women's T-Shirts, Oversized.
 
 **Later:** the Studio's own art-library upload, a tee from a saved tee (duplicate), a print-ready check before every publish.
+
+## 11. Shop your IDENTEE — collections, Unisex / Men / Women, dark colours, shop prices (30 Oct 2026, branch `feature/shop-collections`)
+
+The client: "if the user clicks Shop your IDENTEE it should open a SCENE MOVIE PRODUCTS card; if the user clicks
+that, Oversized and Round Neck separate cards. No separation of women and men — a filter: Unisex, Men, Women. Keep
+only the dark colours and white. The user should know they can also customize this t-shirt. Round Neck ₹499,
+Oversized ₹699. Shipping free." Answers to my questions: Royal Blue and Red stay; tees left with only light colours
+are hidden for now (nothing deleted); free shipping only for Shop your IDENTEE (a mixed cart pays the usual).
+
+- **Collections:** a tee's collection is the first part of its name ("SCENE · The One" → `scene`; no " · " →
+  `none`). `/ready-made` shows a card per collection (four tees' pictures); `/ready-made/:collection`
+  (`CollectionPage.jsx`) shows a card per style, then the tees. Names and words of a collection's card:
+  `frontend/src/utils/shopRules.js` (`scene` → "SCENE Movie Products"). The menu's Shop your IDENTEE dropdown and the
+  home page's card ("1 collection · 49 tees") list collections, not the Men's / Women's categories (those pages
+  still work by their address).
+- **One card per tee:** `GET /api/shop/products` groups a Studio tee by design + style, so an Oversized tee listed in
+  both Men's and Women's is ONE card with its colours once. `gender` per card: listed for both → Unisex, else the
+  category's wearer. New query `collection=` and `gender=unisex|men|women`; new facets `collections` and `genders`
+  (the genders within the chosen style). The grid shows All / Men / Women chips when there is more than one; an
+  all-Unisex style says "Unisex · made to fit men and women".
+- **Dark colours only:** `server/utils/shopRules.js` `LIGHT_COLOURS` (Yellow, Mustard Yellow, Grey, Light Brown, Pink,
+  Baby Pink, Hot Pink, Lavender, Sky Blue, Cream) are left out of the shop list, category pages (`DARK_ONLY`), the
+  design page's colours and the copy step. The colours stay on the tees; deleting a name from the list brings it back.
+  Live on 30 Oct this hides 80 tee-colours and 7 tees (6 women's Round Neck that had only light colours, and the
+  Oversized Crown Collage).
+  Then (same day, the client: "remove royal blue in round neck"): `HIDDEN_IN_STYLE` hides Royal Blue on Round Neck
+  only (`shownInShop(colour, style)`, `SHOWN_IN_SHOP` for database queries); 10 men's tees lose it, none disappears.
+  The colour filter now lists only the chosen style's colours (Round Neck no longer offers Bottle Green).
+- **Prices:** a Studio tee costs its garment's price (Round Neck ₹499 struck ₹699, Oversized ₹699 struck ₹899) —
+  `studioPrice` no longer adds the picture add-on; the shop list works the price out from the garment when it is
+  read (so the products saved at ₹599 / ₹799 show right without re-publishing). A customer's copy (`fromReady`)
+  pays the add-on only for a picture that is not one of the shop tee's own (`shopTeeAddOn`); the design room gets
+  those pictures from `GET /api/customizations/:id` (`readyPictures`) and prices the same way.
+- **Free shipping:** quote lines carry `shopTee` (a ready-made product, or a `fromReady` copy); an order of only those
+  ships free (the state is still checked). Cart items now carry `fromReady`, so the order summary says "Free shipping".
+- **Customize:** the product card has a "✎ Customizable" tag; the collection page says every tee can be customized
+  and ships free; the design page has a "Make it yours" box with "Customize this tee" (was "Edit this design").
+
+Tested on a throwaway database (port 27099) seeded from the live shop's 82 listings: 49 tees (25 Oversized, 11 men's,
+13 women's Round Neck), prices 699/899 and 499/699, quotes (shop tee ₹499 free shipping; + own photo ₹599; design-room
+tee ₹599 + ₹100; mixed cart of 2 pays ₹100, of 3 free), light-only tee page 404; pages at 375, 360 and 1366 wide.
+
+**Home page (same day, the client: SCENE products after "Create your IDENTEE", good designed tees, "designed by" Quindl):**
+- `HomeScene` (components/home/HomeSections.jsx) sits just above "What do you want on your tee?" (the client moved it up): a stone band with a
+  film-strip edge, "SCENE Movie Products", an Oversized and a Round Neck card (from ₹699 / ₹499 → the collection page
+  with `?style=`), ten tees (featured first — Admin → Ready-made → "Feature it" — then the newest; Oversized, men's and
+  women's Round Neck take turns), each with "✎ Customizable", and "See all N tees". Only while the shop is open.
+  It replaces the old "Featured tees" row lower down (the same tees twice).
+- Footer (every page): a last line "Designed by quindl.com".

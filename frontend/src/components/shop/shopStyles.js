@@ -77,6 +77,27 @@ export const SHOP_CSS = `
   .sh-price { margin: 8px 0 0; display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; font-size: 15.5px; color: var(--ink); }
   .sh-price s { color: var(--muted); font-size: 13px; }
   .sh-member { font-size: 11px; font-weight: 800; color: #2E7D4F; }
+  .sh-tag { position: absolute; left: 10px; bottom: 10px; display: inline-flex; align-items: center; gap: 5px; padding: 5px 10px;
+    border-radius: 999px; background: rgba(255,255,255,.92); color: var(--ink); font-size: 11.5px; font-weight: 700; box-shadow: 0 2px 8px rgba(0,0,0,.12); }
+  .sh-for { margin: 0 0 14px; font-size: 13.5px; font-weight: 600; color: var(--muted); }
+  .sh-perks { display: flex; gap: 8px 18px; flex-wrap: wrap; margin: 0 0 18px; padding: 12px 16px; border-radius: 14px; background: var(--cream);
+    font-size: 13.5px; color: var(--ink); }
+  .sh-perks span { display: inline-flex; gap: 6px; align-items: center; font-weight: 600; }
+  .sh-perks a { color: #7A5B12; font-weight: 700; }
+
+  .sh-collections { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr)); gap: 20px; }
+  .sh-collection { position: relative; display: grid; grid-template-rows: auto 1fr; border-radius: 20px; overflow: hidden; text-decoration: none;
+    color: #fff; background: var(--ink); transition: transform .3s ease, box-shadow .3s ease; }
+  .sh-collection:hover { transform: translateY(-4px); box-shadow: 0 20px 40px -20px rgba(21,19,15,.45); }
+  .sh-collection:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
+  .sh-collection-pics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2px; aspect-ratio: 5 / 4; background: #2A2620; }
+  .sh-collection-pics img { width: 100%; height: 100%; object-fit: cover; display: block; min-height: 0; }
+  .sh-collection-pics.n1 { grid-template-columns: 1fr; }
+  .sh-collection-text { display: grid; gap: 4px; padding: 16px 18px 18px; }
+  .sh-collection-text b { font-size: 21px; font-weight: 800; line-height: 1.2; letter-spacing: .01em; }
+  .sh-collection-text > span { font-size: 13.5px; opacity: .82; }
+  .sh-collection-text .sh-style-go { justify-self: start; margin-top: 10px; padding: 9px 16px; border-radius: 999px; font-weight: 700;
+    font-size: 13px; color: var(--ink); background: linear-gradient(135deg, var(--gold), #F0D585); }
 
   @media (max-width: 1024px) { .sh-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
   @media (max-width: 720px) {

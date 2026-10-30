@@ -552,7 +552,7 @@ const deleteCartItem = asyncHandler(async (req, res) => {
   const updatedUser = await User.findById(userId)
     .populate("cartItems.product")
     // players: without them a team order left in the cart would look like a normal design
-    .populate("cartItems.customization", "name garmentType color size mockups orderedAt players");
+    .populate("cartItems.customization", "name garmentType color size mockups orderedAt players fromReady");
 
   res.status(200).json({
     cartItems: updatedUser.cartItems,

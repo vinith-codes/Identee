@@ -5,7 +5,8 @@
 // the address (?size=M&color=Black&maxPrice=999&sort=price_asc&q=…), so a
 // filtered page can be shared or reloaded. A category with more than one
 // style (Men's: Oversized + Round Neck) first shows a card per style; a card
-// opens that style's tees (the client, 28 Oct 2026).
+// opens that style's tees (the client, 28 Oct 2026). A collection (SCENE Movie
+// Products, 30 Oct 2026) works the same, with Unisex / Men / Women to filter by.
 import { useEffect, useMemo, useState } from "react";
 import { useLocation, useSearchParams } from "react-router-dom";
 import shopService from "../../services/shopService";
@@ -24,7 +25,7 @@ const SORTS = [
 ];
 const PRICE_STEPS = [499, 799, 999, 1499, 1999, 2999];
 const PAGE_SIZE = 12;
-const KEYS = ["cat", "style", "size", "color", "maxPrice", "q", "sort"];
+const KEYS = ["cat", "style", "gender", "size", "color", "maxPrice", "q", "sort"];
 
 // "MEN'S T-SHIRTS" → "Men's T-shirts"
 const oneCategoryName = (name) => (name ? name.toLowerCase().replace(/(^|\s)\S/g, (c) => c.toUpperCase()) : "");
@@ -86,19 +87,24 @@ function ProductGrid({ list, skeletons = 8, from = null }) {
   );
 }
 
+// who a style's tees are for, from its Unisex / Men / Women counts: "Unisex", "Men & Women", "Unisex · Men · Women"
+const forWhom = (genders = []) => genders.map((g) => g.name).join(genders.length === 2 && !genders.some((g) => g.name === "Unisex") ? " & " : " · ");
+
 // one style's card on a category page: its newest tee's photo and how many tees; left out when it has none
 function StyleCard({ style, query, onOpen }) {
   const { data, loading } = useProductPages({ ...query, style, limit: 1 });
   if (loading) return <div className="sh-skel sh-style-skel" />;
   if (!data.total) return null;
   const photo = data.items[0]?.images?.[0];
+  const who = forWhom(data.facets?.genders);
   return (
-    <button type="button" className="sh-style-card" onClick={() => onOpen(style)} aria-label={`${style}: ${data.total} tees`}>
+    <button type="button" className="sh-style-card" onClick={() => onOpen(style)} aria-label={`${style}: ${data.total} tees${who ? `, ${who}` : ""}`}>
       {photo && <img src={imageUrl(photo, 600)} alt="" loading="lazy" />}
       <span className="sh-style-text">
         <b>{style}</b>
         <span>
           {data.total} product{data.total === 1 ? "" : "s"}
+          {who ? ` · ${who}` : ""}
         </span>
         <span className="sh-style-go">Shop now →</span>
       </span>
@@ -106,7 +112,7 @@ function StyleCard({ style, query, onOpen }) {
   );
 }
 
-export default function ShopGrid({ category = null, id = "shop" }) {
+export default function ShopGrid({ category = null, collection = null, collectionName = "", id = "shop" }) {
   const location = useLocation();
   const [params, setParams] = useSearchParams();
   const f = Object.fromEntries(KEYS.map((k) => [k, params.get(k) || ""]));
@@ -116,7 +122,9 @@ export default function ShopGrid({ category = null, id = "shop" }) {
   const query = useMemo(
     () => ({
       category: category || f.cat || undefined,
+      collection: collection || undefined,
       style: f.style || undefined,
+      gender: f.gender || undefined,
       size: f.size || undefined,
       color: f.color || undefined,
       maxPrice: f.maxPrice || undefined,
@@ -124,7 +132,7 @@ export default function ShopGrid({ category = null, id = "shop" }) {
       sort: f.sort || undefined,
       limit: PAGE_SIZE,
     }),
-    [category, f.cat, f.style, f.size, f.color, f.maxPrice, f.q, f.sort],
+    [category, collection, f.cat, f.style, f.gender, f.size, f.color, f.maxPrice, f.q, f.sort],
   );
   const list = useProductPages(query);
   const { data, loading, error } = list;
@@ -149,6 +157,7 @@ export default function ShopGrid({ category = null, id = "shop" }) {
     const next = new URLSearchParams(params);
     if (style) next.set("style", style);
     else next.delete("style");
+    next.delete("gender"); // Men / Women is chosen inside a style
     setParams(next, { preventScrollReset: true });
     document.getElementById(id)?.scrollIntoView({ block: "start", behavior: "smooth" });
   }
@@ -163,6 +172,7 @@ export default function ShopGrid({ category = null, id = "shop" }) {
   const active = [
     !category && f.cat && ["cat", facets?.categories.find((c) => c.slug === f.cat)?.name || f.cat],
     f.style && ["style", f.style],
+    f.gender && ["gender", f.gender.charAt(0).toUpperCase() + f.gender.slice(1)],
     f.size && ["size", `Size ${f.size}`],
     f.color && ["color", f.color],
     f.maxPrice && ["maxPrice", `Under ${money(f.maxPrice)}`],
@@ -170,12 +180,14 @@ export default function ShopGrid({ category = null, id = "shop" }) {
   ].filter(Boolean);
   const prices = PRICE_STEPS.filter((p) => !facets || p > facets.priceMin);
   const styles = facets?.styles || [];
-  // one category with several styles: a card per style until one is chosen
-  const oneCategory = Boolean(category || f.cat);
+  // one category (or collection) with several styles: a card per style until one is chosen
+  const oneCategory = Boolean(category || f.cat || collection);
   const byStyle = oneCategory && styles.length > 1;
-  // where a product card was opened from, for the product page's back link ("Men's T-shirts · Oversized")
-  const catName = oneCategory ? oneCategoryName(data.items[0]?.category?.name) : "";
+  // where a product card was opened from, for the product page's back link ("SCENE Movie Products · Oversized")
+  const catName = collectionName || (oneCategory ? oneCategoryName(data.items[0]?.category?.name) : "");
   const from = { to: location.pathname + location.search, label: [catName || "Shop your IDENTEE", f.style].filter(Boolean).join(" · ") };
+  // Unisex / Men / Women (only when the tees shown are for more than one of them)
+  const genders = facets?.genders || [];
 
   if (byStyle && !f.style) {
     return (
@@ -221,7 +233,24 @@ export default function ShopGrid({ category = null, id = "shop" }) {
         </div>
       )}
 
-      {!category && facets?.categories.length > 1 && (
+      {genders.length > 1 && (
+        <div className="sh-cats" role="group" aria-label="Who it is for">
+          <button type="button" className={`sh-chip${!f.gender ? " on" : ""}`} onClick={() => set("gender", "")} aria-pressed={!f.gender}>
+            All
+          </button>
+          {genders.map((g) => {
+            const on = f.gender.toLowerCase() === g.name.toLowerCase();
+            return (
+              <button key={g.name} type="button" className={`sh-chip${on ? " on" : ""}`} onClick={() => set("gender", on ? "" : g.name.toLowerCase())} aria-pressed={on}>
+                {g.name} <span className="sh-count">{g.count}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+      {genders.length === 1 && genders[0].name === "Unisex" && byStyle && <p className="sh-for">Unisex · made to fit men and women</p>}
+
+      {!category && !collection && facets?.categories.length > 1 && (
         <div className="sh-cats" role="group" aria-label="Category">
           <button type="button" className={`sh-chip${!f.cat ? " on" : ""}`} onClick={() => set("cat", "")} aria-pressed={!f.cat}>
             All

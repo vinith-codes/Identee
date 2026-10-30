@@ -26,6 +26,7 @@ const Account = lazy(() => import("../pages/Account"));
 const CustomizablePage = lazy(() => import("../pages/CustomizablePage"));
 const ReadyMadePage = lazy(() => import("../pages/ReadyMadePage"));
 const ReadyDesignPage = lazy(() => import("../pages/ReadyDesignPage")); // one IDENTEE design (25 Oct 2026)
+const CollectionPage = lazy(() => import("../pages/CollectionPage")); // one collection, e.g. SCENE (30 Oct 2026)
 const TeamOrdersPage = lazy(() => import("../pages/TeamOrdersPage"));
 const ChooseColorPage = lazy(() => import("../pages/ChooseColorPage"));
 const CheckoutPage = lazy(() => import("../pages/CheckoutPage"));
@@ -154,6 +155,7 @@ export function shopRoutes({ Guest }) {
         <Route path="/customizable" element={<CustomizablePage />} />
         <Route path="/ready-made" element={<ReadyMadePage />} />
         <Route path="/ready-made/design/:slug" element={<ReadyDesignPage />} />
+        <Route path="/ready-made/:collection" element={<CollectionPage />} />
         <Route path="/team-orders" element={<TeamOrdersPage />} />
         {/* old address of the customizable list */}
         <Route path="/customize/choose-product" element={<LegacyChooseProduct />} />

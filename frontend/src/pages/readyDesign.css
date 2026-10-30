@@ -296,3 +296,10 @@
 .rd-colours { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 0 0 12px; }
 .rd-colour { width: 28px; height: 28px; border-radius: 50%; border: 1px solid rgba(0, 0, 0, 0.2); padding: 0; cursor: pointer; }
 .rd-colour.on { box-shadow: 0 0 0 2px #fff, 0 0 0 4px #15130f; }
+
+/* "Make it yours": the customer can customize a shop tee in the design room (30 Oct 2026) */
+.rd-customize { display: grid; gap: 6px; justify-items: start; margin-top: 16px; padding: 14px 16px; border-radius: 14px;
+  background: #fbf7ee; border: 1px solid #ece4d2; font-size: 14px; line-height: 1.5; color: #15130f; }
+.rd-customize b { font-size: 15px; }
+.rd-customize span { color: #4a4337; }
+.rd-customize .rd-btn { margin-top: 4px; padding: 11px 18px; font-size: 14px; }

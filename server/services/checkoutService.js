@@ -13,6 +13,7 @@ import { addressProblem } from "../utils/address.js";
 import { SIZES } from "../data/printPositions.js";
 import Setting from "../models/settingModel.js";
 import { splitGst } from "../utils/gstState.js";
+import { shopTeeAddOn } from "../utils/shopRules.js";
 
 // "Shop your IDENTEE" (ready-made products) can be closed as Coming soon (Admin → Settings → General). Closed —
 // also when the setting doesn't exist yet — ready-made products can't be quoted or ordered.
@@ -60,6 +61,7 @@ const productLine = (product, size, qty, user) => ({
   qty,
   unitPrice: unitPriceFor(product, user),
   price: round2(unitPriceFor(product, user) * qty),
+  shopTee: true, // a ready-made product is Shop your IDENTEE
 });
 
 export const customizationLine = async (customizationId, qty, size, user) => {
@@ -79,7 +81,8 @@ export const customizationLine = async (customizationId, qty, size, user) => {
 
   // Price (launch, 16 Oct 2026): the garment's price, + a set amount per tee when the design has a picture —
   // AI-made or uploaded (Admin → Settings → AI designs). Art library pictures and text only: the garment's price.
-  const addOn = (await hasPaidPicture(customization.elements)) ? await aiDesignAddOn() : 0;
+  // A copy of a Shop your IDENTEE tee: the garment's price; only a picture the customer added costs more (30 Oct 2026).
+  const addOn = customization.fromReady ? await shopTeeAddOn(customization) : (await hasPaidPicture(customization.elements)) ? await aiDesignAddOn() : 0;
 
   // Size: the one chosen at checkout, else the one the design was made for.
   const sizes = garment.sizes?.length ? garment.sizes : SIZES;
@@ -97,6 +100,7 @@ export const customizationLine = async (customizationId, qty, size, user) => {
     qty,
     unitPrice,
     price: round2(unitPrice * qty),
+    shopTee: Boolean(customization.fromReady),
   };
 };
 
@@ -260,7 +264,10 @@ export const buildQuote = async (user, body = {}) => {
   // part of the (discounted) price that is tax — shown on the invoice, never added on top.
   const subtotal = round2(lines.reduce((sum, l) => sum + l.price, 0));
   const pieces = lines.reduce((n, l) => n + (Number(l.qty) || 0), 0);
-  const shipping = await computeShipping(shippingAddress.state, subtotal, pieces);
+  // an order of only Shop your IDENTEE tees ships free (the client, 30 Oct 2026); with a design-room tee in it, the
+  // usual rule (₹100, free from 3 pieces). The delivery state is checked either way.
+  const usual = await computeShipping(shippingAddress.state, subtotal, pieces);
+  const shipping = lines.every((l) => l.shopTee) ? 0 : usual;
 
   let discount = 0;
   let coupon = null;

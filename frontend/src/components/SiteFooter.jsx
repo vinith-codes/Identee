@@ -42,6 +42,9 @@ const CSS = `
   .sf-credits { margin: 0; padding-bottom: 18px; font-size: 11.5px; color: #8A8478; }
   .sf-credits a { color: inherit; text-decoration: underline; }
   .sf-credits a:hover { color: #141110; }
+  .sf-made { margin: 0; padding: 14px 0 22px; border-top: 1px solid #E2DED3; text-align: center; font-size: 13px; color: #6F6A60; }
+  .sf-made a { font-weight: 700; color: #15130F; }
+  .sf-made a:hover { text-decoration: underline; text-underline-offset: 3px; }
   .sf-bottom { border-top: 1px solid #E2DED3; padding-block: 18px; display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; font-size: 12.5px; color: #6F6A60; }
   .sf-policies { display: flex; flex-wrap: wrap; gap: 6px 18px; }
   .sf-policies a:hover { color: #15130F; text-decoration: underline; text-underline-offset: 3px; }
@@ -204,6 +207,11 @@ export default function SiteFooter() {
           <a href={TEE_MODELS.collarCrop.credit.href} target="_blank" rel="noopener noreferrer">3D polo model “T-shirt Polo Lengan Pendek” by Ikal.Ichwan</a> and{" "}
           <a href={TEE_MODELS.coord.bottom.credit.href} target="_blank" rel="noopener noreferrer">3D shorts from “Male Tshirt and Shorts” by kanesk06</a>, used under{" "}
           <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener noreferrer">CC BY 4.0</a>.
+        </p>
+        {/* the studio that built the site (the client, 30 Oct 2026) */}
+        <p className="sf-made">
+          Designed by{" "}
+          <a href="https://quindl.com" target="_blank" rel="noopener noreferrer">quindl.com</a>
         </p>
       </div>
     </footer>

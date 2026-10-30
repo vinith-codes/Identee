@@ -32,7 +32,6 @@ import { isDark } from "./collectionService.js";
 import mongoose from "mongoose";
 import Product from "../models/productModel.js";
 import Category from "../models/categoryModel.js";
-import { aiDesignAddOn, hasPaidPicture } from "../utils/aiPricing.js";
 
 export const PROMPT_MAX = 1500;
 export const MAX_REFS = 3;
@@ -574,11 +573,11 @@ export function cleanProductDetails(raw = {}, before = {}) {
   return out;
 }
 
-// What the tee sells at (the admin's own price, else the garment's + the AI picture add-on) and its "was" price.
+// What the tee sells at (the admin's own price, else the garment's: Round Neck ₹499, Oversized ₹699 — the shop's
+// own pictures add nothing, 30 Oct 2026) and its "was" price.
 export async function studioPrice(design, garment) {
-  const addOn = (await hasPaidPicture(design.elements)) ? await aiDesignAddOn() : 0;
-  const price = design.priceInr > 0 ? design.priceInr : (garment?.basePrice || 0) + addOn;
-  const was = design.product?.oldPrice > price ? design.product.oldPrice : garment?.comparePrice > price ? garment.comparePrice + (design.priceInr > 0 ? 0 : addOn) : 0;
+  const price = design.priceInr > 0 ? design.priceInr : garment?.basePrice || 0;
+  const was = design.product?.oldPrice > price ? design.product.oldPrice : garment?.comparePrice > price ? garment.comparePrice : 0;
   return { price, oldPrice: was };
 }
 

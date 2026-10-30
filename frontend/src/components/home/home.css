@@ -195,8 +195,38 @@
 .hm-step h3 { font-size: 21px; font-weight: 600; margin-top: 18px; letter-spacing: -0.01em; }
 .hm-step p { margin: 8px 0 0; color: var(--muted); max-width: 310px; line-height: 1.6; font-size: 15px; }
 
-/* ---------- featured ---------- */
-.hm-feat { background: var(--stone); }
+/* ---------- SCENE Movie Products: a strip of film frames along the top, the tees in a row ---------- */
+.hm-scene { position: relative; background: var(--stone); padding-top: 120px; }
+.hm-scene::before { content: ""; position: absolute; inset: 0 0 auto; height: 26px;
+  background: repeating-linear-gradient(90deg, var(--stone) 0 14px, transparent 14px 26px) 0 7px / 100% 12px no-repeat, var(--ink); }
+.hm-scene-head { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 28px 40px; align-items: end; margin-bottom: 40px; }
+.hm-scene-head h2 { font-size: clamp(32px, 4.2vw, 54px); font-weight: 700; line-height: 1.02; margin-top: 14px; }
+.hm-scene-head h2 .word { display: inline-block; padding: 0 .18em; margin-right: .08em; background: var(--ink); color: var(--gold-soft); letter-spacing: .06em; border-radius: 6px; }
+.hm-scene-head p:not(.hm-eyebrow) { max-width: 520px; margin: 16px 0 0; color: var(--muted); font-size: 15.5px; line-height: 1.6; }
+.hm-scene-styles { display: flex; gap: 12px; flex-wrap: wrap; }
+.hm-scene-style { position: relative; display: grid; gap: 4px; min-width: 190px; padding: 16px 48px 16px 20px; border-radius: 18px; background: #fff; color: var(--ink);
+  text-decoration: none; box-shadow: inset 0 0 0 1px var(--line); transition: box-shadow .3s, transform .3s var(--ease); }
+.hm-scene-style b { font: 700 18px/1.1 var(--display); }
+.hm-scene-style span { font-size: 13px; color: var(--muted); }
+.hm-scene-style .arr { position: absolute; right: 18px; top: 50%; translate: 0 -50%; font-style: normal; font-size: 18px; transition: transform .4s var(--ease); }
+.hm-scene-style:hover { box-shadow: inset 0 0 0 1.5px var(--ink); transform: translateY(-2px); }
+.hm-scene-style:hover .arr { transform: translateX(4px); }
+.hm-scene-row { grid-auto-columns: minmax(230px, calc((100% - 80px) / 5)); }
+.hm-scene .hm-card .ph { background: #E6E3DB; }
+.hm-scene .hm-card .badge { background: var(--ink); color: var(--gold-soft); }
+.hm-card .st { display: block; margin-top: 3px; font-size: 13px; color: var(--muted); }
+.hm-scene-foot { display: flex; justify-content: space-between; align-items: center; gap: 14px 24px; flex-wrap: wrap; margin-top: 30px; color: var(--muted); font-size: 14.5px; }
+@media (max-width: 920px) {
+  .hm-scene-head { grid-template-columns: minmax(0, 1fr); }
+  .hm-scene-row { grid-auto-columns: minmax(200px, 62%); }
+}
+@media (max-width: 600px) {
+  .hm-scene { padding-top: 70px; }
+  .hm-scene-style { flex: 1 1 140px; min-width: 0; }
+  .hm-scene-foot .hm-btn { flex: 1 1 100%; justify-content: center; }
+}
+
+/* ---------- product cards in a row ---------- */
 .hm-row { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(250px, calc((100% - 60px) / 4)); gap: 20px; overflow-x: auto;
   scroll-snap-type: x mandatory; padding-bottom: 12px; scrollbar-width: thin; }
 .hm-card { scroll-snap-align: start; min-width: 0; text-decoration: none; color: var(--ink); }

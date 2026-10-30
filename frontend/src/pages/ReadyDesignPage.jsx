@@ -2,8 +2,8 @@
 //
 // One IDENTEE design of Shop your IDENTEE (made with the Collection maker). It is sold print on demand: on Add to
 // cart / Buy now the customer gets their own copy of the design (readyDesignService.copy), and that copy goes
-// through the same cart, checkout and print sheets as a tee designed in the design room. "Change it" opens their
-// copy in the design room.
+// through the same cart, checkout and print sheets as a tee designed in the design room. "Customize this tee" opens
+// their copy in the design room. It costs the garment's price and ships free (the client, 30 Oct 2026).
 import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { useDispatch } from "react-redux";
@@ -13,7 +13,6 @@ import { fetchCart } from "../redux/slices/cartWishlistSlice";
 import PriceTag from "../components/PriceTag";
 import { imageUrl } from "../utils/imageUrl";
 import ShopComingSoon from "../components/ShopComingSoon";
-import { shippingNote, useShippingRule } from "../utils/sitePricing";
 import { useShopOpen } from "../utils/shopOpen";
 import { SHOPS } from "../utils/shopNames";
 import { photosFor } from "../utils/wearerFor";
@@ -48,7 +47,6 @@ export default function ReadyDesignPage() {
   const location = useLocation();
   const dispatch = useDispatch();
   const shop = useShopOpen();
-  const shipRule = useShippingRule();
   const [design, setDesign] = useState(null);
   const [missing, setMissing] = useState(false);
   const [side, setSide] = useState(null);
@@ -156,7 +154,7 @@ export default function ReadyDesignPage() {
       if (!copy) return;
       navigate(`/buy-now/${copy.customizationId}`, {
         state: {
-          product: { _id: copy.customizationId, brandname: design.name, images: mockups?.front ? [mockups.front] : [], price: design.price },
+          product: { _id: copy.customizationId, brandname: design.name, images: mockups?.front ? [mockups.front] : [], price: design.price, shopTee: true },
           items: chosen,
           isCustomization: true,
         },
@@ -224,7 +222,7 @@ export default function ReadyDesignPage() {
               );
             })}
           </div>
-          {pieces > 0 && <p className="rd-note">{shippingNote(shipRule, pieces)}</p>}
+          <p className="rd-note">Free shipping</p>
           <div className="rd-actions">
             <button type="button" className="rd-btn rd-btn-dark" onClick={addToCart} disabled={!!busy}>
               {busy === "cart" ? "Adding…" : "Add to cart"}
@@ -232,16 +230,23 @@ export default function ReadyDesignPage() {
             <button type="button" className="rd-btn rd-btn-gold" onClick={buyNow} disabled={!!busy}>
               {busy === "buy" ? "One moment…" : `Buy now${pieces ? ` · ${pieces} pc` : ""}`}
             </button>
-            {/* the customer's own copy opens in the design room: change the words, move a picture, add their name… */}
-            <button type="button" className="rd-btn" onClick={changeIt} disabled={!!busy}>
-              {busy === "change" ? "Opening…" : "Edit this design"}
-            </button>
           </div>
           {msg && (
             <p className={`rd-msg${msg.bad ? " rd-msg-bad" : ""}`}>
               {msg.text} {!msg.bad && <Link to="/cart">See your cart →</Link>}
             </p>
           )}
+          {/* the client, 30 Oct 2026: the customer should know they can make this tee their own */}
+          <div className="rd-customize">
+            <b>✎ Make it yours</b>
+            <span>
+              Change the words, add your name or a photo, or move the picture. You get your own copy, at the same price
+              {design.pictureAddOn > 0 ? ` (a picture of your own adds ₹${design.pictureAddOn})` : ""}.
+            </span>
+            <button type="button" className="rd-btn" onClick={changeIt} disabled={!!busy}>
+              {busy === "change" ? "Opening…" : "Customize this tee"}
+            </button>
+          </div>
           {design.description && design.description !== design.blurb && <p className="rd-desc">{design.description}</p>}
           {(design.fabric || design.washCare?.length > 0) && (
             <p className="rd-note">
@@ -249,8 +254,8 @@ export default function ReadyDesignPage() {
             </p>
           )}
           <p className="rd-note">
-            Printed for you after you order — every size at its own true print size. Edit this design opens your own copy in the design
-            room: change the words, move a picture, add your name — the original stays as it is.
+            Printed for you after you order, every size at its own true print size. Customize this tee opens your own copy in the
+            design room; the original stays as it is.
           </p>
         </div>
       </div>

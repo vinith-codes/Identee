@@ -7,6 +7,8 @@ import { colourHex, isLight } from "../../utils/colours";
 import { money } from "../../utils/money";
 import { SHOPS } from "../../utils/shopNames";
 import artDesignService from "../../services/artDesignService";
+import { wearerFor } from "../../utils/wearerFor";
+import { collectionInfo, collectionLink } from "../../utils/shopRules";
 
 const PRINTS = ["YOUR NAME", "TEAM 07", "BIRTHDAY SQUAD", "SAY IT LOUD"];
 const reduceMotion = () => typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
@@ -381,9 +383,9 @@ export function HomeWays({ garment, customPhoto, stackPhotos, custom, ready, sho
               <p className="hm-eyebrow">Ready to wear</p>
               <h3>{SHOPS.shop.name}</h3>
               <p>{shopOpen ? "Finished designs in every size, ready to ship." : "Finished designs in every size, ready to ship — on their way."}</p>
-              {shopOpen && ready.categoryCount > 0 && (
+              {shopOpen && ready.collectionCount > 0 && (
                 <div className="meta">
-                  {ready.categoryCount} {ready.categoryCount === 1 ? "category" : "categories"} · {ready.productCount} {ready.productCount === 1 ? "product" : "products"}
+                  {ready.collectionCount} {ready.collectionCount === 1 ? "collection" : "collections"} · {ready.productCount} {ready.productCount === 1 ? "tee" : "tees"}
                 </div>
               )}
               {shopOpen ? (
@@ -514,35 +516,52 @@ export function HomeSteps() {
 }
 
 /* ---------- featured ready-made products ---------- */
-export function HomeFeatured({ products }) {
+/* ---------- SCENE Movie Products: Shop your IDENTEE's tees, just before "Create your IDENTEE" (30 Oct 2026) ---------- */
+export function HomeScene({ products, total }) {
   if (products.length < 3) return null; // too few to look like a collection
+  const link = collectionLink("scene");
+  const info = collectionInfo("scene");
+  const styles = [...new Set(products.map((p) => p.garmentStyle).filter(Boolean))].sort().map((name) => {
+    return { name, from: Math.min(...products.filter((p) => p.garmentStyle === name).map((p) => p.price)) };
+  });
   return (
-    <section className="hm-sec hm-feat" aria-label="Featured tees">
+    <section className="hm-sec hm-scene" aria-label={info.name}>
       <div className="hm-wrap">
-        <div className="hm-head" data-reveal>
+        <div className="hm-scene-head" data-reveal>
           <div>
-            <p className="hm-eyebrow">{SHOPS.shop.name}</p>
-            <h2>Featured tees</h2>
+            <p className="hm-eyebrow">{SHOPS.shop.name} · Collection</p>
+            <h2>
+              <span className="word">SCENE</span> Movie Products
+            </h2>
+            <p>{info.text} Every one can be customized: add a name, change the colour, make it yours.</p>
           </div>
-          <Link className="hm-btn outline" to={SHOPS.shop.to}>
-            See everything <span className="arr">→</span>
-          </Link>
+          <div className="hm-scene-styles">
+            {styles.map((s) => (
+              <Link key={s.name} className="hm-scene-style" to={`${link}?style=${encodeURIComponent(s.name)}`}>
+                <b>{s.name}</b>
+                <span>From {money(s.from)} · see the tees</span>
+                <i className="arr" aria-hidden="true">→</i>
+              </Link>
+            ))}
+          </div>
         </div>
-        <div className="hm-row">
+        <div className="hm-row hm-scene-row">
           {products.map((p) => {
-            const price = p.subscriptionPrice && p.subscriptionPrice < p.price ? p.subscriptionPrice : p.price;
-            const off = p.oldPrice > price ? Math.round(((p.oldPrice - price) / p.oldPrice) * 100) : 0;
+            const off = p.oldPrice > p.price ? Math.round(((p.oldPrice - p.price) / p.oldPrice) * 100) : 0;
+            const who = wearerFor(`${p.category?.name || ""} ${p.category?.slug || ""}`);
+            const to = p.readyDesignSlug ? `/ready-made/design/${p.readyDesignSlug}${who ? `?for=${who}` : ""}` : `/product/${p._id}`;
             return (
-              <Link key={p.groupId} className="hm-card" to={`/product/${p._id}`}>
+              <Link key={p.key || p.groupId} className="hm-card" to={to}>
                 <div className="ph">
                   {p.images?.[0] && <img src={imageUrl(p.images[0], 600)} alt="" loading="lazy" onError={(e) => (e.currentTarget.style.visibility = "hidden")} />}
                   {p.images?.[1] && <img className="alt" src={imageUrl(p.images[1], 600)} alt="" loading="lazy" />}
-                  {!p.inStock ? <span className="badge">Out of stock</span> : off >= 5 ? <span className="badge">{off}% off</span> : null}
-                  <span className="quick">View</span>
+                  {p.customisable && <span className="badge">✎ Customizable</span>}
+                  <span className="quick">View tee</span>
                 </div>
-                <h3>{p.brandname}</h3>
+                <h3>{p.brandname.replace(/^SCENE\s*·\s*/i, "")}</h3>
+                <small className="st">{[p.garmentStyle, p.gender].filter(Boolean).join(" · ")}</small>
                 <div className="pr">
-                  {money(price)}
+                  {money(p.price)}
                   {off > 0 && <s>{money(p.oldPrice)}</s>}
                 </div>
                 {p.colors?.length > 1 && (
@@ -555,6 +574,12 @@ export function HomeFeatured({ products }) {
               </Link>
             );
           })}
+        </div>
+        <div className="hm-scene-foot" data-reveal>
+          <span>✎ Customize any tee · Free shipping on {SHOPS.shop.name} orders</span>
+          <Link className="hm-btn ink" to={link}>
+            See all {total || products.length} tees <span className="arr">→</span>
+          </Link>
         </div>
       </div>
     </section>

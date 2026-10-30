@@ -2,13 +2,11 @@
 //
 // Calm editorial layout (components/home): a hero where the customizable
 // tee changes colour while a print is typed on it, two ways to shop, the
-// Design Room steps, featured ready-made tees (Admin → Ready-made →
-// "Feature it"), plain promises, the three Style outlook videos (Admin →
+// Design Room steps, the SCENE Movie Products tees just before "Create your
+// IDENTEE" (featured first: Admin → Ready-made → "Feature it"), plain promises, the three Style outlook videos (Admin →
 // Video banners) and a closing band. The footer is components/SiteFooter.jsx (every page).
 import { useEffect, useRef, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
-import { fetchCategories } from "../redux/slices/categorySlice";
-import { isReadyMade } from "../utils/categoryKinds";
 import { fetchGarmentTypes } from "../redux/slices/garmentTypeSlice";
 import { fetchAllGarmentImages } from "../redux/slices/garmentImageSlice";
 import { getVideoBanner } from "../redux/slices/bannerSlice";
@@ -24,7 +22,7 @@ import {
   HomeMarquee,
   HomeWays,
   HomeSteps,
-  HomeFeatured,
+  HomeScene,
   HomeOutlook,
   HomeFinal,
   HomePhoto,
@@ -109,36 +107,39 @@ function FloatingSocial({ settings = {} }) {
 /* ------------------------------------------------------------------ */
 export default function Home() {
   const dispatch = useDispatch();
-  const { items: categories } = useSelector((s) => s.categories);
   const { items: garmentTypes } = useSelector((s) => s.garmentType);
   const { items: garmentImages } = useSelector((s) => s.garmentImage);
   const { videoBanners } = useSelector((s) => s.banner);
   const { values: publicSettings, isLoaded: settingsLoaded } = useSelector((s) => s.publicSettings);
   // "Shop your IDENTEE" open (Admin → Settings → General), else Coming soon: no featured products, the card says so
   const shopOpen = publicSettings?.["general.shopOpen"] === true;
-  const [products, setProducts] = useState([]); // featured (topped up with newest)
+  const [scene, setScene] = useState([]); // SCENE Movie Products: featured first, topped up with the newest
+  const [collections, setCollections] = useState([]); // Shop your IDENTEE's collections (SCENE Movie Products…)
   const root = useRef(null);
 
   useEffect(() => {
-    dispatch(fetchCategories());
     dispatch(fetchGarmentTypes()); // live customizable garments only
     dispatch(fetchAllGarmentImages());
     dispatch(getVideoBanner());
     if (!settingsLoaded) dispatch(fetchPublicSettings());
   }, [dispatch, settingsLoaded]);
 
-  // featured ready-made tees; fewer than 4 → add the newest ones
+  // the SCENE tees: featured ones first, then the newest; Oversized, men's and women's Round Neck take turns so all show
   useEffect(() => {
     let alive = true;
     Promise.all([
-      shopService.listProducts({ featured: 1, limit: 8 }).catch(() => ({ items: [] })),
-      shopService.listProducts({ limit: 8 }).catch(() => ({ items: [] })),
-    ]).then(([f, n]) => {
+      shopService.listProducts({ collection: "scene", featured: 1, limit: 12 }).catch(() => ({ items: [] })),
+      shopService.listProducts({ collection: "scene", limit: 48 }).catch(() => ({ items: [] })),
+      shopService.listProducts({ limit: 1 }).catch(() => ({ items: [] })),
+    ]).then(([f, n, all]) => {
       if (!alive) return;
-      const list = [...f.items];
-      for (const p of n.items) if (list.length < 8 && !list.some((x) => x.groupId === p.groupId)) list.push(p);
-      // only products whose photos are stored online (old local paths are broken)
-      setProducts(list.filter((p) => /^https?:\/\//.test(p.images?.[0] || "")));
+      setCollections(all.facets?.collections || []);
+      // only tees whose photos are stored online (old local paths are broken)
+      const pool = [...f.items, ...n.items].filter((p, i, a) => /^https?:\/\//.test(p.images?.[0] || "") && a.findIndex((x) => x.key === p.key) === i);
+      const byStyle = Object.values(pool.reduce((m, p) => ((m[`${p.garmentStyle}|${p.gender}`] ||= []).push(p), m), {}));
+      const mixed = [];
+      for (let i = 0; mixed.length < 10 && byStyle.some((l) => l[i]); i++) for (const l of byStyle) if (l[i] && mixed.length < 10) mixed.push(l[i]);
+      setScene(mixed);
     });
     return () => {
       alive = false;
@@ -172,16 +173,16 @@ export default function Home() {
     count: sellable.length,
     fromPrice: sellable.length ? Math.min(...sellable.map((g) => g.basePrice)) : null,
   };
-  // "Shop ready-made: 7 categories · 10 products" counts the ready-made shop's categories only
-  const liveCategories = categories.filter((c) => !c.comingSoon && isReadyMade(c));
+  // "Shop your IDENTEE: 1 collection · 45 tees" (its collections, 30 Oct 2026 — no Men / Women split)
   const ready = {
-    categoryCount: liveCategories.length,
-    productCount: liveCategories.reduce((n, c) => n + (c.productCount || 0), 0),
+    collectionCount: collections.length,
+    productCount: collections.reduce((n, c) => n + (c.count || 0), 0),
   };
   // the ready-made card shows three garment photos (always clean, same backdrop)
   const stackPhotos = colours.slice(2, 5).map((c) => c.front);
 
-  useReveal(root, [products.length, colours.length]);
+  useReveal(root, [scene.length, colours.length]);
+  const sceneTotal = collections.find((c) => c.key === "scene")?.count || 0;
 
   return (
     <div className="hm" ref={root}>
@@ -236,11 +237,11 @@ export default function Home() {
 
       <HomeHero garment={garment} colours={colours.slice(0, 6)} printCm={printCm} shopOpen={shopOpen} />
       <HomeMarquee shopOpen={shopOpen} />
+      {shopOpen && <HomeScene products={scene} total={sceneTotal} />}
       <HomeCreate colours={colours} />
       <HomePhoto />
       <HomeWays garment={garment} customPhoto={garment ? coverPhoto(garment, garmentImages) : null} stackPhotos={stackPhotos} custom={custom} ready={ready} shopOpen={shopOpen} />
       <HomeSteps />
-      {shopOpen && <HomeFeatured products={products} />}
       {/* "Why IDENTEE" (HomePromises) was taken off: the same four points as the hero's line under the tee.
           "Style outlook" shows finished hoodies and polos, so it waits until Shop your IDENTEE opens. */}
       {shopOpen && <HomeOutlook main={video("styleOutlookMain", subVideo1)} side1={video("styleOutlookSide1", hoodieVideo)} side2={video("styleOutlookSide2", polosVideo)} />}

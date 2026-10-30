@@ -1,8 +1,8 @@
 // components/shop/ProductCard.jsx
 //
 // One ready-made product in a shop grid: photo (second photo on hover),
-// discount / out-of-stock badge, name, style, colour dots (tap one to see
-// that colour) and price. Opens the product page in the chosen colour;
+// discount / out-of-stock badge, "Customizable" tag (a Studio tee), name,
+// style, who it is for, colour dots (tap one to see that colour) and price. Opens the product page in the chosen colour;
 // `from` ({ to, label }) is the page it was opened from, so the product
 // page's back link returns there (e.g. Men's T-shirts · Oversized).
 import { useState } from "react";
@@ -41,12 +41,14 @@ export default function ProductCard({ p, from = null }) {
           <span className="sh-card-nophoto">IDENTEE</span>
         )}
         {!p.inStock ? <span className="sh-badge dark">Out of stock</span> : off >= 5 ? <span className="sh-badge gold">{off}% off</span> : null}
+        {/* a Studio tee can be changed in the design room (the client, 30 Oct 2026: they should know they can) */}
+        {p.customisable && <span className="sh-tag">✎ Customizable</span>}
       </Link>
       <div className="sh-card-body">
         <Link to={href} state={from ? { from } : undefined} className="sh-card-name">
           {p.brandname}
         </Link>
-        <p className="sh-card-sub">{[p.garmentStyle, p.colors?.length > 1 ? `${p.colors.length} colours` : colour?.name].filter(Boolean).join(" · ")}</p>
+        <p className="sh-card-sub">{[p.garmentStyle, p.gender, p.colors?.length > 1 ? `${p.colors.length} colours` : colour?.name].filter(Boolean).join(" · ")}</p>
         {p.colors?.length > 1 && (
           <div className="sh-dots" role="group" aria-label="Colours">
             {p.colors.slice(0, MAX_DOTS).map((c) => {

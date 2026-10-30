@@ -79,6 +79,15 @@ export default function OrderSummaryStep({
   const pieces = items.reduce((n, item) => n + (Number(item.qty) || 0), 0);
   const siteOffer = useSiteOffer(); // the coupon shown on the site
   const shipRule = useShippingRule(); // ₹100 shipping, free from 3 pieces
+  // an order of only Shop your IDENTEE tees ships free (30 Oct 2026; the server's checkout decides the same way):
+  // a ready-made product in the cart, a customer's copy of a shop tee, or a Buy now of either (a Buy now of a
+  // design-room tee is neither)
+  const shopLine = (it) => {
+    if (it.customization) return Boolean(it.customization.fromReady);
+    if (String(it._id).startsWith("buynow-")) return Boolean(it.product?.shopTee || it.product?.productdetails);
+    return Boolean(it.product);
+  };
+  const freeShip = items.length > 0 && items.every(shopLine);
 
   // Finds how much stock is left for this item's size, so +/- can't push
   // qty past what's actually available.
@@ -641,7 +650,7 @@ export default function OrderSummaryStep({
             fontFamily: THEME.fontBody,
           }}
         >
-          {shippingNote(shipRule, pieces) || "Shipping calculated at next step"}
+          {freeShip ? "Free shipping" : shippingNote(shipRule, pieces) || "Shipping calculated at next step"}
         </p>
 
         {mrpDiscount + couponDiscount > 0 && (
