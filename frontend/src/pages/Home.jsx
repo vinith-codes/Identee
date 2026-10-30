@@ -125,7 +125,7 @@ export default function Home() {
     if (!settingsLoaded) dispatch(fetchPublicSettings());
   }, [dispatch, settingsLoaded]);
 
-  // the SCENE tees: featured ones first, then the newest; Oversized, men's and women's Round Neck take turns so all show
+  // the SCENE tees: featured ones first, then the newest (the client, 30 Oct 2026: the newly added tees on the home page)
   useEffect(() => {
     let alive = true;
     Promise.all([
@@ -137,7 +137,7 @@ export default function Home() {
       setCollections(all.facets?.collections || []);
       // only tees whose photos are stored online (old local paths are broken)
       const pool = [...f.items, ...n.items].filter((p, i, a) => /^https?:\/\//.test(p.images?.[0] || "") && a.findIndex((x) => x.key === p.key) === i);
-      setScene(pickSceneTees(pool)); // White first, Black next, at most two green (utils/homeScene.js)
+      setScene(pickSceneTees(pool)); // the newest designs first, White and dark in turn, at most two green (utils/homeScene.js)
     });
     return () => {
       alive = false;
