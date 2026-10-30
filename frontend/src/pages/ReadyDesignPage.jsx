@@ -24,6 +24,8 @@ const SIDES = [
   ["left", "Left"],
   ["right", "Right"],
 ];
+// an Oversized tee shows its front and back only, no side views (the user, 31 Oct 2026)
+const frontBackOnly = (design) => design.style === "Oversized" || design.garmentType === "oversized-tee";
 const token = () => {
   try {
     return JSON.parse(localStorage.getItem("userInfo") || "null")?.token || null;
@@ -175,7 +177,7 @@ export default function ReadyDesignPage() {
         <div>
           <div className="rd-gallery-big">{bigSrc && <img src={imageUrl(bigSrc, 1000)} alt={`${design.name}, ${shown.startsWith("photo:") ? "worn" : shown}, ${picked.name}`} />}</div>
           <div className="rd-thumbs">
-            {SIDES.filter(([k]) => mockups?.[k]).map(([k, label]) => (
+            {SIDES.filter(([k]) => mockups?.[k] && (!frontBackOnly(design) || k === "front" || k === "back")).map(([k, label]) => (
               <button key={k} type="button" aria-pressed={shown === k} aria-label={`Show the ${label.toLowerCase()}`} onClick={() => setSide(k)}>
                 <img src={imageUrl(mockups[k], 240)} alt="" />
               </button>
