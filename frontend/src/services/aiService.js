@@ -43,6 +43,8 @@ const chat = async (body) => (await axios.post(`${API_URL}/chat`, body, { ...aut
 // admin
 const getAdmin = async () => (await axios.get(`${API_URL}/admin`, auth())).data;
 const saveAdmin = async (values) => (await axios.put(`${API_URL}/admin`, values, auth())).data;
+// the next requests older than a date, for the admin's full list
+const getOlderRequests = async (before) => (await axios.get(`${API_URL}/admin/requests`, { ...auth(), params: { before } })).data;
 
 // admin, order print files: a large copy of an ordered picture for printing ({ designId, index } = which picture)
 // -> { printSrc, width, height, costInr }. Takes about half a minute and costs about 3 normal pictures.
@@ -50,4 +52,4 @@ const printPicture = async (body) => (await axios.post(`${API_URL}/admin/print-p
 // print the original again
 const dropPrintPicture = async (body) => (await axios.delete(`${API_URL}/admin/print-picture`, { ...auth(), data: body })).data;
 
-export default { status, design, slogans, edit, improve, photoPlan, removeBg, chat, getAdmin, saveAdmin, printPicture, dropPrintPicture };
+export default { status, design, slogans, edit, improve, photoPlan, removeBg, chat, getAdmin, saveAdmin, getOlderRequests, printPicture, dropPrintPicture };

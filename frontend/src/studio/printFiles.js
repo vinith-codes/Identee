@@ -11,6 +11,7 @@
 // Team orders: an area that carries the player's name or number gets one
 // file per player (their name and number drawn in), named after the player.
 import { AreaRenderer, cachedImage, imageSrcs, loadImage, playerElements } from "./konvaRender";
+import { halftoneCanvas } from "./halftone";
 import { playerLabel } from "./teamOrder";
 import { fontsReady } from "./fonts";
 
@@ -63,7 +64,9 @@ export const toPng = (canvas) =>
 export async function renderPrintFile(elements, [wCm, hCm]) {
   const r = new AreaRenderer(cmToPx(wCm), cmToPx(hCm));
   try {
-    return setPngDpi(await toPng(r.render(elements, { full: true })));
+    const canvas = r.render(elements, { full: true });
+    halftoneCanvas(canvas); // every pixel solid or clear: soft parts become dots
+    return setPngDpi(await toPng(canvas));
   } finally {
     r.destroy();
   }
@@ -481,6 +484,8 @@ export async function buildPrintPack(pack, onStep = () => {}) {
     "",
     "Open the JOB-CARD picture of each size: it shows where every print goes, with the measurements.",
     "Print each PNG at 100% (300 DPI). The number at the start of a file name is the print's number on the job card.",
+    "Soft fades are already halftone dots (35 lines per inch, 45°): every pixel is solid or clear. Please don't add another halftone on top.",
+    "A print with words also has a PDF with the same name: its words are vector shapes, so they stay sharp at any zoom. Its pictures are the same 300 DPI as the PNG.",
     "",
   ];
 
@@ -530,6 +535,19 @@ export async function buildPrintPack(pack, onStep = () => {}) {
         tick(done, total, `Drawing ${area.label} (${f.player ? playerLabel(f.player) : f.sizes.join(", ")}) for “${title}”…`);
         folder.file(name, await renderPrintFile(drawn, f.cm));
         files.push(name);
+        // the same print with its words as shapes; the PNG is already safe, so a problem here never stops the download
+        try {
+          const { buildVectorPdf } = await import("./vectorPrint");
+          const vector = await buildVectorPdf(drawn, cmToPx(w), cmToPx(h), `${title} · ${area.label}`);
+          if (vector.bytes) {
+            folder.file(name.replace(/\.png$/, ".pdf"), vector.bytes);
+            files.push(name.replace(/\.png$/, ".pdf"));
+          }
+          for (const text of vector.pixelTexts) checks.push(`${n} ${area.label} (${f.sizes.join(", ")}): the words “${text}” can't be made of shapes (their letters or font), so they stay as pixels in the PDF.`);
+        } catch (err) {
+          console.error("[print files] PDF:", err);
+          checks.push(`${n} ${area.label} (${f.sizes.join(", ")}): the PDF couldn't be made, so this print is only a PNG.`);
+        }
         done += 1;
         const box = artworkBox(drawn, f.cm);
         for (const size of f.sizes) rows.push({ n, size, player: f.player || null, label: area.label, spot: box ? artworkSpot(area, size, box, f.cm) : null, file: name, area, cm: f.cm, box, drawn });

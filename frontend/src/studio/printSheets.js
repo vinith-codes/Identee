@@ -12,6 +12,7 @@ import { AreaRenderer, cachedImage, imageSrcs, loadImage, playerElements } from 
 import { playerLabel } from "./teamOrder";
 import { fontsReady } from "./fonts";
 import { PRINT_DPI, cmToPx, setPngDpi, toPng, artworkBox, artworkSpot, acrossText, fmtCm, EST_START } from "./printFiles";
+import { halftoneCanvas } from "./halftone";
 
 export const SHEET = { w: 58, h: 100 }; // cm
 export const GAP = 1; // cm between prints
@@ -120,6 +121,7 @@ async function cutOut(elements, cm, box) {
     c.width = Math.max(1, x1 - x0);
     c.height = Math.max(1, y1 - y0);
     c.getContext("2d").drawImage(full, x0, y0, c.width, c.height, 0, 0, c.width, c.height);
+    halftoneCanvas(c); // every pixel solid or clear: soft parts become dots
     return c;
   } finally {
     r.destroy();
@@ -249,15 +251,18 @@ export function drawSheet(sheet, pxPerCm, { preview = false } = {}) {
   g.imageSmoothingQuality = "high";
   for (const it of sheet.items) {
     const { art } = it.piece;
-    const w = art.wCm * pxPerCm;
-    const h = art.hCm * pxPerCm;
+    // The real sheet: each print's pixels land exactly on the sheet's pixels. (Placed part-way between two pixels,
+    // the browser redraws the whole print slightly softer, and the halftone dots with it.)
+    const whole = (v) => (preview ? v : Math.round(v));
+    const w = preview ? art.wCm * pxPerCm : art.canvas.width;
+    const h = preview ? art.hCm * pxPerCm : art.canvas.height;
     const tag = it.piece.tagH * pxPerCm;
     g.save();
     // turned: 90° clockwise — the print's top faces the sheet's right edge, its tag the left edge
     if (it.turned) {
-      g.translate(it.x * pxPerCm + h + tag, it.y * pxPerCm);
+      g.translate(whole(it.x * pxPerCm + h + tag), whole(it.y * pxPerCm));
       g.rotate(Math.PI / 2);
-    } else g.translate(it.x * pxPerCm, it.y * pxPerCm);
+    } else g.translate(whole(it.x * pxPerCm), whole(it.y * pxPerCm));
     if (preview) {
       g.fillStyle = "rgba(201,162,75,0.10)";
       g.fillRect(0, 0, w, h);
@@ -314,6 +319,7 @@ export async function buildSheetsZip(day, layout, { orders, tees, warnings }, on
     "Each print has a small tag under its BOTTOM edge (▲ points to the top of the print): order · size · tee colour · print area · n of N.",
     "The tag is printed in the gap — cut it off. A print lying sideways has its top towards the sheet's right edge.",
     "Where each print goes on the tee is listed below (also on that order's job card: Admin → Orders → Designs & print files).",
+    "Soft fades are already halftone dots (35 lines per inch, 45°): every pixel is solid or clear. Please don't add another halftone on top.",
     "",
   ];
   for (const [i, s] of layout.sheets.entries()) {

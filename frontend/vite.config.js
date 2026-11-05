@@ -13,6 +13,7 @@ const APPS = {
   all: "src/App.jsx",
 };
 const GA_ID = "G-NH8YDV5LP9"; // IDENTEE's Google Analytics (the shop only)
+const META_PIXEL_ID = "1864766031328724"; // IDENTEE's Meta (Facebook/Instagram) Pixel (the shop only)
 
 // https://vite.dev/config/
 export default defineConfig(({ command, mode }) => {
@@ -51,13 +52,16 @@ export default defineConfig(({ command, mode }) => {
   // the shop's start page: the Google Analytics tag first in <head> (the user, 31 Oct 2026). Built shop only, so the
   // admin pages and the laptop's test servers are not counted as visits. GA4's enhanced measurement counts each page
   // change in the shop (browser history events), so nothing more is needed for the pages after the first.
+  // The Meta Pixel follows it (the user, 31 Oct 2026), exactly as Meta gives it; the Pixel also counts each page
+  // change by itself (it listens to the browser history). Its <noscript> picture goes first in <body>.
   const shopPage = {
     name: "identee-shop-page",
     transformIndexHtml(html) {
       if (app !== "shop" || command !== "build") return html;
-      return html.replace(
-        "<head>",
-        `<head>
+      return html
+        .replace(
+          "<head>",
+          `<head>
     <!-- Google tag (gtag.js) -->
     <script async src="https://www.googletagmanager.com/gtag/js?id=${GA_ID}"></script>
     <script>
@@ -66,8 +70,29 @@ export default defineConfig(({ command, mode }) => {
       gtag('js', new Date());
 
       gtag('config', '${GA_ID}');
-    </script>`,
-      );
+    </script>
+    <!-- Meta Pixel Code -->
+    <script>
+      !function(f,b,e,v,n,t,s)
+      {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+      n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+      if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+      n.queue=[];t=b.createElement(e);t.async=!0;
+      t.src=v;s=b.getElementsByTagName(e)[0];
+      s.parentNode.insertBefore(t,s)}(window, document,'script',
+      'https://connect.facebook.net/en_US/fbevents.js');
+      fbq('init', '${META_PIXEL_ID}');
+      fbq('track', 'PageView');
+    </script>
+    <!-- End Meta Pixel Code -->`,
+        )
+        .replace(
+          /<body([^>]*)>/,
+          `<body$1>
+    <noscript><img height="1" width="1" style="display:none"
+      src="https://www.facebook.com/tr?id=${META_PIXEL_ID}&ev=PageView&noscript=1"
+    /></noscript>`,
+        );
     },
   };
 

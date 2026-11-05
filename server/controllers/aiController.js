@@ -87,20 +87,66 @@ export async function readSettings() {
     chatPricePerMessageInr: Number(get("ai.chatPricePerMessageInr")),
   };
 }
-// This month's use, in total and for Grok alone (a Grok row's model starts with "grok").
+// a Grok row's model starts with "grok"
+const IS_GROK = { $regexMatch: { input: { $ifNull: ["$model", ""] }, regex: /^grok/ } };
+// a memory note or the Collection maker's text steps are costed, but they are not messages
+const IS_MESSAGE = { $cond: [{ $in: ["$kind", ["memory", "collection"]] }, 0, 1] };
+// This month's use, in total and for Grok alone.
 export async function monthSpend() {
   const rows = await AiUsage.aggregate([
     { $match: { createdAt: { $gte: startOfMonth() } } },
-    { $group: { _id: { $regexMatch: { input: { $ifNull: ["$model", ""] }, regex: /^grok/ } }, cost: { $sum: "$costInr" }, images: { $sum: "$images" }, requests: { $sum: 1 } } },
+    { $group: { _id: IS_GROK, cost: { $sum: "$costInr" }, images: { $sum: "$images" }, requests: { $sum: 1 } } },
   ]);
   const part = (r) => ({ cost: r?.cost || 0, images: r?.images || 0, requests: r?.requests || 0 });
   const grok = part(rows.find((r) => r._id === true));
   const google = part(rows.find((r) => r._id === false));
   // the smart Assistant's messages (Google's text AI): their cost counts toward Google's cap, not as picture requests
-  const [chatRow] = await AiChatUsage.aggregate([{ $match: { createdAt: { $gte: startOfMonth() } } }, { $group: { _id: null, cost: { $sum: "$costInr" }, messages: { $sum: { $cond: [{ $in: ["$kind", ["memory", "collection"]] }, 0, 1] } } } }]);
+  const [chatRow] = await AiChatUsage.aggregate([{ $match: { createdAt: { $gte: startOfMonth() } } }, { $group: { _id: null, cost: { $sum: "$costInr" }, messages: { $sum: IS_MESSAGE } } }]);
   const chat = { cost: chatRow?.cost || 0, messages: chatRow?.messages || 0 };
   google.cost += chat.cost;
   return { cost: grok.cost + google.cost, images: grok.images + google.images, requests: grok.requests + google.requests, grok, google, chat };
+}
+// Every month's use since the very first request, newest month first, each shaped like monthSpend's answer; allTime adds them up.
+// Months follow the server's own clock, the same one the monthly caps use. These figures are never used for a cap.
+async function usageHistory() {
+  const month = { $dateToString: { format: "%Y-%m", date: "$createdAt", timezone: Intl.DateTimeFormat().resolvedOptions().timeZone } };
+  const [pictures, chats] = await Promise.all([
+    AiUsage.aggregate([{ $group: { _id: { month, grok: IS_GROK }, cost: { $sum: "$costInr" }, images: { $sum: "$images" }, requests: { $sum: 1 } } }]),
+    AiChatUsage.aggregate([{ $group: { _id: month, cost: { $sum: "$costInr" }, messages: { $sum: IS_MESSAGE } } }]),
+  ]);
+  const blank = () => ({ cost: 0, images: 0, requests: 0, grok: { cost: 0, images: 0, requests: 0 }, google: { cost: 0, images: 0, requests: 0 }, chat: { cost: 0, messages: 0 } });
+  const months = new Map();
+  const monthRow = (key) => months.get(key) || months.set(key, { month: key, ...blank() }).get(key);
+  for (const r of pictures) {
+    const row = monthRow(r._id.month);
+    const part = row[r._id.grok ? "grok" : "google"];
+    part.cost += r.cost;
+    part.images += r.images;
+    part.requests += r.requests;
+    row.cost += r.cost;
+    row.images += r.images;
+    row.requests += r.requests;
+  }
+  for (const r of chats) {
+    const row = monthRow(r._id);
+    row.chat = { cost: r.cost, messages: r.messages };
+    row.google.cost += r.cost; // as in monthSpend: the Assistant is Google's text AI
+    row.cost += r.cost;
+  }
+  const allTime = blank();
+  for (const row of months.values()) {
+    allTime.cost += row.cost;
+    allTime.images += row.images;
+    allTime.requests += row.requests;
+    allTime.chat.cost += row.chat.cost;
+    allTime.chat.messages += row.chat.messages;
+    for (const service of ["grok", "google"]) {
+      allTime[service].cost += row[service].cost;
+      allTime[service].images += row[service].images;
+      allTime[service].requests += row[service].requests;
+    }
+  }
+  return { allTime, months: [...months.values()].sort((a, b) => b.month.localeCompare(a.month)) };
 }
 // Each service has its own cap (0 = no cap).
 export const googleCapped = (settings, month) => settings.monthlyCapInr > 0 && month.google.cost >= settings.monthlyCapInr;
@@ -512,11 +558,14 @@ export const makeEdit = asyncHandler(async (req, res) => {
   }
 });
 
-// GET /api/ai/admin  (admin or seller): the settings and this month's use
+// one row of the admin's list of requests
+const requestRow = (r) => ({ when: r.createdAt, who: r.user?.name || r.user?.email || "Customer", kind: r.kind, prompt: r.prompt, images: r.images, costInr: r.costInr, ai: /^grok/.test(r.model || "") ? "Grok" : "Google" });
+
+// GET /api/ai/admin  (admin or seller): the settings, this month's use and the use since the start
 export const getAiAdmin = asyncHandler(async (req, res) => {
   const settings = await readSettings();
   const month = await monthSpend();
-  const recent = await AiUsage.find().sort({ createdAt: -1 }).limit(15).populate("user", "name email").lean();
+  const [recent, history] = await Promise.all([AiUsage.find().sort({ createdAt: -1 }).limit(15).populate("user", "name email").lean(), usageHistory()]);
   res.json({
     configured: aiImageConfigured(),
     model: aiImageModel(),
@@ -525,8 +574,21 @@ export const getAiAdmin = asyncHandler(async (req, res) => {
     reason: await whyOff(settings),
     settings,
     month,
-    recent: recent.map((r) => ({ when: r.createdAt, who: r.user?.name || r.user?.email || "Customer", kind: r.kind, prompt: r.prompt, images: r.images, costInr: r.costInr, ai: /^grok/.test(r.model || "") ? "Grok" : "Google" })),
+    allTime: history.allTime,
+    months: history.months,
+    recent: recent.map(requestRow),
   });
+});
+
+// GET /api/ai/admin/requests?before=<date>  (admin or seller): the next 50 requests older than that date
+export const getAiRequests = asyncHandler(async (req, res) => {
+  const before = new Date(String(req.query.before));
+  if (Number.isNaN(before.getTime())) {
+    res.status(400);
+    throw new Error("Please send a valid date.");
+  }
+  const rows = await AiUsage.find({ createdAt: { $lt: before } }).sort({ createdAt: -1 }).limit(50).populate("user", "name email").lean();
+  res.json(rows.map(requestRow));
 });
 
 // PUT /api/ai/admin  (admin only): { enabled, dailyPerUser, imagesPerRequest, monthlyCapInr, grokMonthlyCapInr, pricePerImageInr, grokPricePerImageInr }
@@ -592,7 +654,7 @@ export const makePrintPicture = asyncHandler(async (req, res) => {
     res.status(503);
     throw new Error("The picture service is not set up.");
   }
-  // enlarging is done by Google, so Google's cap applies
+  // enlarging starts with Google, so Google's cap applies
   if (googleCapped(settings, await monthSpend())) {
     res.status(503);
     throw new Error("This month's Google AI budget is used up. Raise it in Settings → AI designs to enlarge more pictures.");
@@ -632,15 +694,34 @@ export const makePrintPicture = asyncHandler(async (req, res) => {
     .toBuffer();
 
   let out;
+  let byGrok = false;
+  const original = `Nothing was charged. It prints from the original picture (${meta.width} × ${meta.height} px).`;
   try {
     out = await generateImage({ prompt: printPrompt({ dark, plain: hasAlpha }), image: { data: small, mime: "image/jpeg" }, ratio, size: "4K" });
   } catch (err) {
-    // Google refuses some pictures (well-known people) — then too: Grok can't make 4,000 px, so the original is printed
-    if (err?.status === 422 || err?.noImage) {
+    if (!(err?.status === 422 || err?.noImage)) throw err;
+    // Google said no (5 Nov 2026, the client's Spider-Man tee). Then Grok, at its largest size, "2k": about 2,000 px, so
+    // less than Google's 4,000 px, and it redraws more, so the admin is told to compare it with the original.
+    if (!xaiConfigured()) {
       res.status(422);
-      throw new Error(`The picture service won't enlarge this one (it refuses well-known people). Nothing was charged. It prints from the original picture (${meta.width} × ${meta.height} px).`);
+      throw new Error(`Google won't enlarge this picture and Grok is not set up on this server. ${original}`);
     }
-    throw err;
+    if (grokCapped(settings, await monthSpend())) {
+      res.status(429);
+      throw new Error(`Google won't enlarge this picture and this month's Grok spending limit is reached. ${original}`);
+    }
+    try {
+      out = await xaiEditImage({
+        prompt: `${printPrompt({ dark, plain: hasAlpha })} Keep the same person, face, pose, colours and composition exactly; only add fine detail and sharpness.`,
+        image: { data: small, mime: "image/jpeg" },
+        resolution: "2k",
+      });
+      byGrok = true;
+    } catch (err2) {
+      if (err2?.status !== 422) throw err2;
+      res.status(422);
+      throw new Error(`Neither Google nor Grok would enlarge this picture. ${original}`);
+    }
   }
   const big = await sharp(out.buffer).metadata();
   const keepW = Math.min(big.width, Math.round((big.width * meta.width) / sheetW));
@@ -668,9 +749,9 @@ export const makePrintPicture = asyncHandler(async (req, res) => {
   el.printSrc = url;
   await design.save();
   if (old && old !== url) await deleteStoredFile(old).catch(() => {});
-  const costInr = Math.round(settings.pricePerImageInr * PRINT_COST_FACTOR * 100) / 100;
-  await AiUsage.create({ user: req.user._id, kind: "print", prompt: `Enlarge for print (design ${design._id}, picture ${Number(req.body.index) + 1})`, images: 1, costInr, model: aiImageModel() });
-  res.status(201).json({ printSrc: url, width: keepW, height: keepH, costInr });
+  const costInr = Math.round((byGrok ? settings.grokPricePerImageInr || 0 : settings.pricePerImageInr * PRINT_COST_FACTOR) * 100) / 100;
+  await AiUsage.create({ user: req.user._id, kind: "print", prompt: `Enlarge for print (design ${design._id}, picture ${Number(req.body.index) + 1})${byGrok ? " (Grok)" : ""}`, images: 1, costInr, model: byGrok ? xaiModel() : aiImageModel() });
+  res.status(201).json({ printSrc: url, width: keepW, height: keepH, costInr, byGrok });
 });
 
 // DELETE /api/ai/admin/print-picture  { designId, index }  — print the original again

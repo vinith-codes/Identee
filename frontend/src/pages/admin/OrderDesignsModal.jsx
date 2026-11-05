@@ -13,6 +13,16 @@ const GOOD_DPI = 250; // close enough to 300 that enlarging adds nothing worth p
 const LOW_DPI = 150; // below this a picture may print blurry
 const full = (src) => (/^https?:\/\//.test(src) ? src : imageUrl(src));
 
+// How sharp one picture prints: its file's width against the largest size its area is printed at in this order.
+const pictureSharpness = (design, el, sizes) => {
+  const area = design.areas.find((a) => a.key === el.position);
+  const cmWide = Math.max(0, ...(area?.files || []).map((f) => f.cm[0]));
+  const printCm = ((el.width || 0) / 100) * cmWide;
+  const shown = el.printSrc || el.src;
+  const px = sizes[shown];
+  return { area, printCm, shown, dpi: px && printCm ? Math.round(px / (printCm / 2.54)) : null };
+};
+
 // The customer's original and the enlarged copy side by side, to check before printing that nothing
 // was changed. Both move together: zoom with the buttons or the mouse wheel, drag to look around.
 function ComparePictures({ original, enlarged, tee, onClose }) {
@@ -116,11 +126,11 @@ function ComparePictures({ original, enlarged, tee, onClose }) {
 
 // The pictures in one ordered design, each with how sharp it will print (dots per inch at its real print
 // size) and a button to have a large copy made for printing. One row per picture.
-function PrintPictures({ design, price, onChanged }) {
-  const [sizes, setSizes] = useState({}); // src -> pixel width of the file
+function PrintPictures({ design, price, sizes, onChanged }) {
   const [busy, setBusy] = useState(null); // index being enlarged
   const [compare, setCompare] = useState(null); // index of the picture being compared with its original
   const [error, setError] = useState("");
+  const [grokDone, setGrokDone] = useState(null); // the picture Grok just enlarged, because Google refused
   const rows = design.elements.map((el, index) => ({ el, index })).filter(({ el }) => el.type === "image" && el.src);
   if (!rows.length) return null;
 
@@ -132,6 +142,7 @@ function PrintPictures({ design, price, onChanged }) {
     try {
       const res = await aiService.printPicture({ designId: design._id, index });
       onChanged(index, res.printSrc);
+      setGrokDone(res.byGrok ? { index, cost: res.costInr } : null);
     } catch (err) {
       setError(err.response?.data?.message || "The picture could not be enlarged. Please try again.");
     } finally {
@@ -153,13 +164,7 @@ function PrintPictures({ design, price, onChanged }) {
     <div style={{ marginTop: 14 }}>
       <p style={{ ...labelStyle, margin: "0 0 6px" }}>Pictures · how sharp they will print</p>
       {rows.map(({ el, index }) => {
-        const area = design.areas.find((a) => a.key === el.position);
-        // the largest size this area is printed at in this order
-        const cmWide = Math.max(0, ...(area?.files || []).map((f) => f.cm[0]));
-        const printCm = ((el.width || 0) / 100) * cmWide;
-        const shown = el.printSrc || el.src;
-        const px = sizes[shown];
-        const dpi = px && printCm ? Math.round(px / (printCm / 2.54)) : null;
+        const { area, printCm, shown, dpi } = pictureSharpness(design, el, sizes);
         const tone = dpi == null ? THEME.textMuted : dpi >= GOOD_DPI ? "#24522F" : dpi >= LOW_DPI ? "#7A5B12" : THEME.danger;
         const word = dpi == null ? "measuring…" : dpi >= GOOD_DPI ? "sharp" : dpi >= LOW_DPI ? "acceptable" : "low, may print soft";
         return (
@@ -169,10 +174,6 @@ function PrintPictures({ design, price, onChanged }) {
                 src={full(shown)}
                 alt=""
                 loading="lazy"
-                onLoad={(e) => {
-                  const w = e.currentTarget.naturalWidth;
-                  setSizes((s) => (s[shown] === w ? s : { ...s, [shown]: w }));
-                }}
                 style={{ width: 56, height: 56, objectFit: "contain", borderRadius: 8, background: design.colour.hex || THEME.surface2, border: `1px solid ${THEME.border}` }}
               />
             </a>
@@ -198,7 +199,7 @@ function PrintPictures({ design, price, onChanged }) {
             ) : (
               dpi != null &&
               dpi < GOOD_DPI && (
-                <button type="button" onClick={() => enlarge(index)} disabled={busy != null} style={{ background: THEME.ink, color: "#fff", border: "none", borderRadius: 9, padding: "8px 14px", fontSize: 12.5, fontWeight: 700, cursor: busy != null ? "not-allowed" : "pointer", opacity: busy != null ? 0.5 : 1 }}>
+                <button type="button" onClick={() => enlarge(index)} disabled={busy != null} style={{ background: THEME.ink, color: "#fff", border: "none", borderRadius: 9, padding: "8px 14px", minHeight: 40, fontSize: 12.5, fontWeight: 700, cursor: busy != null ? "not-allowed" : "pointer", opacity: busy != null ? 0.5 : 1 }}>
                   Enlarge for print{price ? ` · about ₹${price}` : ""}
                 </button>
               )
@@ -206,6 +207,11 @@ function PrintPictures({ design, price, onChanged }) {
           </div>
         );
       })}
+      {grokDone && design.elements[grokDone.index]?.printSrc && (
+        <p style={{ margin: "6px 0 0", color: "#7A5B12", fontSize: 13, fontWeight: 600 }}>
+          Google refused this picture, so Grok enlarged it{grokDone.cost ? ` (₹${grokDone.cost})` : ""}. Grok redraws more than Google: compare it with the original before printing, faces most of all.
+        </p>
+      )}
       {error && <p style={{ margin: "6px 0 0", color: THEME.danger, fontSize: 13, fontWeight: 600 }}>{error}</p>}
       {compare != null && design.elements[compare]?.printSrc && (
         <ComparePictures original={full(design.elements[compare].src)} enlarged={full(design.elements[compare].printSrc)} tee={design.colour.hex} onClose={() => setCompare(null)} />
@@ -265,7 +271,31 @@ export default function OrderDesignsModal({ orderId, onClose }) {
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose, progress]);
 
+  const designs = pack?.designs.filter((d) => !d.missing) || [];
+  const fileCount = designs.reduce((n, d) => n + d.areas.reduce((m, a) => m + a.files.length, 0), 0);
+
+  // every picture's file width, measured here so a picture further down the page counts too
+  const [pictureSizes, setPictureSizes] = useState({}); // src -> pixel width of the file
+  useEffect(() => {
+    const srcs = new Set();
+    for (const d of pack?.designs || []) for (const el of d.elements || []) if (el.type === "image" && el.src) srcs.add(el.printSrc || el.src);
+    for (const src of srcs) {
+      const img = new Image();
+      img.onload = () => setPictureSizes((s) => (s[src] ? s : { ...s, [src]: img.naturalWidth }));
+      img.src = full(src);
+    }
+  }, [pack]);
+
+  // pictures that will print blurry: said before the print files are downloaded
+  const lowPictures = designs.flatMap((d) =>
+    (d.layoutVersion === 2 ? d.elements : [])
+      .filter((el) => el.type === "image" && el.src)
+      .map((el, i) => ({ d, el, i, ...pictureSharpness(d, el, pictureSizes) }))
+      .filter((p) => p.dpi != null && p.dpi < LOW_DPI),
+  );
+
   const download = async () => {
+    if (lowPictures.length && !window.confirm(`${lowPictures.length === 1 ? "1 picture" : `${lowPictures.length} pictures`} will print blurry (under ${LOW_DPI} DPI).\n\nPress Cancel to fix ${lowPictures.length === 1 ? "it" : "them"} first: Enlarge for print, or ask the customer for a bigger picture.\nPress OK to download anyway.`)) return;
     setError("");
     setResult(null);
     cancelRef.current = false;
@@ -289,9 +319,6 @@ export default function OrderDesignsModal({ orderId, onClose }) {
       setProgress(null);
     }
   };
-
-  const designs = pack?.designs.filter((d) => !d.missing) || [];
-  const fileCount = designs.reduce((n, d) => n + d.areas.reduce((m, a) => m + a.files.length, 0), 0);
 
   return (
     <div
@@ -378,7 +405,7 @@ export default function OrderDesignsModal({ orderId, onClose }) {
                 </table>
               </div>
             )}
-            {d.layoutVersion === 2 && <PrintPictures design={d} price={printPrice} onChanged={(index, src) => pictureChanged(d._id, index, src)} />}
+            {d.layoutVersion === 2 && <PrintPictures design={d} price={printPrice} sizes={pictureSizes} onChanged={(index, src) => pictureChanged(d._id, index, src)} />}
           </section>
         ))}
         {pack?.designs.some((d) => d.missing) && <p style={{ color: THEME.danger, fontSize: 13 }}>A design in this order no longer exists.</p>}
@@ -391,6 +418,20 @@ export default function OrderDesignsModal({ orderId, onClose }) {
             {result.warnings.map((w) => (
               <p key={w} style={{ margin: "6px 0 0", color: THEME.danger }}>⚠ {w}</p>
             ))}
+          </div>
+        )}
+
+        {lowPictures.length > 0 && (
+          <div role="alert" style={{ background: "#FDECEA", border: `1px solid ${THEME.danger}`, borderRadius: 10, padding: "10px 14px", fontSize: 13, marginTop: 14 }}>
+            <b style={{ color: THEME.danger }}>⚠ {lowPictures.length === 1 ? "1 picture" : `${lowPictures.length} pictures`} will print blurry</b>
+            <ul style={{ margin: "6px 0", padding: 0, listStyle: "none" }}>
+              {lowPictures.map((p) => (
+                <li key={`${p.d._id}-${p.i}`}>
+                  {p.area?.label || p.el.position}: {p.dpi} DPI at {p.printCm.toFixed(1)} cm wide
+                </li>
+              ))}
+            </ul>
+            <span>Press <b>Enlarge for print</b> above. If it stays under {LOW_DPI} DPI, ask the customer for a bigger picture, or print it smaller.</span>
           </div>
         )}
 
@@ -410,7 +451,7 @@ export default function OrderDesignsModal({ orderId, onClose }) {
               disabled={!!progress || !fileCount}
               style={{ background: THEME.gold, color: "#141110", border: "none", borderRadius: 8, padding: "10px 18px", fontWeight: 700, cursor: progress ? "wait" : "pointer", opacity: progress || !fileCount ? 0.6 : 1 }}
             >
-              {progress ? "Making print files…" : `Download print files (${fileCount} PNG${fileCount === 1 ? "" : "s"}, ZIP)`}
+              {progress ? "Making print files…" : `Download print files (${fileCount} print${fileCount === 1 ? "" : "s"}, ZIP)`}
             </button>
           </div>
         )}
