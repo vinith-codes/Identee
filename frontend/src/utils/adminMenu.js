@@ -1,6 +1,6 @@
 // utils/adminMenu.js
 //
-// The admin menu in one place: 8 sections, each pointing at the pages
+// The admin menu in one place: 9 sections, each pointing at the pages
 // that already exist. Sidebar and top bar both read from here.
 // Hidden until built (routes still exist): /admin/transactions (Payments),
 // /admin/sellers — both are empty placeholders.
@@ -40,11 +40,22 @@ export const ADMIN_MENU = [
     to: "/admin/products",
     children: [
       { to: "/admin/products", label: "All products" },
-      { to: "/admin/studio", label: "Studio (design a tee)" },
       // (the Collection maker — many tees from one prompt — is parked since 25 Oct 2026: the Studio does the job;
       //  its code stays in pages/admin/CollectionMakerPage.jsx for a later "rough drafts" feature)
       { to: "/admin/upload-product", label: "Add a product" },
       { to: "/admin/bulk-upload", label: "Add many (spreadsheet)" },
+    ],
+  },
+  {
+    // the Studio (one tee by hand, AI pictures on request) and trying the shop as a customer — a section of its own
+    // since 5 Nov 2026 (it was under Shop your IDENTEE): the team designs, checks print files and tests here
+    key: "studio",
+    label: "Design Studio",
+    icon: "studio",
+    to: "/admin/studio",
+    children: [
+      { to: "/admin/studio", label: "Studio (design a tee)" },
+      { to: "/admin/test-mode", label: "Test as a customer" },
     ],
   },
   {

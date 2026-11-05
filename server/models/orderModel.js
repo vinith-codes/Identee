@@ -144,6 +144,9 @@ const orderSchema = mongoose.Schema(
     },
 
     invoiceNumber: { type: String, default: null },
+    // a test order (5 Nov 2026): placed by a team account trying the shop as a customer. Not a sale: left out of
+    // the orders list, the counts, the money pages and the print sheets; no copy of its emails to the shop inbox.
+    isTest: { type: Boolean, default: false, index: true },
 
     deliveredAt: { type: Date },
 
@@ -161,4 +164,6 @@ orderSchema.index(
 );
 
 const Order = mongoose.model("Order", orderSchema);
+// add to any query that should see real orders only
+export const LIVE_ORDERS = { isTest: { $ne: true } };
 export default Order;

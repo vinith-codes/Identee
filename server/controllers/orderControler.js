@@ -1,7 +1,7 @@
 import asyncHandler from "express-async-handler";
 import mongoose from "mongoose";
 import User from "../models/userModel.js";
-import Order from "../models/orderModel.js";
+import Order, { LIVE_ORDERS } from "../models/orderModel.js";
 import BillingInvoice from "../models/billingInvoiceModel.js";
 import PendingCheckout from "../models/pendingCheckoutModel.js";
 import sendEmail from "../utils/sendEmail.js";
@@ -32,6 +32,8 @@ import { placeOrder } from "../services/orderPlacement.js";
  */
 
 const isAdminUser = (user) => !!user?.isAdmin;
+// a team account shopping (Admin → Design Studio → Test as a customer): its orders are test orders
+const isTester = (user) => !!(user?.isAdmin || user?.isSeller);
 const sameId = (a, b) => !!a && !!b && a.toString() === b.toString();
 
 // @desc   Price preview for checkout
@@ -59,6 +61,7 @@ const addorderitems = asyncHandler(async (req, res) => {
     userId: req.user._id,
     quote,
     paymentMethod: "COD",
+    isTest: isTester(req.user),
   });
   res.status(201).json(order);
 });
@@ -155,7 +158,8 @@ const GetMyOrders = asyncHandler(async (req, res) => {
 const GetOrders = asyncHandler(async (req, res) => {
   const { status } = req.query;
 
-  let filter = {};
+  // real orders, or (?test=1) the test orders placed by the team
+  let filter = req.query.test === "1" ? { isTest: true } : { ...LIVE_ORDERS };
   if (status && status !== "all") {
     filter.orderStatus = status;
   }
@@ -291,6 +295,7 @@ const getUndeliveredOrders = asyncHandler(async (req, res) => {
   try {
     const orders = await Order.find({
       orderStatus: { $ne: "DELIVERED" },
+      ...LIVE_ORDERS,
     })
       .populate("user", "name email")
       .populate("orderItems.product", "brandname images price");
@@ -454,7 +459,7 @@ const generateInvoice = asyncHandler(async (req, res) => {
 // @route   GET /api/orders/admin/invoices
 // @access  Private/Admin
 const getAllInvoices = asyncHandler(async (req, res) => {
-  const orders = await Order.find({ invoiceDetails: { $ne: null } })
+  const orders = await Order.find({ invoiceDetails: { $ne: null }, ...LIVE_ORDERS })
     .select(
       "invoiceDetails invoiceNumber totalPrice isPaid orderStatus createdAt user",
     )
@@ -550,7 +555,7 @@ const emailInvoiceToCustomer = asyncHandler(async (req, res) => {
 // @route GET /api/incomebycity
 // @access Private/Admin
 const incomebycity = asyncHandler(async (req, res) => {
-  const orders = await Order.find({ isPaid: true });
+  const orders = await Order.find({ isPaid: true, ...LIVE_ORDERS });
 
   const totalIncome = orders.reduce((acc, order) => acc + order.totalPrice, 0);
   const formattedTotalIncome = `Rs.${totalIncome}`;
@@ -600,7 +605,7 @@ const getTransactions = asyncHandler(async (req, res) => {
     }
   }
 
-  const transactions = await Order.find(query).select(
+  const transactions = await Order.find({ ...query, ...LIVE_ORDERS }).select(
     "createdAt paymentMethod isPaid isDelivered totalPrice taxPrice shippingPrice orderItems cgstPrice sgstPrice igstPrice",
   );
 
@@ -695,6 +700,10 @@ const completeOnlineCheckout = async (pending, paymentId) => {
 // @route  POST /api/orders/razorpay
 // @access Private
 const createRazorpayOrder = asyncHandler(async (req, res) => {
+  if (isTester(req.user)) {
+    res.status(400);
+    throw new Error("Test mode: pay with Cash on Delivery, so no real money moves.");
+  }
   const quote = await buildQuote(req.user, req.body);
   await assertInStock(quote.lines);
 
@@ -919,20 +928,15 @@ const cancelMyOrder = asyncHandler(async (req, res) => {
 // @route  GET /api/orders/status-count
 // @access Admin
 const getOrderStatusCounts = asyncHandler(async (req, res) => {
-  const created = await Order.countDocuments({ orderStatus: "CREATED" });
-  const cancelled = await Order.countDocuments({ orderStatus: "CANCELLED" });
-  const confirmed = await Order.countDocuments({ orderStatus: "CONFIRMED" });
-  const packed = await Order.countDocuments({ orderStatus: "PACKED" });
-  const outForDelivery = await Order.countDocuments({
-    orderStatus: "OUT_FOR_DELIVERY",
-  });
-  const returnApproved = await Order.countDocuments({
-    orderStatus: "RETURN_APPROVED",
-  });
-  const returnCompleted = await Order.countDocuments({
-    orderStatus: "RETURN_COMPLETED",
-  });
-  const delivered = await Order.countDocuments({ orderStatus: "DELIVERED" });
+  const count = (orderStatus) => Order.countDocuments({ orderStatus, ...LIVE_ORDERS });
+  const created = await count("CREATED");
+  const cancelled = await count("CANCELLED");
+  const confirmed = await count("CONFIRMED");
+  const packed = await count("PACKED");
+  const outForDelivery = await count("OUT_FOR_DELIVERY");
+  const returnApproved = await count("RETURN_APPROVED");
+  const returnCompleted = await count("RETURN_COMPLETED");
+  const delivered = await count("DELIVERED");
 
   const allOrders =
     created +
@@ -1030,6 +1034,7 @@ const getIncomeByPincode = asyncHandler(async (req, res) => {
       $match: {
         "shippingAddress.pin": { $ne: null },
         isPaid: true,
+        ...LIVE_ORDERS,
       },
     },
     {

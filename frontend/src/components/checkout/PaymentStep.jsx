@@ -79,7 +79,10 @@ export default function PaymentStep({ shippingAddress, coupon, onBack, buyNow })
   const [quote, setQuote] = useState(null);
   const [loadingQuote, setLoadingQuote] = useState(true);
   const [quoteError, setQuoteError] = useState("");
-  const [method, setMethod] = useState("UPI");
+  // test mode (a team account trying the shop): Cash on Delivery only, so no real money moves
+  const testMode = !!user?.testMode;
+  const methods = testMode ? PAYMENT_METHODS.filter((pm) => pm.key === "COD") : PAYMENT_METHODS;
+  const [method, setMethod] = useState(testMode ? "COD" : "UPI");
   const [placing, setPlacing] = useState(false);
   // Paid, but the order couldn't be confirmed yet: never offer "Place Order" again (it would charge twice).
   // The check is safe to repeat — the server finds the order already made for this payment.
@@ -305,8 +308,13 @@ export default function PaymentStep({ shippingAddress, coupon, onBack, buyNow })
           Payment Method
         </h2>
 
+        {testMode && (
+          <p style={{ margin: "0 0 12px", padding: "10px 12px", background: "#F0C24C", color: "#141110", borderRadius: 10, fontSize: 13, fontFamily: THEME.fontBody }}>
+            <b>Test mode:</b> this will be saved as a test order — Cash on Delivery only, no real money, not counted in sales.
+          </p>
+        )}
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {PAYMENT_METHODS.map((pm) => (
+          {methods.map((pm) => (
             <label
               key={pm.key}
               className="payment-method-label"

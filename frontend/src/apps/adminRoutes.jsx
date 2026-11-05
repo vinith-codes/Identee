@@ -38,6 +38,7 @@ const ArtBulkUploadPage = lazy(() => import("../pages/admin/ArtBulkUploadPage"))
 // (the Collection maker page, pages/admin/CollectionMakerPage.jsx, is parked since 25 Oct 2026 — not routed, not built)
 // Shop your IDENTEE: the Studio — one tee designed by hand, AI pictures on request (25 Oct 2026)
 const StudioPage = lazy(() => import("../pages/admin/studio/StudioPage"));
+const TestModePage = lazy(() => import("../pages/admin/TestModePage")); // Design Studio → Test as a customer (5 Nov 2026)
 // Review moderation
 const AdminReviewsPage = lazy(() => import("../pages/admin/AdminReviewsPage"));
 // Settings module
@@ -136,6 +137,7 @@ export function adminRoutes() {
         <Route path="collection-maker" element={<Navigate to="/admin/studio" replace />} />
         <Route path="studio" element={<StudioPage />} />
         <Route path="studio/:id" element={<StudioPage />} />
+        <Route path="test-mode" element={<TestModePage />} />
         <Route path="invoices/:orderId" element={<InvoicePreviewPage />} />
         <Route path="/admin/subscriptions" element={<SubscriptionPlansPage />} />
         <Route path="/admin/subscribers" element={<SubscribersPage />} />

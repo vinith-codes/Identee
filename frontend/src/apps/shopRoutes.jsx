@@ -12,6 +12,7 @@ import Home from "../pages/Home";
 import { PageLoading, PrivateRoute } from "./common";
 
 const LoginPage = lazy(() => import("../pages/LoginPage"));
+const TestVisitPage = lazy(() => import("../pages/TestVisitPage")); // the admin website's "Test as a customer" lands here (5 Nov 2026)
 const CategoryProductsPage = lazy(() => import("../pages/CategoryProductsPage"));
 const SingleProductPage = lazy(() => import("../pages/SingleProductPage"));
 // The design studio (3D + editor libraries) loads only when it is opened.
@@ -125,6 +126,15 @@ export function shopRoutes({ Guest }) {
           <Guest>
             <LoginPage />
           </Guest>
+        }
+      />
+      {/* the admin website's "Test as a customer" opens the shop here with a one-time code */}
+      <Route
+        path="/test-visit"
+        element={
+          <Suspense fallback={<PageLoading />}>
+            <TestVisitPage />
+          </Suspense>
         }
       />
       {/* Login is OTP-only: sign-up and password reset happen on /login */}

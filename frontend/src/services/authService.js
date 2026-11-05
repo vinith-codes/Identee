@@ -8,7 +8,8 @@ const API_URL = `${BACKEND_URL}/api/users`;
 
 const saveUser = (user) => {
   // the shop never keeps an admin/seller login (23 Oct 2026) — the login page sends them to the admin website
-  if (APP === "shop" && isTeamAccount(user)) return user;
+  // (a login marked testMode stays: Admin → Design Studio → Test as a customer, 5 Nov 2026)
+  if (APP === "shop" && isTeamAccount(user) && !user.testMode) return user;
   localStorage.setItem("userInfo", JSON.stringify(user));
   return user;
 };

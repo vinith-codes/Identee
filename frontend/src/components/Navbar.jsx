@@ -13,6 +13,7 @@ import { collectionInfo, collectionLink } from "../utils/shopRules";
 import { SHOPS } from "../utils/shopNames";
 import OfferStrip from "./OfferStrip";
 import NotifyStrip from "./NotifyStrip";
+import TestModeBand from "./TestModeBand";
 import { imageUrl } from "../utils/imageUrl";
 
 
@@ -160,6 +161,8 @@ export default function Navbar() {
   return (
     <>
       {/* ─── "We're under development · Notify me" (Admin → Settings → General; the list: Customers → Notify me list) ─── */}
+      {/* ─── the yellow "Test mode" band: a team account trying the shop (Admin → Design Studio → Test as a customer) ─── */}
+      <TestModeBand user={user} />
       <NotifyStrip user={user} />
 
       {/* ─── Offer strip: the live coupon + free shipping, and the Offer banner text (/admin/offer-banner) ─── */}

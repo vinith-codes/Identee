@@ -1,4 +1,4 @@
-// services/studioService.js — Admin → Shop your IDENTEE → Studio (server: routes/studioRoutes.js, 25 Oct 2026)
+// services/studioService.js — Admin → Design Studio → Studio (server: routes/studioRoutes.js, 25 Oct 2026)
 import axios from "axios";
 
 const BACKEND_URL = import.meta.env?.VITE_API_URL || "http://localhost:5000";
@@ -31,6 +31,8 @@ const improve = async (fields) => (await axios.post(`${API}/improve`, fields, au
 const plan = async (fields) => (await axios.post(`${API}/plan`, fields, { ...auth(), timeout: 90000 })).data;
 // which pictures of a saved tee print soft -> { soft: [{ index, position, printCm, dpi }], costEach }
 const printCheck = async (id) => (await axios.get(`${API}/designs/${id}/print-check`, auth())).data;
+// the print data of a saved tee in the shape of an order's pack (one tee of every size on sale) -> studio/printFiles.js makes the ZIP
+const printPack = async (id) => (await axios.get(`${API}/designs/${id}/print-pack`, auth())).data;
 // 4K copies for every soft picture -> { design, done, failed, spent }   (takes about half a minute a picture)
 const enlarge = async (id) => (await axios.post(`${API}/designs/${id}/enlarge`, {}, { ...auth(), timeout: 300000 })).data;
 const listDesigns = async () => (await axios.get(`${API}/designs`, auth())).data;
@@ -46,5 +48,5 @@ const removeModelPhoto = async (id, body) => (await axios.delete(`${API}/designs
 // publish | unpublish | reject | restore — the same buttons as the Collection maker's tees
 const act = async (id, action) => (await axios.post(`${COLLECTIONS}/designs/${id}/${action}`, {}, auth())).data;
 
-const studioService = { getSetup, makePicture, changePicture, improve, plan, printCheck, enlarge, listDesigns, getDesign, saveDesign, publish, modelPhotos, removeModelPhoto, removeDesign, act };
+const studioService = { getSetup, makePicture, changePicture, improve, plan, printCheck, printPack, enlarge, listDesigns, getDesign, saveDesign, publish, modelPhotos, removeModelPhoto, removeDesign, act };
 export default studioService;

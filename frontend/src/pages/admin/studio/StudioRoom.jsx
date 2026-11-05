@@ -1,4 +1,4 @@
-// Admin → Shop your IDENTEE → Studio: the room (25 Oct 2026).
+// Admin → Design Studio → Studio: the room (25 Oct 2026).
 //
 // The admin designs ONE tee by hand here, with the customer design room's engine (studio/*): the 3D tee, the true
 // print areas, the flat true-to-size editor and the text tools. The picture assistant at the side makes AI pictures
@@ -713,6 +713,35 @@ export default function StudioRoom({ setup, garment, colourSlug: firstColour, de
     } catch (err) {
       say(apiError(err));
       return null;
+    } finally {
+      setBusy("");
+    }
+  };
+  // Print files (5 Nov 2026): the ZIP the print team would get from an order of this tee — one of every size on sale —
+  // made in this browser with the same code as Orders → Designs & print files. The tee is saved first (a tee in the
+  // shop is printed as it is in the shop: changes go in through Update in the shop).
+  const printFiles = async () => {
+    let doc = designDoc;
+    if (!doc?._id || (!savedAt && !inShop)) {
+      doc = await save();
+      if (!doc) return;
+    }
+    setBusy("Loading the print data…");
+    try {
+      const pack = await studioService.printPack(doc._id);
+      const { buildPrintPack } = await import("../../../studio/printFiles");
+      const { blob, fileName, warnings } = await buildPrintPack(pack, (done, total, label) => setBusy(total ? `${label} (${done}/${total})` : label));
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      say(warnings?.length ? `Downloaded, but: ${warnings.join(" ")}` : `Print files downloaded: ${fileName}${inShop && !savedAt ? " (the tee as it is in the shop)" : ""}`);
+    } catch (err) {
+      say(err?.stopped ? "Stopped." : apiError(err));
     } finally {
       setBusy("");
     }
@@ -1441,6 +1470,7 @@ export default function StudioRoom({ setup, garment, colourSlug: firstColour, de
         <nav className="dr-dock" aria-label="Publish">
           <button type="button" className="dr-cta ghost" onClick={backToDesign} disabled={!!busy}>← Edit design</button>
           {!inShop && <button type="button" className="dr-cta ghost" onClick={() => save()} disabled={!!busy}>Save draft</button>}
+          <button type="button" className="dr-cta ghost" onClick={printFiles} disabled={!!busy} title="The ZIP the print team gets for an order of this tee — one of every size on sale">Print files ↓</button>
           {inShop ? (
             <>
               <button type="button" className="dr-cta ghost" disabled={!!busy} onClick={async () => { setBusy("Taking it out of the shop…"); try { setDesignDoc(await studioService.act(designDoc._id, "unpublish")); say("Taken out of the shop. It stays here as a ready tee."); } catch (err) { say(apiError(err)); } finally { setBusy(""); } }}>

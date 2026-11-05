@@ -13,7 +13,8 @@ const readUser = () => {
   }
   // the shop is for customers only (23 Oct 2026): an admin/seller login saved here from before is dropped, so the
   // shop treats them as logged out (their admin website login is a separate one and stays)
-  if (APP === "shop" && isTeamAccount(saved)) {
+  // (a login marked testMode stays: Admin → Design Studio → Test as a customer, 5 Nov 2026)
+  if (APP === "shop" && isTeamAccount(saved) && !saved.testMode) {
     try {
       localStorage.removeItem("userInfo");
     } catch {

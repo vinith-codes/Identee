@@ -1,4 +1,4 @@
-// Admin → Shop your IDENTEE → Studio (25 Oct 2026)
+// Admin → Design Studio → Studio (25 Oct 2026; its own menu section since 5 Nov 2026)
 //
 // Design one tee at a time by hand and publish it to Shop your IDENTEE. This page picks the product and its colour
 // (and lists the tees made here so far); the room itself is StudioRoom.jsx. /admin/studio/:id opens a saved tee.
@@ -99,7 +99,7 @@ export default function StudioPage() {
   const draftGarment = draft && !draft.designId && garments.find((g) => g.key === draft.garment);
   return (
     <div className="st-page">
-      <p className="st-kicker">Shop your IDENTEE</p>
+      <p className="st-kicker">Design Studio</p>
       <h1 className="st-title">Studio</h1>
       <p className="st-lead">
         Design one tee at a time, by hand, on the 3D tee with its true print areas. The picture assistant draws pictures when you ask (Google; Grok only for a real person) — you place every one. When it looks right, Review takes the four pictures and Publish puts it in Shop your IDENTEE, printed after each order.

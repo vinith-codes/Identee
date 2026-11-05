@@ -2,6 +2,8 @@ import express from "express";
 const router = express.Router();
 import {
   addTeamMember,
+  startTestVisit,
+  claimTestVisit,
   requestLoginOtp,
   verifyLoginOtp,
   completeOtpSignup,
@@ -46,6 +48,9 @@ router.delete("/profile/picture", protect, deleteProfilePicture);
 
 // Admin → Customers → "Add an admin": give access to an email, making the account if needed
 router.post("/team", protect, adminOnly, addTeamMember);
+// Admin → Design Studio → Test as a customer: a one-time code, and the shop's swap of it for a test-mode login
+router.post("/test-visit", protect, adminOrSeller, startTestVisit);
+router.post("/test-visit/claim", otpIpLimiter, claimTestVisit);
 
 router
   .route("/:id")

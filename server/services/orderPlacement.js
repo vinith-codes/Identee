@@ -26,10 +26,11 @@ const isDuplicateKey = (err) => err?.code === 11000;
  * @param {object}  args.quote          result of buildQuote (or its stored copy)
  * @param {"COD"|"RAZORPAY"} args.paymentMethod
  * @param {object}  [args.payment]      verified Razorpay payment { id, orderId, status }
+ * @param {boolean} [args.isTest]       a team account trying the shop: saved as a test order
  * @returns {Promise<Order>}
  * @throws HttpError(409) when stock ran out — nothing is saved in that case
  */
-export const placeOrder = async ({ userId, quote, paymentMethod, payment }) => {
+export const placeOrder = async ({ userId, quote, paymentMethod, payment, isTest = false }) => {
   const isOnline = paymentMethod === "RAZORPAY";
 
   // Online orders are idempotent per Razorpay order (verify + webhook may race).
@@ -64,6 +65,7 @@ export const placeOrder = async ({ userId, quote, paymentMethod, payment }) => {
       totalPrice: quote.pricing.total,
       coupon: quote.coupon,
       invoiceNumber: await nextOrderNumber(),
+      isTest: !!isTest,
       razorpayOrderId: isOnline ? payment.orderId : undefined,
       isPaid: isOnline,
       paidAt: isOnline ? Date.now() : undefined,

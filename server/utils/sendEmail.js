@@ -5,6 +5,10 @@ const sendEmail = async ({ email, status, order, invoice, attachments, correctio
   if (!email) return;
 
   status = status.toUpperCase();
+  // a test order's emails go to the tester only, and say so (5 Nov 2026)
+  const test = !!order?.isTest;
+  const copyTo = test ? undefined : await shopInbox();
+  const mark = (subject) => (test ? `[TEST] ${subject}` : subject);
 
   // INVOICE emails carry their own PDF and don't need the order-status
   // product table — handle them separately so we don't touch
@@ -13,8 +17,8 @@ const sendEmail = async ({ email, status, order, invoice, attachments, correctio
     const mailOptions = {
       from: fromAddress(),
       to: email,
-      cc: await shopInbox(), // the shop keeps a copy
-      subject: `Your IDENTEE Invoice ${invoice?.invoiceNumber || ""}`,
+      cc: copyTo, // the shop keeps a copy
+      subject: mark(`Your IDENTEE Invoice ${invoice?.invoiceNumber || ""}`),
       html: `
         <div style="font-family:Arial, sans-serif; max-width:600px; margin:auto;">
           <h2 style="color:#8A6F2E;">Your Invoice is Ready</h2>
@@ -46,8 +50,8 @@ const sendEmail = async ({ email, status, order, invoice, attachments, correctio
     await mailer().sendMail({
       from: fromAddress(),
       to: email,
-      cc: await shopInbox(), // the shop keeps a copy
-      subject: "Correction: your IDENTEE order update",
+      cc: copyTo, // the shop keeps a copy
+      subject: mark("Correction: your IDENTEE order update"),
       html: `
         <div style="font-family:Arial, sans-serif; max-width:600px; margin:auto;">
           <h2 style="color:#8A6F2E;">A quick correction</h2>
@@ -129,8 +133,8 @@ const sendEmail = async ({ email, status, order, invoice, attachments, correctio
   const mailOptions = {
     from: fromAddress(),
     to: email,
-    cc: await shopInbox(), // the shop keeps a copy
-    subject,
+    cc: copyTo, // the shop keeps a copy
+    subject: mark(subject),
     html: `
       <div style="font-family:Arial, sans-serif; max-width:600px; margin:auto;">
         <h2 style="color:#d63384;">Order Status: ${status}</h2>

@@ -26,6 +26,7 @@ import ShippingCost from "../models/shippingcostModel.js";
 import { addressProblem } from "../utils/address.js";
 import path from "path";
 import fs from "fs";
+import crypto from "crypto";
 /* ===================== OTP LOGIN (email or phone) =====================
  * 1. POST /api/users/otp/request  { identifier }       -> code sent
  * 2. POST /api/users/otp/verify   { identifier, otp }  -> logged in, or
@@ -703,8 +704,43 @@ const addTeamMember = asyncHandler(async (req, res) => {
   });
 });
 
+/* ---------- Test as a customer (Admin → Design Studio, 5 Nov 2026) ----------
+   The shop never keeps a team login (23 Oct 2026). To try the shop as a customer, the admin website asks for a
+   one-time code (2 minutes), opens the shop with it, and the shop swaps it for a login marked testMode — the shop
+   then shows a "Test mode" band and every order placed is a test order (orderModel isTest). */
+const TEST_VISIT_MINUTES = 2;
+const testVisits = new Map(); // code -> { userId, expires }
+
+// @route POST /api/users/test-visit   (admin or seller)  -> { code, minutes }
+const startTestVisit = asyncHandler(async (req, res) => {
+  const now = Date.now();
+  for (const [code, v] of testVisits) if (v.expires < now) testVisits.delete(code);
+  const code = crypto.randomBytes(24).toString("base64url");
+  testVisits.set(code, { userId: String(req.user._id), expires: now + TEST_VISIT_MINUTES * 60 * 1000 });
+  res.json({ code, minutes: TEST_VISIT_MINUTES });
+});
+
+// @route POST /api/users/test-visit/claim   { code }  -> the login (as /otp/verify gives it) + testMode: true
+const claimTestVisit = asyncHandler(async (req, res) => {
+  const code = String(req.body?.code || "");
+  const visit = testVisits.get(code);
+  if (visit) testVisits.delete(code); // one use only
+  if (!visit || visit.expires < Date.now()) {
+    res.status(400);
+    throw new Error("This test link has expired. Go back to the admin website and press “Test as a customer” again.");
+  }
+  const user = await User.findById(visit.userId);
+  if (!user || !(user.isAdmin || user.isSeller)) {
+    res.status(403);
+    throw new Error("Only a team account can use a test link.");
+  }
+  res.json({ ...authPayload(user), testMode: true });
+});
+
 export {
   addTeamMember,
+  startTestVisit,
+  claimTestVisit,
   requestLoginOtp,
   verifyLoginOtp,
   completeOtpSignup,

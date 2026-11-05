@@ -1,4 +1,4 @@
-import Order from "../models/orderModel.js";
+import Order, { LIVE_ORDERS } from "../models/orderModel.js";
 import asyncHandler from "express-async-handler";
 // Helper function to filter data by time
 const filterByTime = (orders, filter) => {
@@ -29,7 +29,7 @@ const filterByTime = (orders, filter) => {
 // @access Private/Admin
 const getSalesData = asyncHandler(async (req, res) => {
   const { filter } = req.query;
-  const orders = await Order.find({});
+  const orders = await Order.find(LIVE_ORDERS);
   const filteredOrders = filterByTime(orders, filter);
 
   const salesData = filteredOrders.map((order) => ({
@@ -45,7 +45,7 @@ const getSalesData = asyncHandler(async (req, res) => {
 // @access Private/Admin
 const getRevenueData = asyncHandler(async (req, res) => {
   const { filter } = req.query;
-  const orders = await Order.find({});
+  const orders = await Order.find(LIVE_ORDERS);
   const filteredOrders = filterByTime(orders, filter);
 
   const revenueData = filteredOrders.map((order) => ({
@@ -61,7 +61,7 @@ const getRevenueData = asyncHandler(async (req, res) => {
 // @access Private/Admin
 const getTotalOrders = asyncHandler(async (req, res) => {
   const { filter } = req.query;
-  const orders = await Order.find({});
+  const orders = await Order.find(LIVE_ORDERS);
   const filteredOrders = filterByTime(orders, filter);
   const totalOrdersCount = filteredOrders.length;
   res.json(totalOrdersCount);
@@ -102,7 +102,7 @@ const getTotalOrders = asyncHandler(async (req, res) => {
 // Function to get order status
 
 const getLatestOrders = asyncHandler(async (req, res) => {
-  const orders = await Order.find({})
+  const orders = await Order.find(LIVE_ORDERS)
     .sort({ createdAt: -1 })
     .limit(10)
     .populate("user", "name email createdAt")
@@ -148,6 +148,7 @@ const getOrderStatus = (order) => {
 
 const getTopCustomers = asyncHandler(async (req, res) => {
   const topCustomers = await Order.aggregate([
+    { $match: LIVE_ORDERS },
     {
       $group: {
         _id: "$user",

@@ -13,7 +13,8 @@ import path from "path";
 
 // a print area's size in cm for a garment size (as the design room's areaCm)
 const areaCmOf = (pos, size) => pos.cmBySize?.[size] || (Array.isArray(pos.cm) ? pos.cm : pos.cm?.standard) || [30, 40];
-import { cleanDesign, storeMockups } from "./customizationController.js";
+import { cleanDesign, designPrintData, storeMockups } from "./customizationController.js";
+import GarmentType from "../models/garmentTypeModel.js";
 import { readSettings } from "./aiController.js";
 import { aiImageConfigured } from "../services/aiImageService.js";
 import { xaiConfigured } from "../services/xaiImageService.js";
@@ -126,6 +127,21 @@ export const listStudioDesigns = asyncHandler(async (req, res) => {
 // GET /api/studio/designs/:id  (admin)
 export const getStudioDesign = asyncHandler(async (req, res) => {
   res.json(await designOr404(req, res));
+});
+
+// GET /api/studio/designs/:id/print-pack  (admin) — what the print team would get for this tee, in the shape of an
+// order's pack (customizationController printPackOf), so the admin's browser makes the same ZIP (studio/printFiles.js).
+// One tee of every size on sale (or the size it was designed at), so every print size gets its file. No order needed.
+export const studioPrintPack = asyncHandler(async (req, res) => {
+  const design = await designOr404(req, res);
+  if (!design) return;
+  const garment = await GarmentType.findOne({ key: design.garmentType }).lean();
+  const sizes = design.sizes?.length ? design.sizes : [design.size || "M"];
+  const doc = { _id: design._id, name: design.name, layoutVersion: 2, garmentType: design.garmentType, color: design.color, elements: design.elements || [], mockups: design.mockups || {}, players: [] };
+  res.json({
+    order: { _id: design._id, number: `STUDIO-${design.slug || String(design._id).slice(-6)}`, createdAt: design.updatedAt || design.createdAt, status: design.status, customer: "Studio (no order)" },
+    designs: [designPrintData(doc, garment, sizes.map((size) => ({ size, qty: 1 })))],
+  });
 });
 
 // POST /api/studio/designs  (admin) and PUT /api/studio/designs/:id

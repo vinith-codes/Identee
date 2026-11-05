@@ -5,7 +5,7 @@
 // Everything is worked out from real data — nothing here is stored.
 
 import asyncHandler from "express-async-handler";
-import Order from "../models/orderModel.js";
+import Order, { LIVE_ORDERS } from "../models/orderModel.js";
 import Product, { LIVE } from "../models/productModel.js";
 import GarmentType from "../models/garmentTypeModel.js";
 import GarmentColorImage from "../models/garmentColorImageModel.js";
@@ -137,7 +137,7 @@ async function buildSetupSteps() {
 async function buildAttention() {
   const items = [];
 
-  const newOrders = await Order.find({ orderStatus: "CREATED" })
+  const newOrders = await Order.find({ orderStatus: "CREATED", ...LIVE_ORDERS })
     .select("createdAt")
     .sort({ createdAt: 1 })
     .lean();
@@ -154,6 +154,7 @@ async function buildAttention() {
 
   const toPrint = await Order.countDocuments({
     orderStatus: "CONFIRMED",
+    ...LIVE_ORDERS,
     "orderItems.customization": { $exists: true, $ne: null },
   });
   if (toPrint) {
@@ -219,6 +220,7 @@ async function buildToday() {
   const orders = await Order.find({
     createdAt: { $gte: since },
     orderStatus: { $ne: "CANCELLED" },
+    ...LIVE_ORDERS,
   })
     .select("totalPrice orderItems.customization")
     .lean();
@@ -243,7 +245,7 @@ export const getAdminHome = asyncHandler(async (req, res) => {
     buildSetupSteps(),
     buildAttention(),
     buildToday(),
-    Order.countDocuments({ orderStatus: "CREATED" }),
+    Order.countDocuments({ orderStatus: "CREATED", ...LIVE_ORDERS }),
   ]);
   res.json({ steps, attention, today, newOrders });
 });
@@ -252,6 +254,6 @@ export const getAdminHome = asyncHandler(async (req, res) => {
 // @route GET /api/admin/badges
 // @access Private/Admin
 export const getAdminBadges = asyncHandler(async (req, res) => {
-  const newOrders = await Order.countDocuments({ orderStatus: "CREATED" });
+  const newOrders = await Order.countDocuments({ orderStatus: "CREATED", ...LIVE_ORDERS });
   res.json({ newOrders });
 });

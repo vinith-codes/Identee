@@ -3,7 +3,7 @@
 import mongoose from "mongoose";
 import Customization from "../models/customizationModel.js";
 import GarmentType from "../models/garmentTypeModel.js";
-import Order from "../models/orderModel.js";
+import Order, { LIVE_ORDERS } from "../models/orderModel.js";
 import PrintSheetDay from "../models/printSheetDayModel.js";
 import User from "../models/userModel.js";
 import { customizationLine } from "../services/checkoutService.js";
@@ -461,53 +461,10 @@ async function printPackOf(order) {
     const doc = docs.find((d) => String(d._id) === id);
     if (!doc) return { _id: id, missing: true };
     const garment = garments.find((g) => g.key === doc.garmentType) || null;
-    const colour = garment?.colors?.find((c) => c.slug === doc.color);
     const lines = order.orderItems
       .filter((i) => String(i.customization) === id)
       .map((i) => ({ size: i.size, qty: i.qty }));
-    // every catalog area with a size (also one switched off after the order)
-    const catalog = catalogForGarment(garment).filter((a) => a.cmBySize);
-    const used = [...new Set(doc.elements.map((e) => e.position).filter(Boolean))];
-    // team order: the players, numbered in the customer's order
-    const players = (doc.players || []).map((p, n) => ({ n: n + 1, name: p.name, number: p.number, size: p.size }));
-    // where an area sits on the garment: its own placement rule, and the name of its side's main area
-    // (placements are given relative to that one — see data/printPositions.js)
-    const where = (a) => (a ? { main: !!a.main, place: a.place || null, collarCm: a.collarCm || null, mainLabel: catalog.find((c) => c.side === a.side && c.main)?.label || null } : {});
-    const areas = used.map((key) => {
-      const a = catalog.find((c) => c.key === key);
-      const files = [];
-      // an area with the player's name or number: one print file per player
-      if (a && players.length && doc.elements.some((e) => e.position === key && e.role)) {
-        for (const p of players) {
-          files.push({ group: `player-${p.n}`, sizes: [p.size], cm: a.cmBySize[String(p.size).toUpperCase()] || a.cmBySize.L, player: p });
-        }
-        return { key, label: a.label, side: a.side || null, files, perPlayer: true, ...where(a) };
-      }
-      // one print file per print size among the ordered sizes (same cm → same file)
-      for (const l of a ? lines : []) {
-        const cm = a.cmBySize[String(l.size).toUpperCase()] || a.cmBySize.L;
-        const id = cm.join("x");
-        const f = files.find((x) => x.group === id);
-        if (f) {
-          if (!f.sizes.includes(l.size)) f.sizes.push(l.size);
-        } else files.push({ group: id, sizes: [l.size], cm });
-      }
-      return { key, label: a?.label || key, side: a?.side || null, files, ...where(a) };
-    });
-    return {
-      _id: id,
-      name: doc.name || "",
-      layoutVersion: doc.layoutVersion,
-      garment: { key: doc.garmentType, label: garment?.label || doc.garmentType },
-      colour: { slug: doc.color, name: colour?.name || doc.color, hex: colour?.hex || null },
-      mockups: doc.mockups || {},
-      elements: doc.elements,
-      lines,
-      players,
-      // the order must hold exactly one tee per player
-      playersMatch: !players.length || rosterItems(players).every((r) => lines.filter((l) => l.size === r.size).reduce((n, l) => n + l.qty, 0) === r.qty) && lines.reduce((n, l) => n + l.qty, 0) === players.length,
-      areas,
-    };
+    return designPrintData(doc, garment, lines);
   });
 
   return {
@@ -519,6 +476,55 @@ async function printPackOf(order) {
       customer: order.user?.name || "",
     },
     designs,
+  };
+}
+
+// The print data of one design (a Customization, or a Studio tee shaped like one) printed in these sizes
+// (lines = [{ size, qty }]): the garment colour, and the real print size of every used area for each size group.
+export function designPrintData(doc, garment, lines) {
+  const colour = garment?.colors?.find((c) => c.slug === doc.color);
+  // every catalog area with a size (also one switched off after the order)
+  const catalog = catalogForGarment(garment).filter((a) => a.cmBySize);
+  const used = [...new Set(doc.elements.map((e) => e.position).filter(Boolean))];
+  // team order: the players, numbered in the customer's order
+  const players = (doc.players || []).map((p, n) => ({ n: n + 1, name: p.name, number: p.number, size: p.size }));
+  // where an area sits on the garment: its own placement rule, and the name of its side's main area
+  // (placements are given relative to that one — see data/printPositions.js)
+  const where = (a) => (a ? { main: !!a.main, place: a.place || null, collarCm: a.collarCm || null, mainLabel: catalog.find((c) => c.side === a.side && c.main)?.label || null } : {});
+  const areas = used.map((key) => {
+    const a = catalog.find((c) => c.key === key);
+    const files = [];
+    // an area with the player's name or number: one print file per player
+    if (a && players.length && doc.elements.some((e) => e.position === key && e.role)) {
+      for (const p of players) {
+        files.push({ group: `player-${p.n}`, sizes: [p.size], cm: a.cmBySize[String(p.size).toUpperCase()] || a.cmBySize.L, player: p });
+      }
+      return { key, label: a.label, side: a.side || null, files, perPlayer: true, ...where(a) };
+    }
+    // one print file per print size among the ordered sizes (same cm → same file)
+    for (const l of a ? lines : []) {
+      const cm = a.cmBySize[String(l.size).toUpperCase()] || a.cmBySize.L;
+      const id = cm.join("x");
+      const f = files.find((x) => x.group === id);
+      if (f) {
+        if (!f.sizes.includes(l.size)) f.sizes.push(l.size);
+      } else files.push({ group: id, sizes: [l.size], cm });
+    }
+    return { key, label: a?.label || key, side: a?.side || null, files, ...where(a) };
+  });
+  return {
+    _id: String(doc._id),
+    name: doc.name || "",
+    layoutVersion: doc.layoutVersion,
+    garment: { key: doc.garmentType, label: garment?.label || doc.garmentType },
+    colour: { slug: doc.color, name: colour?.name || doc.color, hex: colour?.hex || null },
+    mockups: doc.mockups || {},
+    elements: doc.elements,
+    lines,
+    players,
+    // the order must hold exactly one tee per player
+    playersMatch: !players.length || rosterItems(players).every((r) => lines.filter((l) => l.size === r.size).reduce((n, l) => n + l.qty, 0) === r.qty) && lines.reduce((n, l) => n + l.qty, 0) === players.length,
+    areas,
   };
 }
 
@@ -541,6 +547,7 @@ export const getPrintDay = async (req, res) => {
     const orders = await Order.find({
       createdAt: { $gte: from, $lt: to },
       orderStatus: { $ne: "CANCELLED" },
+      ...LIVE_ORDERS,
       "orderItems.customization": { $ne: null },
     })
       .sort({ createdAt: 1 })
