@@ -23,6 +23,7 @@ import collectionRoutes from "./routes/collectionRoutes.js";
 import readyDesignRoutes from "./routes/readyDesignRoutes.js";
 import studioRoutes from "./routes/studioRoutes.js";
 import printFileRoutes from "./routes/printFileRoutes.js";
+import { uploadsRouter } from "./utils/uploadsServer.js";
 import enquiryRoutes from "./routes/Enquiryroutes.js";
 import customizationRoutes from "./routes/customizationRoutes.js";
 import { notFound, errorHandler } from "./middleware/errorMiddleware.js";
@@ -149,7 +150,8 @@ app.get("/api/config/paypal", (req, res) =>
 import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename); // ← always the folder server.js is IN
-app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+// this server's own pictures, with small copies on request (?w=600) — utils/uploadsServer.js (6 Nov 2026)
+app.use("/uploads", uploadsRouter());
 
 // if (process.env.NODE_ENV === "production") {
 // app.use(express.static(path.join(__dirname, "/frontend/build")));

@@ -11,3 +11,6 @@ node_modules
 # print files made for orders (6 Nov 2026): the enlarged pictures and the ZIPs sent to the print team
 print-work/
 print-files/
+
+# the Cloudinary → own server move's working files (scripts/moveCloudinaryToServer.mjs)
+move-work/

@@ -76,6 +76,38 @@ setInterval(() => {
   for (const [id, j] of jobs) if (j.finishedAt && Date.now() - j.finishedAt > 60 * 60 * 1000) jobs.delete(id);
 }, 10 * 60 * 1000).unref();
 
+// Disk housekeeping (the account has 100 GB, 6 Nov 2026): print-ready pictures and sent ZIPs older than this are
+// deleted — both can be made again from the order. Once a day, and once soon after the server starts.
+const KEEP_WORK_DAYS = 60;
+async function sweepOld() {
+  const limit = Date.now() - KEEP_WORK_DAYS * 24 * 3600 * 1000;
+  let n = 0;
+  for (const root of [WORK, FILES]) {
+    let dirs = [];
+    try {
+      dirs = await fsp.readdir(root);
+    } catch {
+      continue;
+    }
+    for (const d of dirs) {
+      const p = path.join(root, d);
+      try {
+        const st = await fsp.stat(p);
+        if (st.isDirectory() && st.mtimeMs < limit) {
+          await fsp.rm(p, { recursive: true, force: true });
+          n++;
+        }
+      } catch {
+        /* gone already */
+      }
+    }
+  }
+  if (n) console.log(`[print-files] removed ${n} folder${n === 1 ? "" : "s"} older than ${KEEP_WORK_DAYS} days`);
+  await sweepExpired().catch(() => {});
+}
+setTimeout(() => sweepOld().catch((e) => console.error("[print-files] sweep:", e.message)), 2 * 60 * 1000).unref();
+setInterval(() => sweepOld().catch((e) => console.error("[print-files] sweep:", e.message)), 24 * 3600 * 1000).unref();
+
 // GET /api/print-files/status   (admin or seller)
 export const getPrintFileStatus = asyncHandler(async (req, res) => {
   const settings = await readSettings();
