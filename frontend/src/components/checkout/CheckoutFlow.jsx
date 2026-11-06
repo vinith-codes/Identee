@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
-import { useSearchParams } from "react-router-dom";
+import { useLocation, useSearchParams } from "react-router-dom";
 import { THEME } from "../../theme/theme";
 import { fetchCart } from "../../redux/slices/cartWishlistSlice";
 import EmptyState from "../EmptyState";
@@ -25,17 +25,23 @@ const readSaved = () => {
 
 export default function CheckoutFlow({ items: itemsProp, buyNow: buyNowProp }) {
   const [params, setParams] = useSearchParams();
+  const location = useLocation();
   const [saved] = useState(() => (itemsProp ? {} : readSaved()));
   const [shippingAddress, setShippingAddress] = useState(saved.shippingAddress || null);
   const [coupon, setCoupon] = useState(saved.coupon || null);
   const wanted = Math.min(3, Math.max(1, Number(params.get("step")) || 1));
   const step = wanted >= 2 && !shippingAddress ? 1 : wanted; // a later step needs the address first
+  // Buy Now hands its tee over in the page's history state (BuyNowPage): changing the step must carry it along,
+  // or the next step finds nothing ("No order details found" after "Continue to summary", 19 Oct - 6 Nov 2026)
   const setStep = (n) =>
-    setParams((p) => {
-      const q = new URLSearchParams(p);
-      q.set("step", String(n));
-      return q;
-    });
+    setParams(
+      (p) => {
+        const q = new URLSearchParams(p);
+        q.set("step", String(n));
+        return q;
+      },
+      { state: location.state },
+    );
   useEffect(() => {
     if (itemsProp) return;
     try {
@@ -49,11 +55,15 @@ export default function CheckoutFlow({ items: itemsProp, buyNow: buyNowProp }) {
   // quantity controls in OrderSummaryStep actually change something. Cart
   // checkout (itemsProp undefined) is untouched — OrderSummaryStep/
   // PaymentStep still fall back to the redux cart in that case.
+  // Start over only when a DIFFERENT tee comes in: the Buy Now page rebuilds the same items on every step change, and
+  // taking those would undo the customer's +/- changes before the payment step.
+  const itemsKey = itemsProp ? JSON.stringify(itemsProp.map((it) => [it._id, it.size, it.qty])) : "";
   const [items, setItems] = useState(itemsProp || null);
-
-  useEffect(() => {
+  const [itemsFor, setItemsFor] = useState(itemsKey);
+  if (itemsKey !== itemsFor) {
+    setItemsFor(itemsKey);
     setItems(itemsProp || null);
-  }, [itemsProp]);
+  }
 
   // Cart checkout: load the cart fresh, and with nothing in it show a way back
   // to the shop instead of the address form.
