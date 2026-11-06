@@ -10,6 +10,7 @@ import { KINDS, LOOKS, MAX_REFS, PHOTO_SETTINGS, PRINT_COST_FACTOR, PROMPT_MAX, 
 import sharp from "sharp";
 import fs from "fs/promises";
 import path from "path";
+import { localFilePath } from "../utils/imageStorage.js";
 
 // a print area's size in cm for a garment size (as the design room's areaCm)
 const areaCmOf = (pos, size) => pos.cmBySize?.[size] || (Array.isArray(pos.cm) ? pos.cm : pos.cm?.standard) || [30, 40];
@@ -287,7 +288,7 @@ export const planTee = asyncHandler(async (req, res) => {
 const GOOD_DPI = 150;
 async function pictureWidthPx(src) {
   try {
-    const buf = /^https?:\/\//.test(src) ? Buffer.from(await (await fetch(src)).arrayBuffer()) : await fs.readFile(path.join(process.cwd(), String(src).replace(/^\/+/, "")));
+    const buf = /^https?:\/\//.test(src) ? Buffer.from(await (await fetch(src)).arrayBuffer()) : await fs.readFile(localFilePath(src) || path.join(process.cwd(), String(src).replace(/^\/+/, "")));
     return (await sharp(buf).metadata()).width || 0;
   } catch {
     return 0;

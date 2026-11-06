@@ -2,7 +2,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { snapWidth, safeRel, WIDTHS } from "../utils/uploadsServer.js";
-import { localRelPath, parseCloudinaryUrl } from "../utils/imageStorage.js";
+import path from "path";
+import { localRelPath, parseCloudinaryUrl, localFilePath, UPLOADS_DIR } from "../utils/imageStorage.js";
 
 test("snapWidth picks the first listed width that is big enough", () => {
   assert.equal(snapWidth(240), 240);
@@ -37,4 +38,11 @@ test("localRelPath reads our own picture paths and nothing else", () => {
 test("parseCloudinaryUrl still reads the old links", () => {
   assert.deepEqual(parseCloudinaryUrl("https://res.cloudinary.com/vy728xfe/image/upload/v1791826926/identee/ai-designs/abc.png"), { resourceType: "image", publicId: "identee/ai-designs/abc" });
   assert.equal(parseCloudinaryUrl("/uploads/products/x.png"), null);
+});
+
+test("localFilePath finds our pictures in the uploads folder next to server.js, whatever folder the server started in", () => {
+  assert.equal(localFilePath("/uploads/mockups/a.jpg"), path.join(UPLOADS_DIR, "mockups/a.jpg"));
+  assert.equal(path.basename(path.dirname(UPLOADS_DIR)), "server");
+  assert.equal(localFilePath("/uploads/../.env"), null);
+  assert.equal(localFilePath("https://res.cloudinary.com/x/image/upload/v1/identee/a.png"), null);
 });

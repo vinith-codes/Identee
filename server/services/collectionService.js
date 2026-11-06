@@ -37,7 +37,7 @@ import { askGrounded, askJson, askJsonWithImage, aiTextConfigured } from "./aiTe
 import { AI_STYLES, aiImageConfigured, aiImageModel, generateImage, nearestRatio, newDesignPrompt } from "./aiImageService.js";
 import { xaiConfigured, xaiModel, xaiNewImage } from "./xaiImageService.js";
 import { cutOutPlainBackground } from "./cutoutService.js";
-import { uploadFile } from "../utils/imageStorage.js";
+import { uploadFile, localFilePath } from "../utils/imageStorage.js";
 import { positionsForGarment } from "../data/printPositions.js";
 import { googleCapped, grokCapped, monthSpend, readSettings } from "../controllers/aiController.js";
 
@@ -627,7 +627,7 @@ async function readStored(url) {
     if (!res.ok) throw new Error("picture not found");
     return Buffer.from(await res.arrayBuffer());
   }
-  return fs.readFile(path.join(process.cwd(), String(url).replace(/^\/+/, "")));
+  return fs.readFile(localFilePath(url) || path.join(process.cwd(), String(url).replace(/^\/+/, "")));
 }
 
 // An art library picture for a part (free): its address and size.

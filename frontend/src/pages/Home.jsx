@@ -135,8 +135,8 @@ export default function Home() {
     ]).then(([f, n, all]) => {
       if (!alive) return;
       setCollections(all.facets?.collections || []);
-      // only tees whose photos are stored online (old local paths are broken)
-      const pool = [...f.items, ...n.items].filter((p, i, a) => /^https?:\/\//.test(p.images?.[0] || "") && a.findIndex((x) => x.key === p.key) === i);
+      // only tees that have a photo: online, or on our own server (/uploads/..., since the move from Cloudinary on 6 Nov 2026)
+      const pool = [...f.items, ...n.items].filter((p, i, a) => /^(https?:\/\/|\/uploads\/)/.test(p.images?.[0] || "") && a.findIndex((x) => x.key === p.key) === i);
       setScene(pickSceneTees(pool)); // the newest designs first, White and dark in turn, at most two green (utils/homeScene.js)
     });
     return () => {

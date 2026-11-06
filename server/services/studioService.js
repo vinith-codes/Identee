@@ -22,7 +22,7 @@ import AiUsage from "../models/aiUsageModel.js";
 import { AI_STYLES, aiImageConfigured, aiImageModel, generateImage, nearestRatio } from "./aiImageService.js";
 import { xaiConfigured, xaiEditImage, xaiModel, xaiNewImage } from "./xaiImageService.js";
 import { cutOutPlainBackground } from "./cutoutService.js";
-import { uploadFile } from "../utils/imageStorage.js";
+import { uploadFile, localFilePath } from "../utils/imageStorage.js";
 import AiChatUsage from "../models/aiChatUsageModel.js";
 import { positionsForGarment } from "../data/printPositions.js";
 import { RATIO_VALUES, printPrompt } from "./aiImageService.js";
@@ -197,7 +197,7 @@ async function readStored(url) {
     if (!res.ok) throw fail("The picture could not be read.", 404);
     return Buffer.from(await res.arrayBuffer());
   }
-  return fs.readFile(path.join(process.cwd(), String(url).replace(/^\/+/, "")));
+  return fs.readFile(localFilePath(url) || path.join(process.cwd(), String(url).replace(/^\/+/, "")));
 }
 
 // What every picture goes through once it is made: costed, cut out (unless it is a background), stored.

@@ -59,7 +59,7 @@ export function uploadsRouter() {
   router.use((req, res, next) => {
     // the website's own origin is already allowed by the server's CORS setup; anyone else may still show the picture
     if (!res.getHeader("Access-Control-Allow-Origin")) res.setHeader("Access-Control-Allow-Origin", "*");
-    res.setHeader("Cache-Control", CACHE);
+    // the month-long cache is set only on a file that is sent (below): a missing file's "not found" must not be kept
     next();
   });
   // a small copy, when asked for and the file is a picture
@@ -72,6 +72,7 @@ export function uploadsRouter() {
     try {
       const copy = await sizedCopy(rel, width);
       res.type("image/webp");
+      res.setHeader("Cache-Control", CACHE);
       res.sendFile(copy);
     } catch (err) {
       console.error("[uploads] small copy failed:", rel, err.message);

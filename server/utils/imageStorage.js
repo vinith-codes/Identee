@@ -130,6 +130,13 @@ export const localRelPath = (url) => {
   return rel;
 };
 
+// Where a stored "/uploads/..." picture is on this server's disk (the folder next to server.js, whatever folder the
+// server was started from), or null for anything else.
+export const localFilePath = (url) => {
+  const rel = localRelPath(url);
+  return rel ? path.join(UPLOADS_DIR, rel) : null;
+};
+
 /**
  * Deletes a stored file. Accepts a Cloudinary URL, a local "/uploads/..." or
  * "uploads/..." path, or a { url, publicId } object. Best effort — never throws.

@@ -28,7 +28,8 @@ export default function OfferStrip({ adminText }) {
     offer?.code && offer?.offerPercentage ? (
       <>Extra {offer.offerPercentage}% off with code <em>{offer.code}</em></>
     ) : null,
-    ship?.freeFrom ? <>Free shipping from {ship.freeFrom} tees</> : null,
+    // free from 1 piece = every order ("from 1 tees" read wrong, 6 Nov 2026)
+    ship?.freeFrom ? <>{ship.freeFrom <= 1 ? "Free shipping on every order" : `Free shipping from ${ship.freeFrom} tees`}</> : null,
     <>Printed true to your size</>,
     adminText ? <>{adminText}</> : null,
   ].filter(Boolean);
