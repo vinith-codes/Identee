@@ -14,6 +14,7 @@ import { AreaRenderer, cachedImage, imageSrcs, loadImage, playerElements } from 
 import { playerLabel } from "./teamOrder";
 import { fontsReady } from "./fonts";
 import printFileService from "../services/printFileService";
+import { imageUrl } from "../utils/imageUrl";
 
 export const PRINT_DPI = 300;
 export const cmToPx = (cm, dpi = PRINT_DPI) => Math.round((cm / 2.54) * dpi);
@@ -628,7 +629,7 @@ export async function buildPrintPack(pack, onStep = () => {}) {
       const url = d.mockups?.[side];
       if (!url) continue;
       try {
-        const r = await fetch(url);
+        const r = await fetch(imageUrl(url)); // "/uploads/..." lives on the backend, not on the admin website
         if (!r.ok) throw new Error();
         folder.file(`preview-${side}.jpg`, await r.arrayBuffer());
       } catch {
