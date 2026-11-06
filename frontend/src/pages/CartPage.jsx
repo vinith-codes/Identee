@@ -192,7 +192,7 @@ export default function CartPage() {
             style={{ display: "flex", gap: 16, padding: "16px 0", borderBottom: `1px solid ${C.border}`, alignItems: "flex-start" }}
           >
             {g.design.mockups?.front ? (
-              <img src={g.design.mockups.front} alt={g.design.name || "Your design"} style={{ width: 88, height: 110, borderRadius: 10, objectFit: "cover", background: "#F3F1EC" }} />
+              <img src={imageUrl(g.design.mockups.front, 240)} alt={g.design.name || "Your design"} style={{ width: 88, height: 110, borderRadius: 10, objectFit: "cover", background: "#F3F1EC" }} />
             ) : (
               <div style={{ width: 88, height: 110, borderRadius: 10, background: "#F3F1EC" }} />
             )}
@@ -281,7 +281,7 @@ export default function CartPage() {
             >
               {(item.product?.images?.[0] || item.customization?.mockups?.front) && (
                 <img
-                  src={item.customization ? item.customization.mockups.front : imageUrl(item.product.images[0])}
+                  src={item.customization ? imageUrl(item.customization.mockups.front, 240) : imageUrl(item.product.images[0])}
                   alt={item.customization ? item.customization.name || "Your design" : item.product.brandname}
                   style={{
                     width: 72,

@@ -789,7 +789,7 @@ function MoreStep({ form, set, issues }) {
         <span className="aw-help" style={{ display: "block" }}>
           {form.sizeChartFile ? `New: ${form.sizeChartFile.name}` : form.sizeChartUrl ? (
             <>
-              Current: <a href={form.sizeChartUrl} target="_blank" rel="noreferrer">open</a> — choose a file to replace it.
+              Current: <a href={imageUrl(form.sizeChartUrl)} target="_blank" rel="noreferrer">open</a> — choose a file to replace it.
             </>
           ) : "Shown on the product page."}
         </span>

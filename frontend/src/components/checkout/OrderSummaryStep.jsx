@@ -309,7 +309,7 @@ export default function OrderSummaryStep({
                   >
                     <img
                       className="order-item-img"
-                      src={item.customization?.mockups?.front || getImageUrl(item.product?.images?.[0])}
+                      src={item.customization?.mockups?.front ? imageUrl(item.customization.mockups.front, 240) : getImageUrl(item.product?.images?.[0])}
                       alt={item.product?.brandname || item.customization?.name || "Your design"}
                       style={{
                         width: 64,

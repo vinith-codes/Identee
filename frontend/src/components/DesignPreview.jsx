@@ -9,6 +9,7 @@ import { Link } from "react-router-dom";
 import customizationService from "../services/customizationService";
 import { THEME } from "../theme/theme";
 import { useLockBodyScroll } from "../utils/lockScroll";
+import { imageUrl } from "../utils/imageUrl";
 
 const SIDES = [
   ["front", "Front"],
@@ -74,7 +75,7 @@ export default function DesignPreview({ designId, onClose, extra }) {
           <div style={sx.body}>
             <div style={{ minWidth: 0 }}>
               {current ? (
-                <img src={mockups[current]} alt={`${design.name || "Design"} — ${current}`} style={sx.big} />
+                <img src={imageUrl(mockups[current], 1200)} alt={`${design.name || "Design"} — ${current}`} style={sx.big} />
               ) : (
                 <div style={{ ...sx.big, display: "grid", placeItems: "center", color: THEME.textMuted, fontSize: 13, textAlign: "center", padding: 20, boxSizing: "border-box" }}>
                   No picture for this design — it was made before pictures were saved.
@@ -84,7 +85,7 @@ export default function DesignPreview({ designId, onClose, extra }) {
                 <div style={sx.thumbs}>
                   {available.map(([k, label]) => (
                     <button key={k} type="button" onClick={() => setSide(k)} style={{ ...sx.thumb, borderColor: k === current ? THEME.ink : THEME.border }} aria-label={`Show ${label}`}>
-                      <img src={mockups[k]} alt="" style={{ width: "100%", aspectRatio: "4 / 5", objectFit: "cover", display: "block" }} />
+                      <img src={imageUrl(mockups[k], 240)} alt="" style={{ width: "100%", aspectRatio: "4 / 5", objectFit: "cover", display: "block" }} />
                       <span style={{ fontSize: 11, fontWeight: 600 }}>{label}</span>
                     </button>
                   ))}

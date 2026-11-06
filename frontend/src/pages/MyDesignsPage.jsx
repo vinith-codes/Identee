@@ -11,6 +11,7 @@ import { fetchCart } from "../redux/slices/cartWishlistSlice";
 import { fetchGarmentTypes } from "../redux/slices/garmentTypeSlice";
 import DesignPreview from "../components/DesignPreview";
 import { THEME } from "../theme/theme";
+import { imageUrl } from "../utils/imageUrl";
 
 const when = (d) => new Date(d).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
 
@@ -119,7 +120,7 @@ export default function MyDesignsPage() {
               <article key={d._id} style={{ background: "#fff", border: `1px solid ${THEME.border}`, borderRadius: 16, overflow: "hidden", display: "flex", flexDirection: "column" }}>
                 <button type="button" onClick={() => setPreview(d._id)} aria-label={`Preview ${d.name}`} style={{ border: 0, padding: 0, background: "#EFE7D7", cursor: "pointer", position: "relative" }}>
                   {d.mockups?.front ? (
-                    <img src={d.mockups.front} alt={d.name} style={{ width: "100%", aspectRatio: "4 / 5", objectFit: "cover", display: "block" }} />
+                    <img src={imageUrl(d.mockups.front, 600)} alt={d.name} style={{ width: "100%", aspectRatio: "4 / 5", objectFit: "cover", display: "block" }} />
                   ) : (
                     <div style={{ aspectRatio: "4 / 5", display: "grid", placeItems: "center", color: THEME.textMuted, fontSize: 13 }}>No picture</div>
                   )}

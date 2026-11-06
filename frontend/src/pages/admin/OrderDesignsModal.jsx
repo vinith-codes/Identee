@@ -472,8 +472,8 @@ export default function OrderDesignsModal({ orderId, onClose }) {
           <section key={d._id} style={{ borderTop: `1px solid ${THEME.border}`, marginTop: 16, paddingTop: 16 }}>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               {SIDES.filter((s) => d.mockups?.[s]).map((s) => (
-                <a key={s} href={d.mockups[s]} target="_blank" rel="noreferrer" title={`Open the ${s} preview`}>
-                  <img src={d.mockups[s]} alt={`${s} preview`} style={{ width: 96, height: 120, objectFit: "cover", borderRadius: 8, background: THEME.surface2, border: `1px solid ${THEME.border}` }} />
+                <a key={s} href={imageUrl(d.mockups[s])} target="_blank" rel="noreferrer" title={`Open the ${s} preview`}>
+                  <img src={imageUrl(d.mockups[s], 240)} alt={`${s} preview`} style={{ width: 96, height: 120, objectFit: "cover", borderRadius: 8, background: THEME.surface2, border: `1px solid ${THEME.border}` }} />
                 </a>
               ))}
             </div>
