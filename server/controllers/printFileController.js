@@ -338,12 +338,12 @@ export const sendPrintZip = asyncHandler(async (req, res) => {
     to,
     cc: isEmail(req.user?.email) ? req.user.email : undefined,
     subject: `IDENTEE print files · order ${number}`,
-    text: `Print files for IDENTEE order ${number}${customer ? ` (${customer})` : ""}.\n\nDownload (${mb} MB, link works until ${until}):\n${link}\n\nInside the ZIP: one .ai per print and size, the job cards with the measurements, the previews and ORDER-SHEET.txt.\nPictures are at 600 DPI with a vector edge; words are vector shapes. Please print each file at 100%.\n\nIDENTEE · info@identee.co.in`,
+    text: `Print files for IDENTEE order ${number}${customer ? ` (${customer})` : ""}.\n\nDownload (${mb} MB, link works until ${until}):\n${link}\n\nInside the ZIP: one .ai per print and size, the job cards with the measurements, the previews and ORDER-SHEET.txt.\nPrepared pictures are enlarged (up to 600 DPI, the DPI of each is in ORDER-SHEET.txt) with a vector edge; words are vector shapes. Please print each file at 100%.\n\nIDENTEE · info@identee.co.in`,
     html: `<div style="font-family:Arial,sans-serif;max-width:560px;line-height:1.5">
 <h2 style="color:#8A6F2E;margin:0 0 8px">Print files · order ${number}</h2>
 ${customer ? `<p style="margin:0 0 12px">${customer}</p>` : ""}
 <p><a href="${link}" style="display:inline-block;background:#141110;color:#F0D585;padding:12px 18px;border-radius:999px;text-decoration:none;font-weight:bold">Download the print files (${mb} MB)</a></p>
-<p style="color:#555;font-size:13px">The link works until ${until}.<br>Inside the ZIP: one <b>.ai</b> per print and size, the job cards with the measurements, the previews and ORDER-SHEET.txt.<br>Pictures are at 600 DPI with a vector edge; words are vector shapes. Please print each file at 100%.</p>
+<p style="color:#555;font-size:13px">The link works until ${until}.<br>Inside the ZIP: one <b>.ai</b> per print and size, the job cards with the measurements, the previews and ORDER-SHEET.txt.<br>Prepared pictures are enlarged (up to 600 DPI, the DPI of each is in ORDER-SHEET.txt) with a vector edge; words are vector shapes. Please print each file at 100%.</p>
 <p style="color:#999;font-size:12px">IDENTEE · info@identee.co.in</p></div>`,
   });
   const dir = path.join(FILES, String(order._id));

@@ -128,6 +128,13 @@ function ComparePictures({ original, enlarged, tee, onClose }) {
 }
 
 // The pictures in one ordered design, each with how sharp it will print (dots per inch at its real print size), the
+// the real DPI of a print-ready picture at its print width (6 Nov 2026: was always shown as "600 DPI", but the enlarger
+// stops at 4×, so a small customer picture comes to about 300)
+const readyDpi = (printFile, printCm) => {
+  const cm = printFile?.cm || printCm;
+  return printFile?.width && cm ? Math.round(printFile.width / (cm / 2.54)) : null;
+};
+
 // "Prepare for print" button (the approved way: enlarged on a graphics card, vector edge, 600 DPI) and, as the old way,
 // a redraw by Google's AI. One row per picture.
 function PrintPictures({ design, price, sizes, pf, onChanged, onReady }) {
@@ -250,7 +257,7 @@ function PrintPictures({ design, price, sizes, pf, onChanged, onReady }) {
               <b>{area?.label || el.position}</b>
               <span style={{ color: THEME.textMuted }}> · {printCm ? `${printCm.toFixed(1)} cm wide` : "size unknown"}</span>
               <div style={{ color: tone, fontWeight: 600, fontVariantNumeric: "tabular-nums" }}>
-                {ready ? `✓ Print-ready · ${el.printFile.keep}× bigger · 600 DPI · vector edge` : dpi != null ? `${dpi} DPI — ${word}` : word}
+                {ready ? `✓ Print-ready · ${el.printFile.keep}× bigger · ${readyDpi(el.printFile, printCm) ? `${readyDpi(el.printFile, printCm)} DPI` : "enlarged"} · vector edge` : dpi != null ? `${dpi} DPI — ${word}` : word}
                 {!ready && el.printSrc && <span style={{ color: "#24522F" }}> · redrawn bigger by Google ✓</span>}
               </div>
               {(ready || el.printSrc) && (
@@ -299,7 +306,7 @@ function PrintPictures({ design, price, sizes, pf, onChanged, onReady }) {
         <ComparePictures original={full(design.elements[compare.index].src)} enlarged={compare.url} tee={design.colour.hex} onClose={() => setCompare(null)} />
       )}
       <p style={{ margin: "6px 0 0", fontSize: 12, color: THEME.textMuted }}>
-        <b>Prepare for print</b> is the way the print team approved: the picture is enlarged on a graphics-card service (the same enlarger that made the approved samples), its edge is cleaned and drawn as a vector, and it goes into the .ai file at 600 DPI. It keeps the picture as it is. Google's redraw is the older way: it can change details, so compare it before printing.
+        <b>Prepare for print</b> is the way the print team approved: the picture is enlarged on a graphics-card service (the same enlarger that made the approved samples), its edge is cleaned and drawn as a vector, and it goes into the .ai file at up to 600 DPI (the enlarger makes a picture at most 4× bigger, so a small customer picture comes to about 300 DPI — still sharp; the row shows the real number). It keeps the picture as it is. Google's redraw is the older way: it can change details, so compare it before printing.
       </p>
     </div>
   );

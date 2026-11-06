@@ -485,7 +485,7 @@ export async function buildPrintPack(pack, onStep = () => {}) {
     "",
     "Open the JOB-CARD picture of each size: it shows where every print goes, with the measurements.",
     "Print each file at 100%. The number at the start of a file name is the print's number on the job card.",
-    "Each print is one .ai file: words are vector shapes, and a picture marked PRINT-READY below is at 600 DPI with a vector edge.",
+    "Each print is one .ai file: words are vector shapes, and a picture marked PRINT-READY below is enlarged (its DPI is written next to it) with a vector edge.",
     "(A PNG at 300 DPI is there only for a print whose .ai couldn't be made.)",
     "",
   ];
@@ -562,7 +562,11 @@ export async function buildPrintPack(pack, onStep = () => {}) {
           for (const text of vector.pixelTexts) checks.push(`${n} ${area.label} (${f.sizes.join(", ")}): the words “${text}” can't be made of shapes (their letters or font), so they stay as pixels in the .ai.`);
           const plain = drawn.filter((e) => e.type === "image" && !pictures.has(String(e.id)));
           if (plain.length) checks.push(`${n} ${area.label} (${f.sizes.join(", ")}): ${plain.length === 1 ? "a picture is" : `${plain.length} pictures are`} plain pixels (not prepared for print).`);
-          else if (pictures.size) sheet.push(`  ${n} ${area.label}: PRINT-READY picture${pictures.size === 1 ? "" : "s"} (600 DPI, vector edge).`);
+          else if (pictures.size) {
+            // the real DPI of each print-ready picture at its print width (the enlarger stops at 4×: not always 600)
+            const dpis = drawn.filter((e) => pictures.has(String(e.id))).map((e) => Math.round(pictures.get(String(e.id)).width / ((((e.width || 0) / 100) * w) / 2.54))).filter((x) => x > 0 && Number.isFinite(x));
+            sheet.push(`  ${n} ${area.label}: PRINT-READY picture${pictures.size === 1 ? "" : "s"} (${dpis.length ? `${dpis.join(" / ")} DPI` : "enlarged"}, vector edge).`);
+          }
         } catch (err) {
           console.error("[print files] PDF:", err);
           checks.push(`${n} ${area.label} (${f.sizes.join(", ")}): the .ai couldn't be made, so this print is a PNG (300 DPI) instead.`);
