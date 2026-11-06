@@ -130,6 +130,20 @@ const canUndo = (order) =>
   Boolean(order.statusUndo?.from && order.statusUndo?.at) &&
   order.orderStatus !== "CANCELLED" &&
   Date.now() - new Date(order.statusUndo.at).getTime() < UNDO_MINUTES * 60_000;
+// Under "Designs & print files": whether the print files were emailed to the print team, and when (the last time)
+function PrintSentMark({ files }) {
+  const sent = (files || []).filter((f) => f.sentAt);
+  if (!sent.length) return <span style={{ display: "block", marginTop: 4, fontSize: 11, color: THEME.textMuted, whiteSpace: "nowrap" }}>Not sent to print team</span>;
+  const last = sent.reduce((a, b) => (new Date(b.sentAt) > new Date(a.sentAt) ? b : a));
+  const when = new Date(last.sentAt).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "numeric", minute: "2-digit" });
+  return (
+    <span title={`Sent to ${last.sentTo}${sent.length > 1 ? ` · sent ${sent.length} times` : ""}`} style={{ display: "inline-block", marginTop: 4, padding: "2px 8px", borderRadius: 999, background: "#E7F4EA", color: "#24522F", fontSize: 11, fontWeight: 700, whiteSpace: "nowrap" }}>
+      ✓ Sent to print team · {when}
+      {sent.length > 1 ? ` (${sent.length}×)` : ""}
+    </span>
+  );
+}
+
 // what the admin is told before a change that has effects outside this page
 const warningFor = (order, to) => {
   if (to === "CANCELLED")
@@ -577,6 +591,8 @@ export default function AdminOrdersPage() {
                         Designs &amp; print files
                       </button>
                     )}
+                    {/* 6 Nov 2026: at a glance, has this order's print files gone to the print team? */}
+                    {(order.orderItems || []).some((i) => i.customization) && <PrintSentMark files={order.printFiles} />}
                   </td>
                   <td
                     style={{
@@ -645,7 +661,15 @@ export default function AdminOrdersPage() {
           </table>
         </div>
       )}
-      {designsFor && <OrderDesignsModal orderId={designsFor} onClose={() => setDesignsFor(null)} />}
+      {designsFor && (
+        <OrderDesignsModal
+          orderId={designsFor}
+          onClose={() => {
+            setDesignsFor(null);
+            dispatch(fetchAllOrders()); // so a "Sent to print team" mark shows straight away
+          }}
+        />
+      )}
       {confirmDelete && (
         <DeleteOrdersDialog
           orders={pickedOrders}

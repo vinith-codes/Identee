@@ -29,6 +29,18 @@ const WORK = path.join(__dirname, "..", "print-work"); // print-ready pictures
 const FILES = path.join(__dirname, "..", "print-files"); // ZIPs sent to the print team
 const KEEP_DAYS = 14; // how long a sent ZIP's link works
 const MAX_PIXELS = 90e6; // the biggest print-ready picture the server will hold in memory
+// The address the outside world uses for this backend, for links in emails. Behind the panel's proxy the Host header
+// is the inside one (localhost:7854 — the print team got such a link on 6 Nov 2026), so: the proxy's X-Forwarded-Host,
+// else PUBLIC_BACKEND_URL from .env, else https://backend.identee.co.in in production (the laptop keeps localhost).
+const LOCAL_HOST = /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/i;
+export const publicBase = (req) => {
+  const first = (v) => String(v || "").split(",")[0].trim();
+  const proto = first(req.get("x-forwarded-proto")) || req.protocol;
+  for (const host of [first(req.get("x-forwarded-host")), first(req.get("host"))]) if (host && !LOCAL_HOST.test(host)) return `${proto}://${host}`;
+  const set = process.env.PUBLIC_BACKEND_URL?.trim().replace(/\/+$/, "");
+  if (set) return set;
+  return process.env.NODE_ENV === "production" ? "https://backend.identee.co.in" : `${proto}://${first(req.get("host"))}`;
+};
 export const printTeamEmail = () => process.env.PRINT_TEAM_EMAIL?.trim() || "millionmarks16@gmail.com";
 
 const safeName = (s) => String(s || "").replace(/[^\w\-. ]+/g, "").trim().slice(0, 80) || "print-files.zip";
@@ -316,8 +328,7 @@ export const sendPrintZip = asyncHandler(async (req, res) => {
   }
   const token = crypto.randomBytes(24).toString("base64url");
   const expiresAt = new Date(Date.now() + KEEP_DAYS * 24 * 3600 * 1000);
-  const proto = req.get("x-forwarded-proto") || req.protocol;
-  const link = `${proto}://${req.get("host")}/api/print-files/dl/${token}`;
+  const link = `${publicBase(req)}/api/print-files/dl/${token}`;
   const number = order.invoiceNumber || String(order._id).slice(-8).toUpperCase();
   const customer = order.user?.name || [order.shippingAddress?.firstName, order.shippingAddress?.lastName].filter(Boolean).join(" ") || "";
   const mb = (size / 1e6).toFixed(1);
@@ -327,12 +338,12 @@ export const sendPrintZip = asyncHandler(async (req, res) => {
     to,
     cc: isEmail(req.user?.email) ? req.user.email : undefined,
     subject: `IDENTEE print files · order ${number}`,
-    text: `Print files for IDENTEE order ${number}${customer ? ` (${customer})` : ""}.\n\nDownload (${mb} MB, link works until ${until}):\n${link}\n\nInside the ZIP: one .ai (and the same as .pdf) per print and size, a PNG of each, the job cards with the measurements, the previews and ORDER-SHEET.txt.\nPictures are at 600 DPI with a vector edge; words are vector shapes. Please print each file at 100%.\n\nIDENTEE · info@identee.co.in`,
+    text: `Print files for IDENTEE order ${number}${customer ? ` (${customer})` : ""}.\n\nDownload (${mb} MB, link works until ${until}):\n${link}\n\nInside the ZIP: one .ai per print and size, the job cards with the measurements, the previews and ORDER-SHEET.txt.\nPictures are at 600 DPI with a vector edge; words are vector shapes. Please print each file at 100%.\n\nIDENTEE · info@identee.co.in`,
     html: `<div style="font-family:Arial,sans-serif;max-width:560px;line-height:1.5">
 <h2 style="color:#8A6F2E;margin:0 0 8px">Print files · order ${number}</h2>
 ${customer ? `<p style="margin:0 0 12px">${customer}</p>` : ""}
 <p><a href="${link}" style="display:inline-block;background:#141110;color:#F0D585;padding:12px 18px;border-radius:999px;text-decoration:none;font-weight:bold">Download the print files (${mb} MB)</a></p>
-<p style="color:#555;font-size:13px">The link works until ${until}.<br>Inside the ZIP: one <b>.ai</b> (and the same as .pdf) per print and size, a PNG of each, the job cards with the measurements, the previews and ORDER-SHEET.txt.<br>Pictures are at 600 DPI with a vector edge; words are vector shapes. Please print each file at 100%.</p>
+<p style="color:#555;font-size:13px">The link works until ${until}.<br>Inside the ZIP: one <b>.ai</b> per print and size, the job cards with the measurements, the previews and ORDER-SHEET.txt.<br>Pictures are at 600 DPI with a vector edge; words are vector shapes. Please print each file at 100%.</p>
 <p style="color:#999;font-size:12px">IDENTEE · info@identee.co.in</p></div>`,
   });
   const dir = path.join(FILES, String(order._id));
