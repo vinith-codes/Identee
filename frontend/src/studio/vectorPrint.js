@@ -1,17 +1,20 @@
 // studio/vectorPrint.js
 //
-// The vector print file: the same print as the PNG, as a PDF whose words are shapes (no pixels, no font needed), so they
-// stay sharp however far the print team zooms in. Pictures stay made of pixels: they go in at 300 DPI, cleaned exactly
-// like the PNG (halftone.js). Everything is placed by Konva's own layout, so the PDF matches the PNG and the Design Room.
+// The vector print file: the same print as the PNG, as a PDF (and its .ai byte copy) that stays sharp however far the
+// print team zooms in:
+//   • words are shapes (no pixels, no font needed);
+//   • a picture the admin made PRINT-READY (Orders → Designs & print files → Prepare for print, 6 Nov 2026) goes in at
+//     600 DPI, cut by its own vector edge — the way the print team approved;
+//   • any other picture stays plain pixels at 300 DPI.
+// Everything is placed by Konva's own layout, so the PDF matches the PNG and the Design Room.
 //
 // A text that can't be made of shapes (a letter the font doesn't have, such as Tamil or an emoji; a font that isn't one
 // of ours; a see-through text) goes in as pixels with the pictures, so the print is still right, and is named for the
 // print team.
-import { PDFDocument, LineJoinStyle, concatTransformationMatrix, popGraphicsState, pushGraphicsState, rgb, setLineJoin } from "pdf-lib";
+import { PDFDocument, PDFRawStream, LineJoinStyle, appendBezierCurve, clipEvenOdd, closePath, concatTransformationMatrix, drawObject, endPath, lineTo, moveTo, popGraphicsState, pushGraphicsState, rgb, setLineJoin } from "pdf-lib";
 import fontkit from "@pdf-lib/fontkit";
 import { AreaRenderer, buildNodes } from "./konvaRender";
 import { FONTS, fontsCssUrl } from "./fonts";
-import { halftoneCanvas } from "./halftone";
 import { FAKE_ITALIC_SKEW, barToSvg, faceFor, fakeBoldWidth, hexToRgb, multiply, outlineToSvg, parseFontFaces, useOwnFiles } from "./vectorText";
 import montserrat400 from "@fontsource/montserrat/files/montserrat-latin-400-normal.woff2?url";
 import montserrat700 from "@fontsource/montserrat/files/montserrat-latin-700-normal.woff2?url";
@@ -20,7 +23,7 @@ import oswald700 from "@fontsource/oswald/files/oswald-latin-700-normal.woff2?ur
 import playfair400 from "@fontsource/playfair-display/files/playfair-display-latin-400-normal.woff2?url";
 import playfair700 from "@fontsource/playfair-display/files/playfair-display-latin-700-normal.woff2?url";
 
-const PT_PER_PX = 72 / 300; // the print files are 300 DPI
+const PT_PER_PX = 72 / 300; // the print files are laid out at 300 DPI (print-ready pictures carry their own 600 DPI)
 const WIDTH_TOLERANCE = 0.03; // our letters must add up to the browser's line width, or the text goes in as pixels
 
 // Google sends these three as one file holding every weight, and the font library can't read a weight out of that kind
@@ -182,12 +185,11 @@ async function textShapes(el, node, faces) {
 // Can this text be made of shapes at all? (the letters are checked when it is laid out)
 const shapeable = (el) => el.type === "text" && FONTS.includes(el.fontFamily) && hexToRgb(el.color || "#000000") && (el.opacity == null || el.opacity >= 1);
 
-/* ---------- pixels: the pictures, and any text that can't be shapes ---------- */
+/* ---------- pixels: plain pictures, and any text that can't be shapes ---------- */
 async function embedPixels(pdf, page, elements, W, H) {
   const r = new AreaRenderer(W, H);
   try {
     const canvas = r.render(elements, { full: true });
-    halftoneCanvas(canvas);
     const { data } = canvas.getContext("2d").getImageData(0, 0, W, H);
     let [x0, y0, x1, y1] = [W, H, -1, -1];
     for (let y = 0; y < H; y++) {
@@ -214,24 +216,85 @@ async function embedPixels(pdf, page, elements, W, H) {
   }
 }
 
+/* ---------- a print-ready picture: its own pixels at 600 DPI, cut by its vector edge ---------- */
+// clip: "M x y C x1 y1 x2 y2 x y … Z" in the picture's own pixels (y down), from the server's recipe
+function clipOperators(clip) {
+  const ops = [];
+  for (const tok of clip.split(/ (?=[MLCZ])/)) {
+    const k = tok[0];
+    const n = tok.slice(1).trim().split(/\s+/).map(Number);
+    if (k === "M") ops.push(moveTo(n[0], n[1]));
+    else if (k === "L") ops.push(lineTo(n[0], n[1]));
+    else if (k === "C") ops.push(appendBezierCurve(n[0], n[1], n[2], n[3], n[4], n[5]));
+    else if (k === "Z") ops.push(closePath());
+  }
+  return ops;
+}
+
+// where the picture's node sits on the layer (its box, turned and mirrored as the customer placed it)
+function picturePlace(el, r, W, H) {
+  const byId = buildNodes(r.layer, [el], W, H, { full: true });
+  const inner = byId.get(String(el.id)).getChildren()[0];
+  const place = { m: inner.getAbsoluteTransform().getMatrix(), nw: inner.width(), nh: inner.height() };
+  r.layer.destroyChildren();
+  return place;
+}
+
+function drawPicture(pdf, page, pic, place, H) {
+  const dict = pdf.context.obj({
+    Type: "XObject",
+    Subtype: "Image",
+    Width: pic.width,
+    Height: pic.height,
+    ColorSpace: "DeviceRGB",
+    BitsPerComponent: 8,
+    Filter: "FlateDecode",
+    DecodeParms: { Predictor: 15, Colors: 3, BitsPerComponent: 8, Columns: pic.width },
+    Length: pic.flate.length,
+  });
+  const name = page.node.newXObject("Im", pdf.context.register(PDFRawStream.of(dict, pic.flate)));
+  const [a, b, c, d, e, f] = place.m;
+  page.pushOperators(
+    pushGraphicsState(),
+    concatTransformationMatrix(1, 0, 0, -1, 0, H), // the layer's y runs down
+    concatTransformationMatrix(a, b, c, d, e, f), // the node's box on the layer
+    concatTransformationMatrix(place.nw / pic.width, 0, 0, place.nh / pic.height, 0, 0), // picture pixels in the box
+    ...clipOperators(pic.clip),
+    clipEvenOdd(),
+    endPath(),
+    concatTransformationMatrix(pic.width, 0, 0, -pic.height, 0, pic.height), // the picture, first row at the top
+    drawObject(name),
+    popGraphicsState(),
+  );
+}
+
 /* ---------- the PDF ---------- */
 /**
  * @param elements  one print area's elements
  * @param W, H      the print's size in px at 300 DPI
- * @returns {{ bytes: Uint8Array|null, vectorTexts: number, pixelTexts: string[] }} bytes: null when no text in this print
- *   can be made of shapes: the PDF would add nothing to the PNG
+ * @param title
+ * @param opts.pictures  Map: element id -> { width, height, clip, flate } of its print-ready picture (printFileService)
+ * @returns {{ bytes: Uint8Array|null, vectorTexts: number, vectorPictures: number, pixelTexts: string[] }}
+ *   bytes: null when the PDF would add nothing to the PNG (no shapes, no print-ready picture)
  */
-export async function buildVectorPdf(elements, W, H, title = "IDENTEE print") {
+export async function buildVectorPdf(elements, W, H, title = "IDENTEE print", { pictures = new Map() } = {}) {
   const sorted = [...elements].sort((a, b) => (a.zIndex || 0) - (b.zIndex || 0));
   const texts = sorted.filter((e) => e.type === "text");
-  if (!texts.some(shapeable)) return { bytes: null, vectorTexts: 0, pixelTexts: texts.map((e) => e.text) };
+  const prepared = (el) => el.type === "image" && pictures.has(String(el.id));
+  const vectorPictures = sorted.filter(prepared).length;
+  if (!texts.some(shapeable) && !vectorPictures) return { bytes: null, vectorTexts: 0, vectorPictures: 0, pixelTexts: texts.map((e) => e.text) };
 
-  const faces = await fontFaces();
-  // every text's shapes first, so the pixels can be grouped around them in the right order
+  const faces = texts.some(shapeable) ? await fontFaces() : null;
+  // every text's shapes and every print-ready picture's place first, so the pixels can be grouped around them in order
   const r = new AreaRenderer(W, H);
   const shapes = new Map();
+  const places = new Map();
   try {
     for (const el of sorted) {
+      if (prepared(el)) {
+        places.set(el, picturePlace(el, r, W, H));
+        continue;
+      }
       if (!shapeable(el)) continue;
       const byId = buildNodes(r.layer, [el], W, H, { full: true });
       const made = await textShapes(el, byId.get(String(el.id)).getChildren()[0], faces);
@@ -242,7 +305,7 @@ export async function buildVectorPdf(elements, W, H, title = "IDENTEE print") {
     r.destroy();
   }
   const pixelTexts = texts.filter((e) => !shapes.has(e)).map((e) => e.text);
-  if (!shapes.size) return { bytes: null, vectorTexts: 0, pixelTexts };
+  if (!shapes.size && !vectorPictures) return { bytes: null, vectorTexts: 0, vectorPictures: 0, pixelTexts };
 
   const pdf = await PDFDocument.create();
   pdf.setTitle(title);
@@ -257,6 +320,11 @@ export async function buildVectorPdf(elements, W, H, title = "IDENTEE print") {
     pixels = [];
   };
   for (const el of sorted) {
+    if (prepared(el)) {
+      await flush();
+      drawPicture(pdf, page, pictures.get(String(el.id)), places.get(el), H);
+      continue;
+    }
     const made = shapes.get(el);
     if (!made) {
       pixels.push(el);
@@ -276,5 +344,5 @@ export async function buildVectorPdf(elements, W, H, title = "IDENTEE print") {
   }
   await flush();
   page.pushOperators(popGraphicsState());
-  return { bytes: await pdf.save(), vectorTexts: shapes.size, pixelTexts };
+  return { bytes: await pdf.save({ useObjectStreams: false }), vectorTexts: shapes.size, vectorPictures, pixelTexts };
 }

@@ -12,7 +12,6 @@ import { AreaRenderer, cachedImage, imageSrcs, loadImage, playerElements } from 
 import { playerLabel } from "./teamOrder";
 import { fontsReady } from "./fonts";
 import { PRINT_DPI, cmToPx, setPngDpi, toPng, artworkBox, artworkSpot, acrossText, fmtCm, EST_START } from "./printFiles";
-import { halftoneCanvas } from "./halftone";
 
 export const SHEET = { w: 58, h: 100 }; // cm
 export const GAP = 1; // cm between prints
@@ -121,7 +120,7 @@ async function cutOut(elements, cm, box) {
     c.width = Math.max(1, x1 - x0);
     c.height = Math.max(1, y1 - y0);
     c.getContext("2d").drawImage(full, x0, y0, c.width, c.height, 0, 0, c.width, c.height);
-    halftoneCanvas(c); // every pixel solid or clear: soft parts become dots
+    // (no halftone since 6 Nov 2026: the print team approved files with soft parts left as they are)
     return c;
   } finally {
     r.destroy();
@@ -252,7 +251,7 @@ export function drawSheet(sheet, pxPerCm, { preview = false } = {}) {
   for (const it of sheet.items) {
     const { art } = it.piece;
     // The real sheet: each print's pixels land exactly on the sheet's pixels. (Placed part-way between two pixels,
-    // the browser redraws the whole print slightly softer, and the halftone dots with it.)
+    // the browser redraws the whole print slightly softer.)
     const whole = (v) => (preview ? v : Math.round(v));
     const w = preview ? art.wCm * pxPerCm : art.canvas.width;
     const h = preview ? art.hCm * pxPerCm : art.canvas.height;
@@ -319,7 +318,6 @@ export async function buildSheetsZip(day, layout, { orders, tees, warnings }, on
     "Each print has a small tag under its BOTTOM edge (▲ points to the top of the print): order · size · tee colour · print area · n of N.",
     "The tag is printed in the gap — cut it off. A print lying sideways has its top towards the sheet's right edge.",
     "Where each print goes on the tee is listed below (also on that order's job card: Admin → Orders → Designs & print files).",
-    "Soft fades are already halftone dots (35 lines per inch, 45°): every pixel is solid or clear. Please don't add another halftone on top.",
     "",
   ];
   for (const [i, s] of layout.sheets.entries()) {

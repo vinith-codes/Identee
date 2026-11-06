@@ -22,6 +22,7 @@ import myPictureRoutes from "./routes/myPictureRoutes.js";
 import collectionRoutes from "./routes/collectionRoutes.js";
 import readyDesignRoutes from "./routes/readyDesignRoutes.js";
 import studioRoutes from "./routes/studioRoutes.js";
+import printFileRoutes from "./routes/printFileRoutes.js";
 import enquiryRoutes from "./routes/Enquiryroutes.js";
 import customizationRoutes from "./routes/customizationRoutes.js";
 import { notFound, errorHandler } from "./middleware/errorMiddleware.js";
@@ -133,7 +134,8 @@ app.use("/api/chats", designChatRoutes); // the design room's saved Assistant ch
 app.use("/api/my-pictures", myPictureRoutes); // "My pictures": earlier AI pictures and photos (23 Oct 2026)
 app.use("/api/collections", collectionRoutes); // Admin → Collection maker (25 Oct 2026)
 app.use("/api/ready-designs", readyDesignRoutes); // Shop your IDENTEE's ready designs (25 Oct 2026)
-app.use("/api/studio", studioRoutes); // Admin → Studio: a tee designed by hand, AI pictures on request (25 Oct 2026)
+app.use("/api/studio", studioRoutes);
+app.use("/api/print-files", printFileRoutes); // print-ready pictures + Send to print team (6 Nov 2026) // Admin → Studio: a tee designed by hand, AI pictures on request (25 Oct 2026)
 app.use("/api/customizations", customizationRoutes);
 app.use("/api/garment-images", garmentColorImageRoutes);
 app.use("/api/garment-types", garmentTypeRoutes);

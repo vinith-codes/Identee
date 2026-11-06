@@ -23,6 +23,16 @@ const elementSchema = new mongoose.Schema(
     // A large copy of the picture for printing (about 4,000 px), made by the admin from an order's
     // print-files window ("Enlarge for print"). The print files use it in place of src.
     printSrc: { type: String },
+    // the picture made print-ready the approved way (6 Nov 2026: enlarged on Replicate, vector edge, 600 DPI), kept on
+    // this server under print-work/<key>/; the print files draw it in place of src / printSrc
+    printFile: {
+      key: { type: String },
+      width: { type: Number },
+      height: { type: Number },
+      keep: { type: Number }, // how many times bigger than the uploaded picture
+      cm: { type: Number }, // the print width it was made for
+      madeAt: { type: Date },
+    },
     artDesignId: { type: mongoose.Schema.Types.ObjectId, ref: "ArtDesign" },
 
     // text elements

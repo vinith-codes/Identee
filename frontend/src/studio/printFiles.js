@@ -11,9 +11,9 @@
 // Team orders: an area that carries the player's name or number gets one
 // file per player (their name and number drawn in), named after the player.
 import { AreaRenderer, cachedImage, imageSrcs, loadImage, playerElements } from "./konvaRender";
-import { halftoneCanvas } from "./halftone";
 import { playerLabel } from "./teamOrder";
 import { fontsReady } from "./fonts";
+import printFileService from "../services/printFileService";
 
 export const PRINT_DPI = 300;
 export const cmToPx = (cm, dpi = PRINT_DPI) => Math.round((cm / 2.54) * dpi);
@@ -65,7 +65,6 @@ export async function renderPrintFile(elements, [wCm, hCm]) {
   const r = new AreaRenderer(cmToPx(wCm), cmToPx(hCm));
   try {
     const canvas = r.render(elements, { full: true });
-    halftoneCanvas(canvas); // every pixel solid or clear: soft parts become dots
     return setPngDpi(await toPng(canvas));
   } finally {
     r.destroy();
@@ -483,11 +482,13 @@ export async function buildPrintPack(pack, onStep = () => {}) {
     `IDENTEE · ORDER ${pack.order.number} · ${pack.order.customer || "-"} · ${date}`,
     "",
     "Open the JOB-CARD picture of each size: it shows where every print goes, with the measurements.",
-    "Print each PNG at 100% (300 DPI). The number at the start of a file name is the print's number on the job card.",
-    "Soft fades are already halftone dots (35 lines per inch, 45°): every pixel is solid or clear. Please don't add another halftone on top.",
-    "A print with words also has a PDF with the same name: its words are vector shapes, so they stay sharp at any zoom. Its pictures are the same 300 DPI as the PNG.",
+    "Print each file at 100%. The number at the start of a file name is the print's number on the job card.",
+    "Use the .ai (or the same file as .pdf): words are vector shapes, and a picture marked PRINT-READY below is at 600 DPI with a vector edge.",
+    "The PNG of each print is the same design at 300 DPI, only as a fallback.",
     "",
   ];
+  // the print-ready pictures (Prepare for print): fetched once per picture, drawn into the PDFs by vectorPrint.js
+  const readyPictures = new Map(); // key -> { width, height, clip, flate }
 
   for (const [i, d] of designs.entries()) {
     const title = d.name || `Design ${i + 1}`;
@@ -508,6 +509,17 @@ export async function buildPrintPack(pack, onStep = () => {}) {
     tick(done, total, `Loading pictures for “${title}”…`);
     // a picture the admin had enlarged for printing is used in place of the small one the customer chose
     const elements = d.elements.map((e) => (e.type === "image" && e.printSrc ? { ...e, src: e.printSrc } : e));
+    for (const e of elements) {
+      const key = e.type === "image" && e.printFile?.key;
+      if (!key || readyPictures.has(key)) continue;
+      tick(done, total, `Fetching a print-ready picture for “${title}”…`);
+      try {
+        const [meta, flate] = await Promise.all([printFileService.meta(key), printFileService.stream(key)]);
+        readyPictures.set(key, { width: meta.width, height: meta.height, clip: meta.clip, flate, keep: meta.keep });
+      } catch (err) {
+        warnings.push(`“${title}”: a print-ready picture couldn't be fetched (${err.response?.data?.message || err.message}), so that picture is plain pixels in the print files.`);
+      }
+    }
     const srcs = imageSrcs(elements);
     const failed = [];
     await Promise.all(srcs.map((s) => loadImage(s, { full: true }).catch(() => failed.push(s))));
@@ -535,18 +547,26 @@ export async function buildPrintPack(pack, onStep = () => {}) {
         tick(done, total, `Drawing ${area.label} (${f.player ? playerLabel(f.player) : f.sizes.join(", ")}) for “${title}”…`);
         folder.file(name, await renderPrintFile(drawn, f.cm));
         files.push(name);
-        // the same print with its words as shapes; the PNG is already safe, so a problem here never stops the download
+        // the same print as vectors: words as shapes, print-ready pictures at 600 DPI with their vector edge (.pdf, and
+        // the same bytes as .ai); the PNG is already safe, so a problem here never stops the download
         try {
           const { buildVectorPdf } = await import("./vectorPrint");
-          const vector = await buildVectorPdf(drawn, cmToPx(w), cmToPx(h), `${title} · ${area.label}`);
+          const pictures = new Map();
+          for (const e of drawn) if (e.type === "image" && e.printFile?.key && readyPictures.has(e.printFile.key)) pictures.set(String(e.id), readyPictures.get(e.printFile.key));
+          tick(done, total, `Making the vector file for ${area.label} of “${title}”…`);
+          const vector = await buildVectorPdf(drawn, cmToPx(w), cmToPx(h), `${title} · ${area.label}`, { pictures });
           if (vector.bytes) {
             folder.file(name.replace(/\.png$/, ".pdf"), vector.bytes);
-            files.push(name.replace(/\.png$/, ".pdf"));
+            folder.file(name.replace(/\.png$/, ".ai"), vector.bytes);
+            files.push(name.replace(/\.png$/, ".ai"));
           }
           for (const text of vector.pixelTexts) checks.push(`${n} ${area.label} (${f.sizes.join(", ")}): the words “${text}” can't be made of shapes (their letters or font), so they stay as pixels in the PDF.`);
+          const plain = drawn.filter((e) => e.type === "image" && !pictures.has(String(e.id)));
+          if (plain.length) checks.push(`${n} ${area.label} (${f.sizes.join(", ")}): ${plain.length === 1 ? "a picture is" : `${plain.length} pictures are`} plain pixels (not prepared for print).`);
+          else if (pictures.size) sheet.push(`  ${n} ${area.label}: PRINT-READY picture${pictures.size === 1 ? "" : "s"} (600 DPI, vector edge).`);
         } catch (err) {
           console.error("[print files] PDF:", err);
-          checks.push(`${n} ${area.label} (${f.sizes.join(", ")}): the PDF couldn't be made, so this print is only a PNG.`);
+          checks.push(`${n} ${area.label} (${f.sizes.join(", ")}): the vector file couldn't be made, so this print is only a PNG.`);
         }
         done += 1;
         const box = artworkBox(drawn, f.cm);

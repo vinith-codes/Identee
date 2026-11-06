@@ -1,10 +1,13 @@
 // Admin → Orders → "Designs & print files"
 // Shows the custom designs in one order (previews, colour, sizes × qty,
-// print areas with their real size) and downloads the 300-DPI print files
+// print areas with their real size) and downloads the print files
 // as a ZIP for the print team (made in this browser — studio/printFiles.js).
+// 6 Nov 2026: "Prepare for print" makes a picture print-ready the way the print team approved (enlarged on Replicate,
+// vector edge, 600 DPI — server: printFileController.js), and "Send to print team" emails the ZIP as a link.
 import { useEffect, useRef, useState } from "react";
 import customizationService from "../../services/customizationService";
 import aiService from "../../services/aiService";
+import printFileService from "../../services/printFileService";
 import { imageUrl } from "../../utils/imageUrl";
 import { THEME, labelStyle } from "../../theme/theme";
 
@@ -124,19 +127,81 @@ function ComparePictures({ original, enlarged, tee, onClose }) {
   );
 }
 
-// The pictures in one ordered design, each with how sharp it will print (dots per inch at its real print
-// size) and a button to have a large copy made for printing. One row per picture.
-function PrintPictures({ design, price, sizes, onChanged }) {
-  const [busy, setBusy] = useState(null); // index being enlarged
-  const [compare, setCompare] = useState(null); // index of the picture being compared with its original
+// The pictures in one ordered design, each with how sharp it will print (dots per inch at its real print size), the
+// "Prepare for print" button (the approved way: enlarged on a graphics card, vector edge, 600 DPI) and, as the old way,
+// a redraw by Google's AI. One row per picture.
+function PrintPictures({ design, price, sizes, pf, onChanged, onReady }) {
+  const [busy, setBusy] = useState(null); // index being redrawn by Google
+  const [preparing, setPreparing] = useState(null); // { index, jobId, step }
+  const [compare, setCompare] = useState(null); // { index, url } — the picture being compared with its original
   const [error, setError] = useState("");
   const [grokDone, setGrokDone] = useState(null); // the picture Grok just enlarged, because Google refused
   const rows = design.elements.map((el, index) => ({ el, index })).filter(({ el }) => el.type === "image" && el.src);
-  if (!rows.length) return null;
+  const enlarger = pf?.enlarger;
+  const prepPrice = enlarger?.priceInr ? `about ₹${enlarger.priceInr}` : enlarger?.mock ? "free (test)" : "";
+
+  // Prepare for print: start the job, then ask every few seconds how it is going
+  useEffect(() => {
+    if (!preparing?.jobId) return undefined;
+    let alive = true;
+    const timer = setInterval(async () => {
+      try {
+        const j = await printFileService.job(preparing.jobId);
+        if (!alive) return;
+        if (j.status === "done") {
+          clearInterval(timer);
+          setPreparing(null);
+          onReady(preparing.index, j.result?.printFile || null);
+        } else if (j.status === "failed") {
+          clearInterval(timer);
+          setPreparing(null);
+          setError(j.error || "The picture could not be prepared.");
+        } else setPreparing((p) => (p ? { ...p, step: j.step } : p));
+      } catch (err) {
+        if (!alive) return;
+        clearInterval(timer);
+        setPreparing(null);
+        setError(err.response?.data?.message || "Lost track of the picture being prepared. Try again.");
+      }
+    }, 3000);
+    return () => {
+      alive = false;
+      clearInterval(timer);
+    };
+  }, [preparing?.jobId, preparing?.index, onReady]);
+
+  const prepare = async (index, printCm) => {
+    if (!enlarger?.configured) return setError("The enlarger is not set up on this server yet (REPLICATE_API_TOKEN in the server's .env).");
+    if (!window.confirm(`Prepare this picture for print?${prepPrice ? ` It costs ${prepPrice}` : ""}: it is enlarged on the graphics-card service and given its vector edge (about 1–3 minutes). You can compare it with the original afterwards.`)) return;
+    setError("");
+    try {
+      const { jobId } = await printFileService.prepare({ designId: design._id, index, printCm: Math.max(1, Math.round(printCm * 10) / 10) });
+      setPreparing({ index, jobId, step: "Starting…" });
+    } catch (err) {
+      setError(err.response?.data?.message || "The picture could not be prepared. Please try again.");
+    }
+  };
+  const printPlain = async (index) => {
+    if (!window.confirm("Print the plain picture instead?\n\nThe print-ready copy stays on the server; preparing it again costs another run.")) return;
+    setError("");
+    try {
+      await printFileService.drop({ designId: design._id, index });
+      onReady(index, null);
+    } catch (err) {
+      setError(err.response?.data?.message || "Could not switch back to the plain picture.");
+    }
+  };
+  const openCompare = async (index, el) => {
+    try {
+      setCompare({ index, url: el.printFile?.key ? await printFileService.previewBlobUrl(el.printFile.key) : full(el.printSrc) });
+    } catch (err) {
+      setError(err.response?.data?.message || "The preview could not be loaded.");
+    }
+  };
 
   const enlarge = async (index) => {
     // a paid AI request: ask first
-    if (!window.confirm(`Enlarge this picture for print?${price ? ` It costs about ₹${price}` : ""} (one AI request). You can compare it with the original afterwards, and go back to the original if it isn't right.`)) return;
+    if (!window.confirm(`Redraw this picture bigger with Google's AI?${price ? ` It costs about ₹${price}` : ""} (one AI request). The AI redraws it, so compare it with the original afterwards; you can go back to the original if it isn't right.`)) return;
     setError("");
     setBusy(index);
     try {
@@ -160,16 +225,20 @@ function PrintPictures({ design, price, sizes, onChanged }) {
     }
   };
 
+  if (!rows.length) return null;
+  const smallBtn = { background: "none", border: `1px solid ${THEME.border}`, borderRadius: 9, padding: "7px 12px", fontSize: 12.5, fontWeight: 700, cursor: "pointer", color: THEME.text };
   return (
     <div style={{ marginTop: 14 }}>
       <p style={{ ...labelStyle, margin: "0 0 6px" }}>Pictures · how sharp they will print</p>
       {rows.map(({ el, index }) => {
         const { area, printCm, shown, dpi } = pictureSharpness(design, el, sizes);
-        const tone = dpi == null ? THEME.textMuted : dpi >= GOOD_DPI ? "#24522F" : dpi >= LOW_DPI ? "#7A5B12" : THEME.danger;
+        const ready = Boolean(el.printFile?.key);
+        const prep = preparing?.index === index ? preparing : null;
+        const tone = ready ? "#24522F" : dpi == null ? THEME.textMuted : dpi >= GOOD_DPI ? "#24522F" : dpi >= LOW_DPI ? "#7A5B12" : THEME.danger;
         const word = dpi == null ? "measuring…" : dpi >= GOOD_DPI ? "sharp" : dpi >= LOW_DPI ? "acceptable" : "low, may print soft";
         return (
           <div key={index} style={{ display: "flex", gap: 12, alignItems: "center", padding: "8px 0", borderTop: `1px solid ${THEME.border}`, flexWrap: "wrap" }}>
-            <a href={full(shown)} target="_blank" rel="noreferrer" title="Open the picture that will be printed">
+            <a href={full(shown)} target="_blank" rel="noreferrer" title="Open the picture">
               <img
                 src={full(shown)}
                 alt=""
@@ -181,28 +250,41 @@ function PrintPictures({ design, price, sizes, onChanged }) {
               <b>{area?.label || el.position}</b>
               <span style={{ color: THEME.textMuted }}> · {printCm ? `${printCm.toFixed(1)} cm wide` : "size unknown"}</span>
               <div style={{ color: tone, fontWeight: 600, fontVariantNumeric: "tabular-nums" }}>
-                {dpi != null ? `${dpi} DPI — ${word}` : word}
-                {el.printSrc && <span style={{ color: "#24522F" }}> · enlarged ✓</span>}
+                {ready ? `✓ Print-ready · ${el.printFile.keep}× bigger · 600 DPI · vector edge` : dpi != null ? `${dpi} DPI — ${word}` : word}
+                {!ready && el.printSrc && <span style={{ color: "#24522F" }}> · redrawn bigger by Google ✓</span>}
               </div>
-              {el.printSrc && (
-                <button type="button" onClick={() => setCompare(index)} style={{ marginTop: 4, background: THEME.goldBg, border: `1px solid ${THEME.goldBorder}`, borderRadius: 8, padding: "5px 11px", fontSize: 12.5, fontWeight: 700, color: THEME.goldDeep, cursor: "pointer" }}>
+              {(ready || el.printSrc) && (
+                <button type="button" onClick={() => openCompare(index, el)} style={{ marginTop: 4, background: THEME.goldBg, border: `1px solid ${THEME.goldBorder}`, borderRadius: 8, padding: "5px 11px", fontSize: 12.5, fontWeight: 700, color: THEME.goldDeep, cursor: "pointer" }}>
                   Compare with the original
                 </button>
               )}
             </div>
-            {busy === index ? (
-              <span style={{ fontSize: 13, color: THEME.textMuted }}>Enlarging… about half a minute</span>
-            ) : el.printSrc ? (
-              <button type="button" onClick={() => printOriginal(index)} disabled={busy != null} style={{ background: "none", border: `1px solid ${THEME.border}`, borderRadius: 9, padding: "7px 12px", fontSize: 12.5, fontWeight: 700, cursor: "pointer", color: THEME.text }}>
-                Print the original instead
+            {prep ? (
+              <span style={{ fontSize: 13, color: THEME.textMuted, flex: "1 1 200px" }} aria-live="polite">Preparing… {prep.step}</span>
+            ) : ready ? (
+              <button type="button" onClick={() => printPlain(index)} disabled={busy != null} style={smallBtn}>
+                Print the plain picture instead
               </button>
+            ) : busy === index ? (
+              <span style={{ fontSize: 13, color: THEME.textMuted }}>Redrawing… about half a minute</span>
             ) : (
-              dpi != null &&
-              dpi < GOOD_DPI && (
-                <button type="button" onClick={() => enlarge(index)} disabled={busy != null} style={{ background: THEME.ink, color: "#fff", border: "none", borderRadius: 9, padding: "8px 14px", minHeight: 40, fontSize: 12.5, fontWeight: 700, cursor: busy != null ? "not-allowed" : "pointer", opacity: busy != null ? 0.5 : 1 }}>
-                  Enlarge for print{price ? ` · about ₹${price}` : ""}
+              <div style={{ display: "grid", gap: 4, justifyItems: "end" }}>
+                <button type="button" onClick={() => prepare(index, printCm)} disabled={busy != null || !!preparing || !printCm} title={enlarger?.configured ? "" : "The enlarger (Replicate) is not set up on this server"} style={{ background: THEME.ink, color: "#fff", border: "none", borderRadius: 9, padding: "8px 14px", minHeight: 40, fontSize: 12.5, fontWeight: 700, cursor: busy != null || preparing ? "not-allowed" : "pointer", opacity: busy != null || preparing || !printCm ? 0.5 : 1 }}>
+                  Prepare for print{prepPrice ? ` · ${prepPrice}` : ""}
                 </button>
-              )
+                {el.printSrc ? (
+                  <button type="button" onClick={() => printOriginal(index)} disabled={busy != null || !!preparing} style={{ ...smallBtn, padding: "4px 8px", fontSize: 11.5 }}>
+                    Drop Google's redraw
+                  </button>
+                ) : (
+                  dpi != null &&
+                  dpi < GOOD_DPI && (
+                    <button type="button" onClick={() => enlarge(index)} disabled={busy != null || !!preparing} style={{ background: "none", border: "none", padding: 0, fontSize: 11.5, color: THEME.textMuted, cursor: "pointer", textDecoration: "underline" }}>
+                      or redraw bigger with Google's AI{price ? ` (about ₹${price})` : ""}
+                    </button>
+                  )
+                )}
+              </div>
             )}
           </div>
         );
@@ -213,11 +295,11 @@ function PrintPictures({ design, price, sizes, onChanged }) {
         </p>
       )}
       {error && <p style={{ margin: "6px 0 0", color: THEME.danger, fontSize: 13, fontWeight: 600 }}>{error}</p>}
-      {compare != null && design.elements[compare]?.printSrc && (
-        <ComparePictures original={full(design.elements[compare].src)} enlarged={full(design.elements[compare].printSrc)} tee={design.colour.hex} onClose={() => setCompare(null)} />
+      {compare != null && (
+        <ComparePictures original={full(design.elements[compare.index].src)} enlarged={compare.url} tee={design.colour.hex} onClose={() => setCompare(null)} />
       )}
       <p style={{ margin: "6px 0 0", fontSize: 12, color: THEME.textMuted }}>
-        300 DPI is ideal; 150 or more is usually fine on fabric. Enlarging has the picture redrawn about four times larger by the AI — always compare it with the original before printing.
+        <b>Prepare for print</b> is the way the print team approved: the picture is enlarged on a graphics-card service (the same enlarger that made the approved samples), its edge is cleaned and drawn as a vector, and it goes into the .ai file at 600 DPI. It keeps the picture as it is. Google's redraw is the older way: it can change details, so compare it before printing.
       </p>
     </div>
   );
@@ -227,8 +309,20 @@ export default function OrderDesignsModal({ orderId, onClose }) {
   const [pack, setPack] = useState(null);
   const [error, setError] = useState("");
   const [progress, setProgress] = useState(null); // { done, total, label }
-  const [result, setResult] = useState(null); // { fileName, warnings }
-  const [printPrice, setPrintPrice] = useState(null); // what one "Enlarge for print" costs, about 3 normal AI pictures
+  const [result, setResult] = useState(null); // { fileName, warnings, blob }
+  const [printPrice, setPrintPrice] = useState(null); // what one Google redraw costs, about 3 normal AI pictures
+  const [pf, setPf] = useState(null); // the print-file service: enlarger set up?, its price, the print team's address
+  const [sentList, setSentList] = useState([]); // ZIPs already sent for this order
+  const [sending, setSending] = useState(null); // { label }
+  const [sentNow, setSentNow] = useState(null); // the reply of the send just made
+  useEffect(() => {
+    let alive = true;
+    printFileService.status().then((p) => alive && setPf(p)).catch(() => {});
+    printFileService.sent(orderId).then((r) => alive && setSentList(r.sent || [])).catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [orderId]);
   useEffect(() => {
     let alive = true;
     aiService
@@ -244,6 +338,12 @@ export default function OrderDesignsModal({ orderId, onClose }) {
     setPack((p) => ({
       ...p,
       designs: p.designs.map((d) => (d._id === designId ? { ...d, elements: d.elements.map((e, n) => (n === index ? { ...e, printSrc: printSrc || undefined } : e)) } : d)),
+    }));
+  // a picture was made print-ready (or set back to plain): the next download draws it that way
+  const pictureReady = (designId, index, printFile) =>
+    setPack((p) => ({
+      ...p,
+      designs: p.designs.map((d) => (d._id === designId ? { ...d, elements: d.elements.map((e, n) => (n === index ? { ...e, printFile: printFile || undefined } : e)) } : d)),
     }));
 
   useEffect(() => {
@@ -286,16 +386,16 @@ export default function OrderDesignsModal({ orderId, onClose }) {
     }
   }, [pack]);
 
-  // pictures that will print blurry: said before the print files are downloaded
+  // pictures that will print blurry: said before the print files are downloaded (a print-ready picture is never blurry)
   const lowPictures = designs.flatMap((d) =>
     (d.layoutVersion === 2 ? d.elements : [])
-      .filter((el) => el.type === "image" && el.src)
+      .filter((el) => el.type === "image" && el.src && !el.printFile?.key)
       .map((el, i) => ({ d, el, i, ...pictureSharpness(d, el, pictureSizes) }))
       .filter((p) => p.dpi != null && p.dpi < LOW_DPI),
   );
 
   const download = async () => {
-    if (lowPictures.length && !window.confirm(`${lowPictures.length === 1 ? "1 picture" : `${lowPictures.length} pictures`} will print blurry (under ${LOW_DPI} DPI).\n\nPress Cancel to fix ${lowPictures.length === 1 ? "it" : "them"} first: Enlarge for print, or ask the customer for a bigger picture.\nPress OK to download anyway.`)) return;
+    if (lowPictures.length && !window.confirm(`${lowPictures.length === 1 ? "1 picture" : `${lowPictures.length} pictures`} will print blurry (under ${LOW_DPI} DPI).\n\nPress Cancel to fix ${lowPictures.length === 1 ? "it" : "them"} first: Prepare for print, or ask the customer for a bigger picture.\nPress OK to download anyway.`)) return;
     setError("");
     setResult(null);
     cancelRef.current = false;
@@ -312,13 +412,34 @@ export default function OrderDesignsModal({ orderId, onClose }) {
       a.click();
       a.remove();
       setTimeout(() => URL.revokeObjectURL(url), 60_000);
-      setResult({ fileName, warnings });
+      setResult({ fileName, warnings, blob });
+      setSentNow(null);
     } catch (err) {
       if (!err?.stopped) setError(err.message || "Couldn't make the print files.");
     } finally {
       setProgress(null);
     }
   };
+
+  // Send to print team: the ZIP just made goes to the server in parts, which emails a download link
+  const sendToTeam = async () => {
+    if (!result?.blob) return;
+    if (!window.confirm(`Email these print files to the print team (${pf?.teamEmail || "the print team"})?\n\nThey get a download link that works for ${pf?.keepDays || 14} days. A copy goes to you.`)) return;
+    setError("");
+    setSending({ label: "Uploading…" });
+    try {
+      const uploadId = await printFileService.uploadZip(orderId, result.blob, (n, t) => setSending({ label: `Uploading ${n}/${t}…` }));
+      setSending({ label: "Sending the email…" });
+      const r = await printFileService.send(orderId, { uploadId, fileName: result.fileName, bytes: result.blob.size });
+      setSentNow(r);
+      printFileService.sent(orderId).then((x) => setSentList(x.sent || [])).catch(() => {});
+    } catch (err) {
+      setError(err.response?.data?.message || err.message || "The print files could not be sent.");
+    } finally {
+      setSending(null);
+    }
+  };
+  const fmtWhen = (d) => new Date(d).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
 
   return (
     <div
@@ -405,7 +526,7 @@ export default function OrderDesignsModal({ orderId, onClose }) {
                 </table>
               </div>
             )}
-            {d.layoutVersion === 2 && <PrintPictures design={d} price={printPrice} sizes={pictureSizes} onChanged={(index, src) => pictureChanged(d._id, index, src)} />}
+            {d.layoutVersion === 2 && <PrintPictures design={d} price={printPrice} sizes={pictureSizes} pf={pf} onChanged={(index, src) => pictureChanged(d._id, index, src)} onReady={(index, printFile) => pictureReady(d._id, index, printFile)} />}
           </section>
         ))}
         {pack?.designs.some((d) => d.missing) && <p style={{ color: THEME.danger, fontSize: 13 }}>A design in this order no longer exists.</p>}
@@ -414,9 +535,26 @@ export default function OrderDesignsModal({ orderId, onClose }) {
         {error && <p style={{ color: THEME.danger, fontWeight: 600, fontSize: 13 }}>{error}</p>}
         {result && (
           <div role="status" style={{ background: THEME.surface2, border: `1px solid ${THEME.border}`, borderRadius: 10, padding: "10px 14px", fontSize: 13, marginTop: 14 }}>
-            <b>Downloaded {result.fileName}</b> — open ORDER-SHEET.txt inside for the sizes, where each print area sits on the tee and where the artwork is inside it. Each area also has a guide picture with a cm ruler.
+            <b>Downloaded {result.fileName}</b> — open ORDER-SHEET.txt inside for the sizes, where each print area sits on the tee and where the artwork is inside it. Each print has a job card with the measurements, a .ai (and .pdf) with vector words and the print-ready pictures, and a PNG as a fallback.
             {result.warnings.map((w) => (
               <p key={w} style={{ margin: "6px 0 0", color: THEME.danger }}>⚠ {w}</p>
+            ))}
+            <div style={{ marginTop: 10, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+              <button type="button" onClick={sendToTeam} disabled={!!sending || !!progress} style={{ background: THEME.ink, color: "#F0D585", border: "none", borderRadius: 999, padding: "9px 16px", fontWeight: 700, fontSize: 13, cursor: sending ? "wait" : "pointer", opacity: sending ? 0.6 : 1 }}>
+                {sending ? sending.label : `Send to print team (${pf?.teamEmail || "email"})`}
+              </button>
+              {sentNow && <span style={{ color: "#24522F", fontWeight: 600 }}>✓ Sent to {sentNow.sentTo}. The link works until {new Date(sentNow.expiresAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })}.</span>}
+            </div>
+          </div>
+        )}
+        {sentList.length > 0 && (
+          <div style={{ fontSize: 12.5, color: THEME.textMuted, marginTop: 10 }}>
+            <b style={{ color: THEME.text }}>Sent to the print team:</b>{" "}
+            {sentList.map((f, i) => (
+              <span key={`${f.sentAt}-${i}`}>
+                {i > 0 ? " · " : ""}
+                {fmtWhen(f.sentAt)} ({(f.bytes / 1e6).toFixed(1)} MB{f.expired ? ", link expired" : ""})
+              </span>
             ))}
           </div>
         )}
@@ -431,7 +569,7 @@ export default function OrderDesignsModal({ orderId, onClose }) {
                 </li>
               ))}
             </ul>
-            <span>Press <b>Enlarge for print</b> above. If it stays under {LOW_DPI} DPI, ask the customer for a bigger picture, or print it smaller.</span>
+            <span>Press <b>Prepare for print</b> above: it enlarges the picture up to 4 times. If a picture is very small, ask the customer for a bigger one, or print it smaller.</span>
           </div>
         )}
 

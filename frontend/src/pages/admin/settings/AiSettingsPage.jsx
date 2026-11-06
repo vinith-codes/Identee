@@ -16,6 +16,7 @@ const FIELDS = [
   ["pricePerImageInr", "Cost of one Google picture (₹)", "Used only for the spending figures here. Include GST: Google’s spend page shows about ₹3.50 a picture.", 0, 100, 0.1],
   ["grokMonthlyCapInr", "Grok: monthly spending cap (₹)", "When this month's Grok spend reaches it, Grok stops standing in until next month: a picture Google refuses then gets a “couldn’t make this one” message, and Google keeps working. Keep it a little below your xAI credit. 0 = no cap.", 0, 1000000, 50],
   ["grokPricePerImageInr", "Cost of one Grok picture (₹)", "Grok redraws a customer's photo only when Google refuses it (well-known people). $5 of xAI credit ≈ 71 pictures ≈ ₹6 each — check console.x.ai → Billing.", 0, 100, 0.1],
+  ["replicatePricePerImageInr", "Cost of one print-ready picture (₹)", "Orders → Designs & print files → Prepare for print: the picture is enlarged on Replicate's graphics cards (Real-ESRGAN). Replicate charges per run, about ₹0.20–₹1 — check replicate.com → Billing and put the real figure here.", 0, 100, 0.1],
   ["designAddOnInr", "Extra price per tee with a picture (₹)", "What the CUSTOMER pays on top of the garment's price for each tee whose design has an AI-made picture or their own upload. Once per tee, however many pictures. Pictures from the art library are free, and a text-only design costs just the garment's price.", 0, 5000, 10],
   ["chatPricePerMessageInr", "Cost of one smart Assistant message (₹)", "Used only for the spending figures here: Google's text AI reads each message a customer types. Check Google AI Studio's spend page after a few days and put the real figure here. It counts toward Google's monthly cap.", 0, 10, 0.05],
 ];
@@ -138,6 +139,20 @@ export default function AiSettingsPage() {
               <div style={{ fontSize: 18, fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>{v}</div>
             </div>
           ))}
+        </div>
+      </div>
+
+      <div style={{ ...card, display: "grid", gap: 10 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap", alignItems: "baseline" }}>
+          <b style={{ fontSize: 14 }}>Enlarger for print files — Replicate</b>
+          <span style={{ fontSize: 12, fontWeight: 700, padding: "3px 10px", borderRadius: 999, background: data.replicate?.configured ? t.goldBg : t.surface2, border: `1px solid ${data.replicate?.configured ? t.goldBorder : t.border}` }}>
+            {data.replicate?.configured ? (data.replicate.model === "mock-resize" ? "Test mode (no real enlarging)" : "Connected") : "Not set up"}
+          </span>
+        </div>
+        <div style={help}>
+          {data.replicate?.configured
+            ? "Orders → Designs & print files → Prepare for print: a picture is enlarged on Replicate's graphics cards (Real-ESRGAN, the enlarger that made the samples the print team approved), then given its vector edge for the .ai print file. Charged per picture by Replicate."
+            : "Not working yet: add REPLICATE_API_TOKEN to the server's settings file (token from replicate.com → API tokens; add a card or prepaid credit under Billing). Until then, Prepare for print says it is not set up."}
         </div>
       </div>
 

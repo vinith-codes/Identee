@@ -7,3 +7,7 @@ node_modules
 
 # the background-removal model, downloaded by the server the first time it is needed (about 44 MB)
 .cache/
+
+# print files made for orders (6 Nov 2026): the enlarged pictures and the ZIPs sent to the print team
+print-work/
+print-files/

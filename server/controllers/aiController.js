@@ -33,6 +33,7 @@ import { rememberPictures } from "./myPictureController.js";
 import sharp from "sharp";
 import { artFilters, FILTER_STYLE } from "../services/artFilterService.js";
 import { xaiConfigured, xaiEditImage, xaiModel, xaiNewImage } from "../services/xaiImageService.js";
+import { replicateConfigured, replicateModel } from "../services/replicateService.js";
 import { AI_STYLES, PHOTO_STYLES, aiImageConfigured, aiImageModel, changeDesignPrompt, copyDesignPrompt, inspiredDesignPrompt, generateImage, nearestRatio, newDesignPrompt, photoArtPrompt, FIX_KINDS, fixPrompt, printPrompt, RATIO_VALUES } from "../services/aiImageService.js";
 
 const CATEGORY = "ai";
@@ -46,6 +47,8 @@ const DEFAULTS = {
   "ai.pricePerImageInr": { value: 2.9, type: "number", description: "What one picture costs, in rupees (for the spending figures)" },
   // Grok (xAI) redraws photos Google refuses; $5 of credit ≈ 71 pictures
   "ai.grokPricePerImageInr": { value: 6, type: "number", description: "What one Grok picture costs, in rupees (for the spending figures)" },
+  // the enlarger for print files (Real-ESRGAN on Replicate, 6 Nov 2026): about ₹0.20–₹1 a picture
+  "ai.replicatePricePerImageInr": { value: 1, type: "number", description: "What one enlarged print picture costs on Replicate, in rupees (for the spending figures)" },
   // what the CUSTOMER pays extra per tee with a picture — AI-made, art library or upload (utils/aiPricing.js)
   [AI_ADDON_KEY]: { value: AI_ADDON_DEFAULT, type: "number", description: "Extra price per tee with a picture (₹)" },
   // the smart Assistant (23 Oct 2026): Google reads every typed message; off = the fixed replies, as before
@@ -55,7 +58,7 @@ const DEFAULTS = {
 // how much a customer may type for the AI (a long, detailed idea is fine; 2,000 characters ≈ 300 words — the
 // cut-off only stops something pasted by mistake, like a whole page, from being sent to the AI)
 const PROMPT_MAX = 2000;
-const LIMITS = { "ai.dailyPerUser": [1, 50], "ai.imagesPerRequest": [1, 4], "ai.monthlyCapInr": [0, 1000000], "ai.grokMonthlyCapInr": [0, 1000000], "ai.pricePerImageInr": [0, 100], "ai.grokPricePerImageInr": [0, 100], [AI_ADDON_KEY]: [0, 5000], "ai.chatPricePerMessageInr": [0, 10] };
+const LIMITS = { "ai.dailyPerUser": [1, 50], "ai.imagesPerRequest": [1, 4], "ai.monthlyCapInr": [0, 1000000], "ai.grokMonthlyCapInr": [0, 1000000], "ai.pricePerImageInr": [0, 100], "ai.grokPricePerImageInr": [0, 100], "ai.replicatePricePerImageInr": [0, 100], [AI_ADDON_KEY]: [0, 5000], "ai.chatPricePerMessageInr": [0, 10] };
 const BOOLEAN_KEYS = ["ai.enabled", "ai.smartChat"];
 
 
@@ -82,6 +85,7 @@ export async function readSettings() {
     grokMonthlyCapInr: Number(get("ai.grokMonthlyCapInr")),
     pricePerImageInr: Number(get("ai.pricePerImageInr")),
     grokPricePerImageInr: Number(get("ai.grokPricePerImageInr")),
+    replicatePricePerImageInr: Number(get("ai.replicatePricePerImageInr")),
     designAddOnInr: Number(get(AI_ADDON_KEY)),
     smartChat: get("ai.smartChat") !== false,
     chatPricePerMessageInr: Number(get("ai.chatPricePerMessageInr")),
@@ -228,12 +232,12 @@ export const makeChat = asyncHandler(async (req, res) => {
 // Only pictures this feature made may be sent back to be changed.
 const isAiDesign = isAiDesignUrl;
 // A picture the customer uploaded in the Design Room (for photo to art).
-const isOurUpload = (url) => {
+export const isOurUpload = (url) => {
   const cloud = process.env.CLOUDINARY_NAME?.trim();
   const s = String(url || "");
   return (cloud && s.startsWith(`https://res.cloudinary.com/${cloud}/`) && s.includes("/identee/")) || /^\/?uploads\/[\w\-./]+$/.test(s);
 };
-async function fetchOurImage(url, req) {
+export async function fetchOurImage(url, req) {
   const path = url.startsWith("uploads/") ? `/${url}` : url;
   const full = path.startsWith("/") ? `${req.protocol}://${req.get("host")}${path}` : path;
   const r = await fetch(full);
@@ -571,6 +575,8 @@ export const getAiAdmin = asyncHandler(async (req, res) => {
     model: aiImageModel(),
     // the second picture service, for photos Google refuses
     grok: { configured: xaiConfigured(), model: xaiModel(), capped: grokCapped(settings, month) },
+    // the enlarger for print files (6 Nov 2026)
+    replicate: { configured: replicateConfigured(), model: replicateModel() },
     reason: await whyOff(settings),
     settings,
     month,
@@ -632,7 +638,7 @@ export const saveAiAdmin = asyncHandler(async (req, res) => {
 // picture, and only for tees that were sold. The admin compares it with the original before printing,
 // because an image AI redraws what it enlarges.
 const PRINT_COST_FACTOR = 3;
-const isDarkHex = (hex) => {
+export const isDarkHex = (hex) => {
   const m = /^#?([0-9a-f]{6})$/i.exec(String(hex || ""));
   if (!m) return false;
   const n = parseInt(m[1], 16);
