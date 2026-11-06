@@ -535,7 +535,7 @@ export default function OrderDesignsModal({ orderId, onClose }) {
         {error && <p style={{ color: THEME.danger, fontWeight: 600, fontSize: 13 }}>{error}</p>}
         {result && (
           <div role="status" style={{ background: THEME.surface2, border: `1px solid ${THEME.border}`, borderRadius: 10, padding: "10px 14px", fontSize: 13, marginTop: 14 }}>
-            <b>Downloaded {result.fileName}</b> — open ORDER-SHEET.txt inside for the sizes, where each print area sits on the tee and where the artwork is inside it. Each print has a job card with the measurements, a .ai (and .pdf) with vector words and the print-ready pictures, and a PNG as a fallback.
+            <b>Downloaded {result.fileName}</b> — open ORDER-SHEET.txt inside for the sizes, where each print area sits on the tee and where the artwork is inside it. Each print is one .ai file (vector words and the print-ready pictures), with a job card for the measurements.
             {result.warnings.map((w) => (
               <p key={w} style={{ margin: "6px 0 0", color: THEME.danger }}>⚠ {w}</p>
             ))}

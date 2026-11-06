@@ -274,15 +274,16 @@ function drawPicture(pdf, page, pic, place, H) {
  * @param W, H      the print's size in px at 300 DPI
  * @param title
  * @param opts.pictures  Map: element id -> { width, height, clip, flate } of its print-ready picture (printFileService)
+ * @param opts.always    make the file even with nothing vector in it (all pixels) — the .ai is the only print file
  * @returns {{ bytes: Uint8Array|null, vectorTexts: number, vectorPictures: number, pixelTexts: string[] }}
- *   bytes: null when the PDF would add nothing to the PNG (no shapes, no print-ready picture)
+ *   bytes: null when the PDF would add nothing to the PNG (no shapes, no print-ready picture) and `always` is off
  */
-export async function buildVectorPdf(elements, W, H, title = "IDENTEE print", { pictures = new Map() } = {}) {
+export async function buildVectorPdf(elements, W, H, title = "IDENTEE print", { pictures = new Map(), always = false } = {}) {
   const sorted = [...elements].sort((a, b) => (a.zIndex || 0) - (b.zIndex || 0));
   const texts = sorted.filter((e) => e.type === "text");
   const prepared = (el) => el.type === "image" && pictures.has(String(el.id));
   const vectorPictures = sorted.filter(prepared).length;
-  if (!texts.some(shapeable) && !vectorPictures) return { bytes: null, vectorTexts: 0, vectorPictures: 0, pixelTexts: texts.map((e) => e.text) };
+  if (!always && !texts.some(shapeable) && !vectorPictures) return { bytes: null, vectorTexts: 0, vectorPictures: 0, pixelTexts: texts.map((e) => e.text) };
 
   const faces = texts.some(shapeable) ? await fontFaces() : null;
   // every text's shapes and every print-ready picture's place first, so the pixels can be grouped around them in order
@@ -305,7 +306,7 @@ export async function buildVectorPdf(elements, W, H, title = "IDENTEE print", { 
     r.destroy();
   }
   const pixelTexts = texts.filter((e) => !shapes.has(e)).map((e) => e.text);
-  if (!shapes.size && !vectorPictures) return { bytes: null, vectorTexts: 0, vectorPictures: 0, pixelTexts };
+  if (!always && !shapes.size && !vectorPictures) return { bytes: null, vectorTexts: 0, vectorPictures: 0, pixelTexts };
 
   const pdf = await PDFDocument.create();
   pdf.setTitle(title);

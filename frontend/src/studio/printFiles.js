@@ -1,6 +1,7 @@
 // studio/printFiles.js
 //
-// Print files for the print team: one transparent PNG per used print area
+// Print files for the print team (since 6 Nov 2026 only a .ai, the print team's wish; a PNG only when the .ai can't be
+// made): one print file per used print area
 // and ordered size group, at 300 DPI and the area's real size in cm
 // (e.g. Centre Front, M–XL = 28 × 32 cm = 3307 × 3780 px).
 //
@@ -389,7 +390,7 @@ async function jobCard({ heading, sub, rows, tee, checks = [], notes = [] }) {
   g.fillText(sub, 40, 148, W - 80);
   g.fillStyle = "#B42318";
   g.font = "bold 22px Arial";
-  g.fillText("JOB CARD — NOT FOR PRINTING.   TOP = collar seam (centre) ↓ to the artwork's top edge.   SIDE = tee's centre line → artwork's centre.   Print each PNG at 100%.", 40, 184, W - 80);
+  g.fillText("JOB CARD — NOT FOR PRINTING.   TOP = collar seam (centre) ↓ to the artwork's top edge.   SIDE = tee's centre line → artwork's centre.   Print each .ai at 100%.", 40, 184, W - 80);
   // the tee: front and back side by side
   sides.forEach((side, i) => {
     const map = teeMap({ side, prints: rows.filter((r) => r.area.side === side && r.box), tee });
@@ -484,8 +485,8 @@ export async function buildPrintPack(pack, onStep = () => {}) {
     "",
     "Open the JOB-CARD picture of each size: it shows where every print goes, with the measurements.",
     "Print each file at 100%. The number at the start of a file name is the print's number on the job card.",
-    "Use the .ai (or the same file as .pdf): words are vector shapes, and a picture marked PRINT-READY below is at 600 DPI with a vector edge.",
-    "The PNG of each print is the same design at 300 DPI, only as a fallback.",
+    "Each print is one .ai file: words are vector shapes, and a picture marked PRINT-READY below is at 600 DPI with a vector edge.",
+    "(A PNG at 300 DPI is there only for a print whose .ai couldn't be made.)",
     "",
   ];
   // the print-ready pictures (Prepare for print): fetched once per picture, drawn into the PDFs by vectorPrint.js
@@ -544,30 +545,30 @@ export async function buildPrintPack(pack, onStep = () => {}) {
         // a player's own file: their name and number in place of the marked texts
         const who = f.player ? `P${String(f.player.n).padStart(2, "0")}-${safe(playerLabel(f.player))}` : f.sizes.join("-");
         const drawn = f.player ? playerElements(els, f.player, cmToPx(w), cmToPx(h)) : els;
-        const name = `${n}-${safe(area.label)}_${who}.png`;
+        const base = `${n}-${safe(area.label)}_${who}`;
+        let name = `${base}.ai`;
         tick(done, total, `Drawing ${area.label} (${f.player ? playerLabel(f.player) : f.sizes.join(", ")}) for “${title}”…`);
-        folder.file(name, await renderPrintFile(drawn, f.cm));
-        files.push(name);
-        // the same print as vectors: words as shapes, print-ready pictures at 600 DPI with their vector edge (.pdf, and
-        // the same bytes as .ai); the PNG is already safe, so a problem here never stops the download
+        // the print as a .ai (a PDF inside, which Illustrator opens): words as shapes, print-ready pictures at 600 DPI
+        // with their vector edge, everything else as pixels. If it can't be made, a PNG is the print file instead.
         try {
           const { buildVectorPdf } = await import("./vectorPrint");
           const pictures = new Map();
           for (const e of drawn) if (e.type === "image" && e.printFile?.key && readyPictures.has(e.printFile.key)) pictures.set(String(e.id), readyPictures.get(e.printFile.key));
           tick(done, total, `Making the vector file for ${area.label} of “${title}”…`);
-          const vector = await buildVectorPdf(drawn, cmToPx(w), cmToPx(h), `${title} · ${area.label}`, { pictures });
-          if (vector.bytes) {
-            folder.file(name.replace(/\.png$/, ".pdf"), vector.bytes);
-            folder.file(name.replace(/\.png$/, ".ai"), vector.bytes);
-            files.push(name.replace(/\.png$/, ".ai"));
-          }
-          for (const text of vector.pixelTexts) checks.push(`${n} ${area.label} (${f.sizes.join(", ")}): the words “${text}” can't be made of shapes (their letters or font), so they stay as pixels in the PDF.`);
+          const vector = await buildVectorPdf(drawn, cmToPx(w), cmToPx(h), `${title} · ${area.label}`, { pictures, always: true });
+          if (!vector.bytes) throw new Error("no .ai was made");
+          folder.file(name, vector.bytes);
+          files.push(name);
+          for (const text of vector.pixelTexts) checks.push(`${n} ${area.label} (${f.sizes.join(", ")}): the words “${text}” can't be made of shapes (their letters or font), so they stay as pixels in the .ai.`);
           const plain = drawn.filter((e) => e.type === "image" && !pictures.has(String(e.id)));
           if (plain.length) checks.push(`${n} ${area.label} (${f.sizes.join(", ")}): ${plain.length === 1 ? "a picture is" : `${plain.length} pictures are`} plain pixels (not prepared for print).`);
           else if (pictures.size) sheet.push(`  ${n} ${area.label}: PRINT-READY picture${pictures.size === 1 ? "" : "s"} (600 DPI, vector edge).`);
         } catch (err) {
           console.error("[print files] PDF:", err);
-          checks.push(`${n} ${area.label} (${f.sizes.join(", ")}): the vector file couldn't be made, so this print is only a PNG.`);
+          checks.push(`${n} ${area.label} (${f.sizes.join(", ")}): the .ai couldn't be made, so this print is a PNG (300 DPI) instead.`);
+          name = `${base}.png`;
+          folder.file(name, await renderPrintFile(drawn, f.cm));
+          files.push(name);
         }
         done += 1;
         const box = artworkBox(drawn, f.cm);
@@ -575,8 +576,11 @@ export async function buildPrintPack(pack, onStep = () => {}) {
 
         // picture sharpness at this print size
         for (const e of els.filter((x) => x.type === "image")) {
-          const img = cachedImage(e.src, true);
-          const dpi = img ? Math.round(img.naturalWidth / ((((e.width || 0) / 100) * w) / 2.54)) : 0;
+          // a print-ready picture (Prepare for print) goes into the .ai at its enlarged size: measure that one
+          const ready = e.printFile?.key && readyPictures.get(e.printFile.key);
+          const img = ready ? null : cachedImage(e.src, true);
+          const px = ready ? ready.width : img?.naturalWidth;
+          const dpi = px ? Math.round(px / ((((e.width || 0) / 100) * w) / 2.54)) : 0;
           if (dpi && dpi < LOW_DPI) checks.push(`${n} ${area.label} (${f.sizes.join(", ")}): a picture is only ${dpi} DPI at its print size — it may look blurry.`);
         }
       }
