@@ -68,8 +68,56 @@ export async function cutOutPlainBackground(buffer) {
       if (d < SOFT) data[i + 3] = Math.round((255 * (d - NEAR)) / (SOFT - NEAR));
     }
   }
+  defringe(data, w, h, gone, colour);
   const png = await sharp(data, { raw: { width: w, height: h, channels: 4 } }).png({ compressionLevel: 9 }).toBuffer();
   return { buffer: png, mime: "image/png", width: w, height: h, cut: true };
+}
+
+// The outline's own pixels are blended with the background colour by the AI's anti-aliasing and JPEG ringing (a
+// magenta-tinted rim on a dark line is easy to see on a tee, 8 Nov 2026). The pixels along the cleared background take
+// their colour from the pixels just inside them, ring by ring from the inside out: the two outer rings always, the
+// next four only where the pixel is still tinted with the background colour (JPEG colour blur reaches 4-5 px in). Their see-through (alpha) stays as set.
+const RINGS = 6;
+function defringe(data, w, h, gone, colour) {
+  const ring = new Uint8Array(w * h); // 1 = next to the background … RINGS = furthest in; 0 = deeper inside
+  const each4 = (p, f) => {
+    const x = p % w;
+    if (x > 0) f(p - 1);
+    if (x < w - 1) f(p + 1);
+    if (p >= w) f(p - w);
+    if (p < w * (h - 1)) f(p + w);
+  };
+  let edge = [];
+  for (let p = 0; p < w * h; p++) if (gone[p]) edge.push(p);
+  for (let r = 1; r <= RINGS; r++) {
+    const next = [];
+    for (const p of edge) each4(p, (q) => { if (!gone[q] && !ring[q]) { ring[q] = r; next.push(q); } });
+    edge = next;
+  }
+  // tinted: closer to the background colour in hue than any real ink (magenta: more red and blue than green)
+  const tinted = (i) => {
+    const [r, g, b] = colour;
+    const sat = Math.max(r, g, b) - Math.min(r, g, b);
+    if (sat < 60) return false; // a grey/white/black key: nothing to judge by, the two sure rings are enough
+    const low = r <= g && r <= b ? 0 : g <= r && g <= b ? 1 : 2; // the key's weakest channel
+    const others = [0, 1, 2].filter((k) => k !== low);
+    return data[i + others[0]] > data[i + low] + 20 && data[i + others[1]] > data[i + low] + 20;
+  };
+  const src = Buffer.from(data);
+  for (let r = RINGS; r >= 1; r--) {
+    for (let p = 0; p < w * h; p++) {
+      if (ring[p] !== r) continue;
+      if (r > 2 && !tinted(p * 4)) continue;
+      let cr = 0, cg = 0, cb = 0, n = 0;
+      each4(p, (q) => {
+        if (gone[q] || (ring[q] && ring[q] <= r)) return; // only from further inside
+        cr += src[q * 4]; cg += src[q * 4 + 1]; cb += src[q * 4 + 2]; n++;
+      });
+      if (!n) continue;
+      data[p * 4] = Math.round(cr / n); data[p * 4 + 1] = Math.round(cg / n); data[p * 4 + 2] = Math.round(cb / n);
+    }
+    src.set(data);
+  }
 }
 
 /**
