@@ -62,7 +62,7 @@ const DEFAULTS = {
 // cut-off only stops something pasted by mistake, like a whole page, from being sent to the AI)
 const PROMPT_MAX = 2000;
 const LIMITS = { "ai.dailyPerUser": [1, 50], "ai.imagesPerRequest": [1, 4], "ai.monthlyCapInr": [0, 1000000], "ai.grokMonthlyCapInr": [0, 1000000], "ai.pricePerImageInr": [0, 100], "ai.grokPricePerImageInr": [0, 100], "ai.replicatePricePerImageInr": [0, 100], [AI_ADDON_KEY]: [0, 5000], "ai.chatPricePerMessageInr": [0, 10] };
-const BOOLEAN_KEYS = ["ai.enabled", "ai.smartChat"];
+const BOOLEAN_KEYS = ["ai.enabled", "ai.smartChat", "ai.assistantV2"];
 
 
 const startOfDay = () => {
@@ -622,6 +622,7 @@ export const saveAiAdmin = asyncHandler(async (req, res) => {
     "ai.grokPricePerImageInr": req.body.grokPricePerImageInr,
     [AI_ADDON_KEY]: req.body.designAddOnInr,
     "ai.smartChat": req.body.smartChat,
+    "ai.assistantV2": req.body.assistantV2,
     "ai.chatPricePerMessageInr": req.body.chatPricePerMessageInr,
   };
   for (const [key, raw] of Object.entries(incoming)) {

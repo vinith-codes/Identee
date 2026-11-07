@@ -260,6 +260,16 @@ export default function AiSettingsPage() {
             On: Google reads every message a customer types and answers like a chat — ideas, questions, changes, drawings (a picture is still only drawn when the customer presses Draw). Off: the Assistant’s fixed replies, as before. Taps on buttons never use it.
           </span>
         </label>
+        {/* the new Assistant (7 Nov 2026, docs/ASSISTANT_V2_PLAN.md): off = the older chat with plan cards, at once, no release */}
+        <label style={{ display: "grid", gap: 2 }}>
+          <span style={{ display: "flex", gap: 10, alignItems: "center", ...label }}>
+            <input type="checkbox" checked={form.assistantV2 !== false} onChange={(e) => setForm({ ...form, assistantV2: e.target.checked })} style={{ width: 18, height: 18 }} />
+            The new Assistant (concept sheets, picks by number, several moves per message)
+          </span>
+          <span style={{ ...help, marginLeft: 28 }}>
+            On: a customer types what they want and gets three numbered tees to pick from; only signed-in customers can use it. Off: the older chat (one plan card at a time) comes back for everyone the moment you save — no release needed.
+          </span>
+        </label>
         {FIELDS.map(([key, title, hint, min, max, step]) => (
           <label key={key} style={{ display: "grid" }}>
             <span style={label}>{title}</span>
