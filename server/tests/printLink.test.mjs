@@ -41,3 +41,15 @@ test("publicBase keeps localhost on the laptop", () => {
     else process.env.NODE_ENV = was;
   }
 });
+
+test("publicBase is always https in production (the proxy says http; Chrome blocks http downloads from Gmail)", () => {
+  const was = process.env.NODE_ENV;
+  process.env.NODE_ENV = "production";
+  try {
+    assert.equal(publicBase(req({ host: "backend.identee.co.in", "x-forwarded-proto": "http" })), "https://backend.identee.co.in");
+    assert.equal(publicBase(req({ host: "localhost:7854", "x-forwarded-host": "backend.identee.co.in" }, "http")), "https://backend.identee.co.in");
+  } finally {
+    if (was === undefined) delete process.env.NODE_ENV;
+    else process.env.NODE_ENV = was;
+  }
+});

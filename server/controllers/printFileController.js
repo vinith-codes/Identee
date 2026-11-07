@@ -33,9 +33,11 @@ const MAX_PIXELS = 90e6; // the biggest print-ready picture the server will hold
 // is the inside one (localhost:7854 — the print team got such a link on 6 Nov 2026), so: the proxy's X-Forwarded-Host,
 // else PUBLIC_BACKEND_URL from .env, else https://backend.identee.co.in in production (the laptop keeps localhost).
 const LOCAL_HOST = /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/i;
+// Always https in production: the panel's proxy talks plain http to the backend and says so, and an http link from
+// Gmail (an https page) is a download Chrome quietly blocks — the tab flashes and nothing arrives (7 Nov 2026).
 export const publicBase = (req) => {
   const first = (v) => String(v || "").split(",")[0].trim();
-  const proto = first(req.get("x-forwarded-proto")) || req.protocol;
+  const proto = process.env.NODE_ENV === "production" ? "https" : first(req.get("x-forwarded-proto")) || req.protocol;
   for (const host of [first(req.get("x-forwarded-host")), first(req.get("host"))]) if (host && !LOCAL_HOST.test(host)) return `${proto}://${host}`;
   const set = process.env.PUBLIC_BACKEND_URL?.trim().replace(/\/+$/, "");
   if (set) return set;
