@@ -569,7 +569,7 @@ export async function buildPrintPack(pack, onStep = () => {}) {
           }
         } catch (err) {
           console.error("[print files] PDF:", err);
-          checks.push(`${n} ${area.label} (${f.sizes.join(", ")}): the .ai couldn't be made, so this print is a PNG (300 DPI) instead.`);
+          checks.push(`${n} ${area.label} (${f.sizes.join(", ")}): the .ai couldn't be made (${String(err?.message || err).slice(0, 120)}), so this print is a PNG (300 DPI) instead.`);
           name = `${base}.png`;
           folder.file(name, await renderPrintFile(drawn, f.cm));
           files.push(name);

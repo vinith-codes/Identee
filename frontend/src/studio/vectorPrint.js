@@ -240,6 +240,8 @@ function picturePlace(el, r, W, H) {
   return place;
 }
 
+const EDGE_CHUNK = 5000; // operators per pushOperators call (well under any browser's argument limit)
+
 function drawPicture(pdf, page, pic, place, H) {
   const dict = pdf.context.obj({
     Type: "XObject",
@@ -259,7 +261,12 @@ function drawPicture(pdf, page, pic, place, H) {
     concatTransformationMatrix(1, 0, 0, -1, 0, H), // the layer's y runs down
     concatTransformationMatrix(a, b, c, d, e, f), // the node's box on the layer
     concatTransformationMatrix(place.nw / pic.width, 0, 0, place.nh / pic.height, 0, 0), // picture pixels in the box
-    ...clipOperators(pic.clip),
+  );
+  // the vector edge in parts: a big picture's edge has 200,000+ pieces, and passing them all at once as "...edge"
+  // overflows the browser's stack ("Maximum call stack size exceeded" — SCENE tees, order VF-2026-0077, 7 Nov 2026)
+  const edge = clipOperators(pic.clip);
+  for (let i = 0; i < edge.length; i += EDGE_CHUNK) page.pushOperators(...edge.slice(i, i + EDGE_CHUNK));
+  page.pushOperators(
     clipEvenOdd(),
     endPath(),
     concatTransformationMatrix(pic.width, 0, 0, -pic.height, 0, pic.height), // the picture, first row at the top
