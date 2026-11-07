@@ -40,6 +40,14 @@ const photoPlan = async (body) => (await axios.post(`${API_URL}/photo-plan`, bod
 // (earlier / memory: a long chat's older messages not in its memory note yet, and the note — a new one comes back)
 const chat = async (body) => (await axios.post(`${API_URL}/chat`, body, { ...auth(), timeout: 30000 })).data;
 
+// Assistant v2 (7 Nov 2026, docs/ASSISTANT_V2_PLAN.md) — login needed
+// the brain: { message, history, earlier, memory, design, facts, areas, sheets } -> { reply, steps, chips, memory?, left }
+const assist = async (body) => (await axios.post(`${API_URL}/assist`, body, { ...auth(), timeout: 45000 })).data;
+// one concept sheet (three numbered tees on one picture): { concepts, brief, garment, teeColour, teeIsDark, numberFrom } -> { sheet, left }
+const concepts = async (body) => (await axios.post(`${API_URL}/concepts`, body, { ...auth(), timeout: 200000 })).data;
+// the artwork pieces of one concept, from its sheet: { sheetUrl, n, concept, pieces?, teeColour, teeIsDark, ratios } -> { pieces, failed, left }
+const develop = async (body) => (await axios.post(`${API_URL}/develop`, body, { ...auth(), timeout: 240000 })).data;
+
 // admin
 const getAdmin = async () => (await axios.get(`${API_URL}/admin`, auth())).data;
 const saveAdmin = async (values) => (await axios.put(`${API_URL}/admin`, values, auth())).data;
@@ -52,4 +60,4 @@ const printPicture = async (body) => (await axios.post(`${API_URL}/admin/print-p
 // print the original again
 const dropPrintPicture = async (body) => (await axios.delete(`${API_URL}/admin/print-picture`, { ...auth(), data: body })).data;
 
-export default { status, design, slogans, edit, improve, photoPlan, removeBg, chat, getAdmin, saveAdmin, getOlderRequests, printPicture, dropPrintPicture };
+export default { status, design, slogans, edit, improve, photoPlan, removeBg, chat, assist, concepts, develop, getAdmin, saveAdmin, getOlderRequests, printPicture, dropPrintPicture };

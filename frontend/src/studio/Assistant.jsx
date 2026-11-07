@@ -13,14 +13,18 @@ import IdeaPreview from "./IdeaPreview";
 import PlanCard from "./PlanCard";
 import PhotoPlanCard from "./PhotoPlanCard";
 import MyPictures from "./MyPictures";
+import SheetCard from "./SheetCard";
+import { assistAct } from "./assistantV2";
 import { PhotoError, shrinkPhoto } from "./shrinkPhoto";
 
 const PICTURE_HINT = "Usually 20–40 seconds. You can look around the room meanwhile.";
 // the acts that take a while (an AI or the server): the chat waits for them with a wait card
-const SLOW = ["generate", "slogans", "edit", "improve", "drawPlan", "photoPlace", "photoUnderstand", "photoMake", "smart"];
+const SLOW = ["generate", "slogans", "edit", "improve", "drawPlan", "photoPlace", "photoUnderstand", "photoMake", "smart", "assist"];
 // What the wait card says for an AI job: { label, expect (usual seconds), hint }
 const waitFor = (a) =>
-  a.type === "smart"
+  a.type === "assist"
+    ? { label: a.steps ? "Making your pick…" : "Thinking…", expect: a.steps ? 30 : 8, hint: a.steps ? "Each piece is drawn from the sheet. Usually 20–40 seconds." : "" }
+    : a.type === "smart"
     ? { label: "Thinking…", expect: 5 }
     : a.type === "edit"
     ? { label: "Working on it…", expect: 8, hint: "If you asked for pictures, each one takes about 20–40 seconds." }
@@ -172,7 +176,8 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
     // fixed chat just asked, is a button's own words, or is a pasted player list (assistantScript.smartCanAnswer).
     // Taps never go there. If it can't answer, the fixed replies below answer instead.
     if (!tapped && smartCanAnswer(text, ctx(), state)) {
-      const a = { type: "smart", text };
+      // Assistant v2 (7 Nov 2026): the brain answers with steps; a bare pick ("2 and 3") skips it (studio/assistantV2.js)
+      const a = ctx().ai.v2 ? assistAct(text, messages) : { type: "smart", text };
       run(a, waitFor(a));
       return true;
     }
@@ -321,6 +326,17 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
     run(a, waitFor(a));
   };
 
+  if (ctx().ai.v2 && !ctx().ai.loggedIn) {
+    return (
+      <div className="dr-chat">
+        <div className="dr-gate" role="region" aria-label="Sign in to design with the Assistant">
+          <b>Sign in to design with the Assistant</b>
+          <p>Tell it what you want in your own words — it shows you numbered design concepts, makes the one you pick, and changes anything you ask. Your tee stays here while you sign in.</p>
+          <button type="button" className="dr-mini" onClick={() => onAct({ type: "login" })}>Sign in</button>
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="dr-chat">
       <div className="dr-chatlog" ref={log} aria-live="polite">
@@ -488,6 +504,10 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
                 ))}
               </div>
             );
+          }
+          if (m.sheet) {
+            // Assistant v2: a concept sheet — tap a number to make that concept (a bare pick, no brain), More options for three more
+            return <SheetCard key={i} sheet={m.sheet} live={!thinking} onPick={(n) => say(String(n))} onMore={() => say("More options")} />;
           }
           if (m.designs) {
             const areas = ctx().areas.filter((a) => a.free);

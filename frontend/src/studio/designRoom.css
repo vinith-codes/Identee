@@ -1580,3 +1580,25 @@ p.pc-area { margin: 0; font-size: 13px; color: var(--muted); }
 @media (max-width: 760px) {
   .dr-app:is([data-step="design"], [data-step="review"]) :is(.dr-rail, .dr-cam, .dr-sizechip, .dr-spinbar) { backdrop-filter: none; -webkit-backdrop-filter: none; }
 }
+
+/* Assistant v2 (7 Nov 2026): a concept sheet in the chat, and the sign-in gate */
+.dr-sheet { display: grid; gap: 8px; border: 1px solid var(--line); border-radius: 14px; padding: 8px; background: #fff; }
+.dr-sheet[data-done] { opacity: .85; }
+.dr-sheet-pic { padding: 0; border: 0; background: none; cursor: zoom-in; border-radius: 10px; overflow: hidden; }
+.dr-sheet-pic img { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; background: #F3EFE6; }
+.dr-sheet-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.dr-sheet-pick { width: 100%; display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 8px; text-align: left; border: 1px solid var(--line); background: #fff; border-radius: 10px; padding: 6px 8px; min-height: 44px; font-size: 12px; line-height: 1.25; }
+.dr-sheet-pick b { font-size: 16px; width: 24px; height: 24px; border-radius: 999px; background: var(--ink); color: #fff; display: grid; place-items: center; }
+.dr-sheet-pick:hover:not(:disabled) { border-color: var(--ink); }
+.dr-sheet-pick.made { border-color: var(--gold); background: var(--gold-soft); }
+.dr-sheet-pick:disabled { opacity: .55; cursor: default; }
+.dr-sheet-acts { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.dr-sheet-hint { font-size: 11.5px; color: var(--muted); }
+.dr-sheet-full { position: fixed; inset: 0; z-index: 60; background: rgba(20, 17, 16, .85); display: grid; place-items: center; padding: 16px; cursor: zoom-out; }
+.dr-sheet-full img { max-width: 100%; max-height: 100%; border-radius: 10px; background: #fff; }
+.dr-sheet-close { position: absolute; top: 12px; right: 12px; width: 40px; height: 40px; border-radius: 999px; border: 0; background: #fff; font-size: 18px; }
+.dr-gate { margin: auto 0; display: grid; gap: 10px; border: 1px solid var(--line); border-radius: 14px; padding: 16px; background: #fff; text-align: center; }
+.dr-gate b { font-size: 15px; }
+.dr-gate p { margin: 0; font-size: 13px; color: var(--muted); line-height: 1.45; }
+.dr-gate .dr-mini { justify-self: center; min-width: 140px; }
+@media (max-width: 420px) { .dr-sheet-list { grid-template-columns: minmax(0, 1fr); } }

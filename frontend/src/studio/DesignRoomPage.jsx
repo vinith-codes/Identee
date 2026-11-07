@@ -31,6 +31,7 @@ import { PICTURES_CHANGED } from "./pictureHelpers";
 import myPicturesService from "../services/myPicturesService";
 import { chatTitle, historyFor, listChats, loadChat, moveLocalChats, saveChat } from "./chatStore";
 import { AFTER_AI_SLOGANS, AFTER_DESIGN_CHIPS, BACK, CHANGE_IDEA, DRAW_MINE, PHOTO_AS_IS, PHOTO_CHOICES, PHOTO_CUT, PHOTO_REVERT, PROMPT_MAX, bot as botSays, checkMessages, chips as chipRow, firstMessages, firstState, smartPlan } from "./assistantScript";
+import { firstMessagesV2, isUntouchedStart, sheetsFromChat, nextConceptNumber, findConcept, piecesOf, pieceArea } from "./assistantV2";
 import { styleIn } from "./styleInfo";
 import { areasFromWords, photoJobFrom, SAME_THEME } from "./photoIntent";
 import aiService from "../services/aiService";
@@ -201,7 +202,7 @@ export default function DesignRoomPage() {
   };
   // phones: the assistant fills the screen (room for the chat and its pictures); "Show the tee" makes it half
   // height so the tee shows above it — remembered on this device
-  const [assistSmall, setAssistSmall] = useState(() => readJSON(ASSIST_SMALL_KEY) === true);
+  const [assistSmall, setAssistSmall] = useState(() => readJSON(ASSIST_SMALL_KEY) !== false); // (v2, 7 Nov 2026: the tee in view by default)
   const toggleAssistSmall = () => {
     writeJSON(ASSIST_SMALL_KEY, !assistSmall);
     setAssistSmall(!assistSmall);
@@ -224,7 +225,12 @@ export default function DesignRoomPage() {
     let alive = true;
     aiService
       .status()
-      .then((st) => alive && setAi(st))
+      .then((st) => {
+        if (!alive) return;
+        setAi(st);
+        // Assistant v2 (7 Nov 2026): an untouched chat opens with the v2 start (one line, three suggestions) when v2 is on
+        if (st?.v2) setChat((c) => (isUntouchedStart(c) && c.some((m) => m.examples) ? firstMessagesV2() : c));
+      })
       .catch(() => {});
     return () => {
       alive = false;
@@ -611,7 +617,7 @@ export default function DesignRoomPage() {
   const applyConversation = (rec) => {
     const b = rec?.body || {};
     setChatId(rec?.id || makeId());
-    setChat(Array.isArray(b.chat) && b.chat.length ? b.chat : firstMessages());
+    setChat(Array.isArray(b.chat) && b.chat.length ? b.chat : ai?.v2 ? firstMessagesV2() : firstMessages());
     setChatState(b.chatState || firstState());
     setAiPlaced(b.aiPlaced && typeof b.aiPlaced === "object" ? b.aiPlaced : {});
     setChatMemory(typeof b.memory === "string" ? b.memory : "");
@@ -1273,6 +1279,174 @@ export default function DesignRoomPage() {
     // second row of chips under them)
     if (res.chips?.length && d?.tool !== "slogans" && d?.tool !== "menu") out.push({ chips: res.chips, smart: true });
     return out.length ? out : [{ fallback: { text: a.text } }];
+  };
+  // Assistant v2 (7 Nov 2026, docs/ASSISTANT_V2_PLAN.md): the brain reads everything and answers with STEPS the page runs
+  // in order — ask (a question + suggested answers), concepts (a sheet of three numbered tees), develop (picked concepts →
+  // real artwork on the tee), draw (straight away, no plan card), edit, slogans, a helper, undo. A bare pick ("2 and 3")
+  // comes with its develop step ready (assistantV2.assistAct) and skips the brain.
+  const v2Facts = () => ({
+    garment: garment?.label || "",
+    teeColour: colour?.name || "",
+    teeColours: colours.map((x) => x.name),
+    size: sizeNow,
+    sizes,
+    price: unitPrice,
+    wasPrice: wasPrice || null,
+    pictureAddOn: Number(ai.designAddOnInr ?? 100),
+    shipping: shopTeeNow ? "Free shipping (a Shop your IDENTEE tee)" : shipRule ? `₹${shipRule.rate} shipping, free from ${shipRule.freeFrom} pieces` : "",
+    offer: siteOffer?.code ? `Extra ${siteOffer.offerPercentage}% off at checkout with code ${siteOffer.code}` : "",
+    picturesLeft: ai.left,
+    canDraw: ai.available && isLoggedIn() && ai.left !== 0,
+    pieces,
+  });
+  const chatAssist = async (a, progress, run) => {
+    const c = assistantCtx();
+    if (!isLoggedIn()) return [botSays("Sign in and I’ll design with you. Your tee stays here."), chipRow(["Log in"])];
+    let res;
+    if (a.steps) res = { reply: "", steps: a.steps, chips: [] };
+    else {
+      const { history, earlier, fold } = historyFor(chat);
+      try {
+        res = await aiService.assist({
+          message: a.text,
+          history,
+          earlier,
+          memory: chatMemory,
+          design: describeDesign({ elements, positions, active, selectedId, fonts: FONTS, teeName: colour?.name || "", teeColours: colours.map((x) => x.name), areaPx }),
+          facts: v2Facts(),
+          areas: c.areas.map(({ key, label, free }) => ({ key, label, free })),
+          sheets: sheetsFromChat(chat).map((sh) => ({ brief: sh.brief, concepts: (sh.concepts || []).map(({ n, title }) => ({ n, title })), developed: sh.developed || [] })),
+        });
+      } catch (err) {
+        if (err.response?.status === 503) return [{ fallback: { text: a.text } }];
+        if (err.response?.status === 401) return [botSays("Sign in and I’ll design with you. Your tee stays here."), chipRow(["Log in"])];
+        return [botSays(err.response?.data?.message || "I couldn’t answer that just now — the connection was slow. Tap Try again and I’ll answer it."), { failed: true }];
+      }
+      if (res.memory) {
+        const noted = new Set(fold);
+        setChatMemory(res.memory);
+        setChat((m) => m.map((x) => (noted.has(x) ? { ...x, folded: true } : x)));
+      }
+      if (res.left != null) setAi((cur) => ({ ...cur, left: res.left }));
+    }
+    if (run?.stopped) return [];
+    const out = res.reply ? [botSays(res.reply)] : [];
+    let asked = false;
+    for (const step of res.steps || []) {
+      if (run?.stopped) return out;
+      if (step.type === "ask") {
+        // (the reply usually IS the question — it is not repeated under it)
+        if (!res.reply || !res.reply.toLowerCase().includes(step.question.toLowerCase().replace(/[?.!]+$/, "").slice(0, 30))) out.push(botSays(step.question));
+        if (step.options?.length) out.push({ chips: step.options, smart: true });
+        asked = true;
+        break;
+      }
+      if (step.type === "concepts") out.push(...(await makeSheet(step, progress, run)));
+      else if (step.type === "develop") out.push(...(await developPicks(step, progress, run)));
+      else if (step.type === "draw") out.push(...(await drawPlan({ items: [{ subject: step.subject, areaKey: step.area }], style: step.style }, progress, run)).filter((m) => !m.chips));
+      else if (step.type === "edit") out.push(...(await chatEdit({ message: step.message }, progress, run)).filter((m) => !m.chips));
+      else if (step.type === "slogans") {
+        setChatState((st) => ({ ...st, ask: step.about, tone: step.tone || null, said: [] }));
+        out.push(...(await writeSlogans({ ask: step.about, tone: step.tone, avoid: [] })).filter((m) => !m.from));
+      } else if (step.type === "menu") out.push(step.item === "My pictures" ? { mypics: true, find: a.text || "" } : { menu: step.item });
+      else if (step.type === "undo") {
+        undo();
+        if (!res.reply) out.push(botSays("Undone."));
+      }
+    }
+    // (a sheet card has its own number buttons and More options, so those chips aren't repeated under it)
+    const madeSheet = out.some((m) => m.sheet);
+    const chips = (res.chips || []).filter((c) => !madeSheet || !(/^\d{1,2}$/.test(c) || /^more options$/i.test(c)));
+    if (!asked && chips.length) out.push({ chips, smart: true });
+    return out.length ? out : [botSays("How can I help with your tee?")];
+  };
+  // a concept sheet: one picture, three numbered tees (counts as one picture request)
+  const makeSheet = async (step, progress, run) => {
+    if (!ai.available) return [botSays("Pictures can’t be made right now. You can pick from the art library or upload your own."), chipRow(["Open the art library", "Upload a picture"])];
+    if (ai.left === 0) return [botSays("You’ve used today’s picture requests. They reset tomorrow — I can still help with words and layout.")];
+    const numberFrom = nextConceptNumber(sheetsFromChat(chat));
+    progress?.({ label: "Drawing three concepts…", expect: 25, hint: "One picture with the three tees on it. Usually 20–40 seconds." });
+    try {
+      const res = await aiService.concepts({ concepts: step.concepts, brief: step.brief, garment: garment?.label || "t-shirt", teeColour: colour?.name || "white", teeIsDark: lum(fabricHex) < 0.55, numberFrom });
+      if (res.left != null) setAi((cur) => ({ ...cur, left: res.left }));
+      if (run?.stopped) return [];
+      return [{ sheet: { ...res.sheet, brief: step.brief, developed: [] } }];
+    } catch (err) {
+      return [botSays(err.response?.data?.message || "The concept sheet couldn’t be made just now."), { failed: true }];
+    }
+  };
+  // picked concepts → their artwork pieces from the sheet; the first pick goes on the tee, the others wait with Add to tee
+  const developPicks = async (step, progress, run) => {
+    if (!ai.available) return [botSays("Pictures can’t be made right now."), chipRow(["Open the art library", "Upload a picture"])];
+    const sheets = sheetsFromChat(chat);
+    const picks = (step.picks || []).slice(0, 3);
+    const out = [];
+    let els = elements;
+    let focus = null;
+    let first = true;
+    const placed = {};
+    for (const n of picks) {
+      if (run?.stopped) break;
+      const found = findConcept(sheets, n);
+      if (!found) {
+        out.push(botSays(`I don’t have a concept ${n} yet. Tap a number on the sheet, or ask for designs first.`));
+        continue;
+      }
+      if (ai.left === 0) {
+        out.push(botSays(`You’ve used today’s picture requests, so I couldn’t make concept ${n}. They reset tomorrow.`));
+        break;
+      }
+      const { sheet, concept } = found;
+      const pieces = (step.pieces || piecesOf(concept)).filter((pc) => concept[pc]);
+      const areasFor = {};
+      const ratios = {};
+      const used = [...new Set(els.map((e) => e.position))].filter((k) => !aiPlaced[k]);
+      for (const pc of pieces) {
+        const pos = pieceArea(pc, positions, used);
+        if (!pos) continue;
+        areasFor[pc] = pos;
+        const { W, H } = areaPx(pos);
+        ratios[pc] = W / H;
+      }
+      progress?.({ label: `Making concept ${n}${pieces.length > 1 ? ` (${pieces.length} pieces)` : ""}…`, expect: 30, hint: "Each piece is drawn from the sheet. Usually 20–40 seconds." });
+      let res;
+      try {
+        res = await aiService.develop({ sheetUrl: sheet.url, n, concept, pieces, teeColour: colour?.name || "white", teeIsDark: lum(fabricHex) < 0.55, ratios });
+      } catch (err) {
+        out.push(botSays(err.response?.data?.message || `Concept ${n} couldn’t be made just now.`));
+        continue;
+      }
+      if (res.left != null) setAi((cur) => ({ ...cur, left: res.left }));
+      res.pieces.forEach((pc) => {
+        aiCuts.current.set(pc.url, { path: pc.url, w: pc.width, h: pc.height });
+        loadImage(pc.url).catch(() => {});
+      });
+      setChat((m) => m.map((x) => (x.sheet?.url === sheet.url ? { ...x, sheet: { ...x.sheet, developed: [...new Set([...(x.sheet.developed || []), n])] } } : x)));
+      if (run?.stopped) {
+        out.push({ designs: res.pieces.map((pc) => pc.url) });
+        break;
+      }
+      if (first) {
+        for (const pc of res.pieces) {
+          const pos = areasFor[pc.piece];
+          if (!pos) continue;
+          const el = aiElement(pos, { path: pc.url, w: pc.width, h: pc.height }, els.length + 1);
+          const old = aiPlaced[pos.key]?.elId;
+          els = [...els.filter((e) => e.id !== old), el];
+          placed[pos.key] = { url: pc.url, elId: el.id };
+          focus = focus || pos.key;
+        }
+        out.push(botSays(`Concept ${n} “${concept.title}” is on your tee${res.pieces.length > 1 ? ` — ${andList(res.pieces.map((pc) => areasFor[pc.piece]?.label || pc.piece))}` : ""}. Tell me what to change, or press Undo (↶).`));
+        first = false;
+      } else out.push(botSays(`Concept ${n} “${concept.title}” — tap Add to tee on a piece to use it.`));
+      out.push({ designs: res.pieces.map((pc) => pc.url) });
+      if (res.failed?.length) out.push(botSays(`The ${andList(res.failed)} piece${res.failed.length === 1 ? "" : "s"} of concept ${n} couldn’t be drawn.`));
+    }
+    if (els !== elements) commit((now) => (now === elements ? els : mergeAiChanges(now, elements, els)));
+    if (Object.keys(placed).length) setAiPlaced((cur) => ({ ...cur, ...placed }));
+    if (focus && focus !== active) openArea(focus, { force: true });
+    setSelectedId(null);
+    return out;
   };
   // Edit the tee by chat: the text AI suggests changes, aiOps checks and applies them (one Undo step).
   // progress(now): tells the assistant's wait card what is happening now (drawing the pictures asked for)
@@ -2102,6 +2276,7 @@ export default function DesignRoomPage() {
     if (a.type === "photoPlace") return chatPhotoPlace(a, progress);
     if (a.type === "edit") return chatEdit(a, progress, run);
     if (a.type === "smart") return chatSmart(a, progress, run);
+    if (a.type === "assist") return chatAssist(a, progress, run);
     if (a.type === "photoPick") return openPhotoStudio();
     if (a.type === "aiTab") {
       // (from chats saved before the Draw / Photo pages went: a drawing with words becomes its plan card)
@@ -3098,6 +3273,7 @@ export default function DesignRoomPage() {
               startWith();
             }}
             onAssistant={() => {
+              if (ai?.v2 && !isLoggedIn()) return goToLogin(); // (v2: guests get nothing until they sign in)
               setEarlier(null);
               enterRoom();
               if (teamLink) startTeam(true);

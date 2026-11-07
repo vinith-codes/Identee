@@ -163,3 +163,16 @@ numbered, that they can pick, develop and change with plain words — with no me
   Tests: 57 server tests pass (14 new). End to end on a throwaway DB with the mock AI: brief → sheet → "more options" →
   sheet 4–6 → "2 and 5 suit me" → pieces drawn, cut out, stored, counted; the daily limit; a guest gets 401.
   The current page is untouched (`/api/ai/chat` still serves it). Not yet tried with the real Google key.
+- **Phase 2 built — 7 Nov 2026** (same branch, not yet committed): `studio/assistantV2.js` (first screen, sheets in a
+  chat, picks by number, piece → print area), `studio/SheetCard.jsx` (the sheet in the chat: numbered buttons, More
+  options, tap to enlarge), `Assistant.jsx` (typed messages → `/api/ai/assist`; a bare pick skips the brain; the
+  sign-in gate), `DesignRoomPage.jsx` (`chatAssist` runs the steps: ask / concepts / develop / draw / edit / slogans /
+  menu / undo; `makeSheet`; `developPicks` puts the first pick on the tee piece by piece, the rest wait with Add to
+  tee; the v2 start when the status says v2; a guest's Assistant button goes to sign-in; the tee in view by default on
+  phones), `aiService.js` (assist / concepts / develop), CSS, server `ai.assistantV2` switch (Admin → Settings → AI
+  designs) and `v2` in `/api/ai/status`. Tests: 115 website (5 new), 57 server. Checked on screen with the mock AI at
+  375 px and 1280 px: guest → sign-in; signed in: the new start, brief → sheet 1–3, "more options" → 4–6, tap 2 →
+  pieces on Centre Front + Full Back (price +₹100), "5 and 3" typed → 5 on the tee, 3 with Add to tee, a missing name
+  → question + chips, undo; the chat with its sheets survives a reload. Still to do: Phase 3 polish (Tanglish on the
+  new flows, memory of picks, speed/Stop on sheets, Chats list), Phase 4 (the 60-message mock walk, the real Google run
+  with the user's OK), release.

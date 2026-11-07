@@ -22,6 +22,7 @@ import { AI_ADDON_DEFAULT, AI_ADDON_KEY, isAiDesignUrl } from "../utils/aiPricin
 import AiUsage from "../models/aiUsageModel.js";
 import AiChatUsage from "../models/aiChatUsageModel.js";
 import { MEMORY_MAX, chatConfigured, chatModel, chatReply } from "../services/aiChatService.js";
+import { brainConfigured } from "../services/assistantBrain.js";
 import Customization from "../models/customizationModel.js";
 import GarmentType from "../models/garmentTypeModel.js";
 import { uploadFile, deleteStoredFile } from "../utils/imageStorage.js";
@@ -52,6 +53,7 @@ const DEFAULTS = {
   // what the CUSTOMER pays extra per tee with a picture — AI-made, art library or upload (utils/aiPricing.js)
   [AI_ADDON_KEY]: { value: AI_ADDON_DEFAULT, type: "number", description: "Extra price per tee with a picture (₹)" },
   // the smart Assistant (23 Oct 2026): Google reads every typed message; off = the fixed replies, as before
+  "ai.assistantV2": { value: true, type: "boolean", description: "The new Assistant (7 Nov 2026): concept sheets, picks by number, several moves per message. Off = the older chat with plan cards" },
   "ai.smartChat": { value: true, type: "boolean", description: "Smart Assistant: Google reads every typed message" },
   "ai.chatPricePerMessageInr": { value: 0.2, type: "number", description: "What one smart Assistant message costs, in rupees (for the spending figures)" },
 };
@@ -88,6 +90,7 @@ export async function readSettings() {
     replicatePricePerImageInr: Number(get("ai.replicatePricePerImageInr")),
     designAddOnInr: Number(get(AI_ADDON_KEY)),
     smartChat: get("ai.smartChat") !== false,
+    assistantV2: get("ai.assistantV2") !== false,
     chatPricePerMessageInr: Number(get("ai.chatPricePerMessageInr")),
   };
 }
@@ -174,7 +177,9 @@ export const getAiStatus = asyncHandler(async (req, res) => {
   // designAddOnInr: what an AI-made or uploaded picture adds to the tee's price (art library: free; the Design Room shows it)
   // smart: typed messages go to the smart Assistant (switch in Admin → Settings → AI; paused with Google's cap)
   const smart = settings.enabled && settings.smartChat && chatConfigured() && reason !== "cap";
-  res.json({ available: !reason, reason, text: aiTextConfigured() && settings.enabled, smart, styles: Object.keys(AI_STYLES), photoStyles: Object.keys(PHOTO_STYLES) /* (the free art filters were taken away, 20 Oct 2026) */, dailyPerUser: settings.dailyPerUser, left, designAddOnInr: settings.designAddOnInr });
+  // v2: typed messages go to the Assistant v2 brain (steps, concept sheets); login needed (services/assistantBrain.js)
+  const v2 = smart && settings.assistantV2 && brainConfigured();
+  res.json({ available: !reason, reason, text: aiTextConfigured() && settings.enabled, smart, v2, styles: Object.keys(AI_STYLES), photoStyles: Object.keys(PHOTO_STYLES) /* (the free art filters were taken away, 20 Oct 2026) */, dailyPerUser: settings.dailyPerUser, left, designAddOnInr: settings.designAddOnInr });
 });
 
 // POST /api/ai/chat  (login optional) — the smart Assistant: one typed message, answered by Google's text AI
