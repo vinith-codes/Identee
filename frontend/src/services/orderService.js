@@ -48,10 +48,18 @@ const undoOrderStatus = async (id, token) => {
   return data;
 };
 
-// The customer cancels their own order (allowed while it is CREATED or CONFIRMED).
-const cancelMyOrder = async (id, token) => {
+// The customer cancels their own order: straight away, or (packed / print files sent) a request to the shop.
+// -> { status, order, message }
+const cancelMyOrder = async (id, token, reason = "") => {
   const config = { headers: { Authorization: `Bearer ${token}` } };
-  const { data } = await api.put(`/orders/${id}/cancel`, {}, config);
+  const { data } = await api.put(`/orders/${id}/cancel`, { reason }, config);
+  return data;
+};
+
+// Admin: the answer to a customer's cancel request — decision "approve" (cancel + refund) or "decline"
+const answerCancelRequest = async (id, decision, token) => {
+  const config = { headers: { Authorization: `Bearer ${token}` } };
+  const { data } = await api.put(`/orders/${id}/cancel-request`, { decision }, config);
   return data;
 };
 
@@ -66,6 +74,7 @@ const orderService = {
   deleteOrders,
   undoOrderStatus,
   cancelMyOrder,
+  answerCancelRequest,
   createOrder,
   getMyOrders,
   getOrderById,

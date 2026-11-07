@@ -1,13 +1,13 @@
 import { mailer, fromAddress, shopInbox } from "./mailer.js";
 
-const sendEmail = async ({ email, status, order, invoice, attachments, correction }) => {
+const sendEmail = async ({ email, status, order, invoice, attachments, correction, refund, copy = true }) => {
   // Users who signed up with a mobile number have no email on file.
   if (!email) return;
 
   status = status.toUpperCase();
   // a test order's emails go to the tester only, and say so (5 Nov 2026)
   const test = !!order?.isTest;
-  const copyTo = test ? undefined : await shopInbox();
+  const copyTo = test || !copy ? undefined : await shopInbox(); // copy: false when the shop gets its own email
   const mark = (subject) => (test ? `[TEST] ${subject}` : subject);
 
   // INVOICE emails carry their own PDF and don't need the order-status
@@ -59,6 +59,35 @@ const sendEmail = async ({ email, status, order, invoice, attachments, correctio
           <p>Sorry — our earlier message saying your order is <strong>${label(correction?.wrongStatus).toLowerCase()}</strong> was sent by mistake.</p>
           <p>Your order is <strong>${now}</strong>. We'll email you again when it's ${next}.</p>
           <p><b>Order ID:</b> ${order?._id}</p>
+          <p style="color:gray; font-size:12px;">Thank you for shopping with IDENTEE ❤️</p>
+        </div>
+      `,
+    });
+    return;
+  }
+
+  // CANCELLED / CANCEL_DECLINED (7 Nov 2026, services/orderCancel.js): the customer's cancel, and what happens to the money
+  if (status === "CANCELLED" || status === "CANCEL_DECLINED") {
+    const no = order?.invoiceNumber || order?._id;
+    const money = !refund
+      ? "Nothing was charged, so there is nothing to refund."
+      : refund.status === "processed" || refund.status === "pending"
+        ? `<strong>₹${refund.amount}</strong> is refunded to the same payment method. It usually shows in your account in 5–7 working days.`
+        : `We will refund <strong>₹${refund.amount}</strong> to you within 2 working days. If you don't see it, reply to this email.`;
+    await mailer().sendMail({
+      from: fromAddress(),
+      to: email,
+      cc: copyTo,
+      subject: mark(status === "CANCELLED" ? `Your IDENTEE order ${no} is cancelled` : `About cancelling your IDENTEE order ${no}`),
+      html: `
+        <div style="font-family:Arial, sans-serif; max-width:600px; margin:auto;">
+          <h2 style="color:#8A6F2E;">${status === "CANCELLED" ? "Your order is cancelled" : "We couldn't cancel your order"}</h2>
+          <p>Hi ${order?.user?.name || "there"},</p>
+          ${
+            status === "CANCELLED"
+              ? `<p>Your order <strong>${no}</strong> is cancelled.</p><p>${money}</p>`
+              : `<p>Sorry — your tee for order <strong>${no}</strong> is already being made, so it can't be cancelled now. It will reach you as planned.</p><p>If you need help, just reply to this email.</p>`
+          }
           <p style="color:gray; font-size:12px;">Thank you for shopping with IDENTEE ❤️</p>
         </div>
       `,

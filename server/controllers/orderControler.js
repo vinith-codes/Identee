@@ -5,7 +5,6 @@ import Order, { LIVE_ORDERS } from "../models/orderModel.js";
 import BillingInvoice from "../models/billingInvoiceModel.js";
 import PendingCheckout from "../models/pendingCheckoutModel.js";
 import sendEmail from "../utils/sendEmail.js";
-import { mailer, fromAddress, shopInbox } from "../utils/mailer.js";
 import Razorpay from "razorpay";
 import crypto from "crypto";
 import Counter from "../models/counterModel.js";
@@ -17,6 +16,7 @@ import {
   returnStock,
 } from "../services/checkoutService.js";
 import { placeOrder } from "../services/orderPlacement.js";
+import { cancelOrder, requestCancel, decideCancelRequest, customerCancelMode, forCustomer, refundUpdate, refundOf } from "../services/orderCancel.js";
 
 /*
  * CHECKOUT FLOW (all prices are computed on the server — see checkoutService)
@@ -86,7 +86,8 @@ const getOrderById = asyncHandler(async (req, res) => {
     res.status(404);
     throw new Error("Order Not found");
   }
-  res.json(order);
+  // the customer sees no print-file links (the print team's), and gets the cancel button's state
+  res.json(isAdminUser(req.user) ? order : forCustomer(order));
 });
 
 // @desc update order to paid
@@ -149,7 +150,7 @@ const GetMyOrders = asyncHandler(async (req, res) => {
     path: "orderItems.product",
     select: "images brandname rating",
   });
-  res.json(orders);
+  res.json(orders.map(forCustomer));
 });
 
 // @desc get orders
@@ -804,9 +805,15 @@ const updateOrderStatus = asyncHandler(async (req, res) => {
     return res.json({ message: "Order status unchanged" });
   }
 
+  if (newStatus === "CANCELLED") {
+    // the shared cancel (services/orderCancel.js): stock and coupon back, refund through Razorpay, emails
+    const done = await cancelOrder(order._id, { by: "admin", from: ["CREATED", "CONFIRMED", "PACKED"] });
+    return res.json({ message: cancelMessage(refundOf(done)), statusUndo: null, isPaid: done.isPaid, refund: refundOf(done) });
+  }
+
   order.orderStatus = newStatus;
-  // remembered so a wrong pick can be undone for UNDO_MINUTES (a cancel can't: its stock is back on sale)
-  order.statusUndo = newStatus === "CANCELLED" ? undefined : { from: previousStatus, at: new Date(), autoPaid: false };
+  // remembered so a wrong pick can be undone for UNDO_MINUTES (a cancel goes through cancelOrder above)
+  order.statusUndo = { from: previousStatus, at: new Date(), autoPaid: false };
   if (newStatus === "DELIVERED") {
     order.deliveredAt = Date.now();
     if (order.paymentMethod === "COD" && !order.isPaid) {
@@ -814,16 +821,6 @@ const updateOrderStatus = asyncHandler(async (req, res) => {
       order.paidAt = Date.now();
       order.statusUndo.autoPaid = true;
     }
-  }
-  if (newStatus === "CANCELLED") {
-    order.cancelledAt = Date.now();
-    await returnStock(
-      order.orderItems.map((i) => ({
-        product: i.product?._id || null,
-        size: i.size,
-        qty: i.qty,
-      })),
-    );
   }
   await order.save();
 
@@ -834,10 +831,7 @@ const updateOrderStatus = asyncHandler(async (req, res) => {
   }
 
   res.json({
-    message:
-      newStatus === "CANCELLED" && order.isPaid
-        ? "Order cancelled. It was paid online — issue the refund from the Razorpay dashboard."
-        : "Order status updated successfully",
+    message: "Order status updated successfully",
     statusUndo: order.statusUndo || null,
     isPaid: order.isPaid,
   });
@@ -889,38 +883,66 @@ const undoOrderStatus = asyncHandler(async (req, res) => {
   });
 });
 
-// @desc    The customer cancels their own order — only while it is CREATED or CONFIRMED (not yet packed).
-//          Stock goes back on sale; the shop is emailed (a paid order needs its refund from the Razorpay dashboard).
-// @route   PUT /api/orders/:id/cancel
+// what the admin is told after a cancel, about the money
+const cancelMessage = (r) =>
+  !r
+    ? "Order cancelled. Nothing was paid, so nothing to refund. The customer has been emailed."
+    : r.status === "processed" || r.status === "pending"
+      ? `Order cancelled and ₹${r.amount} refunded through Razorpay. The customer has been emailed.`
+      : `Order cancelled, but the refund of ₹${r.amount} must be done by hand in the Razorpay dashboard (${r.error}).`;
+
+// @desc    The customer cancels their own order (7 Nov 2026, services/orderCancel.js): straight away while it is not
+//          packed and its print files have not gone to the print team; after that (up to packed) it becomes a
+//          request the shop approves or declines. A paid order is refunded through Razorpay; the customer is emailed.
+// @route   PUT /api/orders/:id/cancel   { reason? }
 // @access  Private (the order's owner)
 const cancelMyOrder = asyncHandler(async (req, res) => {
-  const order = await Order.findById(req.params.id).populate("orderItems.product");
+  const order = await Order.findById(req.params.id).select("user orderStatus printFiles cancelRequest isPaid");
   if (!order || String(order.user) !== String(req.user._id)) {
     res.status(404);
     throw new Error("Order not found");
   }
-  if (!["CREATED", "CONFIRMED"].includes(order.orderStatus)) {
-    res.status(400);
-    throw new Error(`This order is already ${order.orderStatus.toLowerCase().replace(/_/g, " ")}, so it can't be cancelled here. Please contact us and we'll help.`);
+  const mode = customerCancelMode(order);
+  if (mode === "now") {
+    const done = await cancelOrder(order._id, { by: "customer", from: ["CREATED", "CONFIRMED"] });
+    const r = refundOf(done);
+    return res.json({
+      status: done.orderStatus,
+      order: forCustomer(done),
+      message: !r
+        ? "Your order is cancelled."
+        : ["processed", "pending"].includes(r.status)
+          ? `Your order is cancelled. ₹${r.amount} will be refunded to the same payment method in 5–7 working days.`
+          : `Your order is cancelled. We will refund ₹${r.amount} to you within 2 working days.`,
+    });
   }
-  order.orderStatus = "CANCELLED";
-  order.cancelledAt = Date.now();
-  order.statusUndo = undefined;
-  await returnStock(order.orderItems.map((i) => ({ product: i.product?._id || null, size: i.size, qty: i.qty })));
-  await order.save();
-  shopInbox()
-    .then((to) =>
-      mailer().sendMail({
-        from: fromAddress(),
-        to,
-        subject: `Order ${order.invoiceNumber || order._id} cancelled by the customer`,
-        html: `<div style="font-family:Arial, sans-serif"><p>The customer cancelled order <b>${order.invoiceNumber || order._id}</b> (${order.orderItems.length} item${order.orderItems.length === 1 ? "" : "s"}, ₹${order.totalPrice}).</p>${order.isPaid ? "<p><b>It was paid online — issue the refund from the Razorpay dashboard.</b></p>" : "<p>It was not paid yet (cash on delivery), so nothing to refund.</p>"}</div>`,
-      }),
-    )
-    .catch((e) => console.error("[order] cancel email failed:", e.message));
+  if (mode === "ask") {
+    const asked = await requestCancel(order._id, { reason: req.body?.reason });
+    return res.json({
+      status: asked.orderStatus,
+      order: forCustomer(asked),
+      message: `${asked.orderStatus === "PACKED" ? "Your order is already packed" : "Your tee may already be printing"}, so we've sent your request to the shop. We'll email you our answer soon.`,
+    });
+  }
+  res.status(400);
+  throw new Error(
+    mode === "asked"
+      ? "You've already asked to cancel this order. We'll email you our answer soon."
+      : order.cancelRequest?.status === "declined"
+        ? "Your tee was already being made, so this order couldn't be cancelled. Please contact us if you need help."
+        : `This order is ${order.orderStatus.toLowerCase().replace(/_/g, " ")}, so it can't be cancelled here. Please contact us and we'll help.`,
+  );
+});
+
+// @desc    The shop's answer to a customer's cancel request
+// @route   PUT /api/orders/:id/cancel-request   { decision: "approve" | "decline" }
+// @access  Admin
+const answerCancelRequest = asyncHandler(async (req, res) => {
+  const decision = String(req.body?.decision || "");
+  const order = await decideCancelRequest(req.params.id, decision);
   res.json({
-    status: order.orderStatus,
-    message: order.isPaid ? "Your order is cancelled. The amount you paid will be refunded to the same payment method." : "Your order is cancelled.",
+    order,
+    message: decision === "decline" ? "Request declined. The customer has been emailed that the tee is already being made." : cancelMessage(refundOf(order)),
   });
 });
 
@@ -1075,6 +1097,8 @@ const razorpayWebhook = async (req, res) => {
     const payload = JSON.parse(rawBody.toString("utf8"));
     const payment = payload?.payload?.payment?.entity;
 
+    // a refund that finished (or failed) after the cancel (services/orderCancel.js)
+    if (["refund.processed", "refund.failed"].includes(payload.event)) await refundUpdate(payload?.payload?.refund?.entity);
     if (["payment.captured", "order.paid"].includes(payload.event) && payment?.order_id) {
       const pending = await PendingCheckout.findOne({ razorpayOrderId: payment.order_id });
       if (pending) await completeOnlineCheckout(pending, payment.id);
@@ -1165,6 +1189,7 @@ export {
   updateOrderStatus,
   undoOrderStatus,
   cancelMyOrder,
+  answerCancelRequest,
   getCheckoutQuote,
   createBillingInvoice,
   getBillingInvoiceByNumber,

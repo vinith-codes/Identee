@@ -23,6 +23,7 @@ import {
   updateOrderStatus,
   undoOrderStatus,
   cancelMyOrder,
+  answerCancelRequest,
   getOrderStatusCounts,
   createBillingInvoice,
   getBillingInvoiceByNumber,
@@ -45,7 +46,8 @@ router.route("/delivery").get(protect, isDelivery, getOrdersForDeliveryPerson);
 router.route("/status-count").get(protect, adminOrSeller, getOrderStatusCounts);
 router.route("/transactions").get(protect, adminOrSeller, getTransactions);
 router.route("/myorders").get(protect, GetMyOrders);
-router.route("/:id/cancel").put(protect, cancelMyOrder); // the customer's own order, before it is packed
+router.route("/:id/cancel").put(protect, cancelMyOrder); // the customer's own order: now, or a request (services/orderCancel.js)
+router.route("/:id/cancel-request").put(protect, admin, answerCancelRequest); // the shop's answer to that request
 router.route("/quote").post(protect, getCheckoutQuote);
 
 router

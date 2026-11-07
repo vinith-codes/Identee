@@ -107,6 +107,22 @@ const orderSchema = mongoose.Schema(
       default: "CREATED",
     },
     cancelledAt: { type: Date },
+    // who cancelled, the customer's request when the order was too far along, and the money (7 Nov 2026,
+    // services/orderCancel.js)
+    cancelledBy: { type: String, default: null }, // "customer" | "admin"
+    cancelRequest: {
+      status: { type: String }, // "pending" | "approved" | "declined"
+      at: { type: Date },
+      reason: { type: String },
+      decidedAt: { type: Date },
+    },
+    refund: {
+      id: { type: String }, // Razorpay refund id
+      status: { type: String }, // "processed" | "pending" | "failed" | "manual"
+      amount: { type: Number },
+      at: { type: Date },
+      error: { type: String },
+    },
     // the admin's last status change, so a wrong pick can be undone for a short while (not a cancel)
     statusUndo: {
       from: { type: String },

@@ -26,16 +26,18 @@ const STATUS_TONES = {
   CANCELLED: "neutral",
 };
 
-// "Cancel order" on an order that isn't packed yet: asks first, then tells the customer what happens next
-function CancelOrder({ order, token, onCancelled }) {
+// "Cancel order" (7 Nov 2026): order.cancelMode from the server — "now" cancels straight away, "ask" sends a request
+// (the tee may already be printing, or it is packed). Asks first, then says what happens next.
+function CancelOrder({ order, token, onDone }) {
   const [asking, setAsking] = useState(false);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState("");
+  const ask = order.cancelMode === "ask";
   const cancel = async () => {
     setBusy(true);
     try {
       const res = await orderService.cancelMyOrder(order._id, token);
-      onCancelled(res.status || "CANCELLED", res.message);
+      onDone(res.order || { ...order, orderStatus: res.status || "CANCELLED", cancelMode: null }, res.message);
     } catch (err) {
       setNote(err.response?.data?.message || "Couldn't cancel the order. Please try again or contact us.");
       setAsking(false);
@@ -46,10 +48,14 @@ function CancelOrder({ order, token, onCancelled }) {
   const small = { border: `1px solid ${THEME.border}`, background: "#fff", borderRadius: 999, padding: "5px 12px", fontSize: 12, fontWeight: 600, cursor: "pointer", color: THEME.text, fontFamily: THEME.fontBody };
   if (asking) {
     return (
-      <div role="group" aria-label="Cancel this order?" style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", fontSize: 13, fontFamily: THEME.fontBody }}>
-        <span>Cancel this order?{order.isPaid ? " The amount you paid will be refunded." : ""}</span>
+      <div role="group" aria-label={ask ? "Ask to cancel this order?" : "Cancel this order?"} style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", fontSize: 13, fontFamily: THEME.fontBody }}>
+        <span>
+          {ask
+            ? `${order.orderStatus === "PACKED" ? "Your order is already packed" : "Your tee may already be printing"}. Ask the shop to cancel it? We'll email you our answer.`
+            : `Cancel this order?${order.isPaid ? ` ₹${order.totalPrice} will be refunded.` : ""}`}
+        </span>
         <button type="button" onClick={cancel} disabled={busy} style={{ ...small, background: THEME.danger, color: "#fff", border: 0, fontWeight: 700 }}>
-          {busy ? "Cancelling…" : "Yes, cancel"}
+          {busy ? (ask ? "Sending…" : "Cancelling…") : ask ? "Yes, ask to cancel" : "Yes, cancel"}
         </button>
         <button type="button" onClick={() => setAsking(false)} disabled={busy} style={small}>Keep my order</button>
       </div>
@@ -57,10 +63,25 @@ function CancelOrder({ order, token, onCancelled }) {
   }
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-      <button type="button" onClick={() => { setNote(""); setAsking(true); }} style={{ ...small, color: THEME.danger }}>Cancel order</button>
+      <button type="button" onClick={() => { setNote(""); setAsking(true); }} style={{ ...small, color: THEME.danger }}>
+        {ask ? "Ask to cancel" : "Cancel order"}
+      </button>
       {note && <span style={{ fontSize: 12.5, color: THEME.textMuted, fontFamily: THEME.fontBody }}>{note}</span>}
     </div>
   );
+}
+
+// a line about a cancel request or a refund, under the order's heading
+function cancelLine(order) {
+  if (order.orderStatus === "CANCELLED") {
+    const r = order.refund;
+    if (!r) return order.cancelledBy === "admin" ? "This order was cancelled by the shop." : "";
+    if (r.status === "processed" || r.status === "pending") return `₹${r.amount} refunded to the same payment method — it usually shows in 5–7 working days.`;
+    return `₹${r.amount} will be refunded to you within 2 working days.`;
+  }
+  if (order.cancelRequest?.status === "pending") return "You asked to cancel this order. We'll email you our answer soon.";
+  if (order.cancelRequest?.status === "declined") return "Your tee was already being made, so this order couldn't be cancelled. It will reach you as planned.";
+  return "";
 }
 
 function StatusPill({ status }) {
@@ -122,7 +143,7 @@ export default function MyOrdersPage() {
   const [activeTab, setActiveTab] = useState("all");
 
   const [reloadKey, setReloadKey] = useState(0); // "Try again" after a failed load
-  const [cancelNote, setCancelNote] = useState("");
+  const [cancelNote, setCancelNote] = useState(null); // { id, text } — what the server said after a cancel / request
   useEffect(() => {
     const fetchOrders = async () => {
       setLoading(true);
@@ -283,20 +304,23 @@ export default function MyOrdersPage() {
                 </div>
                 <StatusPill status={order.orderStatus} />
               </div>
-              {["CREATED", "CONFIRMED"].includes(order.orderStatus) && (
-                <div style={{ marginBottom: 12 }}>
+              {["now", "ask"].includes(order.cancelMode) && (
+                // the card is a link to the order: a click on these buttons must not open it
+                <div style={{ marginBottom: 12 }} onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}>
                   <CancelOrder
                     order={order}
                     token={user.token}
-                    onCancelled={(status, message) => {
-                      setOrders((list) => list.map((o) => (o._id === order._id ? { ...o, orderStatus: status } : o)));
-                      setCancelNote(message || "Your order is cancelled.");
+                    onDone={(next, message) => {
+                      setOrders((list) => list.map((o) => (o._id === order._id ? { ...o, ...next, orderItems: o.orderItems } : o)));
+                      setCancelNote({ id: order._id, text: message || "Done." });
                     }}
                   />
                 </div>
               )}
-              {cancelNote && order.orderStatus === "CANCELLED" && (
-                <p role="status" style={{ margin: "0 0 12px", fontSize: 13, color: THEME.textMuted, fontFamily: THEME.fontBody }}>{cancelNote}</p>
+              {cancelNote?.id === order._id ? (
+                <p role="status" style={{ margin: "0 0 12px", fontSize: 13, color: THEME.textMuted, fontFamily: THEME.fontBody }}>{cancelNote.text}</p>
+              ) : (
+                cancelLine(order) && <p style={{ margin: "0 0 12px", fontSize: 13, color: THEME.textMuted, fontFamily: THEME.fontBody }}>{cancelLine(order)}</p>
               )}
 
               <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
