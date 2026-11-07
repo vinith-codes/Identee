@@ -180,6 +180,34 @@ export default function AiSettingsPage() {
             </div>
           )}
           <div style={{ fontSize: 12, color: t.textMuted, marginTop: 6 }}>A sheet shows 3 concepts; the pick rate is concepts made real ÷ concepts shown. A low rate means the sheets miss what customers want — tell Claude which kinds of requests.</div>
+          {data.concepts.unfinished?.length > 0 && (
+            <div style={{ marginTop: 12 }}>
+              <div style={{ fontSize: 12, color: t.textMuted, marginBottom: 4 }}>Started but not ordered (last 30 days) — customers who got concepts and placed no order since. Worth a WhatsApp.</div>
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                  <thead>
+                    <tr style={{ textAlign: "left", color: t.textMuted, fontSize: 12 }}>
+                      {["Customer", "Phone", "Asked for", "Sheets", "Picked", "Last"].map((h) => (
+                        <th key={h} style={{ padding: "6px 12px 6px 0", whiteSpace: "nowrap" }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.concepts.unfinished.map((u, i) => (
+                      <tr key={i} style={{ borderTop: `1px solid ${t.border}` }}>
+                        <td style={{ padding: "7px 12px 7px 0", whiteSpace: "nowrap" }}>{u.who}{u.email ? <div style={{ fontSize: 11.5, color: t.textMuted }}>{u.email}</div> : null}</td>
+                        <td style={{ padding: "7px 12px 7px 0", whiteSpace: "nowrap" }}>{u.phone || "—"}</td>
+                        <td style={{ padding: "7px 12px 7px 0", minWidth: 220, maxWidth: 360 }}>{u.asked || "—"}</td>
+                        <td style={{ padding: "7px 12px 7px 0", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{u.sheets}</td>
+                        <td style={{ padding: "7px 12px 7px 0", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{u.picks}</td>
+                        <td style={{ padding: "7px 0", whiteSpace: "nowrap", color: t.textMuted }}>{new Date(u.last).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
       )}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 12 }}>

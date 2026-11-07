@@ -123,3 +123,12 @@ test("a concepts step keeps its logo flag; an attached picture makes the stand-i
   assert.deepEqual(art.steps[0], { type: "menu", item: "Photo to art" });
   delete process.env.AI_CHAT_PROVIDER;
 });
+
+test("stand-in brain: 'the front of 1 and the back of 3' is one develop step per concept with only that piece", async () => {
+  process.env.AI_CHAT_PROVIDER = "mock";
+  const r = await brainReply({ message: "the front of 1 and the back of 3", history: [], areas, styles, sheets, facts: {} });
+  assert.deepEqual(r.steps, [
+    { type: "develop", picks: [1], sheet: null, pieces: ["front"], change: null },
+    { type: "develop", picks: [3], sheet: null, pieces: ["back"], change: null },
+  ]);
+});

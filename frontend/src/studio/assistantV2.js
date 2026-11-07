@@ -3,6 +3,8 @@
 // Pure functions the chat and the page share: the first screen, the concept sheets kept in a chat, picks by number
 // ("3, 6 and 9", "the second one"), and which print area a concept's piece goes on.
 import { areaFor } from "./aiOps";
+// (placementHint / shrinkForHint: where a concept's print goes and how big, from its own words — round 4)
+// (placementHint / shrinkForHint: where a concept's print goes and how big, from its own words — round 4)
 
 export const HELLO_V2 = "Hi! Tell me what you want on your tee — an idea, an occasion, a picture, words — and I’ll design it with you.";
 export const SUGGESTIONS = ["Designs for my college fest", "Draw a lion with a cricket bat", "A slogan for my team"];
@@ -94,20 +96,49 @@ export function assistAct(text, messages) {
 }
 
 /**
+ * Where and how big a concept's print goes, read from its own words (round 4, 8 Nov 2026 — the brain writes
+ * "small left-chest badge", "large centre-front artwork", "full-back lettering"):
+ * { area: "chest" | "full" | null, size: "small" | "large" | null }
+ */
+export function placementHint(text) {
+  const t = String(text || "").toLowerCase();
+  const chest = /left[- ]chest|right[- ]chest|chest (badge|logo|emblem|crest|pocket|icon|mark)|pocket[- ]?(size|print|logo)|(badge|logo|emblem|crest|icon|monogram)\b[^.]{0,30}\b(on|at|over) the chest/.test(t);
+  const full = /full[- ](back|front)|\b(covers?|covering|across) the (whole|full|entire)|edge[- ]to[- ]edge/.test(t);
+  const small = /\b(small|tiny|little|subtle|minimal|pocket[- ]?size|discreet)\b/.test(t);
+  const large = /\b(large|big|huge|bold|oversized|statement|full[- ](back|front))\b/.test(t);
+  return { area: chest ? "chest" : full ? "full" : null, size: small && !large ? "small" : large ? "large" : null };
+}
+
+/**
  * The print area for a concept's piece: front → centre front (or the main front area), back → full back (or the
  * main back area), sleeve → the left sleeve, else the right one. A taken area falls back the way the AI's own
  * drawings do (aiOps.areaFor). used: area keys that already carry a print the piece must not cover.
+ * hint: placementHint() of the concept's words — a chest badge goes on a chest area when the tee has one.
  */
-export function pieceArea(piece, positions = [], used = []) {
+export function pieceArea(piece, positions = [], used = [], hint = null) {
   const has = (key) => positions.some((p) => p.key === key);
+  const chestKey = hint?.area === "chest" && piece === "front" ? ["left-chest", ...positions.filter((p) => p.side === "front" && /chest|pocket/.test(p.key)).map((p) => p.key)].find(has) : null;
   const want =
-    piece === "sleeve"
+    chestKey ||
+    (piece === "sleeve"
       ? ["left-sleeve", "right-sleeve", ...positions.filter((p) => /sleeve/.test(p.key)).map((p) => p.key)].find(has)
       : piece === "back"
         ? ["full-back", positions.find((p) => p.side === "back" && p.main)?.key, positions.find((p) => p.side === "back")?.key].find(has)
-        : ["centre-front", positions.find((p) => p.side === "front" && p.main)?.key, positions.find((p) => p.side === "front")?.key].find(has);
+        : ["centre-front", positions.find((p) => p.side === "front" && p.main)?.key, positions.find((p) => p.side === "front")?.key].find(has));
   if (!want) return null;
   return areaFor(want, positions, used) || positions.find((p) => p.key === want) || null;
+}
+
+/**
+ * A "small" print on a big (main) area: a little over half the size, near the top, as a chest badge sits —
+ * the item as aiElement() made it (x, y, width, height in % of the area) made smaller. A turned (sleeve-strip)
+ * item or a small area is left as it is.
+ */
+export function shrinkForHint(el, pos, hint, factor = 0.55) {
+  if (!el || hint?.size !== "small" || !pos?.main || el.rotation) return el;
+  const width = el.width * factor;
+  const height = el.height * factor;
+  return { ...el, width, height, x: 50 - width / 2, y: Math.max(4, Math.min(50 - height / 2, 12)) };
 }
 
 /** The concept under a tap on the sheet picture: the tees sit side by side, left to right. x = 0..1 across the picture. */

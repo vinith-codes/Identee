@@ -32,7 +32,7 @@ import myPicturesService from "../services/myPicturesService";
 import { chatTitle, historyFor, listChats, loadChat, moveLocalChats, saveChat } from "./chatStore";
 import { AFTER_AI_SLOGANS, AFTER_DESIGN_CHIPS, BACK, CHANGE_IDEA, DRAW_MINE, PHOTO_AS_IS, PHOTO_CHOICES, PHOTO_CUT, PHOTO_REVERT, PROMPT_MAX, bot as botSays, checkMessages, chips as chipRow, firstMessages, firstState, smartPlan } from "./assistantScript";
 import { makeShareCard, shareTee } from "./shareTee";
-import { firstMessagesV2, isUntouchedStart, sheetsFromChat, nextConceptNumber, findConcept, piecesOf, pieceArea } from "./assistantV2";
+import { firstMessagesV2, isUntouchedStart, sheetsFromChat, nextConceptNumber, findConcept, piecesOf, pieceArea, placementHint, shrinkForHint } from "./assistantV2";
 import { styleIn } from "./styleInfo";
 import { areasFromWords, photoJobFrom, SAME_THEME } from "./photoIntent";
 import aiService from "../services/aiService";
@@ -849,6 +849,13 @@ export default function DesignRoomPage() {
     closeArea();
     setCamRequest({ view, n: nextReq() });
   };
+  // the Assistant header's flip (phones): the side the tee will turn to next
+  const [flipSide, setFlipSide] = useState("front");
+  const flipTee = () => {
+    const to = flipSide === "front" ? "back" : "front";
+    setFlipSide(to);
+    goView(to);
+  };
   // phones' "Add" button: open an area's editor on its Add tabs
   const pickAreaByHand = (key) => {
     setAssist(false);
@@ -1369,8 +1376,13 @@ export default function DesignRoomPage() {
     // (a sheet card has its own number buttons and More options, so those chips aren't repeated under it)
     const madeSheet = out.some((m) => m.sheet);
     const chips = (res.chips || []).filter((c) => !madeSheet || !(/^(option|concept|number)?\s*\d{1,2}$/i.test(c) || /^more options$/i.test(c)));
+    // a concept just landed and the sleeves are bare: offer the little extra (round 4)
+    const landed = (res.steps || []).some((st) => st.type === "develop") && out.some((m) => m.designs);
+    const sleeveTaken = elements.some((e) => /sleeve/.test(e.position)) || out.some((m) => m.placedOn?.some((k) => /sleeve/.test(k)));
+    if (landed && !sleeveTaken && c.areas.some((ar) => /sleeve/.test(ar.key) && ar.free) && !chips.some((ch) => /sleeve/i.test(ch))) chips.splice(0, 0, "A small matching logo on the sleeve too");
     if (!asked && chips.length) out.push({ chips, smart: true });
-    return out.length ? out : [botSays("How can I help with your tee?")];
+    const shown = out.filter((m) => !m.placedOn);
+    return shown.length ? shown : [botSays("How can I help with your tee?")];
   };
   // a concept sheet: one picture, three numbered tees (counts as one picture request)
   const makeSheet = async (step, progress, photoUrl = null) => {
@@ -1413,11 +1425,19 @@ export default function DesignRoomPage() {
       }
       const { sheet, concept } = found;
       const pieces = (step.pieces || piecesOf(concept)).filter((pc) => concept[pc]);
+      if (!pieces.length) {
+        // "the back of 3" when concept 3 has no back print
+        const has = piecesOf(concept);
+        out.push(botSays(`Concept ${n} “${concept.title}” has no ${andList(step.pieces || [])} print — it has ${has.length ? `only the ${andList(has)}` : "nothing to print"}. Say “the ${has[0] || "front"} of ${n}”, or pick another concept.`));
+        continue;
+      }
       const areasFor = {};
       const ratios = {};
       const used = [...new Set(els.map((e) => e.position))].filter((k) => !aiPlaced[k]);
+      const hints = {};
       for (const pc of pieces) {
-        const pos = pieceArea(pc, positions, used);
+        hints[pc] = placementHint(concept[pc]); // "small left-chest badge" → the chest area, small
+        const pos = pieceArea(pc, positions, used, hints[pc]);
         if (!pos) continue;
         areasFor[pc] = pos;
         const { W, H } = areaPx(pos);
@@ -1446,19 +1466,24 @@ export default function DesignRoomPage() {
         for (const pc of res.pieces) {
           const pos = areasFor[pc.piece];
           if (!pos) continue;
-          const el = aiElement(pos, { path: pc.url, w: pc.width, h: pc.height }, els.length + 1);
+          const el = shrinkForHint(aiElement(pos, { path: pc.url, w: pc.width, h: pc.height }, els.length + 1), pos, hints[pc.piece]);
           const old = aiPlaced[pos.key]?.elId;
           if (old && els.some((e) => e.id === old)) replaced.push(pos.label);
           els = [...els.filter((e) => e.id !== old), el];
           placed[pos.key] = { url: pc.url, elId: el.id };
           focus = focus || pos.key;
         }
+        const redrawn = res.pieces.filter((pc) => pc.redrawn?.length);
         out.push(
           botSays(
             `Concept ${n} “${concept.title}” is on your tee${res.pieces.length > 1 ? ` — ${andList(res.pieces.map((pc) => areasFor[pc.piece]?.label || pc.piece))}` : ""}.` +
-              (replaced.length ? ` It took the place of the earlier print on ${andList(replaced)} — press Undo (↶) to bring that back, or say “put the old one on the back”.` : " Tell me what to change, or press Undo (↶)."),
+              (replaced.length ? ` It took the place of the earlier print on ${andList(replaced)} — press Undo (↶) to bring that back, or say “put the old one on the back”.` : " Tell me what to change, or press Undo (↶).") +
+              (redrawn.length ? ` (I checked the spelling and drew the ${andList(redrawn.map((pc) => areasFor[pc.piece]?.label || pc.piece))} again so ${andList(redrawn.flatMap((pc) => pc.redrawn).map((w) => `“${w}”`))} reads right.)` : ""),
           ),
         );
+        // the price, said once, when the first picture lands (a picture print adds a set amount per tee)
+        const addOn = Number(ai.designAddOnInr ?? 100);
+        if (!hasPictureOn && addOn > 0 && garment?.basePrice > 0 && res.pieces.some((pc) => areasFor[pc.piece])) out.push(botSays(`Price: ₹${garment.basePrice} → ₹${garment.basePrice + addOn} — a picture print adds ₹${addOn} once per tee, however many pictures you put on it.`));
         first = false;
       } else out.push(botSays(`Concept ${n} “${concept.title}” — tap Add to tee on a piece to use it.`));
       out.push({ designs: res.pieces.map((pc) => pc.url) });
@@ -1468,6 +1493,8 @@ export default function DesignRoomPage() {
     if (Object.keys(placed).length) setAiPlaced((cur) => ({ ...cur, ...placed }));
     if (focus && focus !== active) openArea(focus, { force: true });
     setSelectedId(null);
+    // (which areas got a print just now — the chips after the steps look at it; the chat shows nothing for it)
+    if (Object.keys(placed).length) out.push({ placedOn: Object.keys(placed) });
     return out;
   };
   // Edit the tee by chat: the text AI suggests changes, aiOps checks and applies them (one Undo step).
@@ -3035,6 +3062,15 @@ export default function DesignRoomPage() {
                   </svg>
                   <span>{assistWide ? "Narrower" : "Wider"}</span>
                 </button>
+                {/* phones: the tee shows above the chat — this turns it round (round 4, 8 Nov 2026) */}
+                {assistSmall && (
+                  <button type="button" className="dr-flip" title={flipSide === "front" ? "Show the back" : "Show the front"} aria-label={flipSide === "front" ? "Show the back of the tee" : "Show the front of the tee"} onClick={flipTee}>
+                    <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M4 12a8 8 0 0 1 14-5.3M20 12a8 8 0 0 1-14 5.3M18 3v4h-4M6 21v-4h4" />
+                    </svg>
+                    <span>{flipSide === "front" ? "Back" : "Front"}</span>
+                  </button>
+                )}
                 {/* phones: full screen for the chat, or half so the tee shows above it */}
                 <button type="button" className="dr-tall" aria-pressed={!assistSmall} onClick={toggleAssistSmall}>
                   <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">

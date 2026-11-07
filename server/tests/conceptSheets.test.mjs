@@ -70,3 +70,14 @@ test("the admin's concept summary: sheets, picks, pick rate and the styles picke
   assert.deepEqual(s.styles, [{ style: "Cartoon", count: 2 }, { style: "Minimal line", count: 1 }]);
   assert.equal(conceptSummary([]).pickRate, null);
 });
+
+test("unfinished designs: customers with sheets and no order since their first sheet, latest first", async () => {
+  const { unfinishedDesigns } = await import("../services/conceptSheets.js");
+  const d = (h) => new Date(Date.UTC(2026, 10, 1, h));
+  const u1 = { _id: "u1", name: "Priya", email: "p@x.in", phone: "9" };
+  const u2 = { _id: "u2", name: "Arun", email: "a@x.in" };
+  const sheets = [{ user: u1, prompt: "cafe tee", createdAt: d(1) }, { user: u2, prompt: "cricket tee", createdAt: d(2) }, { user: u1, prompt: "cafe tee again", createdAt: d(5) }];
+  const picks = [{ user: "u1" }, { user: "u1" }];
+  const orders = [{ user: "u2", createdAt: d(3) }, { user: "u1", createdAt: d(0) }]; // Arun ordered after his sheet; Priya's order was BEFORE her first sheet
+  assert.deepEqual(unfinishedDesigns(sheets, picks, orders), [{ who: "Priya", email: "p@x.in", phone: "9", first: d(1), last: d(5), sheets: 2, picks: 2, asked: "cafe tee again" }]);
+});

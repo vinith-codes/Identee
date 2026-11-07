@@ -81,3 +81,26 @@ test("the first suggestion follows the season; the other two stay", async () => 
   assert.deepEqual(suggestionsFor(new Date(2026, 5, 1)).slice(1), ["Draw a lion with a cricket bat", "A slogan for my team"]);
   assert.equal(firstMessagesV2(new Date(2026, 11, 25))[1].chips[0], "A New Year 2027 tee for our group");
 });
+
+test("placement from the concept's words: a chest badge goes small on the chest area, a full back fills", async () => {
+  const { placementHint, shrinkForHint } = await import("../src/studio/assistantV2.js");
+  assert.deepEqual(placementHint("small left-chest badge with the cafe name"), { area: "chest", size: "small" });
+  assert.deepEqual(placementHint("large centre-front artwork of a roaring lion"), { area: null, size: "large" });
+  assert.deepEqual(placementHint("full-back lettering ASSEMBLE"), { area: "full", size: "large" });
+  assert.deepEqual(placementHint("a tiny monogram on the chest"), { area: "chest", size: "small" });
+  assert.deepEqual(placementHint("a lion with a cricket bat"), { area: null, size: null });
+  assert.deepEqual(placementHint(null), { area: null, size: null });
+  const positions = [
+    { key: "left-chest", label: "Left chest", side: "front" },
+    { key: "centre-front", label: "Centre front", side: "front", main: true },
+    { key: "full-back", label: "Full back", side: "back", main: true },
+  ];
+  assert.equal(pieceArea("front", positions, [], { area: "chest", size: "small" })?.key, "left-chest");
+  assert.equal(pieceArea("front", positions, [], { area: null, size: "large" })?.key, "centre-front");
+  assert.equal(pieceArea("front", positions.filter((p) => p.key !== "left-chest"), [], { area: "chest", size: "small" })?.key, "centre-front"); // no chest area: the main one, made small
+  const el = { x: 4, y: 10, width: 92, height: 80, rotation: 0 };
+  const small = shrinkForHint(el, positions[1], { area: "chest", size: "small" });
+  assert.ok(small.width < 55 && small.height < 50 && small.y <= 12, JSON.stringify(small));
+  assert.equal(shrinkForHint(el, positions[0], { size: "small" }), el); // a small area stays as it is
+  assert.equal(shrinkForHint(el, positions[1], { size: null }), el);
+});

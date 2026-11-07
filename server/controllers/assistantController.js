@@ -19,6 +19,7 @@ import { brainConfigured, brainReply, CONCEPTS_PER_SHEET, PIECES } from "../serv
 import { chatModel, MEMORY_MAX } from "../services/aiChatService.js";
 import { developPrompt, mockSheet, piecesOf, SHEET_COST_FACTOR, SHEET_RATIO, SHEET_SIZE, sheetPrompt } from "../services/conceptSheets.js";
 import { googleCapped, grokCapped, isOurUpload, readSettings, usedToday, whyOff } from "./aiController.js";
+import { expectedWords, missingWords, readWords, wordCheckReady } from "../services/wordCheck.js";
 
 const PROMPT_MAX = 2000;
 const mockImages = () => process.env.AI_IMAGE_PROVIDER?.trim() === "mock";
@@ -222,19 +223,42 @@ export const makeDevelop = asyncHandler(async (req, res) => {
   const image = await smallCopy(await fetchOurImage(sheetUrl, req), 2048);
   const logoUrl = req.body?.logoUrl && isOurUpload(String(req.body.logoUrl)) ? String(req.body.logoUrl) : null;
   const logo = logoUrl ? await smallCopy(await fetchOurImage(logoUrl, req), 1024) : null;
-  const results = await Promise.allSettled(
-    pieces.map((piece) => {
-      const prompt = developPrompt({ concept, n, piece, teeIsDark, logo: Boolean(logo), change });
-      const ratio = nearestRatio(Number(ratios[piece]) || (piece === "sleeve" ? 0.75 : 1));
-      return withGrok(
-        s,
-        () => generateImage({ prompt, image, images: logo ? [logo] : [], ratio }),
-        () => xaiEditImage({ prompt, image, ratio }),
-        `${piece} of concept ${n}`,
-      ).then((r) => ({ piece, ...r }));
-    }),
-  );
+  const ratioOf = Object.fromEntries(pieces.map((piece) => [piece, nearestRatio(Number(ratios[piece]) || (piece === "sleeve" ? 0.75 : 1))]));
+  const drawPiece = (piece, extraChange = null) => {
+    const prompt = developPrompt({ concept, n, piece, teeIsDark, logo: Boolean(logo), change: [change, extraChange].filter(Boolean).join(". ") || null });
+    return withGrok(
+      s,
+      () => generateImage({ prompt, image, images: logo ? [logo] : [], ratio: ratioOf[piece] }),
+      () => xaiEditImage({ prompt, image, ratio: ratioOf[piece] }),
+      `${piece} of concept ${n}${extraChange ? " (spelling)" : ""}`,
+    );
+  };
+  const results = await Promise.allSettled(pieces.map((piece) => drawPiece(piece).then((r) => ({ piece, ...r }))));
   const made = results.filter((r) => r.status === "fulfilled").map((r) => r.value);
+  // the words in each piece are read back (round 4, 8 Nov 2026): a piece with a misspelt word is drawn once more,
+  // with the spelling spelt out — about a chat message's cost per check, one more picture when it was wrong
+  let checks = 0;
+  let redraws = 0;
+  if (made.length && process.env.AI_CHAT_PROVIDER?.trim() !== "mock" && wordCheckReady()) {
+    await Promise.all(
+      made.map(async (m) => {
+        const expected = expectedWords(concept[m.piece]);
+        if (!expected.length) return;
+        checks++;
+        const seen = await readWords(m.made.buffer, m.made.mime);
+        if (!seen) return;
+        const missing = missingWords(expected, seen);
+        if (!missing.length) return;
+        console.log(`[ai:v2] concept ${n} ${m.piece}: ${missing.map((w) => `"${w}"`).join(", ")} not read in the picture (saw ${JSON.stringify(seen).slice(0, 120)}) — drawing it again`);
+        const redo = await drawPiece(m.piece, `Spell these words exactly, letter by letter, large and clear: ${missing.map((w) => `"${w}"`).join(", ")}`).catch(() => null);
+        if (!redo) return;
+        redraws++;
+        m.made = redo.made;
+        m.byGrok = redo.byGrok;
+        m.redrawn = missing;
+      }),
+    );
+  }
   if (!made.length) {
     const err = results[0].reason;
     res.status(err?.status || 502);
@@ -254,10 +278,10 @@ export const makeDevelop = asyncHandler(async (req, res) => {
   await AiUsage.create({
     user: req.user._id,
     kind: "develop",
-    prompt: `Concept ${n}: ${concept.title}${change ? ` — ${change}` : ""}`.slice(0, PROMPT_MAX),
+    prompt: `Concept ${n}: ${concept.title}${change ? ` — ${change}` : ""}${checks ? ` (words checked${redraws ? `, ${redraws} redrawn` : ""})` : ""}`.slice(0, PROMPT_MAX),
     style: concept.style || undefined,
-    images: made.length,
-    costInr: Math.round(made.reduce((sum, m) => sum + (m.byGrok ? s.grokPricePerImageInr : s.pricePerImageInr), 0) * 100) / 100,
+    images: made.length + redraws,
+    costInr: Math.round((made.reduce((sum, m) => sum + (m.byGrok ? s.grokPricePerImageInr : s.pricePerImageInr) * (m.redrawn ? 2 : 1), 0) + checks * (s.chatPricePerMessageInr || 0)) * 100) / 100,
     model: byGrok ? xaiModel() : aiImageModel(),
   });
   await rememberPictures(
@@ -265,7 +289,7 @@ export const makeDevelop = asyncHandler(async (req, res) => {
     stored.map((st, i) => ({ url: st.url, kind: "ai", about: `${concept.title} — ${made[i].piece} (concept ${n})`, style: concept.style || "", width: cut[i].width, height: cut[i].height })),
   );
   res.status(201).json({
-    pieces: stored.map((st, i) => ({ piece: made[i].piece, url: st.url, width: cut[i].width, height: cut[i].height, byGrok: made[i].byGrok })),
+    pieces: stored.map((st, i) => ({ piece: made[i].piece, url: st.url, width: cut[i].width, height: cut[i].height, byGrok: made[i].byGrok, ...(made[i].redrawn ? { redrawn: made[i].redrawn } : {}) })),
     failed: results.filter((r) => r.status === "rejected").map((r, i) => pieces.filter((p) => !made.some((m) => m.piece === p))[i]).filter(Boolean),
     left: Math.max(0, s.dailyPerUser - used - 1),
   });

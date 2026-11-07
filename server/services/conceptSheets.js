@@ -87,3 +87,36 @@ export function conceptSummary(rows = [], perSheet = 3) {
   const shown = sheets * perSheet;
   return { sheets, picks: picks.length, shown, pickRate: shown ? Math.round((picks.length / shown) * 100) : null, styles };
 }
+
+/**
+ * Customers who got concept sheets but placed no order since (round 4, 8 Nov 2026) — the admin's follow-up list.
+ * @param sheetRows   usage rows of kind "sheet", oldest first, with user populated { _id, name, email, phone }
+ * @param developRows usage rows of kind "develop" ({ user })
+ * @param orders      orders since the same date ({ user, createdAt })
+ */
+export function unfinishedDesigns(sheetRows = [], developRows = [], orders = [], max = 30) {
+  const byUser = new Map();
+  for (const r of sheetRows) {
+    const id = String(r.user?._id || r.user || "");
+    if (!id) continue;
+    const u = byUser.get(id) || { id, who: r.user?.name || r.user?.email || "Customer", email: r.user?.email || "", phone: r.user?.phone || "", first: r.createdAt, last: r.createdAt, sheets: 0, picks: 0, asked: "" };
+    u.sheets++;
+    if (r.createdAt > u.last) u.last = r.createdAt;
+    if (r.createdAt < u.first) u.first = r.createdAt;
+    if (r.prompt) u.asked = r.prompt;
+    byUser.set(id, u);
+  }
+  for (const r of developRows) {
+    const u = byUser.get(String(r.user?._id || r.user || ""));
+    if (u) u.picks++;
+  }
+  for (const o of orders) {
+    const u = byUser.get(String(o.user?._id || o.user || ""));
+    if (u && o.createdAt >= u.first) u.ordered = true;
+  }
+  return [...byUser.values()]
+    .filter((u) => !u.ordered)
+    .sort((a, b) => new Date(b.last) - new Date(a.last))
+    .slice(0, max)
+    .map(({ who, email, phone, first, last, sheets, picks, asked }) => ({ who, email, phone, first, last, sheets, picks, asked }));
+}
