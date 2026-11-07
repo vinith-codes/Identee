@@ -25,8 +25,6 @@ const OffersPage = lazy(() => import("../pages/admin/OffersPage"));
 const SubscriptionPlansPage = lazy(() => import("../pages/admin/SubscriptionPlansPage"));
 const SubscribersPage = lazy(() => import("../pages/admin/SubscribersPage"));
 const WaitlistPage = lazy(() => import("../pages/admin/WaitlistPage"));
-const GarmentPhotosPage = lazy(() => import("../pages/admin/GarmentPhotosPage"));
-const GarmentTypesPage = lazy(() => import("../pages/admin/GarmentTypesPage"));
 const ArtCategoriesPage = lazy(() => import("../pages/admin/ArtCategoriesPage"));
 const ArtDesignsPage = lazy(() => import("../pages/admin/ArtDesignsPage"));
 const AdminInvoicesPage = lazy(() => import("../pages/admin/AdminInvoicesPage"));
@@ -120,8 +118,6 @@ export function adminRoutes() {
         <Route path="art-designs" element={<ArtDesignsPage />} />
         <Route path="customizable" element={<CustomizableListPage />} />
         <Route path="customizable/:key" element={<GarmentSetupWizard />} />
-        <Route path="garment-types" element={<GarmentTypesPage />} />
-        <Route path="garment-photos" element={<GarmentPhotosPage />} />
         <Route path="orders" element={<AdminOrdersPage />} />
         <Route path="transactions" element={<TransactionsPage />} />
         <Route path="users" element={<AdminUsersPage />} />

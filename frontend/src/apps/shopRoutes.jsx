@@ -29,7 +29,6 @@ const ReadyMadePage = lazy(() => import("../pages/ReadyMadePage"));
 const ReadyDesignPage = lazy(() => import("../pages/ReadyDesignPage")); // one IDENTEE design (25 Oct 2026)
 const CollectionPage = lazy(() => import("../pages/CollectionPage")); // one collection, e.g. SCENE (30 Oct 2026)
 const TeamOrdersPage = lazy(() => import("../pages/TeamOrdersPage"));
-const ChooseColorPage = lazy(() => import("../pages/ChooseColorPage"));
 const CheckoutPage = lazy(() => import("../pages/CheckoutPage"));
 const OrderSuccessPage = lazy(() => import("../pages/OrderSuccessPage"));
 const MyOrdersPage = lazy(() => import("../pages/MyOrderPage"));
@@ -43,7 +42,6 @@ const ContactUs = lazy(() => import("../pages/ContactUs"));
 const preloadCustomerPages = () => {
   const go = () => {
     import("../pages/CustomizablePage");
-    import("../pages/ChooseColorPage");
     import("../pages/TeamOrdersPage");
     import("../pages/CartPage");
     import("../pages/LoginPage");
@@ -169,7 +167,6 @@ export function shopRoutes({ Guest }) {
         <Route path="/team-orders" element={<TeamOrdersPage />} />
         {/* old address of the customizable list */}
         <Route path="/customize/choose-product" element={<LegacyChooseProduct />} />
-        <Route path="/customize/choose-color/:type" element={<ChooseColorPage />} />
         <Route path="/product/:id" element={<SingleProductPage />} />
         <Route path="/buy-now/:id" element={<BuyNowPage />} />
         <Route path="/favorites" element={<FavoritesPage />} />

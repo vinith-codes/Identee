@@ -30,8 +30,7 @@ export const ADMIN_MENU = [
     label: "Create your IDENTEE",
     icon: "customizable",
     to: "/admin/customizable",
-    // the old editors stay reachable (linked from the Customizable page)
-    match: ["/admin/customizable", "/admin/garment-types", "/admin/garment-photos"],
+    match: ["/admin/customizable"],
   },
   {
     key: "readymade",
