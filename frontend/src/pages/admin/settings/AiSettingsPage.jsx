@@ -156,6 +156,32 @@ export default function AiSettingsPage() {
         </div>
       </div>
 
+      {/* the new Assistant's concept sheets (round 3, 7 Nov 2026): what customers pick */}
+      {data.concepts && (
+        <div style={{ ...card, marginBottom: 12 }}>
+          <div style={{ fontSize: 12, color: t.textMuted, marginBottom: 6 }}>Concept sheets (the new Assistant)</div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 10 }}>
+            {[
+              ["Sheets this month", data.concepts.month.sheets],
+              ["Concepts picked", data.concepts.month.picks],
+              ["Pick rate", data.concepts.month.pickRate == null ? "—" : `${data.concepts.month.pickRate}%`],
+              ["Sheets, all time", data.concepts.allTime.sheets],
+              ["Picked, all time", data.concepts.allTime.picks],
+            ].map(([k, v]) => (
+              <div key={k}>
+                <div style={{ fontSize: 12, color: t.textMuted }}>{k}</div>
+                <div style={{ fontSize: 20, fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>{v}</div>
+              </div>
+            ))}
+          </div>
+          {data.concepts.allTime.styles?.length > 0 && (
+            <div style={{ fontSize: 12.5, color: t.textMuted, marginTop: 8 }}>
+              Styles customers pick most: {data.concepts.allTime.styles.map((x) => `${x.style} (${x.count})`).join(" · ")}
+            </div>
+          )}
+          <div style={{ fontSize: 12, color: t.textMuted, marginTop: 6 }}>A sheet shows 3 concepts; the pick rate is concepts made real ÷ concepts shown. A low rate means the sheets miss what customers want — tell Claude which kinds of requests.</div>
+        </div>
+      )}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 12 }}>
         {[
           ["Spent this month (all)", rupees(data.month.cost)],

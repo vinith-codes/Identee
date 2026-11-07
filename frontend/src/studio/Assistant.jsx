@@ -15,6 +15,7 @@ import PhotoPlanCard from "./PhotoPlanCard";
 import MyPictures from "./MyPictures";
 import SheetCard from "./SheetCard";
 import { assistAct } from "./assistantV2";
+import { speechSupported, startListening } from "./voiceInput";
 import { PhotoError, shrinkPhoto } from "./shrinkPhoto";
 
 const PICTURE_HINT = "Usually 20–40 seconds. You can look around the room meanwhile.";
@@ -98,6 +99,30 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
     return () => clearTimeout(t);
   }, [photoNudge]);
   const [attached, setAttached] = useState(null); // a photo picked with 📎, waiting to be sent with the words: { file, w, h, local }
+  // 🎤 speak instead of type (round 3): the words land in the box as they are heard; Send sends them
+  const [listening, setListening] = useState(false);
+  const stopListen = useRef(null);
+  const toggleListen = () => {
+    if (listening) {
+      stopListen.current?.();
+      return;
+    }
+    const before = draft.trim();
+    setListening(true);
+    stopListen.current = startListening({
+      lang: "en-IN",
+      onText: (text) => setDraft(before ? `${before} ${text}` : text),
+      onEnd: () => {
+        setListening(false);
+        stopListen.current = null;
+        setTimeout(() => box.current?.focus(), 50);
+      },
+      onError: (why) => {
+        if (why === "not-allowed" || why === "service-not-allowed") setMessages((m) => [...m, { from: "bot", text: "The microphone isn’t allowed. Allow it in the browser’s site settings, or just type." }]);
+      },
+    });
+  };
+  useEffect(() => () => stopListen.current?.(), []);
 
   useEffect(() => {
     if (log.current) log.current.scrollTop = log.current.scrollHeight;
@@ -640,6 +665,14 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
               <path d="m21 11.5-8.6 8.6a5.5 5.5 0 0 1-7.8-7.8l8.6-8.6a3.7 3.7 0 0 1 5.2 5.2l-8.6 8.6a1.8 1.8 0 0 1-2.6-2.6l7.9-7.9" />
             </svg>
           </button>
+          {speechSupported() && (
+            <button type="button" className={`dr-mic${listening ? " on" : ""}`} onClick={toggleListen} disabled={!!thinking} aria-pressed={listening} aria-label={listening ? "Stop listening" : "Speak your message"} title={listening ? "Listening… tap to stop" : "Speak instead of typing"}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <rect x="9" y="3" width="6" height="11" rx="3" />
+                <path d="M5 11a7 7 0 0 0 14 0M12 18v3M9 21h6" />
+              </svg>
+            </button>
+          )}
           {/* what is typed is made clear first, free — always here (the examples list is only at the start of a chat);
               not while a photo waits to be sent (what is typed then is about the photo) */}
           {ctx().ai.available && ctx().ai.text && !attached && (

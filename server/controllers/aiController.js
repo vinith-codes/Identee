@@ -23,6 +23,7 @@ import AiUsage from "../models/aiUsageModel.js";
 import AiChatUsage from "../models/aiChatUsageModel.js";
 import { MEMORY_MAX, chatConfigured, chatModel, chatReply } from "../services/aiChatService.js";
 import { brainConfigured } from "../services/assistantBrain.js";
+import { conceptSummary } from "../services/conceptSheets.js";
 import Customization from "../models/customizationModel.js";
 import GarmentType from "../models/garmentTypeModel.js";
 import { uploadFile, deleteStoredFile } from "../utils/imageStorage.js";
@@ -574,8 +575,15 @@ const requestRow = (r) => ({ when: r.createdAt, who: r.user?.name || r.user?.ema
 export const getAiAdmin = asyncHandler(async (req, res) => {
   const settings = await readSettings();
   const month = await monthSpend();
-  const [recent, history] = await Promise.all([AiUsage.find().sort({ createdAt: -1 }).limit(15).populate("user", "name email").lean(), usageHistory()]);
+  const [recent, history, conceptRows] = await Promise.all([
+    AiUsage.find().sort({ createdAt: -1 }).limit(15).populate("user", "name email").lean(),
+    usageHistory(),
+    AiUsage.find({ kind: { $in: ["sheet", "develop"] } }).select("kind style createdAt").lean(),
+  ]);
+  const monthStart = startOfMonth();
   res.json({
+    // what the concept sheets teach us (Assistant v2): all time and this month
+    concepts: { allTime: conceptSummary(conceptRows), month: conceptSummary(conceptRows.filter((r) => r.createdAt >= monthStart)) },
     configured: aiImageConfigured(),
     model: aiImageModel(),
     // the second picture service, for photos Google refuses

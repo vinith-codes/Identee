@@ -57,3 +57,16 @@ test("with the customer's logo, the sheet and develop instructions say to print 
   assert.doesNotMatch(sheetPrompt({ concepts }), /logo/);
   assert.match(developPrompt({ concept: concepts[0], n: 1, piece: "front", logo: true }), /second attached image is the customer's own logo/);
 });
+
+test("the admin's concept summary: sheets, picks, pick rate and the styles picked most", async () => {
+  const { conceptSummary } = await import("../services/conceptSheets.js");
+  const rows = [
+    { kind: "sheet" }, { kind: "sheet" }, { kind: "sheet" },
+    { kind: "develop", style: "Cartoon" }, { kind: "develop", style: "Cartoon" }, { kind: "develop", style: "Minimal line" },
+    { kind: "new" },
+  ];
+  const s = conceptSummary(rows);
+  assert.deepEqual([s.sheets, s.picks, s.shown, s.pickRate], [3, 3, 9, 33]);
+  assert.deepEqual(s.styles, [{ style: "Cartoon", count: 2 }, { style: "Minimal line", count: 1 }]);
+  assert.equal(conceptSummary([]).pickRate, null);
+});

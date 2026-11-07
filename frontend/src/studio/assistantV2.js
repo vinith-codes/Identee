@@ -6,11 +6,31 @@ import { areaFor } from "./aiOps";
 
 export const HELLO_V2 = "Hi! Tell me what you want on your tee — an idea, an occasion, a picture, words — and I’ll design it with you.";
 export const SUGGESTIONS = ["Designs for my college fest", "Draw a lion with a cricket bat", "A slogan for my team"];
+// Starters that sell (round 3, 7 Nov 2026): the first chip follows the season in India, the other two stay evergreen
+const SEASON = [
+  [1, "A Pongal tee for my family"],
+  [2, "A Valentine's couple tee"],
+  [3, "Designs for our college fest"],
+  [4, "A farewell tee for our batch"],
+  [5, "A summer trip tee for my gang"],
+  [6, "A tee for my cricket team"],
+  [7, "Designs for our office team"],
+  [8, "An Independence Day tee"],
+  [9, "A tee for our Onam celebration"],
+  [10, "A Diwali tee for my family"],
+  [11, "Designs for my cafe staff"],
+  [12, "A New Year 2027 tee for our group"],
+];
+export const suggestionsFor = (date = new Date()) => {
+  const m = date.getMonth() + 1;
+  const first = (SEASON.find(([month]) => month === m) || SEASON[0])[1];
+  return [first, "Draw a lion with a cricket bat", "A slogan for my team"];
+};
 export const CONCEPTS_PER_SHEET = 3;
 export const PIECES = ["front", "back", "sleeve"];
 
 /** The start of a v2 chat: one line and three suggestions (they go to the brain when tapped). */
-export const firstMessagesV2 = () => [{ from: "bot", text: HELLO_V2 }, { chips: SUGGESTIONS, smart: true }];
+export const firstMessagesV2 = (date = new Date()) => [{ from: "bot", text: HELLO_V2 }, { chips: suggestionsFor(date), smart: true }];
 
 /** Is this chat still the untouched start (nothing said yet)? Then it may be swapped for the v2 start. */
 export const isUntouchedStart = (messages) => Array.isArray(messages) && messages.length <= 3 && !messages.some((m) => m.from === "me" || m.pending || m.sheet || m.designs);

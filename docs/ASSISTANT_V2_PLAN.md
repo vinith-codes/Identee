@@ -214,3 +214,16 @@ numbered, that they can pick, develop and change with plain words — with no me
   Chest & Back — the badge in gold" in the usage row), the back badge came back gold. The brain's own wait is now 40 s
   (a long chat with sheets and a thinking level went past the text service's 20 s once → "couldn't answer"; Try again
   worked). Round 2 real pictures: ₹33. Demo folder has the logo sheet (sheet-4-with-logo.jpg) and the gold pieces.
+- **Round 3 (5, 6, 7, 8, 10) — 7 Nov 2026, night:** (5) "Share my tee" on the Review step: `studio/shareTee.js` makes one
+  picture of the front and back with an IDENTEE line and uses the phone's share sheet (WhatsApp …), else saves the file;
+  (6) 🎤 in the composer: the browser's own speech recognition (`studio/voiceInput.js`, en-IN; Tanglish works, Tamil may
+  come back in Tamil script), words land in the box, Send sends; shown only where the browser has it; (7) the first
+  suggestion chip follows the month (`suggestionsFor` in assistantV2.js: Pongal, Valentine's, fests, farewell, summer
+  trip, cricket, office, Independence Day, Onam, Diwali, café staff, New Year); (8) Admin → Settings → AI designs shows
+  "Concept sheets": sheets, concepts picked, pick rate (picks ÷ concepts shown), styles picked most — all time and this
+  month (`conceptSummary` in conceptSheets.js, `concepts` on GET /api/ai/admin); (10) when a made concept takes the place
+  of an AI print already on an area, the chat says so and offers Undo / "put the old one on the back". (9, Tamil on the
+  tee) NOT done: the room has no Tamil font (FONTS in studio/fonts.js) and the print pipeline makes words into vector
+  shapes from the font files, so Tamil words would need a font added to the room AND to the print files — a separate
+  job; AI-drawn Tamil lettering in pictures is also often misspelt. Checked on screen with the stand-in AI. Tests: 60
+  server, 117 website.

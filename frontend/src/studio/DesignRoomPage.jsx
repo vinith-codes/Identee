@@ -31,6 +31,7 @@ import { PICTURES_CHANGED } from "./pictureHelpers";
 import myPicturesService from "../services/myPicturesService";
 import { chatTitle, historyFor, listChats, loadChat, moveLocalChats, saveChat } from "./chatStore";
 import { AFTER_AI_SLOGANS, AFTER_DESIGN_CHIPS, BACK, CHANGE_IDEA, DRAW_MINE, PHOTO_AS_IS, PHOTO_CHOICES, PHOTO_CUT, PHOTO_REVERT, PROMPT_MAX, bot as botSays, checkMessages, chips as chipRow, firstMessages, firstState, smartPlan } from "./assistantScript";
+import { makeShareCard, shareTee } from "./shareTee";
 import { firstMessagesV2, isUntouchedStart, sheetsFromChat, nextConceptNumber, findConcept, piecesOf, pieceArea } from "./assistantV2";
 import { styleIn } from "./styleInfo";
 import { areasFromWords, photoJobFrom, SAME_THEME } from "./photoIntent";
@@ -252,6 +253,7 @@ export default function DesignRoomPage() {
   );
   const [twirlKey, setTwirlKey] = useState(0); // goes up to make the tee do one full turn
   const [shots, setShots] = useState(null);
+  const [sharing, setSharing] = useState(false); // Share my tee: the picture is being made
   const [spin, setSpin] = useState(true);
   const [lit, setLit] = useState(false); // Review: the dressing room has been drawn, so its lights can come up
   const litTimer = useRef(null);
@@ -1440,16 +1442,23 @@ export default function DesignRoomPage() {
         break;
       }
       if (first) {
+        const replaced = [];
         for (const pc of res.pieces) {
           const pos = areasFor[pc.piece];
           if (!pos) continue;
           const el = aiElement(pos, { path: pc.url, w: pc.width, h: pc.height }, els.length + 1);
           const old = aiPlaced[pos.key]?.elId;
+          if (old && els.some((e) => e.id === old)) replaced.push(pos.label);
           els = [...els.filter((e) => e.id !== old), el];
           placed[pos.key] = { url: pc.url, elId: el.id };
           focus = focus || pos.key;
         }
-        out.push(botSays(`Concept ${n} “${concept.title}” is on your tee${res.pieces.length > 1 ? ` — ${andList(res.pieces.map((pc) => areasFor[pc.piece]?.label || pc.piece))}` : ""}. Tell me what to change, or press Undo (↶).`));
+        out.push(
+          botSays(
+            `Concept ${n} “${concept.title}” is on your tee${res.pieces.length > 1 ? ` — ${andList(res.pieces.map((pc) => areasFor[pc.piece]?.label || pc.piece))}` : ""}.` +
+              (replaced.length ? ` It took the place of the earlier print on ${andList(replaced)} — press Undo (↶) to bring that back, or say “put the old one on the back”.` : " Tell me what to change, or press Undo (↶)."),
+          ),
+        );
         first = false;
       } else out.push(botSays(`Concept ${n} “${concept.title}” — tap Add to tee on a piece to use it.`));
       out.push({ designs: res.pieces.map((pc) => pc.url) });
@@ -3180,6 +3189,28 @@ export default function DesignRoomPage() {
                 <div className="eyebrow">Review your design</div>
                 <p className="dr-review-hint">Tap a side to look at it on the tee, or watch it turn 360°.</p>
               </div>
+              {/* Share my tee (round 3, 7 Nov 2026): front + back on one picture, to WhatsApp or saved — most group tees need someone else's yes first */}
+              {shots?.length === 4 && shots[0]?.url && (
+                <button
+                  type="button"
+                  className="dr-share"
+                  disabled={sharing}
+                  onClick={async () => {
+                    setSharing(true);
+                    try {
+                      const blob = await makeShareCard({ front: shots[0].url, back: shots[1]?.url, title: `${garment?.label || "My tee"} · ${colour?.name || ""}`.trim() });
+                      const how = await shareTee(blob, { text: `My ${garment?.label || "tee"} design on IDENTEE` });
+                      if (how === "saved") say("The picture of your tee is saved — send it to whoever needs to say yes.");
+                    } catch (err) {
+                      say(err?.message || "The picture couldn’t be made just now.");
+                    } finally {
+                      setSharing(false);
+                    }
+                  }}
+                >
+                  {sharing ? "Making the picture…" : "Share my tee"}
+                </button>
+              )}
               <div className="dr-shots">
                 {(shots || SIDES.map(([, label]) => ({ label, url: null }))).map((sh, i) => (
                   <button key={sh.label} type="button" className={`dr-shot${sideShown === SIDES[i][0] ? " on" : ""}`} aria-pressed={sideShown === SIDES[i][0]} onClick={() => showSide(SIDES[i][0])} aria-label={`Show the ${sh.label.toLowerCase()} on the 3D tee`}>

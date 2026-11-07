@@ -1615,3 +1615,12 @@ p.pc-area { margin: 0; font-size: 13px; color: var(--muted); }
 .dr-gate p { margin: 0; font-size: 13px; color: var(--muted); line-height: 1.45; }
 .dr-gate .dr-mini { justify-self: center; min-width: 140px; }
 @media (max-width: 420px) { .dr-sheet-list { grid-template-columns: minmax(0, 1fr); } }
+
+/* round 3 (7 Nov 2026): the mic in the composer, Share my tee in the review */
+.dr-composer.dr-cbox .dr-mic { flex: none; width: 40px; height: 40px; border: 0; border-radius: 50%; background: transparent; color: var(--ink-soft); display: grid; place-items: center; padding: 0; cursor: pointer; }
+.dr-composer.dr-cbox .dr-mic svg { width: 22px; height: 22px; }
+.dr-composer.dr-cbox .dr-mic.on { background: #C0392B; color: #fff; animation: dr-mic-pulse 1.2s ease-in-out infinite; }
+.dr-composer.dr-cbox .dr-mic:disabled { opacity: .45; cursor: default; }
+@keyframes dr-mic-pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(192, 57, 43, .45); } 50% { box-shadow: 0 0 0 8px rgba(192, 57, 43, 0); } }
+.dr-share { justify-self: start; border: 1.5px solid var(--ink); background: #fff; color: var(--ink); border-radius: 999px; padding: 8px 16px; font-weight: 700; font-size: 13px; cursor: pointer; margin-bottom: 8px; }
+.dr-share:disabled { opacity: .55; cursor: wait; }

@@ -2,7 +2,7 @@
 // and which print area a concept's piece goes on.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { firstMessagesV2, isUntouchedStart, sheetsFromChat, nextConceptNumber, conceptCount, findConcept, piecesOf, parsePicks, isBarePick, assistAct, pieceArea, SUGGESTIONS } from "../src/studio/assistantV2.js";
+import { firstMessagesV2, isUntouchedStart, sheetsFromChat, nextConceptNumber, conceptCount, findConcept, piecesOf, parsePicks, isBarePick, assistAct, pieceArea, suggestionsFor } from "../src/studio/assistantV2.js";
 
 const sheet = (numberFrom, url) => ({ url, numberFrom, concepts: Array.from({ length: 3 }, (_, i) => ({ n: numberFrom + i, title: `C${numberFrom + i}`, front: "x", back: i === 2 ? null : "y", sleeve: i === 0 ? "z" : null })), developed: [] });
 const chat = [{ from: "bot", text: "hi" }, { from: "me", text: "designs" }, { sheet: sheet(1, "/uploads/ai-concepts/a.png") }, { from: "me", text: "more" }, { sheet: sheet(4, "/uploads/ai-concepts/b.png") }];
@@ -11,7 +11,7 @@ test("the v2 start is one line and three suggestions that go to the brain", () =
   const m = firstMessagesV2();
   assert.equal(m.length, 2);
   assert.equal(m[0].from, "bot");
-  assert.deepEqual(m[1], { chips: SUGGESTIONS, smart: true });
+  assert.deepEqual(m[1], { chips: suggestionsFor(new Date()), smart: true }); // (the first chip follows the season)
   assert.equal(isUntouchedStart(m), true);
   assert.equal(isUntouchedStart([...m, { from: "me", text: "hello" }]), false);
 });
@@ -71,4 +71,13 @@ test("a tap on the sheet picture picks the tee under it, left to right", async (
   assert.equal(conceptAtX(1, concepts), 6);
   assert.equal(conceptAtX(1.2, concepts), null);
   assert.equal(conceptAtX(0.5, []), null);
+});
+
+test("the first suggestion follows the season; the other two stay", async () => {
+  const { suggestionsFor, firstMessagesV2 } = await import("../src/studio/assistantV2.js");
+  assert.equal(suggestionsFor(new Date(2026, 0, 10))[0], "A Pongal tee for my family");
+  assert.equal(suggestionsFor(new Date(2026, 9, 20))[0], "A Diwali tee for my family");
+  assert.equal(suggestionsFor(new Date(2026, 10, 7))[0], "Designs for my cafe staff");
+  assert.deepEqual(suggestionsFor(new Date(2026, 5, 1)).slice(1), ["Draw a lion with a cricket bat", "A slogan for my team"]);
+  assert.equal(firstMessagesV2(new Date(2026, 11, 25))[1].chips[0], "A New Year 2027 tee for our group");
 });

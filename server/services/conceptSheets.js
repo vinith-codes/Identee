@@ -72,3 +72,18 @@ export async function mockSheet(concepts, { teeColour = "white", numberFrom = 1 
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}"><rect width="${W}" height="${H}" fill="#e9e6df"/>${tiles}</svg>`;
   return { buffer: await sharp(Buffer.from(svg)).png().toBuffer(), mime: "image/png" };
 }
+
+/**
+ * What the admin learns from the concept sheets (round 3, 7 Nov 2026): how many sheets were made, how many concepts
+ * were picked and made real, the pick rate (picks ÷ concepts shown), and the styles customers pick most.
+ * @param rows  usage rows [{ kind: "sheet" | "develop" | …, style?, images }]
+ */
+export function conceptSummary(rows = [], perSheet = 3) {
+  const sheets = rows.filter((r) => r.kind === "sheet").length;
+  const picks = rows.filter((r) => r.kind === "develop");
+  const byStyle = new Map();
+  for (const r of picks) if (r.style) byStyle.set(r.style, (byStyle.get(r.style) || 0) + 1);
+  const styles = [...byStyle.entries()].map(([style, count]) => ({ style, count })).sort((a, b) => b.count - a.count).slice(0, 6);
+  const shown = sheets * perSheet;
+  return { sheets, picks: picks.length, shown, pickRate: shown ? Math.round((picks.length / shown) * 100) : null, styles };
+}
