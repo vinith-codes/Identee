@@ -176,3 +176,13 @@ numbered, that they can pick, develop and change with plain words — with no me
   → question + chips, undo; the chat with its sheets survives a reload. Still to do: Phase 3 polish (Tanglish on the
   new flows, memory of picks, speed/Stop on sheets, Chats list), Phase 4 (the 60-message mock walk, the real Google run
   with the user's OK), release.
+- **Phase 3 (part) — 7 Nov 2026:** a concept sheet stopped mid-way is still shown (it was counted); a question is not
+  repeated under the brain's reply; number chips are not repeated under a sheet card. `server/scripts/assistantWalk.mjs`
+  walks the brain through 60 kinds of customer messages (English, Tamil, Tanglish; briefs, picks, edits, questions,
+  off-topic) and prints what it would do: `--direct` for the stand-in brain (free), `--url … --token …` for the real
+  brain (~₹0.30 a message, nothing drawn). The stand-in only knows keywords, so Tamil/Tanglish and nuanced lines are
+  for the real run. Still to do: the real Google run (user's OK), Tanglish check on the new flows, release.
+- **Decision, 7 Nov 2026 (the user): choices first.** Any design OR picture request ("a lion on the front") gets a sheet
+  of three takes to pick from (₹4.20), then the pick is made real (₹2.90). A single drawing straight onto the tee is
+  the shortcut only when asked ("just draw it", "quickly", "another one", lettering). After a single drawing the chips
+  offer "Show me 3 options". Built into the brain's instructions and the stand-in; the walk script expects it.

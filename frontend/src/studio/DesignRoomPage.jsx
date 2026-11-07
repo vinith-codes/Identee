@@ -1341,7 +1341,7 @@ export default function DesignRoomPage() {
         asked = true;
         break;
       }
-      if (step.type === "concepts") out.push(...(await makeSheet(step, progress, run)));
+      if (step.type === "concepts") out.push(...(await makeSheet(step, progress)));
       else if (step.type === "develop") out.push(...(await developPicks(step, progress, run)));
       else if (step.type === "draw") out.push(...(await drawPlan({ items: [{ subject: step.subject, areaKey: step.area }], style: step.style }, progress, run)).filter((m) => !m.chips));
       else if (step.type === "edit") out.push(...(await chatEdit({ message: step.message }, progress, run)).filter((m) => !m.chips));
@@ -1361,7 +1361,7 @@ export default function DesignRoomPage() {
     return out.length ? out : [botSays("How can I help with your tee?")];
   };
   // a concept sheet: one picture, three numbered tees (counts as one picture request)
-  const makeSheet = async (step, progress, run) => {
+  const makeSheet = async (step, progress) => {
     if (!ai.available) return [botSays("Pictures can’t be made right now. You can pick from the art library or upload your own."), chipRow(["Open the art library", "Upload a picture"])];
     if (ai.left === 0) return [botSays("You’ve used today’s picture requests. They reset tomorrow — I can still help with words and layout.")];
     const numberFrom = nextConceptNumber(sheetsFromChat(chat));
@@ -1369,7 +1369,7 @@ export default function DesignRoomPage() {
     try {
       const res = await aiService.concepts({ concepts: step.concepts, brief: step.brief, garment: garment?.label || "t-shirt", teeColour: colour?.name || "white", teeIsDark: lum(fabricHex) < 0.55, numberFrom });
       if (res.left != null) setAi((cur) => ({ ...cur, left: res.left }));
-      if (run?.stopped) return [];
+      // (stopped meanwhile: the sheet was still made and counted, so the chat shows it anyway)
       return [{ sheet: { ...res.sheet, brief: step.brief, developed: [] } }];
     } catch (err) {
       return [botSays(err.response?.data?.message || "The concept sheet couldn’t be made just now."), { failed: true }];

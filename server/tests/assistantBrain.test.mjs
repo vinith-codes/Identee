@@ -99,7 +99,8 @@ test("the mock brain exercises every kind of step (AI_CHAT_PROVIDER=mock)", asyn
   const front = await ask("I like 2 but only the front", { sheets });
   assert.deepEqual(front.steps[0].pieces, ["front"]);
   assert.equal((await ask("put my name on it")).steps[0].type, "ask");
-  assert.equal((await ask("draw a lion holding a cricket bat")).steps[0].type, "draw");
+  assert.equal((await ask("draw a lion holding a cricket bat")).steps[0].type, "concepts"); // choices first: three takes on the lion
+  assert.equal((await ask("just draw a lion holding a cricket bat")).steps[0].type, "draw"); // the shortcut
   assert.equal((await ask("make the text gold")).steps[0].type, "edit");
   assert.equal((await ask("a slogan for my mother")).steps[0].type, "slogans");
   assert.equal((await ask("which size am I")).steps[0].item, "Size help");

@@ -121,10 +121,10 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
       .then((made) => {
         if (me.stopped) {
           // Stopped, but a picture finished anyway: it was already counted, so it is offered (not put on the tee)
-          const pics = made.filter((x) => x.designs);
+          const pics = made.filter((x) => x.designs || x.sheet); // (a concept sheet too: it was counted)
           setMessages((m) => {
             const rest = m.filter((x) => !x.pending);
-            return pics.length ? [...rest, { from: "bot", text: "The picture you stopped finished anyway, so it’s here if you want it. Nothing was added to your tee." }, ...pics.map((x) => ({ ...x, again: null }))] : rest;
+            return pics.length ? [...rest, { from: "bot", text: pics.some((x) => x.sheet) ? "The concepts you stopped finished anyway, so they’re here if you want them." : "The picture you stopped finished anyway, so it’s here if you want it. Nothing was added to your tee." }, ...pics.map((x) => ({ ...x, again: null }))] : rest;
           });
           return;
         }
