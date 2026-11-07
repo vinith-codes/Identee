@@ -80,7 +80,7 @@ export async function writeSlogans({ ask, tone, avoid = [], count = 5 }) {
 // A shared way to ask the text model for a JSON answer.
 // (exported for the smart Assistant, services/aiChatService.js — 23 Oct 2026)
 // timeoutMs: how long to wait (a long request, like the Collection maker's plan, takes Google longer — 25 Oct 2026)
-export async function askJson(prompt, temperature = 0.3, modelName = model(), { timeoutMs = TIMEOUT_MS } = {}) {
+export async function askJson(prompt, temperature = 0.3, modelName = model(), { timeoutMs = TIMEOUT_MS, thinking = null } = {}) {
   const key = apiKey();
   if (!key) throw Object.assign(new Error("not set up"), { status: 503 });
   const ctrl = new AbortController();
@@ -90,7 +90,8 @@ export async function askJson(prompt, temperature = 0.3, modelName = model(), { 
     res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent`, {
       method: "POST",
       headers: { "x-goog-api-key": key, "Content-Type": "application/json" },
-      body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: prompt }] }], generationConfig: { temperature, responseMimeType: "application/json" } }),
+      // thinking: "low" | "medium" | "high" — the Assistant v2 brain asks the model to think first (services/assistantBrain.js)
+      body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: prompt }] }], generationConfig: { temperature, responseMimeType: "application/json", ...(thinking ? { thinkingConfig: { thinkingLevel: thinking } } : {}) } }),
       signal: ctrl.signal,
     });
   } catch {

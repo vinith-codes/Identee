@@ -39,7 +39,7 @@ import { AI_STYLES, PHOTO_STYLES, aiImageConfigured, aiImageModel, changeDesignP
 const CATEGORY = "ai";
 const DEFAULTS = {
   "ai.enabled": { value: true, type: "boolean", description: "Customers can make designs with AI" },
-  "ai.dailyPerUser": { value: 5, type: "number", description: "Design requests one customer may make per day" },
+  "ai.dailyPerUser": { value: 20, type: "number", description: "Picture requests one customer may make per day (drawings, concept sheets and developed concepts each count as one)" },
   "ai.imagesPerRequest": { value: 1, type: "number", description: "Pictures shown for each new design request" },
   // (the key keeps its old name: before 18 Oct 2026 it was one cap for both services)
   "ai.monthlyCapInr": { value: 2000, type: "number", description: "Monthly spending cap for Google, in rupees" },
@@ -157,13 +157,13 @@ export const googleCapped = (settings, month) => settings.monthlyCapInr > 0 && m
 export const grokCapped = (settings, month) => settings.grokMonthlyCapInr > 0 && month.grok.cost >= settings.grokMonthlyCapInr;
 // Why the feature is off (null = it is on). Google makes every picture, so its cap pauses the feature;
 // Grok's cap only stops Grok standing in for refused pictures.
-async function whyOff(settings) {
+export async function whyOff(settings) {
   if (!aiImageConfigured()) return "setup";
   if (!settings.enabled) return "off";
   if (googleCapped(settings, await monthSpend())) return "cap";
   return null;
 }
-const usedToday = (userId) => AiUsage.countDocuments({ user: userId, createdAt: { $gte: startOfDay() } });
+export const usedToday = (userId) => AiUsage.countDocuments({ user: userId, createdAt: { $gte: startOfDay() } });
 
 // GET /api/ai/status  (login optional)
 export const getAiStatus = asyncHandler(async (req, res) => {
