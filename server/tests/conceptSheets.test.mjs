@@ -31,10 +31,10 @@ test("the develop instruction asks for one piece of one concept, alone, on a pla
   const p = developPrompt({ concept: concepts[0], n: 1, piece: "back", teeIsDark: true });
   assert.match(p, /ONLY the back artwork of concept 1/);
   assert.match(p, /VORTEX arched in bold letters/);
-  assert.match(p, /pure black background/);
+  assert.match(p, /pure magenta \(#FF00FF\) background/);
   assert.match(p, /No t-shirt, no mockup, no numerals/);
   const front = developPrompt({ concept: concepts[1], n: 2, piece: "front" });
-  assert.match(front, /pure white background/);
+  assert.match(front, /pure magenta \(#FF00FF\) background/);
 });
 
 test("the pieces of a concept are the ones with a print", () => {

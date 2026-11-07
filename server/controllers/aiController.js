@@ -27,7 +27,7 @@ import { conceptSummary } from "../services/conceptSheets.js";
 import Customization from "../models/customizationModel.js";
 import GarmentType from "../models/garmentTypeModel.js";
 import { uploadFile, deleteStoredFile } from "../utils/imageStorage.js";
-import { cutOutPlainBackground, onPlainBackground } from "../services/cutoutService.js";
+import { cutOutPlainBackground, KEY_BACKGROUND, onPlainBackground } from "../services/cutoutService.js";
 import { aiTextConfigured, improveIdea, planEdit, readPhotoRequest, writeSlogans } from "../services/aiTextService.js";
 import { removePhotoBackground } from "../services/backgroundService.js";
 import MyPicture from "../models/myPictureModel.js";
@@ -343,7 +343,7 @@ export const makeAiDesign = asyncHandler(async (req, res) => {
     const stored = await fetchOurImage(req.body.fixUrl, req);
     const dark = Boolean(req.body.teeIsDark);
     // (a photo keeps its own background: it is only made sharper)
-    const flat = await sharp(stored.data).rotate().resize(1536, 1536, { fit: "inside", withoutEnlargement: true }).flatten({ background: dark && req.body.fixKind !== "photo" ? "#000000" : "#ffffff" }).jpeg({ quality: 92 }).toBuffer();
+    const flat = await sharp(stored.data).rotate().resize(1536, 1536, { fit: "inside", withoutEnlargement: true }).flatten({ background: req.body.fixKind === "photo" ? "#ffffff" : KEY_BACKGROUND }).jpeg({ quality: 92 }).toBuffer();
     const prompt = fixPrompt({ kind: req.body.fixKind, teeColour: teeName, teeIsDark: dark });
     photoJob = { promptFor: () => prompt, image: { data: flat, mime: "image/jpeg" } }; // Grok does it if Google refuses
     jobs = [generateImage({ prompt, image: photoJob.image, ratio: nearestRatio(req.body.ratio) })];
@@ -367,7 +367,7 @@ export const makeAiDesign = asyncHandler(async (req, res) => {
     }
     // the stored design is a cut-out: put it back on its plain background for the AI
     const stored = await fetchOurImage(req.body.baseUrl, req);
-    const image = { data: await onPlainBackground(stored.data, Boolean(req.body.teeIsDark)), mime: "image/jpeg" };
+    const image = { data: await onPlainBackground(stored.data), mime: "image/jpeg" };
     photoJob = { promptFor: () => changeDesignPrompt(text), image }; // Grok edits it if Google refuses
     jobs = [generateImage({ prompt: changeDesignPrompt(text), image, ratio: nearestRatio(req.body.ratio) })];
   } else {

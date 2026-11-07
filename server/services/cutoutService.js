@@ -90,9 +90,11 @@ export async function trimClearEdges(c) {
   }
 }
 
-// A cut-out put back on a plain background, for sending to the AI to be changed.
-export const onPlainBackground = (buffer, dark) =>
+// A cut-out put back on a plain background, for sending to the AI to be changed: the "green screen" colour the AI
+// draws on (8 Nov 2026 — before, white or black, which also cleared white or black parts of the drawing afterwards).
+export const KEY_BACKGROUND = "#FF00FF";
+export const onPlainBackground = (buffer) =>
   sharp(buffer)
-    .flatten({ background: dark ? "#000000" : "#ffffff" })
+    .flatten({ background: KEY_BACKGROUND })
     .jpeg({ quality: 92 })
     .toBuffer();

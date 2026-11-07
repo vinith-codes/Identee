@@ -27,3 +27,23 @@ test("trimClearEdges leaves a picture that was not cut out alone", async () => {
   const c = { buffer: Buffer.from("x"), mime: "image/jpeg", width: 10, height: 10, cut: false };
   assert.equal(await trimClearEdges(c), c);
 });
+
+// The "green screen": the AI draws on magenta, so white (or black) parts of the drawing are not mistaken for background.
+test("a white part of the drawing on a magenta background stays", async () => {
+  const pic = await sharp({ create: { width: 300, height: 300, channels: 3, background: "#ff00ff" } })
+    .composite([
+      { input: { create: { width: 120, height: 120, channels: 3, background: "#d02020" } }, left: 90, top: 90 },
+      { input: { create: { width: 60, height: 40, channels: 3, background: "#ffffff" } }, left: 120, top: 130 }, // a white window inside
+      { input: { create: { width: 20, height: 20, channels: 3, background: "#ffffff" } }, left: 0, top: 140 }, // white touching the outside
+    ])
+    .png()
+    .toBuffer();
+  const cut = await cutOutPlainBackground(pic);
+  assert.equal(cut.cut, true);
+  const { data, info } = await sharp(cut.buffer).raw().toBuffer({ resolveWithObject: true });
+  const alphaAt = (x, y) => data[(y * info.width + x) * 4 + 3];
+  assert.equal(alphaAt(150, 150), 255, "the white window stays");
+  assert.equal(alphaAt(10, 150), 255, "white touching the edge stays too");
+  assert.equal(alphaAt(5, 50), 0, "the magenta background is cleared");
+  assert.equal(alphaAt(100, 100), 255, "the red drawing stays");
+});

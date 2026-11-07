@@ -9,6 +9,7 @@
 //   AI_IMAGE_PROVIDER   "gemini" (default) or "mock" — mock draws a plain
 //                       sample picture without calling anyone, for testing
 //                       the whole flow without spending money
+import { KEY_BACKGROUND } from "./cutoutService.js";
 import zlib from "zlib";
 
 const ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/interactions";
@@ -95,7 +96,7 @@ export const photoArtPrompt = ({ style, teeColour, teeIsDark, variation, of }) =
   [
     `Redraw the main subject of this photo as ${PHOTO_STYLES[style] || PHOTO_STYLES.Cartoon}, as artwork to print on a ${teeColour} t-shirt.`,
     "Keep the subject clearly recognisable: same pose, same features, same clothing colours.",
-    `Remove the photo's surroundings. The background must be flat pure ${teeIsDark ? "black" : "white"} and nothing else.`,
+    `Remove the photo's surroundings. ${BACKGROUND_RULE}`,
     "One centred subject that fills most of the picture. Do not draw a t-shirt, a mockup, a frame or a border. No watermark or text.",
     of > 1 ? `This is option ${variation} of ${of}: vary the crop or the line style a little from the other option.` : "",
   ]
@@ -114,8 +115,8 @@ export const fixPrompt = ({ kind, teeColour, teeIsDark }) =>
   kind === "photo"
     ? PHOTO_ENHANCE
     : kind === "recolour"
-    ? `Recolour this design so it stands out clearly when printed on a ${teeColour} t-shirt. Keep exactly the same drawing, shapes, words and layout; change only the colours (for example dark lines become light on a dark t-shirt). The background must be flat pure ${teeIsDark ? "black" : "white"} and nothing else. Do not add a t-shirt, a frame or a watermark.`
-    : `Redraw this exact image as clean, sharp, high-resolution artwork ready for printing. Keep the same design, shapes, colours, words and layout exactly as they are; only remove blur, noise, pixel blocks and jagged edges. Spell any words exactly as in the image. The background must be flat pure ${teeIsDark ? "black" : "white"} and nothing else. Do not add a t-shirt, a frame or a watermark.`;
+    ? `Recolour this design so it stands out clearly when printed on a ${teeColour} t-shirt. Keep exactly the same drawing, shapes, words and layout; change only the colours (for example dark lines become light on a dark t-shirt). ${BACKGROUND_RULE} Do not add a t-shirt, a frame or a watermark.`
+    : `Redraw this exact image as clean, sharp, high-resolution artwork ready for printing. Keep the same design, shapes, colours, words and layout exactly as they are; only remove blur, noise, pixel blocks and jagged edges. Spell any words exactly as in the image. ${BACKGROUND_RULE} Do not add a t-shirt, a frame or a watermark.`;
 
 // Enlarging a picture for printing: more pixels and clean edges, nothing else changed.
 // (An image AI redraws what it enlarges, so the wording is all about what must stay the same.)
@@ -138,9 +139,13 @@ export const nearestRatio = (wOverH) => {
   return Object.entries(RATIOS).sort((a, b) => Math.abs(Math.log(a[1] / want)) - Math.abs(Math.log(b[1] / want)))[0][0];
 };
 
-// The full instruction for a new design. The plain background (white for
-// light tees, black for dark ones) is what lets the Design Room cut the
-// design out afterwards.
+// The plain background is what lets the server cut the design out afterwards (cutoutService.js). Until 8 Nov 2026
+// it was white (black for dark tees) — and anything white IN the drawing that touched the outside (a JCB's bucket,
+// cab windows, highlights) was cut away with it. Now the AI draws on a "green screen" colour that no t-shirt design
+// uses, magenta, and that is what gets cleared; white and black in the drawing stay.
+export const BACKGROUND_RULE = `The background must be flat, solid, pure magenta (${KEY_BACKGROUND}) and nothing else: no scenery, no texture, no gradient, no shadow on it. Do not use magenta, pink or purple anywhere in the design itself.`;
+
+// The full instruction for a new design.
 // oneLine: for the tall, thin print areas (Vertical Front 10 × 52 cm …): the words go on one line, like a
 // banner, and the Design Room turns the picture on its side to run along the strip.
 // a customer's (or the text AI's) words as one sentence: ends with exactly one full stop ("…and white." used to
@@ -150,12 +155,11 @@ const sentence = (text) => {
   return /[!?]$/.test(t) ? t : `${t}.`;
 };
 export function newDesignPrompt({ subject, style, teeColour, teeIsDark, variation, of, oneLine = false }) {
-  const bg = teeIsDark ? "black" : "white";
   return [
     `Artwork to be printed on a ${teeColour} t-shirt.`,
     `Subject: ${sentence(subject)}`,
     `Style: ${AI_STYLES[style] || AI_STYLES["Bold mascot"]}.`,
-    `Rules: one centred design that fills most of the picture. The background must be flat pure ${bg} and nothing else: no scenery, no texture, no shadow on it.`,
+    `Rules: one centred design that fills most of the picture. ${BACKGROUND_RULE}`,
     "Do not draw a t-shirt, a mockup, a person wearing it, a frame or a border. No watermark or signature.",
     `Use colours that stand out on a ${teeColour} t-shirt.`,
     "Only include words if the subject asks for them, spelled exactly as written.",
@@ -184,7 +188,7 @@ export const copyDesignPrompt = ({ change = "", design = "", words = [], teeColo
     "Keep the same shapes, colours, layout and proportions as exactly as possible, and spell every word exactly as it appears.",
     "Make it sharp and high resolution, with crisp edges; do not add anything that is not in the design.",
     change ? `Then make this change to it: ${sentence(change)} Keep everything else the same.` : "",
-    `The background must be flat pure ${teeIsDark ? "black" : "white"} and nothing else. Do not draw a t-shirt, a mockup, a frame or a watermark.`,
+    `${BACKGROUND_RULE} Do not draw a t-shirt, a mockup, a frame or a watermark.`,
   ]
     .filter(Boolean)
     .join(" ");
