@@ -24,13 +24,14 @@ export const conceptWords = (c) =>
  * @param teeColour e.g. "black"; teeIsDark for the text about contrast
  * @param numberFrom the number of the first concept on this sheet (4 for the second sheet)
  */
-export function sheetPrompt({ concepts, garment = "t-shirt", teeColour = "white", teeIsDark = false, numberFrom = 1 }) {
+export function sheetPrompt({ concepts, garment = "t-shirt", teeColour = "white", teeIsDark = false, numberFrom = 1, logo = false }) {
   const list = concepts.map((c, i) => `${numberFrom + i}) "${clean(c.title, 50)}" — ${conceptWords(c)}`).join(" ");
   return (
     `A clean product concept sheet on a plain light grey studio background, landscape, showing ${concepts.length} different t-shirt design concepts side by side as flat catalogue mockups. ` +
     `Each concept is labelled with a large, bold, black numeral above it (${concepts.map((_, i) => numberFrom + i).join(", ")}) and shows the same ${clean(garment, 40)} in ${clean(teeColour, 30)} from the front and from the back, with the sleeve print as a small inset where the concept has one. ` +
     `The printed artwork must be clearly visible and large on each tee${teeIsDark ? ", in inks that stand out on the dark fabric" : ""}. The concepts: ${list}. ` +
-    `Consistent lighting, no people, no hangers, no extra text anywhere except the numerals and the words that are printed on the tees. Every word printed on a tee must be spelled exactly as given.`
+    `Consistent lighting, no people, no hangers, no extra text anywhere except the numerals and the words that are printed on the tees. Every word printed on a tee must be spelled exactly as given.` +
+    (logo ? ` The attached image is the customer's own logo / artwork: wherever a concept says "logo", print it on the tee EXACTLY as it is — the same shapes, colours and words, not redrawn, not restyled — sized and placed as that concept describes.` : "")
   );
 }
 
@@ -39,11 +40,13 @@ export function sheetPrompt({ concepts, garment = "t-shirt", teeColour = "white"
  * @param piece   "front" | "back" | "sleeve"
  * @param n       the concept's number on the sheet
  */
-export function developPrompt({ concept, n, piece, teeIsDark = false }) {
+export function developPrompt({ concept, n, piece, teeIsDark = false, logo = false, change = "" }) {
   const what = clean(concept?.[piece], 300) || clean(concept?.front, 300);
   return (
     `The attached image is a concept sheet with numbered t-shirt designs. Reproduce ONLY the ${PIECE_WORD[piece] || "front"} artwork of concept ${n} ("${clean(concept?.title, 50)}": ${what}${concept?.colours ? `; ink colours ${clean(concept.colours, 80)}` : ""}${concept?.style ? `; style ${clean(concept.style, 40)}` : ""}) as finished, print-ready artwork: the artwork alone, large and centred, on a plain ${teeIsDark ? "pure black" : "pure white"} background. ` +
-    `No t-shirt, no mockup, no numerals, no sheet, no shadows, no extra text — only the words that are part of the artwork, spelled exactly as on the sheet. Keep its colours, style and composition as shown on the sheet, with sharper, cleaner detail.`
+    `No t-shirt, no mockup, no numerals, no sheet, no shadows, no extra text — only the words that are part of the artwork, spelled exactly as on the sheet. Keep its colours, style and composition as shown on the sheet, with sharper, cleaner detail.` +
+    (logo ? ` The second attached image is the customer's own logo: where the artwork uses it, reproduce it EXACTLY (same shapes, colours and words), not redrawn.` : "") +
+    (clean(change, 300) ? ` The customer asked for ONE change to this artwork: ${clean(change, 300)}. Apply exactly that change and keep everything else as on the sheet.` : "")
   );
 }
 

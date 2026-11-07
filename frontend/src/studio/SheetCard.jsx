@@ -1,21 +1,32 @@
-// studio/SheetCard.jsx — a concept sheet in the chat (Assistant v2, 7 Nov 2026): one picture with three numbered tees,
-// a button per number (tapping one makes that concept's real artwork and puts it on the tee), and More options.
+// studio/SheetCard.jsx — a concept sheet in the chat (Assistant v2, 7 Nov 2026): one picture with three numbered tees.
+// Tapping the picture zooms it (a tap on a picture means "look closer"); making a concept is always a Make button —
+// the numbered ones under the picture, or the one under each tee in the zoomed view.
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import { imageUrl } from "../utils/imageUrl";
 
 export default function SheetCard({ sheet, live = true, onPick, onMore }) {
-  const [open, setOpen] = useState(false); // the full-size sheet
+  const [open, setOpen] = useState(false); // the large view
   const concepts = sheet.concepts || [];
   const developed = new Set(sheet.developed || []);
+  const make = (n) => {
+    if (!live) return;
+    setOpen(false);
+    onPick?.(n);
+  };
   return (
     <div className="dr-sheet" data-done={live ? undefined : ""}>
       <button type="button" className="dr-sheet-pic" onClick={() => setOpen(true)} aria-label="See the concepts larger">
         <img src={imageUrl(sheet.url, 1200)} alt={`Concepts ${concepts.map((c) => c.n).join(", ")}`} loading="lazy" />
+        {concepts.map((c, i) => (
+          <span key={c.n} className={`dr-sheet-zone${developed.has(c.n) ? " made" : ""}`} style={{ left: `${(100 * i) / concepts.length}%`, width: `${100 / concepts.length}%` }} aria-hidden="true" />
+        ))}
+        <span className="dr-sheet-zoom" aria-hidden="true">⤢ Zoom</span>
       </button>
       <ol className="dr-sheet-list">
         {concepts.map((c) => (
           <li key={c.n}>
-            <button type="button" className={`dr-sheet-pick${developed.has(c.n) ? " made" : ""}`} disabled={!live} onClick={() => onPick?.(c.n)} title={developed.has(c.n) ? "Made already — tap to make it again" : "Make this one"}>
+            <button type="button" className={`dr-sheet-pick${developed.has(c.n) ? " made" : ""}`} disabled={!live} onClick={() => make(c.n)} title={developed.has(c.n) ? "Made already — tap to make it again" : "Make this one"}>
               <b>{c.n}</b>
               <span>
                 {c.title}
@@ -27,14 +38,31 @@ export default function SheetCard({ sheet, live = true, onPick, onMore }) {
       </ol>
       <div className="dr-sheet-acts">
         <button type="button" className="dr-chip" disabled={!live} onClick={() => onMore?.()}>More options</button>
-        <span className="dr-sheet-hint">Tap a number, or say “2 and 3” — I’ll make the real artwork and put it on your tee.</span>
+        <span className="dr-sheet-hint">Tap a number to make it, or say “2 and 3” — or “2 but with the text in gold”. Tap the picture to zoom.</span>
       </div>
-      {open && (
-        <div className="dr-sheet-full" role="dialog" aria-label="The concepts, larger" onClick={() => setOpen(false)}>
-          <img src={imageUrl(sheet.url, 2000)} alt="" />
-          <button type="button" className="dr-sheet-close" aria-label="Close">✕</button>
-        </div>
-      )}
+      {open &&
+        createPortal(
+          <div className="dr-sheet-full" role="dialog" aria-label="The concepts, larger">
+            <div className="dr-sheet-full-bar">
+              <span>Scroll to look around. Make one with its button.</span>
+              <button type="button" className="dr-sheet-close" onClick={() => setOpen(false)} aria-label="Close">✕</button>
+            </div>
+            <div className="dr-sheet-full-scroll">
+              <div className="dr-sheet-full-pic">
+                <img src={imageUrl(sheet.url, 2000)} alt="" />
+                {concepts.map((c, i) => (
+                  <span key={c.n} className="dr-sheet-zone" style={{ left: `${(100 * i) / concepts.length}%`, width: `${100 / concepts.length}%` }}>
+                    <button type="button" className="dr-sheet-make" disabled={!live} onClick={() => make(c.n)}>
+                      Make {c.n} · {c.title}
+                      {developed.has(c.n) ? " ✓" : ""}
+                    </button>
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }

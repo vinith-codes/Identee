@@ -212,18 +212,20 @@ function findImage(node, depth = 0) {
  * Asks the AI for one picture.
  * @param prompt  the full instruction
  * @param image   optional { data: Buffer, mime } — a picture to change
+ * @param images  optional more pictures [{ data, mime }] sent after `image` (a sheet and a logo)
  * @param ratio   e.g. "1:1"
  * @param size    "1K" (about 1,000 px, for choosing a design), "2K" (a concept sheet, 1.5× the price) or "4K" (about 4,000 px, for printing; costs about 3× as much)
  * @returns { buffer, mime }
  */
-export async function generateImage({ prompt, image, ratio = "1:1", size = "1K" }) {
+export async function generateImage({ prompt, image, images = [], ratio = "1:1", size = "1K" }) {
   // (the stand-in honours the size too: a "4K" copy comes back 2,048 px wide, so print checks behave as with the real service)
   if (mock()) return { buffer: mockPng(prompt + (image ? "changed" : ""), size === "4K" ? 2048 : size === "2K" ? 1024 : 512), mime: "image/png" };
   const key = apiKey();
   if (!key) throw Object.assign(new Error("The design maker is not set up yet."), { status: 503 });
 
   const input = [{ type: "text", text: prompt }];
-  if (image) input.push({ type: "image", mime_type: image.mime || "image/png", data: image.data.toString("base64") });
+  // image: a picture to change or copy from; images: more of them (a concept sheet AND the customer's logo), in order
+  for (const im of [image, ...images].filter(Boolean)) input.push({ type: "image", mime_type: im.mime || "image/png", data: im.data.toString("base64") });
 
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);

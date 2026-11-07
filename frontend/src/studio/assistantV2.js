@@ -89,3 +89,10 @@ export function pieceArea(piece, positions = [], used = []) {
   if (!want) return null;
   return areaFor(want, positions, used) || positions.find((p) => p.key === want) || null;
 }
+
+/** The concept under a tap on the sheet picture: the tees sit side by side, left to right. x = 0..1 across the picture. */
+export function conceptAtX(x, concepts = []) {
+  if (!concepts.length || !(x >= 0 && x <= 1)) return null;
+  const i = Math.min(concepts.length - 1, Math.floor(x * concepts.length));
+  return concepts[i]?.n ?? null;
+}

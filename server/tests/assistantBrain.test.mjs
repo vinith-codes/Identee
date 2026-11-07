@@ -35,6 +35,7 @@ test("a bare pick is recognised; a sentence with a number in it is not", () => {
 });
 
 test("every step kind passes through clean; unknown kinds, areas, styles and pieces are dropped", () => {
+  // (a develop step may carry a change asked with the pick: "2 but in gold")
   const r = clean({
     reply: "Doing it",
     steps: [
@@ -55,7 +56,7 @@ test("every step kind passes through clean; unknown kinds, areas, styles and pie
   assert.equal(r.steps.length, MAX_STEPS);
   assert.equal(r.steps[0].concepts.length, 3);
   assert.equal(r.steps[0].concepts[1].style, "Bold mascot"); // an unknown style falls back to the first
-  assert.deepEqual(r.steps[1], { type: "develop", picks: [2, 3], sheet: 1, pieces: ["front"] });
+  assert.deepEqual(r.steps[1], { type: "develop", picks: [2, 3], sheet: 1, pieces: ["front"], change: null });
   assert.deepEqual(r.steps[2], { type: "draw", subject: "a lion", area: null, style: null });
   assert.equal(r.steps[4].tone, null);
   assert.deepEqual(r.chips, ["More options", "Make it darker"]);
@@ -76,7 +77,7 @@ test("after a concepts step the chips always offer more options", () => {
 test("a concepts step needs at least two real concepts; a develop needs a real pick", () => {
   assert.deepEqual(clean({ reply: "x", steps: [{ type: "concepts", concepts: [{ title: "only one", front: "a" }] }] }).steps, []);
   assert.deepEqual(clean({ reply: "x", steps: [{ type: "develop", picks: [8] }] }).steps, []); // the sheet has 3 concepts
-  assert.deepEqual(clean({ reply: "x", steps: [{ type: "develop", picks: [8] }] }, { sheets: [] }).steps, [{ type: "develop", picks: [8], sheet: null, pieces: null }]); // no sheet list: any 1-12
+  assert.deepEqual(clean({ reply: "x", steps: [{ type: "develop", picks: [8] }] }, { sheets: [] }).steps, [{ type: "develop", picks: [8], sheet: null, pieces: null, change: null }]); // no sheet list: any 1-12
 });
 
 test("an empty or broken answer still says something", () => {
@@ -95,7 +96,8 @@ test("the mock brain exercises every kind of step (AI_CHAT_PROVIDER=mock)", asyn
   const more = await ask("more options", { sheets });
   assert.equal(more.steps[0].type, "concepts");
   const dev = await ask("3 and 2 suit me", { sheets });
-  assert.deepEqual(dev.steps[0], { type: "develop", picks: [3, 2], sheet: null, pieces: null });
+  assert.deepEqual(dev.steps[0], { type: "develop", picks: [3, 2], sheet: null, pieces: null, change: null });
+  assert.equal((await ask("2 but with the text in gold", { sheets })).steps[0].change, "the text in gold"); // a change asked with the pick
   const front = await ask("I like 2 but only the front", { sheets });
   assert.deepEqual(front.steps[0].pieces, ["front"]);
   assert.equal((await ask("put my name on it")).steps[0].type, "ask");
@@ -106,5 +108,18 @@ test("the mock brain exercises every kind of step (AI_CHAT_PROVIDER=mock)", asyn
   assert.equal((await ask("which size am I")).steps[0].item, "Size help");
   assert.equal((await ask("undo that")).steps[0].type, "undo");
   assert.equal((await ask("how much is it")).steps.length, 0);
+  delete process.env.AI_CHAT_PROVIDER;
+});
+
+test("a concepts step keeps its logo flag; an attached picture makes the stand-in use it", async () => {
+  const r = cleanBrainAnswer({ reply: "x", steps: [{ type: "concepts", logo: true, concepts: [{ title: "A", front: "logo big" }, { title: "B", front: "logo small", back: "name" }] }] }, { areas, styles, sheets: [] });
+  assert.equal(r.steps[0].logo, true);
+  assert.equal(cleanBrainAnswer({ reply: "x", steps: [{ type: "concepts", concepts: [{ title: "A", front: "a" }, { title: "B", front: "b" }] }] }, { areas, styles, sheets: [] }).steps[0].logo, false);
+  process.env.AI_CHAT_PROVIDER = "mock";
+  const withLogo = await brainReply({ message: "use our logo on the tees", areas, styles, attached: { url: "/uploads/x.png", about: "our logo" } });
+  assert.equal(withLogo.steps[0].type, "concepts");
+  assert.equal(withLogo.steps[0].logo, true);
+  const art = await brainReply({ message: "make a cartoon of this", areas, styles, attached: { url: "/uploads/x.png", about: "" } });
+  assert.deepEqual(art.steps[0], { type: "menu", item: "Photo to art" });
   delete process.env.AI_CHAT_PROVIDER;
 });

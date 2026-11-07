@@ -61,3 +61,14 @@ test("a concept's piece goes on the matching print area, with the AI drawings' f
   assert.equal(pieceArea("sleeve", [positions[0], positions[4]], []).key, "right-sleeve");
   assert.equal(pieceArea("back", [positions[0]], []), null);
 });
+
+test("a tap on the sheet picture picks the tee under it, left to right", async () => {
+  const { conceptAtX } = await import("../src/studio/assistantV2.js");
+  const concepts = [{ n: 4 }, { n: 5 }, { n: 6 }];
+  assert.equal(conceptAtX(0.1, concepts), 4);
+  assert.equal(conceptAtX(0.5, concepts), 5);
+  assert.equal(conceptAtX(0.99, concepts), 6);
+  assert.equal(conceptAtX(1, concepts), 6);
+  assert.equal(conceptAtX(1.2, concepts), null);
+  assert.equal(conceptAtX(0.5, []), null);
+});

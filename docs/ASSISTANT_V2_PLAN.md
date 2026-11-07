@@ -198,3 +198,19 @@ numbered, that they can pick, develop and change with plain words — with no me
   made it, on the front. Review step fine. Session cost ₹34 (3 sheets, 4 pieces, 5 messages). Timings: brain 10–12 s,
   sheet 38–44 s, piece 18 s, Grok sheet 44 s. Fixed after: "Option 1/2/3" chips no longer repeated under a sheet.
   Open: a picked piece replaces the AI picture already on that area (Undo brings it back) — fine for now.
+- **Round 2 (1, 2, 3 of the improvement list) — 7 Nov 2026, evening:** (1) the brain's reply shows at once and the wait
+  card lists the concept names while the sheet is drawn (`run.say` in Assistant.jsx; the develop card names the pieces);
+  (2) the customer's own logo: 📎 + words → the brain (`photo` / `logoUrl` on `/api/ai/assist`), a concepts step may say
+  `logo: true`, the sheet and the pieces get the logo as a reference picture (`generateImage` takes `images: []`;
+  `logoUrl` on `/concepts` and `/develop`; the logo stays on file in the chat as `chatState.logo`); a photo meant as
+  art goes to Photo to art; (3) the sheet card: tapping the picture ZOOMS (a full-screen view through a portal, above the
+  room, scrollable at 2×, a Make button under each tee); making is always a button — the numbered ones or Make N in the
+  zoom (the user: a tap on a picture must not start drawing). Also: "N but with …" → develop with `change` (the pieces
+  are drawn with it); "variations of N" → a new sheet; after making, plain words edit the tee. Real run: the logo sheet
+  came back with the exact "BREW & CO · EST. 2026" logo in three layouts; concept 8 made with the logo on the front and
+  sleeve; first "9 but with the text in gold" went to an edit step instead of develop.change (fixed in the brain's
+  instructions: a change inside the artwork is change ONLY). Tests: 59 server, 116 website.
+  Second real check after the fix: "make 7 but with the badge in gold" → develop 7 with change ("Concept 7: Classic
+  Chest & Back — the badge in gold" in the usage row), the back badge came back gold. The brain's own wait is now 40 s
+  (a long chat with sheets and a thinking level went past the text service's 20 s once → "couldn't answer"; Try again
+  worked). Round 2 real pictures: ₹33. Demo folder has the logo sheet (sheet-4-with-logo.jpg) and the gold pieces.

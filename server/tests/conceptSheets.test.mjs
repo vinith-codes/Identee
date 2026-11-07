@@ -51,3 +51,9 @@ test("the stand-in sheet is a real landscape PNG", async () => {
   assert.equal(meta.format, "png");
   assert.ok(meta.width > meta.height);
 });
+
+test("with the customer's logo, the sheet and develop instructions say to print it exactly as it is", () => {
+  assert.match(sheetPrompt({ concepts, logo: true }), /customer's own logo.*EXACTLY as it is/);
+  assert.doesNotMatch(sheetPrompt({ concepts }), /logo/);
+  assert.match(developPrompt({ concept: concepts[0], n: 1, piece: "front", logo: true }), /second attached image is the customer's own logo/);
+});

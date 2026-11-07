@@ -109,7 +109,17 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
   const run = (act, wait, after = []) => {
     setThinking(wait);
     onWorking?.(true);
-    const me = { act, wait, stopped: false };
+    // say(msgs): the page may show messages while the request still runs (the brain's reply before the sheet is drawn)
+    const me = {
+      act,
+      wait,
+      stopped: false,
+      say: (msgs) =>
+        setMessages((m) => {
+          const i = m.findIndex((x) => x.pending);
+          return i < 0 ? [...m, ...msgs] : [...m.slice(0, i), ...msgs, ...m.slice(i)];
+        }),
+    };
     job.current = me;
     // a marker kept with the chat: after a reload mid-request it becomes "cut off — Try again"
     setMessages((m) => [...m, { pending: act, wait }]);

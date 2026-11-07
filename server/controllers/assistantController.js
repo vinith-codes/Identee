@@ -43,6 +43,8 @@ const fetchOurImage = async (url, req) => {
 };
 
 const text = (v, n) => String(v ?? "").replace(/\s+/g, " ").trim().slice(0, n);
+// a picture made small enough for the AI, on a white background
+const smallCopy = async (pic, px) => ({ data: await sharp(pic.data).rotate().resize(px, px, { fit: "inside", withoutEnlargement: true }).flatten({ background: "#ffffff" }).jpeg({ quality: 92 }).toBuffer(), mime: "image/jpeg" });
 const conceptIn = (c) => ({
   title: text(c?.title, 50),
   front: c?.front ? text(c.front, 300) : null,
@@ -92,6 +94,9 @@ export const makeAssist = asyncHandler(async (req, res) => {
     FACT_KEYS.filter((k) => given[k] !== undefined && given[k] !== null).map((k) => [k, Array.isArray(given[k]) ? given[k].slice(0, 20).map((x) => String(x).slice(0, 40)) : typeof given[k] === "number" || typeof given[k] === "boolean" ? given[k] : String(given[k]).slice(0, 200)]),
   );
   const left = Math.max(0, s.dailyPerUser - (await usedToday(req.user._id)));
+  // a picture sent with this message, and the logo on file in this chat (only our own uploads)
+  const attached = req.body?.photo?.url && isOurUpload(String(req.body.photo.url)) ? { url: String(req.body.photo.url), about: text(req.body.photo.about, 200) } : null;
+  const logo = req.body?.logoUrl && isOurUpload(String(req.body.logoUrl)) ? String(req.body.logoUrl) : null;
   let answer;
   try {
     answer = await brainReply({
@@ -104,6 +109,8 @@ export const makeAssist = asyncHandler(async (req, res) => {
       areas,
       styles: Object.keys(AI_STYLES),
       sheets,
+      attached,
+      logo,
     });
   } catch (err) {
     console.error("💥 ERROR: Assistant v2 failed:", err?.message || err);
@@ -163,13 +170,16 @@ export const makeConcepts = asyncHandler(async (req, res) => {
   const teeColour = text(req.body?.teeColour, 30).replace(/[^\w \-]/g, "") || "white";
   const teeIsDark = Boolean(req.body?.teeIsDark);
   const numberFrom = Math.max(1, Math.min(97, Number(req.body?.numberFrom) || 1));
-  const prompt = sheetPrompt({ concepts, garment, teeColour, teeIsDark, numberFrom });
+  // the customer's own logo / artwork (one of our uploads): sent with the instruction, printed exactly as it is
+  const logoUrl = req.body?.logoUrl && isOurUpload(String(req.body.logoUrl)) ? String(req.body.logoUrl) : null;
+  const logo = logoUrl ? await smallCopy(await fetchOurImage(logoUrl, req), 1024) : null;
+  const prompt = sheetPrompt({ concepts, garment, teeColour, teeIsDark, numberFrom, logo: Boolean(logo) });
   const { made, byGrok } = mockImages()
     ? { made: await mockSheet(concepts, { teeColour, numberFrom }), byGrok: false }
     : await withGrok(
         s,
-        () => generateImage({ prompt, ratio: SHEET_RATIO, size: SHEET_SIZE }),
-        () => xaiNewImage({ prompt, ratio: SHEET_RATIO }),
+        () => generateImage({ prompt, images: logo ? [logo] : [], ratio: SHEET_RATIO, size: SHEET_SIZE }),
+        () => (logo ? xaiEditImage({ prompt, image: logo }) : xaiNewImage({ prompt, ratio: SHEET_RATIO })),
         "concept sheet",
       );
   const meta = await sharp(made.buffer).metadata();
@@ -183,7 +193,7 @@ export const makeConcepts = asyncHandler(async (req, res) => {
     model: byGrok ? xaiModel() : aiImageModel(),
   });
   res.status(201).json({
-    sheet: { url: stored.url, width: meta.width || 1536, height: meta.height || 864, numberFrom, concepts: concepts.map((c, i) => ({ n: numberFrom + i, ...c })), byGrok },
+    sheet: { url: stored.url, width: meta.width || 1536, height: meta.height || 864, numberFrom, concepts: concepts.map((c, i) => ({ n: numberFrom + i, ...c })), byGrok, logoUrl: logoUrl || null },
     left: Math.max(0, s.dailyPerUser - used - 1),
   });
 });
@@ -208,16 +218,17 @@ export const makeDevelop = asyncHandler(async (req, res) => {
   }
   const teeIsDark = Boolean(req.body?.teeIsDark);
   const ratios = req.body?.ratios && typeof req.body.ratios === "object" ? req.body.ratios : {};
-  const sheet = await fetchOurImage(sheetUrl, req);
-  const small = await sharp(sheet.data).resize(2048, 2048, { fit: "inside", withoutEnlargement: true }).flatten({ background: "#ffffff" }).jpeg({ quality: 92 }).toBuffer();
-  const image = { data: small, mime: "image/jpeg" };
+  const change = text(req.body?.change, 300); // "with the text in gold" — asked together with the pick
+  const image = await smallCopy(await fetchOurImage(sheetUrl, req), 2048);
+  const logoUrl = req.body?.logoUrl && isOurUpload(String(req.body.logoUrl)) ? String(req.body.logoUrl) : null;
+  const logo = logoUrl ? await smallCopy(await fetchOurImage(logoUrl, req), 1024) : null;
   const results = await Promise.allSettled(
     pieces.map((piece) => {
-      const prompt = developPrompt({ concept, n, piece, teeIsDark });
+      const prompt = developPrompt({ concept, n, piece, teeIsDark, logo: Boolean(logo), change });
       const ratio = nearestRatio(Number(ratios[piece]) || (piece === "sleeve" ? 0.75 : 1));
       return withGrok(
         s,
-        () => generateImage({ prompt, image, ratio }),
+        () => generateImage({ prompt, image, images: logo ? [logo] : [], ratio }),
         () => xaiEditImage({ prompt, image }),
         `${piece} of concept ${n}`,
       ).then((r) => ({ piece, ...r }));
@@ -236,7 +247,7 @@ export const makeDevelop = asyncHandler(async (req, res) => {
   await AiUsage.create({
     user: req.user._id,
     kind: "develop",
-    prompt: `Concept ${n}: ${concept.title}`.slice(0, PROMPT_MAX),
+    prompt: `Concept ${n}: ${concept.title}${change ? ` — ${change}` : ""}`.slice(0, PROMPT_MAX),
     style: concept.style || undefined,
     images: made.length,
     costInr: Math.round(made.reduce((sum, m) => sum + (m.byGrok ? s.grokPricePerImageInr : s.pricePerImageInr), 0) * 100) / 100,

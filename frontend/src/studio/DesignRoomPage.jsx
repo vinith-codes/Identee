@@ -1316,6 +1316,9 @@ export default function DesignRoomPage() {
           facts: v2Facts(),
           areas: c.areas.map(({ key, label, free }) => ({ key, label, free })),
           sheets: sheetsFromChat(chat).map((sh) => ({ brief: sh.brief, concepts: (sh.concepts || []).map(({ n, title }) => ({ n, title })), developed: sh.developed || [] })),
+          // a picture sent with this message, and the logo on file in this chat
+          ...(a.photo?.url ? { photo: { url: a.photo.url, about: a.text || "" } } : {}),
+          ...(chatState.logo ? { logoUrl: chatState.logo } : {}),
         });
       } catch (err) {
         if (err.response?.status === 503) return [{ fallback: { text: a.text } }];
@@ -1330,7 +1333,13 @@ export default function DesignRoomPage() {
       if (res.left != null) setAi((cur) => ({ ...cur, left: res.left }));
     }
     if (run?.stopped) return [];
-    const out = res.reply ? [botSays(res.reply)] : [];
+    // the reply shows at once; the steps (a sheet, pieces …) follow while the customer reads it
+    const slow = (res.steps || []).some((st) => ["concepts", "develop", "draw", "edit", "slogans"].includes(st.type));
+    const out = [];
+    if (res.reply) {
+      if (slow && run?.say) run.say([botSays(res.reply)]);
+      else out.push(botSays(res.reply));
+    }
     let asked = false;
     for (const step of res.steps || []) {
       if (run?.stopped) return out;
@@ -1341,7 +1350,8 @@ export default function DesignRoomPage() {
         asked = true;
         break;
       }
-      if (step.type === "concepts") out.push(...(await makeSheet(step, progress)));
+      if (step.type === "concepts") out.push(...(await makeSheet(step, progress, a.photo?.url || null)));
+      else if (step.type === "menu" && step.item === "Photo to art" && (a.photo || chatState.photo)) out.push(...(await chatPhotoUnderstand({ text: a.text, photo: a.photo || chatState.photo }, run)));
       else if (step.type === "develop") out.push(...(await developPicks(step, progress, run)));
       else if (step.type === "draw") out.push(...(await drawPlan({ items: [{ subject: step.subject, areaKey: step.area }], style: step.style }, progress, run)).filter((m) => !m.chips));
       else if (step.type === "edit") out.push(...(await chatEdit({ message: step.message }, progress, run)).filter((m) => !m.chips));
@@ -1361,16 +1371,19 @@ export default function DesignRoomPage() {
     return out.length ? out : [botSays("How can I help with your tee?")];
   };
   // a concept sheet: one picture, three numbered tees (counts as one picture request)
-  const makeSheet = async (step, progress) => {
+  const makeSheet = async (step, progress, photoUrl = null) => {
     if (!ai.available) return [botSays("Pictures can’t be made right now. You can pick from the art library or upload your own."), chipRow(["Open the art library", "Upload a picture"])];
     if (ai.left === 0) return [botSays("You’ve used today’s picture requests. They reset tomorrow — I can still help with words and layout.")];
     const numberFrom = nextConceptNumber(sheetsFromChat(chat));
-    progress?.({ label: "Drawing three concepts…", expect: 25, hint: "One picture with the three tees on it. Usually 20–40 seconds." });
+    // the names show at once, while the picture is drawn (the wait feels shorter)
+    const names = step.concepts.map((c, i) => `${numberFrom + i} ${c.title}`).join(" · ");
+    progress?.({ label: "Drawing three concepts…", expect: 25, hint: names });
+    const logoUrl = step.logo ? photoUrl || chatState.logo || null : null;
     try {
-      const res = await aiService.concepts({ concepts: step.concepts, brief: step.brief, garment: garment?.label || "t-shirt", teeColour: colour?.name || "white", teeIsDark: lum(fabricHex) < 0.55, numberFrom });
+      const res = await aiService.concepts({ concepts: step.concepts, brief: step.brief, garment: garment?.label || "t-shirt", teeColour: colour?.name || "white", teeIsDark: lum(fabricHex) < 0.55, numberFrom, ...(logoUrl ? { logoUrl } : {}) });
       if (res.left != null) setAi((cur) => ({ ...cur, left: res.left }));
       // (stopped meanwhile: the sheet was still made and counted, so the chat shows it anyway)
-      return [{ sheet: { ...res.sheet, brief: step.brief, developed: [] } }];
+      return [{ sheet: { ...res.sheet, brief: step.brief, developed: [], logoUrl: res.sheet.logoUrl || logoUrl || null } }];
     } catch (err) {
       return [botSays(err.response?.data?.message || "The concept sheet couldn’t be made just now."), { failed: true }];
     }
@@ -1408,10 +1421,10 @@ export default function DesignRoomPage() {
         const { W, H } = areaPx(pos);
         ratios[pc] = W / H;
       }
-      progress?.({ label: `Making concept ${n}${pieces.length > 1 ? ` (${pieces.length} pieces)` : ""}…`, expect: 30, hint: "Each piece is drawn from the sheet. Usually 20–40 seconds." });
+      progress?.({ label: `Making concept ${n} — ${concept.title}${step.change ? ` (${step.change})` : ""}…`, expect: 30, hint: `${pieces.map((pc) => areasFor[pc]?.label || pc).join(" · ")}. Drawn from the sheet, usually 20–40 seconds.` });
       let res;
       try {
-        res = await aiService.develop({ sheetUrl: sheet.url, n, concept, pieces, teeColour: colour?.name || "white", teeIsDark: lum(fabricHex) < 0.55, ratios });
+        res = await aiService.develop({ sheetUrl: sheet.url, n, concept, pieces, teeColour: colour?.name || "white", teeIsDark: lum(fabricHex) < 0.55, ratios, ...(sheet.logoUrl ? { logoUrl: sheet.logoUrl } : {}), ...(step.change ? { change: step.change } : {}) });
       } catch (err) {
         out.push(botSays(err.response?.data?.message || `Concept ${n} couldn’t be made just now.`));
         continue;
@@ -2023,6 +2036,12 @@ export default function DesignRoomPage() {
     const res = await dispatch(uploadDesignImage(a.file));
     if (!uploadDesignImage.fulfilled.match(res)) return [botSays(res.payload || "The photo didn’t send. Check the internet connection, then tap 📎 and try again.")];
     const photo = { url: res.payload.path, w: a.w, h: a.h };
+    // Assistant v2 (round 2, 7 Nov 2026): the picture goes to the brain with the words — a logo for the concepts, or a
+    // photo to redraw (the brain opens Photo to art). It stays on file in this chat as the customer's logo.
+    if (ai?.v2) {
+      setChatState((st) => ({ ...st, photo, logo: photo.url, photoUrl: null, wait: null, photoAreaKey: null, photoAreaKeys: [] }));
+      return [{ photoSent: photo }, { next: { type: "assist", text: a.text || "I attached a picture — use it on my tee.", photo } }];
+    }
     if (a.text) {
       setChatState((st) => ({ ...st, photo, photoUrl: null, wait: null, photoAreaKey: null, photoAreaKeys: [] }));
       // (the photo goes along with the next step: the chat's memory isn't updated yet when it starts, so reading
