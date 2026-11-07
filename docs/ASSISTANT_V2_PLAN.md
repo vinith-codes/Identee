@@ -227,3 +227,11 @@ numbered, that they can pick, develop and change with plain words — with no me
   shapes from the font files, so Tamil words would need a font added to the room AND to the print files — a separate
   job; AI-drawn Tamil lettering in pictures is also often misspelt. Checked on screen with the stand-in AI. Tests: 60
   server, 117 website.
+
+- **Release ap LIVE — 7 Nov 2026, night** (main ea7f505): backend + shop + admin. Checked from outside: `/api/ai/status` says v2: true, the three new routes answer 401 without a login, the new chat texts are in the live StudioRoute file and the Concept sheets block in the live SettingsLayout file. Live daily limit was 6 — to be set to 20 in Admin → Settings → AI designs.
+
+- **Release aq LIVE — 7 Nov 2026** (03376d7): the "The new Assistant" checkbox on Admin → Settings → AI designs (it was missing from the page), saved by the server. Checked from outside. Live settings seen: daily limit 20, Google monthly cap 0 (= no cap; ₹2,000 advised), Grok cap ₹500.
+
+- **Live-site demo — 7 Nov 2026, late evening**: an Avengers tee designed on identee.co.in itself (admin account, phone viewport) and recorded: request → 3 concepts (Google refused the Marvel heroes, Grok drew the sheet and both pieces automatically) → Make 2 → "make the front bigger and put my name VINITH under AVENGERS on the back in gold" (both from one message) → Tanglish price question → Review. Cost ₹17 (₹6 sheet + ₹9.50 pieces + chat). Video `identee-release/SEND-TO-BOSS/assistant-v2-demo/IDENTEE-Assistant-Avengers-demo.mp4` (72 s) + `sheet-4-avengers.jpg`; frames in `identee-release/assistant-v2-demo/avengers/`. Grok's sheets come out 1280×720 (Google's are 2K) — fine on a phone, softer when zoomed.
+
+- **Pieces are only the artwork — 8 Nov 2026** (branch feature/trim-pieces): in the Avengers demo "make the front bigger" hardly changed the heroes. Grok (the fallback) had drawn the front wide (1280×720) with the heroes in the middle; the empty, see-through sides filled the Centre Front box, and "bigger" grew the whole frame. Fix: `trimClearEdges` (cutoutService.js) drops the see-through edges of every developed piece after the cut-out (the real piece went 1280×720 → 704×698), and `xaiEditImage` now takes the print area's shape (`aspect_ratio`, dropped again if Grok rejects it). Test `server/tests/cutout.test.mjs`. Not yet released.

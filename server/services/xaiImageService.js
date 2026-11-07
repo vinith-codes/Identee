@@ -24,19 +24,21 @@ export const xaiModel = () => process.env.XAI_IMAGE_MODEL?.trim() || "grok-imagi
 
 /**
  * Restyle a photo with Grok.
- * @param {{ prompt: string, image: { data: Buffer, mime: string } }} args
+ * @param {{ prompt: string, image: { data: Buffer, mime: string }, resolution?: string, ratio?: string }} args
  * @returns {Promise<{ buffer: Buffer, mime: string }>}
  */
-export async function xaiEditImage({ prompt, image, resolution }) {
+export async function xaiEditImage({ prompt, image, resolution, ratio }) {
   const body = {
     model: xaiModel(),
     prompt,
     image: { type: "image_url", url: `data:${image.mime || "image/jpeg"};base64,${image.data.toString("base64")}` },
   };
-  if (!resolution) return askGrok(ENDPOINT, "image edit", body);
-  // "2k" (about 2,000 px on the short side) for a print copy (26 Oct 2026); a size Grok doesn't take is not a
-  // refusal: then ask again at its usual size
-  return askGrok(ENDPOINT, "image edit", { ...body, resolution }).catch((err) => (err?.badRequest ? askGrok(ENDPOINT, "image edit", body) : Promise.reject(err)));
+  // "2k" (about 2,000 px on the short side) for a print copy (26 Oct 2026); ratio (8 Nov 2026) is the print area's
+  // shape, so a concept piece comes back square like Google's, not wide. A size or shape Grok doesn't take is not a
+  // refusal: then ask again without them
+  const extra = { ...(resolution ? { resolution } : {}), ...(grokRatio(ratio) ? { aspect_ratio: grokRatio(ratio) } : {}) };
+  if (!Object.keys(extra).length) return askGrok(ENDPOINT, "image edit", body);
+  return askGrok(ENDPOINT, "image edit", { ...body, ...extra }).catch((err) => (err?.badRequest ? askGrok(ENDPOINT, "image edit", body) : Promise.reject(err)));
 }
 
 /**

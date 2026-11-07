@@ -11,7 +11,7 @@ import sharp from "sharp";
 import AiUsage from "../models/aiUsageModel.js";
 import AiChatUsage from "../models/aiChatUsageModel.js";
 import { uploadFile } from "../utils/imageStorage.js";
-import { cutOutPlainBackground } from "../services/cutoutService.js";
+import { cutOutPlainBackground, trimClearEdges } from "../services/cutoutService.js";
 import { rememberPictures } from "./myPictureController.js";
 import { xaiConfigured, xaiEditImage, xaiModel, xaiNewImage } from "../services/xaiImageService.js";
 import { AI_STYLES, aiImageModel, generateImage, nearestRatio } from "../services/aiImageService.js";
@@ -229,7 +229,7 @@ export const makeDevelop = asyncHandler(async (req, res) => {
       return withGrok(
         s,
         () => generateImage({ prompt, image, images: logo ? [logo] : [], ratio }),
-        () => xaiEditImage({ prompt, image }),
+        () => xaiEditImage({ prompt, image, ratio }),
         `${piece} of concept ${n}`,
       ).then((r) => ({ piece, ...r }));
     }),
@@ -240,8 +240,15 @@ export const makeDevelop = asyncHandler(async (req, res) => {
     res.status(err?.status || 502);
     throw new Error(err?.status === 422 ? "The picture service refused this concept. It usually refuses real, named people and some well-known characters. Try another concept, or describe it without the name." : err?.message || "The design maker had a problem. Please try again.");
   }
-  // cut each piece out of its plain background, as the Design Room's own drawings are
-  const cut = await Promise.all(made.map((m) => cutOutPlainBackground(m.made.buffer).catch(() => ({ buffer: m.made.buffer, mime: m.made.mime, width: 1024, height: 1024, cut: false }))));
+  // cut each piece out of its plain background, as the Design Room's own drawings are, then drop the empty space
+  // around the artwork so the piece is only the artwork (its size on the tee, and "make it bigger", follow the artwork)
+  const cut = await Promise.all(
+    made.map((m) =>
+      cutOutPlainBackground(m.made.buffer)
+        .then(trimClearEdges)
+        .catch(() => ({ buffer: m.made.buffer, mime: m.made.mime, width: 1024, height: 1024, cut: false })),
+    ),
+  );
   const stored = await Promise.all(cut.map((c) => uploadFile(c.buffer, c.mime, "ai-designs")));
   const byGrok = made.some((m) => m.byGrok);
   await AiUsage.create({

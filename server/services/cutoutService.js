@@ -72,6 +72,24 @@ export async function cutOutPlainBackground(buffer) {
   return { buffer: png, mime: "image/png", width: w, height: h, cut: true };
 }
 
+/**
+ * Cuts the see-through edges off a cut-out, so the picture is just the artwork (8 Nov 2026: Grok drew a concept's
+ * front as a wide picture with the heroes in the middle; the Design Room sizes a picture by its whole frame, so the
+ * empty sides filled the print area and "make it bigger" could hardly grow the heroes).
+ * @param {{ buffer: Buffer, mime: string, width: number, height: number, cut: boolean }} c  what cutOutPlainBackground returned
+ * @returns the same shape; unchanged when the picture was not cut out, or when nothing could be trimmed
+ */
+export async function trimClearEdges(c) {
+  if (!c?.cut) return c;
+  try {
+    const t = await sharp(c.buffer).trim({ threshold: 8 }).png({ compressionLevel: 9 }).toBuffer({ resolveWithObject: true });
+    if (!t.info.width || !t.info.height || (t.info.width === c.width && t.info.height === c.height)) return c;
+    return { ...c, buffer: t.data, width: t.info.width, height: t.info.height };
+  } catch {
+    return c; // an all-clear picture, or an odd one: keep it as it was
+  }
+}
+
 // A cut-out put back on a plain background, for sending to the AI to be changed.
 export const onPlainBackground = (buffer, dark) =>
   sharp(buffer)
