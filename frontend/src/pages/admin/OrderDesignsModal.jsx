@@ -3,7 +3,7 @@
 // print areas with their real size) and downloads the print files
 // as a ZIP for the print team (made in this browser — studio/printFiles.js).
 // 6 Nov 2026: "Prepare for print" makes a picture print-ready the way the print team approved (enlarged on Replicate,
-// vector edge, 600 DPI — server: printFileController.js), and "Send to print team" emails the ZIP as a link.
+// vector edge, 600 DPI — server: printFileController.js), and "Send to print team" makes the ZIP (if not downloaded already) and emails it as a link.
 import { useEffect, useRef, useState } from "react";
 import customizationService from "../../services/customizationService";
 import aiService from "../../services/aiService";
@@ -401,43 +401,65 @@ export default function OrderDesignsModal({ orderId, onClose }) {
       .filter((p) => p.dpi != null && p.dpi < LOW_DPI),
   );
 
-  const download = async () => {
-    if (lowPictures.length && !window.confirm(`${lowPictures.length === 1 ? "1 picture" : `${lowPictures.length} pictures`} will print blurry (under ${LOW_DPI} DPI).\n\nPress Cancel to fix ${lowPictures.length === 1 ? "it" : "them"} first: Prepare for print, or ask the customer for a bigger picture.\nPress OK to download anyway.`)) return;
+  // the blurry-picture warning asked before the ZIP is made (Download and Send alike); false = the admin stopped
+  const blurryOk = (verb) =>
+    !lowPictures.length ||
+    window.confirm(`${lowPictures.length === 1 ? "1 picture" : `${lowPictures.length} pictures`} will print blurry (under ${LOW_DPI} DPI).\n\nPress Cancel to fix ${lowPictures.length === 1 ? "it" : "them"} first: Prepare for print, or ask the customer for a bigger picture.\nPress OK to ${verb} anyway.`);
+
+  // makes the ZIP in the browser (with the progress line and its Cancel); null when stopped or failed
+  const makeZip = async () => {
     setError("");
-    setResult(null);
     cancelRef.current = false;
     setStopping(false);
     setProgress({ done: 0, total: 1, label: "Starting…" });
     try {
       const { buildPrintPack } = await import("../../studio/printFiles");
-      const { blob, fileName, warnings } = await buildPrintPack(pack, (done, total, label) => (cancelRef.current ? false : setProgress({ done, total, label })));
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = fileName;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 60_000);
-      setResult({ fileName, warnings, blob });
-      setSentNow(null);
+      return await buildPrintPack(pack, (done, total, label) => (cancelRef.current ? false : setProgress({ done, total, label })));
     } catch (err) {
       if (!err?.stopped) setError(err.message || "Couldn't make the print files.");
+      return null;
     } finally {
       setProgress(null);
     }
   };
 
-  // Send to print team: the ZIP just made goes to the server in parts, which emails a download link
+  const download = async () => {
+    if (!blurryOk("download")) return;
+    setResult(null);
+    const made = await makeZip();
+    if (!made) return;
+    const { blob, fileName, warnings } = made;
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    setResult({ fileName, warnings, blob, how: "downloaded" });
+    setSentNow(null);
+  };
+
+  // Send to print team (7 Nov 2026): one click from the start — makes the ZIP if Download hasn't already (it is
+  // not saved on this computer), then it goes to the server in parts, which emails a download link
   const sendToTeam = async () => {
-    if (!result?.blob) return;
-    if (!window.confirm(`Email these print files to the print team (${pf?.teamEmail || "the print team"})?\n\nThey get a download link that works for ${pf?.keepDays || 14} days. A copy goes to you.`)) return;
+    if (!blurryOk("send")) return;
+    if (!window.confirm(`Email the print files to the print team (${pf?.teamEmail || "the print team"})?\n\nThey get a download link that works for ${pf?.keepDays || 14} days. A copy goes to you.`)) return;
+    let made = result;
+    if (!made?.blob) {
+      made = await makeZip();
+      if (!made) return;
+      made = { ...made, how: "made" };
+      setResult(made);
+      setSentNow(null);
+    }
     setError("");
     setSending({ label: "Uploading…" });
     try {
-      const uploadId = await printFileService.uploadZip(orderId, result.blob, (n, t) => setSending({ label: `Uploading ${n}/${t}…` }));
+      const uploadId = await printFileService.uploadZip(orderId, made.blob, (n, t) => setSending({ label: `Uploading ${n}/${t}…` }));
       setSending({ label: "Sending the email…" });
-      const r = await printFileService.send(orderId, { uploadId, fileName: result.fileName, bytes: result.blob.size });
+      const r = await printFileService.send(orderId, { uploadId, fileName: made.fileName, bytes: made.blob.size });
       setSentNow(r);
       printFileService.sent(orderId).then((x) => setSentList(x.sent || [])).catch(() => {});
     } catch (err) {
@@ -542,16 +564,12 @@ export default function OrderDesignsModal({ orderId, onClose }) {
         {error && <p style={{ color: THEME.danger, fontWeight: 600, fontSize: 13 }}>{error}</p>}
         {result && (
           <div role="status" style={{ background: THEME.surface2, border: `1px solid ${THEME.border}`, borderRadius: 10, padding: "10px 14px", fontSize: 13, marginTop: 14 }}>
-            <b>Downloaded {result.fileName}</b> — open ORDER-SHEET.txt inside for the sizes, where each print area sits on the tee and where the artwork is inside it. Each print is one .ai file (vector words and the print-ready pictures), with a job card for the measurements.
+            <b>{result.how === "downloaded" ? "Downloaded" : "Made"} {result.fileName}</b>
+            {result.how === "downloaded" ? " — open ORDER-SHEET.txt inside for the sizes, where each print area sits on the tee and where the artwork is inside it. Each print is one .ai file (vector words and the print-ready pictures), with a job card for the measurements." : " (not saved on this computer — press Download print files if you want it)."}
             {result.warnings.map((w) => (
               <p key={w} style={{ margin: "6px 0 0", color: THEME.danger }}>⚠ {w}</p>
             ))}
-            <div style={{ marginTop: 10, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-              <button type="button" onClick={sendToTeam} disabled={!!sending || !!progress} style={{ background: THEME.ink, color: "#F0D585", border: "none", borderRadius: 999, padding: "9px 16px", fontWeight: 700, fontSize: 13, cursor: sending ? "wait" : "pointer", opacity: sending ? 0.6 : 1 }}>
-                {sending ? sending.label : `Send to print team (${pf?.teamEmail || "email"})`}
-              </button>
-              {sentNow && <span style={{ color: "#24522F", fontWeight: 600 }}>✓ Sent to {sentNow.sentTo}. The link works until {new Date(sentNow.expiresAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })}.</span>}
-            </div>
+            {sentNow && <p role="status" style={{ margin: "8px 0 0", color: "#24522F", fontWeight: 600 }}>✓ Sent to {sentNow.sentTo}. The link works until {new Date(sentNow.expiresAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })}.</p>}
           </div>
         )}
         {sentList.length > 0 && (
@@ -592,9 +610,18 @@ export default function OrderDesignsModal({ orderId, onClose }) {
             )}
             <button
               type="button"
+              onClick={sendToTeam}
+              disabled={!!progress || !!sending || !fileCount}
+              title={result?.blob ? "Emails the ZIP already made" : "Makes the ZIP and emails it — nothing is saved on this computer"}
+              style={{ background: THEME.ink, color: "#F0D585", border: "none", borderRadius: 8, padding: "10px 18px", fontWeight: 700, cursor: progress || sending ? "wait" : "pointer", opacity: progress || sending || !fileCount ? 0.6 : 1 }}
+            >
+              {sending ? sending.label : `Send to print team (${pf?.teamEmail || "email"})`}
+            </button>
+            <button
+              type="button"
               onClick={download}
-              disabled={!!progress || !fileCount}
-              style={{ background: THEME.gold, color: "#141110", border: "none", borderRadius: 8, padding: "10px 18px", fontWeight: 700, cursor: progress ? "wait" : "pointer", opacity: progress || !fileCount ? 0.6 : 1 }}
+              disabled={!!progress || !!sending || !fileCount}
+              style={{ background: THEME.gold, color: "#141110", border: "none", borderRadius: 8, padding: "10px 18px", fontWeight: 700, cursor: progress || sending ? "wait" : "pointer", opacity: progress || sending || !fileCount ? 0.6 : 1 }}
             >
               {progress ? "Making print files…" : `Download print files (${fileCount} print${fileCount === 1 ? "" : "s"}, ZIP)`}
             </button>

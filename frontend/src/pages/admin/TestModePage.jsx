@@ -11,6 +11,7 @@ import api from "../../../api.js";
 import orderService from "../../services/orderService";
 import { shopHref } from "../../utils/siteUrls";
 import { THEME as theme, getLabelStyle } from "../../theme/theme";
+import CancelInfo from "./CancelInfo";
 
 const fmt = (d) => (d ? new Date(d).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : "—");
 const rupees = (n) => `₹${Math.round(n || 0).toLocaleString("en-IN")}`;
@@ -146,7 +147,10 @@ export default function TestModePage() {
                     <td style={{ padding: "8px", borderBottom: `1px solid ${theme.border}` }}>{o.user?.name || "—"}</td>
                     <td style={{ padding: "8px", borderBottom: `1px solid ${theme.border}` }}>{items(o)}</td>
                     <td style={{ padding: "8px", borderBottom: `1px solid ${theme.border}`, fontVariantNumeric: "tabular-nums" }}>{rupees(o.totalPrice)}</td>
-                    <td style={{ padding: "8px", borderBottom: `1px solid ${theme.border}` }}>{o.orderStatus}{o.isPaid ? " · paid" : ""}</td>
+                    <td style={{ padding: "8px", borderBottom: `1px solid ${theme.border}` }}>
+                      {o.orderStatus}{o.isPaid ? " · paid" : ""}
+                      <CancelInfo order={o} onAnswered={load} />
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -154,7 +158,7 @@ export default function TestModePage() {
           </div>
         )}
         <p style={{ margin: "10px 0 0", fontSize: 12.5, color: theme.textMuted }}>
-          A test order can still be opened from the shop's <b>My orders</b> page while you are in test mode, so you can check the order page and its emails.
+          A test order can still be opened from the shop's <b>My orders</b> page while you are in test mode, so you can check the order page and its emails. A cancel request made there shows under the status above, with Approve and Decline.
         </p>
       </div>
     </div>
