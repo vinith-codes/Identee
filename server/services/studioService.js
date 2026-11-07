@@ -21,7 +21,7 @@ import GarmentType from "../models/garmentTypeModel.js";
 import AiUsage from "../models/aiUsageModel.js";
 import { AI_STYLES, aiImageConfigured, aiImageModel, generateImage, nearestRatio } from "./aiImageService.js";
 import { xaiConfigured, xaiEditImage, xaiModel, xaiNewImage } from "./xaiImageService.js";
-import { cutOutPlainBackground } from "./cutoutService.js";
+import { cutOutPlainBackground, KEY_BACKGROUND } from "./cutoutService.js";
 import { uploadFile, localFilePath } from "../utils/imageStorage.js";
 import AiChatUsage from "../models/aiChatUsageModel.js";
 import { positionsForGarment } from "../data/printPositions.js";
@@ -118,7 +118,7 @@ const sentence = (text) => {
 // What the picture AI is told. refs: how many reference pictures go with it; variation / of: one of several tries.
 export function studioPrompt({ kind, prompt, look, teeColour, teeIsDark, realPerson, refs = 0, variation = 1, of = 1 }) {
   const k = KINDS[kind] || KINDS.whole;
-  const bg = teeIsDark ? "black" : "white";
+  const bg = `magenta (${KEY_BACKGROUND})`; // the "green screen" every AI picture is drawn on (8 Nov 2026)
   return [
     `Artwork to be printed on a ${teeColour} t-shirt.`,
     k.rule,
@@ -126,7 +126,7 @@ export function studioPrompt({ kind, prompt, look, teeColour, teeIsDark, realPer
     LOOKS[look] ? `Look: ${LOOKS[look]}.` : "",
     kind === "background"
       ? "No t-shirt, no mockup, no frame, no watermark or signature."
-      : `The background must be flat pure ${bg} and nothing else: no scenery, no texture, no shadow on it. Do not draw a t-shirt, a mockup, a person wearing it, a frame or a border. No watermark or signature.`,
+      : `The background must be flat, solid, pure ${bg} and nothing else: no scenery, no texture, no shadow on it. Do not use magenta, pink or purple in the design itself. Do not draw a t-shirt, a mockup, a person wearing it, a frame or a border. No watermark or signature.`,
     `Use colours that stand out on a ${teeColour} t-shirt.`,
     kind === "title" ? "" : "Only include words if the description asks for them, spelled exactly as written.",
     refs > 0
@@ -260,8 +260,9 @@ export async function changeStudioPicture({ userId, url, instruction, kind, real
   const raw = await readStored(url);
   const md = await sharp(raw).metadata();
   // a cut-out has a see-through background: the tee's plain colour goes behind it so the AI sees a normal picture
-  const flat = await sharp(raw).flatten({ background: teeIsDark ? "#000000" : "#ffffff" }).resize({ width: 1536, height: 1536, fit: "inside", withoutEnlargement: true }).jpeg({ quality: 90 }).toBuffer();
-  const bg = teeIsDark ? "black" : "white";
+  // (8 Nov 2026: on the magenta "green screen" the AI draws on, so white or black parts of the artwork survive the re-cut)
+  const flat = await sharp(raw).flatten({ background: KEY_BACKGROUND }).resize({ width: 1536, height: 1536, fit: "inside", withoutEnlargement: true }).jpeg({ quality: 90 }).toBuffer();
+  const bg = `magenta (${KEY_BACKGROUND})`;
   const ask = [
     `Edit this t-shirt artwork: ${text.replace(/[.\s]+$/, "")}.`,
     "Keep everything else the same — the same subject, composition, colours and look.",
@@ -338,7 +339,7 @@ export async function enlargeStudioPicture({ userId, src, teeIsDark, note = "" }
   const meta = await sharp(raw).rotate().metadata();
   const hasAlpha = Boolean(meta.hasAlpha) && !(await sharp(raw).stats()).isOpaque;
   const aiCut = /\/ai-designs\//.test(src);
-  const bg = teeIsDark ? "#000000" : "#ffffff";
+  const bg = aiCut ? KEY_BACKGROUND : teeIsDark ? "#000000" : "#ffffff"; // (an AI cut-out: the magenta it was drawn on)
   // the AI only makes a few picture shapes: the picture goes on a sheet of the nearest shape, and the same part is cut back out
   const shape = meta.width / meta.height;
   const [ratio, r] = Object.entries(RATIO_VALUES).sort((a, b) => Math.abs(Math.log(a[1] / shape)) - Math.abs(Math.log(b[1] / shape)))[0];
@@ -348,7 +349,7 @@ export async function enlargeStudioPicture({ userId, src, teeIsDark, note = "" }
   let out;
   let byGrok = false;
   try {
-    out = await generateImage({ prompt: printPrompt({ dark: teeIsDark, plain: hasAlpha }), image: { data: small, mime: "image/jpeg" }, ratio, size: "4K" });
+    out = await generateImage({ prompt: printPrompt({ dark: teeIsDark, plain: hasAlpha, key: aiCut }), image: { data: small, mime: "image/jpeg" }, ratio, size: "4K" });
   } catch (err) {
     if (!(err?.status === 422 || err?.noImage)) throw fail(err?.message || "The picture could not be enlarged.", err?.status || 502);
     // Google refuses well-known people (the SCENE tees: a film star's face). Then Grok, which drew such pictures in
@@ -357,7 +358,7 @@ export async function enlargeStudioPicture({ userId, src, teeIsDark, note = "" }
     if (!xaiConfigured()) throw fail("Google won't enlarge this picture (it refuses well-known people) and Grok is not set up on this server. Nothing was charged; it prints from the original.", 422);
     if (grokCapped(settings, await monthSpend())) throw fail("Google won't enlarge this picture (a well-known person) and this month's Grok spending limit is reached. Nothing was charged; it prints from the original.", 429);
     try {
-      out = await xaiEditImage({ prompt: `${printPrompt({ dark: teeIsDark, plain: hasAlpha })} Keep the same person, face, pose, colours and composition exactly; only add fine detail and sharpness.`, image: { data: small, mime: "image/jpeg" }, resolution: "2k" });
+      out = await xaiEditImage({ prompt: `${printPrompt({ dark: teeIsDark, plain: hasAlpha, key: aiCut })} Keep the same person, face, pose, colours and composition exactly; only add fine detail and sharpness.`, image: { data: small, mime: "image/jpeg" }, resolution: "2k" });
       byGrok = true;
     } catch (err2) {
       if (err2?.status === 422) throw fail("Neither Google nor Grok would enlarge this picture. Nothing was charged; it prints from the original.", 422);

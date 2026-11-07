@@ -697,7 +697,9 @@ export const makePrintPicture = asyncHandler(async (req, res) => {
   const meta = await sharp(stored.data).rotate().metadata();
   const hasAlpha = Boolean(meta.hasAlpha) && !(await sharp(stored.data).stats()).isOpaque;
   const aiCut = /\/ai-designs\//.test(el.src); // made by the design maker: it was cut out of a plain background
-  const bg = dark ? "#000000" : "#ffffff";
+  // (an AI cut-out goes back on the magenta it was drawn on, 8 Nov 2026 — on white or black, its white or black parts
+  // would be cleared again after enlarging)
+  const bg = aiCut ? KEY_BACKGROUND : dark ? "#000000" : "#ffffff";
 
   // The AI only makes a few picture shapes. The picture is put on a sheet of the nearest shape (never
   // squeezed), enlarged, and the same part is cut back out — so it keeps its own shape exactly.
@@ -717,7 +719,7 @@ export const makePrintPicture = asyncHandler(async (req, res) => {
   let byGrok = false;
   const original = `Nothing was charged. It prints from the original picture (${meta.width} × ${meta.height} px).`;
   try {
-    out = await generateImage({ prompt: printPrompt({ dark, plain: hasAlpha }), image: { data: small, mime: "image/jpeg" }, ratio, size: "4K" });
+    out = await generateImage({ prompt: printPrompt({ dark, plain: hasAlpha, key: aiCut }), image: { data: small, mime: "image/jpeg" }, ratio, size: "4K" });
   } catch (err) {
     if (!(err?.status === 422 || err?.noImage)) throw err;
     // Google said no (5 Nov 2026, the client's Spider-Man tee). Then Grok, at its largest size, "2k": about 2,000 px, so
@@ -732,7 +734,7 @@ export const makePrintPicture = asyncHandler(async (req, res) => {
     }
     try {
       out = await xaiEditImage({
-        prompt: `${printPrompt({ dark, plain: hasAlpha })} Keep the same person, face, pose, colours and composition exactly; only add fine detail and sharpness.`,
+        prompt: `${printPrompt({ dark, plain: hasAlpha, key: aiCut })} Keep the same person, face, pose, colours and composition exactly; only add fine detail and sharpness.`,
         image: { data: small, mime: "image/jpeg" },
         resolution: "2k",
       });

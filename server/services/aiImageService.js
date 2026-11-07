@@ -120,12 +120,12 @@ export const fixPrompt = ({ kind, teeColour, teeIsDark }) =>
 
 // Enlarging a picture for printing: more pixels and clean edges, nothing else changed.
 // (An image AI redraws what it enlarges, so the wording is all about what must stay the same.)
-export const printPrompt = ({ dark, plain }) =>
+export const printPrompt = ({ dark, plain, key = false }) =>
   [
     "Task: high-fidelity print upscaling only. Not restoration, not stylisation.",
     "Keep completely unchanged: all colours, tone and contrast; every object, subject, pose and the composition exactly as positioned; all text, lettering, letter spacing and weight exactly as shown; any grain or texture; the picture's shape.",
     "Enhance only: increase resolution and sharpness so fine details and edges are crisp with no pixelation; remove only compression blocks and jagged pixel edges.",
-    plain ? `The background must stay flat pure ${dark ? "black" : "white"} and nothing else.` : "",
+    key ? `The background must stay flat, solid, pure magenta (${KEY_BACKGROUND}) and nothing else.` : plain ? `The background must stay flat pure ${dark ? "black" : "white"} and nothing else.` : "",
     "Strict negatives: no style change, no colour change, no re-lighting, no new objects, no change to faces or subjects, no redrawn or changed text, no cropping, no watermark, no frame, no t-shirt.",
   ]
     .filter(Boolean)
