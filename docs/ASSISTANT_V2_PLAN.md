@@ -186,3 +186,15 @@ numbered, that they can pick, develop and change with plain words — with no me
   of three takes to pick from (₹4.20), then the pick is made real (₹2.90). A single drawing straight onto the tee is
   the shortcut only when asked ("just draw it", "quickly", "another one", lettering). After a single drawing the chips
   offer "Show me 3 options". Built into the brain's instructions and the stand-in; the walk script expects it.
+- **Real Google + Grok run — 7 Nov 2026, evening** (laptop, throwaway DB, real keys, as a new customer on a phone;
+  recording: `identee-release/assistant-v2-demo/assistant-v2-demo.gif` + the sheets and pieces). Brief "cafe Brew & Co,
+  coffee theme front, name on the back" → in ~40 s a sheet of three black tees, front + back, "BREW & CO" on the backs
+  (Retro Roastery Badge / Minimal Line Espresso / Vintage Hand-Drawn Emblem). Tapped 3 → in ~50 s the emblem drawn from
+  the sheet on Centre Front + the back print, ₹799. "make the front logo a bit bigger, and on the back add the name
+  Priya under the cafe name" → both edits in one go. Tanglish "sleeve la oru small coffee cup venum, options kaatunga"
+  → Tanglish reply + sheet 4–6 of sleeve cups; typed "5" → the mug on the Left Sleeve. "6 tees ku total evlo aagum?
+  delivery free ah?" → ₹4,794, free delivery over 3, IDENTEE10 — all correct. "Rajinikanth drinking coffee, options" →
+  Google refused the sheet, Grok drew it (good: three Rajini coffee tees 7–9); "8" → Google refused the piece, Grok
+  made it, on the front. Review step fine. Session cost ₹34 (3 sheets, 4 pieces, 5 messages). Timings: brain 10–12 s,
+  sheet 38–44 s, piece 18 s, Grok sheet 44 s. Fixed after: "Option 1/2/3" chips no longer repeated under a sheet.
+  Open: a picked piece replaces the AI picture already on that area (Undo brings it back) — fine for now.

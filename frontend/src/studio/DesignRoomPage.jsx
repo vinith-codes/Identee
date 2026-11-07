@@ -1356,7 +1356,7 @@ export default function DesignRoomPage() {
     }
     // (a sheet card has its own number buttons and More options, so those chips aren't repeated under it)
     const madeSheet = out.some((m) => m.sheet);
-    const chips = (res.chips || []).filter((c) => !madeSheet || !(/^\d{1,2}$/.test(c) || /^more options$/i.test(c)));
+    const chips = (res.chips || []).filter((c) => !madeSheet || !(/^(option|concept|number)?\s*\d{1,2}$/i.test(c) || /^more options$/i.test(c)));
     if (!asked && chips.length) out.push({ chips, smart: true });
     return out.length ? out : [botSays("How can I help with your tee?")];
   };
