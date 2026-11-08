@@ -147,3 +147,19 @@ export function conceptAtX(x, concepts = []) {
   const i = Math.min(concepts.length - 1, Math.floor(x * concepts.length));
   return concepts[i]?.n ?? null;
 }
+
+/**
+ * The picture already on the tee that a matching piece or colourways start from (round 5, 8 Nov 2026): an AI-made
+ * or uploaded picture stored with us (not library art), the front side first, then the back, then the sleeves.
+ * @returns {{ url, position, label } | null}
+ */
+export function aiPictureOnTee(elements = [], positions = []) {
+  const rank = { front: 0, back: 1, left: 2, right: 3 };
+  const sideOf = (key) => positions.find((p) => p.key === key)?.side || "other";
+  const pics = elements
+    .filter((e) => e?.type === "image" && e.src && /\/uploads\//.test(e.src) && !e.artDesignId)
+    .sort((a, b) => (rank[sideOf(a.position)] ?? 9) - (rank[sideOf(b.position)] ?? 9));
+  const e = pics[0];
+  if (!e) return null;
+  return { url: e.src, position: e.position, label: positions.find((p) => p.key === e.position)?.label || "the tee" };
+}

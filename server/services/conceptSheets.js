@@ -24,14 +24,42 @@ export const conceptWords = (c) =>
  * @param teeColour e.g. "black"; teeIsDark for the text about contrast
  * @param numberFrom the number of the first concept on this sheet (4 for the second sheet)
  */
-export function sheetPrompt({ concepts, garment = "t-shirt", teeColour = "white", teeIsDark = false, numberFrom = 1, logo = false }) {
+export function sheetPrompt({ concepts, garment = "t-shirt", teeColour = "white", teeIsDark = false, numberFrom = 1, logo = false, basis = false }) {
   const list = concepts.map((c, i) => `${numberFrom + i}) "${clean(c.title, 50)}" — ${conceptWords(c)}`).join(" ");
   return (
     `A clean product concept sheet on a plain light grey studio background, landscape, showing ${concepts.length} different t-shirt design concepts side by side as flat catalogue mockups. ` +
     `Each concept is labelled with a large, bold, black numeral above it (${concepts.map((_, i) => numberFrom + i).join(", ")}) and shows the same ${clean(garment, 40)} in ${clean(teeColour, 30)} from the front and from the back, with the sleeve print as a small inset where the concept has one. ` +
     `The printed artwork must be clearly visible and large on each tee${teeIsDark ? ", in inks that stand out on the dark fabric" : ""}. The concepts: ${list}. ` +
     `Consistent lighting, no people, no hangers, no extra text anywhere except the numerals and the words that are printed on the tees. Every word printed on a tee must be spelled exactly as given.` +
-    (logo ? ` The attached image is the customer's own logo / artwork: wherever a concept says "logo", print it on the tee EXACTLY as it is — the same shapes, colours and words, not redrawn, not restyled — sized and placed as that concept describes.` : "")
+    (logo ? ` The attached image is the customer's own logo / artwork: wherever a concept says "logo", print it on the tee EXACTLY as it is — the same shapes, colours and words, not redrawn, not restyled — sized and placed as that concept describes.` : "") +
+    (basis ? ` The attached image is the artwork already on the customer's tee: every concept is a version of THAT artwork — the same drawing, composition and words, changed only as the concept says (its ink colours or its style). Do not invent a different picture.` : "")
+  );
+}
+
+/**
+ * A companion piece drawn from the artwork already on the tee (round 5, 8 Nov 2026): "make a matching back".
+ * @param piece   the new piece: "back" | "sleeve" | "front"
+ * @param from    the area the reference picture is on, in words ("the front")
+ * @param brief   what the new piece shows, words to print included
+ */
+export function matchPrompt({ piece = "back", from = "the front", brief = "", teeColour = "white", teeIsDark = false }) {
+  return (
+    `The attached image is the artwork printed on ${clean(from, 40)} of a ${clean(teeColour, 30)} t-shirt. Draw the matching ${PIECE_WORD[piece] || "back"} artwork for the SAME tee: a companion piece in exactly the same style, line quality, level of detail and ink colours, so the two clearly belong together${teeIsDark ? ", in inks that stand out on the dark fabric" : ""}. ` +
+    `The new piece shows: ${clean(brief, 400) || "a simpler companion mark in the same style"}. Any words must be spelled exactly as given. ` +
+    `Finished, print-ready artwork alone, large and centred, on a flat, solid, pure magenta (#FF00FF) background and nothing else (no magenta, pink or purple in the artwork itself). No t-shirt, no mockup, no frame, no extra text.`
+  );
+}
+
+/**
+ * A lifestyle photo of the finished tee on a person (round 5, 8 Nov 2026): for sharing.
+ * The attached image is the tee's own front mock-up (from the Review step).
+ */
+export function wornPrompt({ garment = "t-shirt", teeColour = "white", setting = "" }) {
+  const where = clean(setting, 80) || "outdoors on a college campus in India, soft daylight";
+  return (
+    `A realistic lifestyle photograph of a young Indian adult wearing this exact ${clean(garment, 40)} in ${clean(teeColour, 30)} — the attached image shows the tee and its printed design. ` +
+    `Reproduce the printed design EXACTLY as in the attached image: the same artwork, words, colours, placement and size on the tee, not redrawn, not restyled, nothing added to the print. ` +
+    `Setting: ${where}. Relaxed natural pose, facing the camera so the front print is fully visible, natural skin and fabric, shallow depth of field. Photo-real, 3:4 portrait. No text, no logo overlays, no watermark, no frame.`
   );
 }
 

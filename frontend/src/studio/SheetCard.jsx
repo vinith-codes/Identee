@@ -7,6 +7,27 @@ import { imageUrl } from "../utils/imageUrl";
 
 export default function SheetCard({ sheet, live = true, onPick, onMore }) {
   const [open, setOpen] = useState(false); // the large view
+  const [copied, setCopied] = useState(false); // Share (round 5): the link went to the clipboard
+  // the phone's share sheet with the sheet's link (WhatsApp …); else the link is copied
+  const share = async () => {
+    const url = imageUrl(sheet.url, 2000);
+    const text = `Which one — ${concepts.map((c) => c.n).join(", ")}? My tee concepts on IDENTEE`;
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: "My tee concepts", text, url });
+        return;
+      }
+    } catch (err) {
+      if (err?.name === "AbortError") return;
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    } catch {
+      window.open(url, "_blank", "noopener");
+    }
+  };
   const concepts = sheet.concepts || [];
   const developed = new Set(sheet.developed || []);
   const make = (n) => {
@@ -38,6 +59,7 @@ export default function SheetCard({ sheet, live = true, onPick, onMore }) {
       </ol>
       <div className="dr-sheet-acts">
         <button type="button" className="dr-chip" disabled={!live} onClick={() => onMore?.()}>More options</button>
+        <button type="button" className="dr-chip" onClick={share} title="Send these three to your friends">{copied ? "Link copied" : "Share"}</button>
         <span className="dr-sheet-hint">Tap a number to make it, or say “2 and 3” — or “2 but with the text in gold”. Tap the picture to zoom.</span>
       </div>
       {open &&

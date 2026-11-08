@@ -41,6 +41,7 @@ const userSchema = mongoose.Schema(
       sparse: true,
     },
     isPhoneVerified: { type: Boolean, default: false },
+    aiProfile: { type: String, default: "", maxlength: 400 }, // what the design Assistant learnt about them across visits (round 5, 8 Nov 2026)
     lastLoginAt: { type: Date, default: null },
     isSubscribed: { type: Boolean, default: false },
     subscription: {

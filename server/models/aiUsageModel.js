@@ -6,7 +6,7 @@ import mongoose from "mongoose";
 const aiUsageSchema = mongoose.Schema(
   {
     user: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true, index: true },
-    kind: { type: String, enum: ["new", "change", "photo", "fix", "print", "copy", "inspired", "collection", "studio", "sheet", "develop"], default: "new" }, // photo = a customer's photo redrawn as art; collection = Admin → Collection maker; studio = Admin → Studio; sheet / develop = Assistant v2 concept sheets and the artwork made from them
+    kind: { type: String, enum: ["new", "change", "photo", "fix", "print", "copy", "inspired", "collection", "studio", "sheet", "develop", "match", "worn"], default: "new" }, // photo = a customer's photo redrawn as art; collection = Admin → Collection maker; studio = Admin → Studio; sheet / develop = Assistant v2 concept sheets and the artwork made from them
     prompt: { type: String, maxlength: 2200 }, // what the customer asked for (not the full instruction sent to the AI)
     style: { type: String, maxlength: 60 },
     images: { type: Number, default: 0 },

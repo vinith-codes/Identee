@@ -59,5 +59,10 @@ const getOlderRequests = async (before) => (await axios.get(`${API_URL}/admin/re
 const printPicture = async (body) => (await axios.post(`${API_URL}/admin/print-picture`, body, { ...auth(), timeout: 180000 })).data;
 // print the original again
 const dropPrintPicture = async (body) => (await axios.delete(`${API_URL}/admin/print-picture`, { ...auth(), data: body })).data;
+// round 5 (8 Nov 2026): a companion piece drawn from the picture already on the tee, and a photo of the finished tee worn
+// { fromUrl, fromLabel, piece, brief, teeColour, teeIsDark, ratio } -> { piece: { piece, url, width, height }, left }
+const match = async (body) => (await axios.post(`${API_URL}/match`, body, { ...auth(), timeout: 200000 })).data;
+// { image: data URL of the front mock-up, garment, teeColour } -> { url, width, height, left }
+const worn = async (body) => (await axios.post(`${API_URL}/worn`, body, { ...auth(), timeout: 200000 })).data;
 
-export default { status, design, slogans, edit, improve, photoPlan, removeBg, chat, assist, concepts, develop, getAdmin, saveAdmin, getOlderRequests, printPicture, dropPrintPicture };
+export default { status, design, slogans, edit, improve, photoPlan, removeBg, chat, assist, concepts, develop, match, worn, getAdmin, saveAdmin, getOlderRequests, printPicture, dropPrintPicture };

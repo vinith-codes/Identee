@@ -81,3 +81,17 @@ test("unfinished designs: customers with sheets and no order since their first s
   const orders = [{ user: "u2", createdAt: d(3) }, { user: "u1", createdAt: d(0) }]; // Arun ordered after his sheet; Priya's order was BEFORE her first sheet
   assert.deepEqual(unfinishedDesigns(sheets, picks, orders), [{ who: "Priya", email: "p@x.in", phone: "9", first: d(1), last: d(5), sheets: 2, picks: 2, asked: "cafe tee again" }]);
 });
+
+test("round 5 instructions: colourways keep the tee's drawing; a matching piece follows the reference; the worn photo keeps the print exact", async () => {
+  const { sheetPrompt, matchPrompt, wornPrompt } = await import("../services/conceptSheets.js");
+  const p = sheetPrompt({ concepts: [{ title: "Gold", front: "the same in gold" }, { title: "Red", front: "the same in red" }], basis: true });
+  assert.match(p, /artwork already on the customer's tee/);
+  assert.doesNotMatch(p, /customer's own logo/);
+  const m = matchPrompt({ piece: "sleeve", from: "the front", brief: "a small emblem with PRIYA", teeColour: "black", teeIsDark: true });
+  assert.match(m, /matching sleeve artwork/);
+  assert.match(m, /PRIYA/);
+  assert.match(m, /pure magenta/);
+  const w = wornPrompt({ garment: "oversized tee", teeColour: "black" });
+  assert.match(w, /EXACTLY as in the attached image/);
+  assert.match(w, /college campus/);
+});

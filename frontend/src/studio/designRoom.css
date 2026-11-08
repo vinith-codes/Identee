@@ -1629,3 +1629,11 @@ p.pc-area { margin: 0; font-size: 13px; color: var(--muted); }
 @keyframes dr-mic-pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(192, 57, 43, .45); } 50% { box-shadow: 0 0 0 8px rgba(192, 57, 43, 0); } }
 .dr-share { justify-self: start; border: 1.5px solid var(--ink); background: #fff; color: var(--ink); border-radius: 999px; padding: 8px 16px; font-weight: 700; font-size: 13px; cursor: pointer; margin-bottom: 8px; }
 .dr-share:disabled { opacity: .55; cursor: wait; }
+.dr-share.alt { border-color: var(--gold); color: var(--ink); background: var(--gold-soft); margin-left: 8px; }
+/* Photo of it worn (round 5, 8 Nov 2026) */
+.dr-worn { position: fixed; inset: 0; z-index: 1200; display: grid; place-items: center; padding: 16px; background: rgba(20, 17, 16, .72); }
+.dr-worn-card { display: grid; gap: 10px; max-width: min(92vw, 520px); max-height: 92vh; padding: 12px; border-radius: 16px; background: #fff; }
+.dr-worn-card img { width: 100%; max-height: 66vh; object-fit: contain; border-radius: 10px; background: #F6F3EC; }
+.dr-worn-acts { display: flex; gap: 8px; flex-wrap: wrap; }
+.dr-worn-acts button { margin: 0; border: 1.5px solid var(--ink, #141110); background: #fff; color: var(--ink, #141110); border-radius: 999px; padding: 9px 16px; font-weight: 700; font-size: 13px; cursor: pointer; }
+.dr-worn-acts button:first-child { background: var(--ink, #141110); color: #fff; }

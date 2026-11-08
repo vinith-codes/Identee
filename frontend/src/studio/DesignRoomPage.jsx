@@ -15,6 +15,7 @@ import { uploadDesignImage } from "../redux/slices/customizationSlice";
 import customizationService from "../services/customizationService";
 import artDesignService from "../services/artDesignService";
 import { fetchCart } from "../redux/slices/cartWishlistSlice";
+import { createPortal } from "react-dom";
 import { imageUrl } from "../utils/imageUrl";
 import Room3D from "./Room3D";
 import AreaEditor from "./AreaEditor";
@@ -32,7 +33,7 @@ import myPicturesService from "../services/myPicturesService";
 import { chatTitle, historyFor, listChats, loadChat, moveLocalChats, saveChat } from "./chatStore";
 import { AFTER_AI_SLOGANS, AFTER_DESIGN_CHIPS, BACK, CHANGE_IDEA, DRAW_MINE, PHOTO_AS_IS, PHOTO_CHOICES, PHOTO_CUT, PHOTO_REVERT, PROMPT_MAX, bot as botSays, checkMessages, chips as chipRow, firstMessages, firstState, smartPlan } from "./assistantScript";
 import { makeShareCard, shareTee } from "./shareTee";
-import { firstMessagesV2, isUntouchedStart, sheetsFromChat, nextConceptNumber, findConcept, piecesOf, pieceArea, placementHint, shrinkForHint } from "./assistantV2";
+import { firstMessagesV2, isUntouchedStart, sheetsFromChat, nextConceptNumber, findConcept, piecesOf, pieceArea, placementHint, shrinkForHint, aiPictureOnTee } from "./assistantV2";
 import { styleIn } from "./styleInfo";
 import { areasFromWords, photoJobFrom, SAME_THEME } from "./photoIntent";
 import aiService from "../services/aiService";
@@ -254,6 +255,7 @@ export default function DesignRoomPage() {
   const [twirlKey, setTwirlKey] = useState(0); // goes up to make the tee do one full turn
   const [shots, setShots] = useState(null);
   const [sharing, setSharing] = useState(false); // Share my tee: the picture is being made
+  const [worn, setWorn] = useState(null); // Photo of it worn (round 5): null | "making" | { url }
   const [spin, setSpin] = useState(true);
   const [lit, setLit] = useState(false); // Review: the dressing room has been drawn, so its lights can come up
   const litTimer = useRef(null);
@@ -1362,6 +1364,7 @@ export default function DesignRoomPage() {
       if (step.type === "concepts") out.push(...(await makeSheet(step, progress, a.photo?.url || null)));
       else if (step.type === "menu" && step.item === "Photo to art" && (a.photo || chatState.photo)) out.push(...(await chatPhotoUnderstand({ text: a.text, photo: a.photo || chatState.photo }, run)));
       else if (step.type === "develop") out.push(...(await developPicks(step, progress, run)));
+      else if (step.type === "match") out.push(...(await matchPiece(step, progress, run)));
       else if (step.type === "draw") out.push(...(await drawPlan({ items: [{ subject: step.subject, areaKey: step.area }], style: step.style }, progress, run)).filter((m) => !m.chips));
       else if (step.type === "edit") out.push(...(await chatEdit({ message: step.message }, progress, run)).filter((m) => !m.chips));
       else if (step.type === "slogans") {
@@ -1377,7 +1380,7 @@ export default function DesignRoomPage() {
     const madeSheet = out.some((m) => m.sheet);
     const chips = (res.chips || []).filter((c) => !madeSheet || !(/^(option|concept|number)?\s*\d{1,2}$/i.test(c) || /^more options$/i.test(c)));
     // a concept just landed and the sleeves are bare: offer the little extra (round 4)
-    const landed = (res.steps || []).some((st) => st.type === "develop") && out.some((m) => m.designs);
+    const landed = (res.steps || []).some((st) => st.type === "develop" || st.type === "match") && out.some((m) => m.designs);
     const sleeveTaken = elements.some((e) => /sleeve/.test(e.position)) || out.some((m) => m.placedOn?.some((k) => /sleeve/.test(k)));
     if (landed && !sleeveTaken && c.areas.some((ar) => /sleeve/.test(ar.key) && ar.free) && !chips.some((ch) => /sleeve/i.test(ch))) chips.splice(0, 0, "A small matching logo on the sleeve too");
     if (!asked && chips.length) out.push({ chips, smart: true });
@@ -1393,8 +1396,11 @@ export default function DesignRoomPage() {
     const names = step.concepts.map((c, i) => `${numberFrom + i} ${c.title}`).join(" · ");
     progress?.({ label: "Drawing three concepts…", expect: 25, hint: names });
     const logoUrl = step.logo ? photoUrl || chatState.logo || null : null;
+    // colourways / variations of the picture already on the tee (round 5): that picture is the reference
+    const basis = step.basis === "tee" && !logoUrl ? aiPictureOnTee(elements, positions) : null;
+    if (step.basis === "tee" && !logoUrl && !basis) return [botSays("There’s no picture on the tee yet to make versions of. Tell me what you’d like and I’ll show three concepts."), chipRow(["Show me 3 options"])];
     try {
-      const res = await aiService.concepts({ concepts: step.concepts, brief: step.brief, garment: garment?.label || "t-shirt", teeColour: colour?.name || "white", teeIsDark: lum(fabricHex) < 0.55, numberFrom, ...(logoUrl ? { logoUrl } : {}) });
+      const res = await aiService.concepts({ concepts: step.concepts, brief: step.brief, garment: garment?.label || "t-shirt", teeColour: colour?.name || "white", teeIsDark: lum(fabricHex) < 0.55, numberFrom, ...(logoUrl ? { logoUrl } : {}), ...(basis ? { basisUrl: basis.url } : {}) });
       if (res.left != null) setAi((cur) => ({ ...cur, left: res.left }));
       // (stopped meanwhile: the sheet was still made and counted, so the chat shows it anyway)
       return [{ sheet: { ...res.sheet, brief: step.brief, developed: [], logoUrl: res.sheet.logoUrl || logoUrl || null } }];
@@ -1496,6 +1502,41 @@ export default function DesignRoomPage() {
     // (which areas got a print just now — the chips after the steps look at it; the chat shows nothing for it)
     if (Object.keys(placed).length) out.push({ placedOn: Object.keys(placed) });
     return out;
+  };
+  // A companion piece drawn from the picture already on the tee (round 5, 8 Nov 2026): "make a matching back".
+  const matchPiece = async (step, progress, run) => {
+    if (!ai.available) return [botSays("Pictures can’t be made right now."), chipRow(["Open the art library", "Upload a picture"])];
+    if (ai.left === 0) return [botSays("You’ve used today’s picture requests. They reset tomorrow — I can still help with words and layout.")];
+    const from = aiPictureOnTee(elements, positions);
+    if (!from) return [botSays("Put a picture on the tee first — then I can draw a matching piece from it. Or tell me the idea and I’ll show three concepts."), chipRow(["Show me 3 options"])];
+    const used = [...new Set(elements.map((e) => e.position))].filter((k) => !aiPlaced[k]);
+    const pos = pieceArea(step.piece, positions, used);
+    if (!pos) return [botSays(`This tee has no ${step.piece} print area.`)];
+    const { W, H } = areaPx(pos);
+    progress?.({ label: `Drawing a matching ${pos.label}…`, expect: 30, hint: `From the picture on ${from.label}. Usually 20–40 seconds.` });
+    let res;
+    try {
+      res = await aiService.match({ fromUrl: from.url, fromLabel: from.label, piece: step.piece, brief: step.brief, teeColour: colour?.name || "white", teeIsDark: lum(fabricHex) < 0.55, ratio: W / H });
+    } catch (err) {
+      return [botSays(err.response?.data?.message || "The matching piece couldn’t be made just now."), { failed: true }];
+    }
+    if (res.left != null) setAi((cur) => ({ ...cur, left: res.left }));
+    const pc = res.piece;
+    aiCuts.current.set(pc.url, { path: pc.url, w: pc.width, h: pc.height });
+    loadImage(pc.url).catch(() => {});
+    if (run?.stopped) return [{ designs: [pc.url] }];
+    const el = aiElement(pos, { path: pc.url, w: pc.width, h: pc.height }, elements.length + 1);
+    const old = aiPlaced[pos.key]?.elId;
+    const els = [...elements.filter((e) => e.id !== old), el];
+    commit((now) => (now === elements ? els : mergeAiChanges(now, elements, els)));
+    setAiPlaced((cur) => ({ ...cur, [pos.key]: { url: pc.url, elId: el.id } }));
+    if (pos.key !== active) openArea(pos.key, { force: true });
+    setSelectedId(null);
+    return [
+      botSays(`A matching ${pos.label} is on your tee, drawn from the picture on ${from.label}.${old && elements.some((e) => e.id === old) ? " It took the place of the earlier print there — press Undo (↶) to bring that back." : ""} Tell me what to change.`),
+      { designs: [pc.url] },
+      { placedOn: [pos.key] },
+    ];
   };
   // Edit the tee by chat: the text AI suggests changes, aiOps checks and applies them (one Undo step).
   // progress(now): tells the assistant's wait card what is happening now (drawing the pictures asked for)
@@ -3246,6 +3287,56 @@ export default function DesignRoomPage() {
                 >
                   {sharing ? "Making the picture…" : "Share my tee"}
                 </button>
+              )}
+              {/* Photo of it worn (round 5, 8 Nov 2026): one AI photo of the finished tee on a person, for WhatsApp / Instagram */}
+              {shots?.length === 4 && shots[0]?.url && ai.available && (
+                <button
+                  type="button"
+                  className="dr-share alt"
+                  disabled={worn === "making"}
+                  onClick={async () => {
+                    if (!isLoggedIn()) return goToLogin();
+                    setWorn("making");
+                    try {
+                      const res = await aiService.worn({ image: shots[0].url, garment: garment?.label || "t-shirt", teeColour: colour?.name || "white" });
+                      if (res.left != null) setAi((cur) => ({ ...cur, left: res.left }));
+                      setWorn({ url: res.url });
+                    } catch (err) {
+                      setWorn(null);
+                      say(err?.response?.data?.message || "The photo couldn’t be made just now.");
+                    }
+                  }}
+                >
+                  {worn === "making" ? "Taking the photo… (about 30 s)" : "Photo of it worn"}
+                </button>
+              )}
+              {worn?.url &&
+                createPortal(
+                <div className="dr-worn" role="dialog" aria-label="Your tee, worn">
+                  <div className="dr-worn-card">
+                    <img src={imageUrl(worn.url, 1200)} alt="Your tee, worn" />
+                    <div className="dr-worn-acts">
+                      <button
+                        type="button"
+                        className="dr-share"
+                        onClick={async () => {
+                          try {
+                            const blob = await (await fetch(imageUrl(worn.url))).blob();
+                            const how = await shareTee(blob, { text: `My ${garment?.label || "tee"} design on IDENTEE`, fileName: "my-identee-tee-worn.jpg" });
+                            if (how === "saved") say("The photo is saved — send it to whoever needs to say yes.");
+                          } catch {
+                            window.open(imageUrl(worn.url), "_blank", "noopener");
+                          }
+                        }}
+                      >
+                        Share the photo
+                      </button>
+                      <button type="button" className="dr-share" onClick={() => setWorn(null)}>Close</button>
+                    </div>
+                    <p className="dr-review-hint">An AI photo of your design on a person — the print is as on your tee; the person and place are made up.</p>
+                  </div>
+                </div>,
+                document.body,
               )}
               <div className="dr-shots">
                 {(shots || SIDES.map(([, label]) => ({ label, url: null }))).map((sh, i) => (

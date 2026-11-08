@@ -104,3 +104,17 @@ test("placement from the concept's words: a chest badge goes small on the chest 
   assert.equal(shrinkForHint(el, positions[0], { size: "small" }), el); // a small area stays as it is
   assert.equal(shrinkForHint(el, positions[1], { size: null }), el);
 });
+
+test("the picture a matching piece starts from: our own picture on the tee, the front first", async () => {
+  const { aiPictureOnTee } = await import("../src/studio/assistantV2.js");
+  const positions = [{ key: "centre-front", label: "Centre front", side: "front" }, { key: "full-back", label: "Full back", side: "back" }];
+  const els = [
+    { type: "text", position: "centre-front", text: "x" },
+    { type: "image", position: "full-back", src: "/uploads/ai-designs/b.png" },
+    { type: "image", position: "centre-front", src: "/uploads/ai-designs/f.png" },
+    { type: "image", position: "centre-front", src: "/art/lion.svg", artDesignId: "lib" },
+  ];
+  assert.deepEqual(aiPictureOnTee(els, positions), { url: "/uploads/ai-designs/f.png", position: "centre-front", label: "Centre front" });
+  assert.equal(aiPictureOnTee(els.slice(0, 1), positions), null);
+  assert.equal(aiPictureOnTee(els.slice(3), positions), null); // library art doesn't count
+});

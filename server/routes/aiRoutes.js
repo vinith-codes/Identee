@@ -1,6 +1,6 @@
 // routes/aiRoutes.js — the Design Room's AI design maker (see controllers/aiController.js)
 import express from "express";
-import { makeAssist, makeConcepts, makeDevelop } from "../controllers/assistantController.js";
+import { makeAssist, makeConcepts, makeDevelop, makeMatch, makeWorn } from "../controllers/assistantController.js";
 import { dropPrintPicture, getAiAdmin, getAiRequests, getAiStatus, makeAiDesign, makeBackgroundRemoval, makeChat, makeEdit, makeImprovedIdea, makePhotoPlan, makePrintPicture, makeSlogans, saveAiAdmin } from "../controllers/aiController.js";
 import { protect, adminOnly, adminOrSeller } from "../middleware/authMiddleware.js";
 import optionalAuth from "../middleware/optionalAuthMiddleware.js";
@@ -24,6 +24,9 @@ router.post("/chat", optionalAuth, rateLimit({ windowMs: 60_000, max: 30, messag
 router.post("/assist", protect, rateLimit({ windowMs: 60_000, max: 30, message: "Slow down a little — try again in a minute." }), makeAssist);
 router.post("/concepts", protect, rateLimit({ windowMs: 60_000, max: 6, message: "Slow down a little — try again in a minute." }), makeConcepts);
 router.post("/develop", protect, rateLimit({ windowMs: 60_000, max: 6, message: "Slow down a little — try again in a minute." }), makeDevelop);
+// round 5 (8 Nov 2026): a matching piece from the tee's own picture; a photo of the finished tee worn
+router.post("/match", protect, rateLimit({ windowMs: 60_000, max: 6, message: "Slow down a little — try again in a minute." }), makeMatch);
+router.post("/worn", protect, rateLimit({ windowMs: 60_000, max: 4, message: "Slow down a little — try again in a minute." }), makeWorn);
 // a photo sent in the chat: what the customer wants made from it (the text AI reads the photo; almost free)
 router.post("/photo-plan", protect, rateLimit({ windowMs: 60_000, max: 20, message: "Slow down a little — try again in a minute." }), makePhotoPlan);
 // "Remove the background" of a photo: done on this server (free — not an AI service, not a daily request)

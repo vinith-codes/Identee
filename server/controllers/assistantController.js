@@ -17,7 +17,8 @@ import { xaiConfigured, xaiEditImage, xaiModel, xaiNewImage } from "../services/
 import { AI_STYLES, aiImageModel, generateImage, nearestRatio } from "../services/aiImageService.js";
 import { brainConfigured, brainReply, CONCEPTS_PER_SHEET, PIECES } from "../services/assistantBrain.js";
 import { chatModel, MEMORY_MAX } from "../services/aiChatService.js";
-import { developPrompt, mockSheet, piecesOf, SHEET_COST_FACTOR, SHEET_RATIO, SHEET_SIZE, sheetPrompt } from "../services/conceptSheets.js";
+import { developPrompt, matchPrompt, mockSheet, piecesOf, SHEET_COST_FACTOR, SHEET_RATIO, SHEET_SIZE, sheetPrompt, wornPrompt } from "../services/conceptSheets.js";
+import User from "../models/userModel.js";
 import { googleCapped, grokCapped, isOurUpload, readSettings, usedToday, whyOff } from "./aiController.js";
 import { expectedWords, missingWords, readWords, wordCheckReady } from "../services/wordCheck.js";
 
@@ -98,9 +99,12 @@ export const makeAssist = asyncHandler(async (req, res) => {
   // a picture sent with this message, and the logo on file in this chat (only our own uploads)
   const attached = req.body?.photo?.url && isOurUpload(String(req.body.photo.url)) ? { url: String(req.body.photo.url), about: text(req.body.photo.about, 200) } : null;
   const logo = req.body?.logoUrl && isOurUpload(String(req.body.logoUrl)) ? String(req.body.logoUrl) : null;
+  // what we know about this customer from earlier visits (round 5, 8 Nov 2026) — kept on their account
+  const profile = String((await User.findById(req.user._id).select("aiProfile").lean().catch(() => null))?.aiProfile || "").slice(0, 400);
   let answer;
   try {
     answer = await brainReply({
+      profile,
       message,
       history: said(req.body?.history, 14),
       earlier: said(req.body?.earlier, 40),
@@ -120,7 +124,9 @@ export const makeAssist = asyncHandler(async (req, res) => {
   }
   await AiChatUsage.create({ user: req.user._id, costInr: s.chatPricePerMessageInr, model: chatModel() }).catch(() => {});
   if (answer.memory) await AiChatUsage.create({ user: req.user._id, costInr: s.chatPricePerMessageInr, model: chatModel(), kind: "memory" }).catch(() => {});
-  res.json({ ...answer, left });
+  if (answer.profile) await User.updateOne({ _id: req.user._id }, { $set: { aiProfile: answer.profile } }).catch(() => {});
+  const { profile: _kept, ...sent } = answer; // eslint-disable-line no-unused-vars
+  res.json({ ...sent, left });
 });
 
 // the checks every picture request makes: the feature on, the caps, the customer's daily limit
@@ -173,8 +179,10 @@ export const makeConcepts = asyncHandler(async (req, res) => {
   const numberFrom = Math.max(1, Math.min(97, Number(req.body?.numberFrom) || 1));
   // the customer's own logo / artwork (one of our uploads): sent with the instruction, printed exactly as it is
   const logoUrl = req.body?.logoUrl && isOurUpload(String(req.body.logoUrl)) ? String(req.body.logoUrl) : null;
-  const logo = logoUrl ? await smallCopy(await fetchOurImage(logoUrl, req), 1024) : null;
-  const prompt = sheetPrompt({ concepts, garment, teeColour, teeIsDark, numberFrom, logo: Boolean(logo) });
+  // colourways / variations (round 5): the picture already on the tee goes as the reference instead
+  const basisUrl = !logoUrl && req.body?.basisUrl && isOurUpload(String(req.body.basisUrl)) ? String(req.body.basisUrl) : null;
+  const logo = logoUrl ? await smallCopy(await fetchOurImage(logoUrl, req), 1024) : basisUrl ? await smallCopy(await fetchOurImage(basisUrl, req), 1024) : null;
+  const prompt = sheetPrompt({ concepts, garment, teeColour, teeIsDark, numberFrom, logo: Boolean(logoUrl), basis: Boolean(basisUrl) });
   const { made, byGrok } = mockImages()
     ? { made: await mockSheet(concepts, { teeColour, numberFrom }), byGrok: false }
     : await withGrok(
@@ -294,3 +302,66 @@ export const makeDevelop = asyncHandler(async (req, res) => {
     left: Math.max(0, s.dailyPerUser - used - 1),
   });
 });
+
+// POST /api/ai/match  (round 5, 8 Nov 2026): a companion piece drawn from the picture already on the tee
+// { fromUrl (one of our uploads), fromLabel?, piece: "back"|"sleeve"|"front", brief, teeColour, teeIsDark, ratio? }
+// -> { piece: { piece, url, width, height, byGrok }, left }
+export const makeMatch = asyncHandler(async (req, res) => {
+  const { s, used } = await mayDraw(req, res);
+  const fromUrl = String(req.body?.fromUrl || "");
+  if (!isOurUpload(fromUrl)) {
+    res.status(400);
+    throw new Error("Put a picture on the tee first, then I can draw a matching piece from it.");
+  }
+  const piece = PIECES.includes(req.body?.piece) ? req.body.piece : "back";
+  const brief = text(req.body?.brief, 400);
+  const teeColour = text(req.body?.teeColour, 30).replace(/[^\w \-]/g, "") || "white";
+  const teeIsDark = Boolean(req.body?.teeIsDark);
+  const ratio = nearestRatio(Number(req.body?.ratio) || (piece === "sleeve" ? 0.75 : 1));
+  const image = await smallCopy(await fetchOurImage(fromUrl, req), 1536);
+  const prompt = matchPrompt({ piece, from: text(req.body?.fromLabel, 40) || "the front", brief, teeColour, teeIsDark });
+  const { made, byGrok } = mockImages()
+    ? { made: await mockPiece(piece), byGrok: false }
+    : await withGrok(
+        s,
+        () => generateImage({ prompt, image, ratio }),
+        () => xaiEditImage({ prompt, image, ratio }),
+        `matching ${piece}`,
+      );
+  const cut = await cutOutPlainBackground(made.buffer).then(trimClearEdges).catch(() => ({ buffer: made.buffer, mime: made.mime, width: 1024, height: 1024, cut: false }));
+  const stored = await uploadFile(cut.buffer, cut.mime, "ai-designs");
+  await AiUsage.create({ user: req.user._id, kind: "match", prompt: `Matching ${piece}: ${brief}`.slice(0, PROMPT_MAX), images: 1, costInr: byGrok ? s.grokPricePerImageInr : s.pricePerImageInr, model: byGrok ? xaiModel() : aiImageModel() });
+  await rememberPictures(req.user._id, [{ url: stored.url, kind: "ai", about: `matching ${piece} — ${brief}`.slice(0, 200), width: cut.width, height: cut.height }]);
+  res.status(201).json({ piece: { piece, url: stored.url, width: cut.width, height: cut.height, byGrok }, left: Math.max(0, s.dailyPerUser - used - 1) });
+});
+
+// POST /api/ai/worn  (round 5, 8 Nov 2026): a lifestyle photo of the finished tee on a person, for sharing
+// { image: data URL of the tee's front mock-up (from Review), garment, teeColour, setting? } -> { url, width, height, left }
+export const makeWorn = asyncHandler(async (req, res) => {
+  const { s, used } = await mayDraw(req, res);
+  const m = String(req.body?.image || "").match(/^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/);
+  if (!m || m[2].length > 8_000_000) {
+    res.status(400);
+    throw new Error("The picture of the tee is missing. Open Review and try again.");
+  }
+  const image = await smallCopy({ data: Buffer.from(m[2], "base64"), mime: m[1] }, 1536);
+  const prompt = wornPrompt({ garment: text(req.body?.garment, 40) || "t-shirt", teeColour: text(req.body?.teeColour, 30).replace(/[^\w \-]/g, "") || "white", setting: text(req.body?.setting, 80) });
+  const { made, byGrok } = mockImages()
+    ? { made: { buffer: image.data, mime: image.mime }, byGrok: false }
+    : await withGrok(
+        s,
+        () => generateImage({ prompt, image, ratio: "3:4" }),
+        () => xaiEditImage({ prompt, image, ratio: "3:4" }),
+        "worn photo",
+      );
+  const meta = await sharp(made.buffer).metadata();
+  const stored = await uploadFile(made.buffer, made.mime, "ai-worn");
+  await AiUsage.create({ user: req.user._id, kind: "worn", prompt: "Photo of the tee worn (Review)", images: 1, costInr: byGrok ? s.grokPricePerImageInr : s.pricePerImageInr, model: byGrok ? xaiModel() : aiImageModel() });
+  res.status(201).json({ url: stored.url, width: meta.width || 0, height: meta.height || 0, byGrok, left: Math.max(0, s.dailyPerUser - used - 1) });
+});
+
+// AI_IMAGE_PROVIDER=mock: a stand-in piece (a coloured ring with the piece's name) on the magenta "green screen"
+async function mockPiece(piece) {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024"><rect width="1024" height="1024" fill="#ff00ff"/><circle cx="512" cy="512" r="380" fill="#2a6f4e" stroke="#f0d585" stroke-width="40"/><text x="512" y="540" font-family="Arial" font-size="110" font-weight="bold" text-anchor="middle" fill="#fff">${piece.toUpperCase()}</text></svg>`;
+  return { buffer: await sharp(Buffer.from(svg)).png().toBuffer(), mime: "image/png" };
+}

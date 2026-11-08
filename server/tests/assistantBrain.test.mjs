@@ -132,3 +132,27 @@ test("stand-in brain: 'the front of 1 and the back of 3' is one develop step per
     { type: "develop", picks: [3], sheet: null, pieces: ["back"], change: null },
   ]);
 });
+
+test("round 5: a match step, a concepts step from the tee's own picture, and the profile that comes back from the fold", async () => {
+  assert.deepEqual(clean({ reply: "x", steps: [{ type: "match", piece: "sleeve", brief: "a small matching emblem" }] }).steps, [{ type: "match", piece: "sleeve", brief: "a small matching emblem" }]);
+  assert.deepEqual(clean({ reply: "x", steps: [{ type: "match", piece: "nose", brief: "a companion mark" }] }).steps, [{ type: "match", piece: "back", brief: "a companion mark" }]);
+  const c = clean({ reply: "x", steps: [{ type: "concepts", basis: "tee", concepts: [{ title: "Gold", front: "the same in gold" }, { title: "Red", front: "the same in red" }] }] }).steps[0];
+  assert.equal(c.basis, "tee");
+  process.env.AI_CHAT_PROVIDER = "mock";
+  const r = await brainReply({ message: "make a matching back with the name PRIYA", history: [], areas, styles, sheets, facts: {} });
+  assert.equal(r.steps[0].type, "match");
+  assert.equal(r.steps[0].piece, "back");
+  const cw = await brainReply({ message: "show this in 3 colourways", history: [], areas, styles, sheets, facts: {} });
+  assert.equal(cw.steps[0].type, "concepts");
+  assert.equal(cw.steps[0].basis, "tee");
+  const cols = await brainReply({ message: "see it on other colours", history: [], areas, styles, sheets, facts: { teeColour: "Black", teeColours: ["Black", "Maroon", "White"] } });
+  assert.deepEqual(cols.steps, []);
+  assert.deepEqual(cols.chips, ["See it on Maroon", "See it on White"]);
+  const on = await brainReply({ message: "See it on Maroon", history: [], areas, styles, sheets, facts: {} });
+  assert.deepEqual(on.steps, [{ type: "edit", message: "Change the tee colour to maroon" }]);
+  // the fold (10 older messages) makes the note AND the profile
+  const earlier = Array.from({ length: 10 }, (_, i) => ({ who: i % 2 ? "assistant" : "customer", text: i % 2 ? "ok" : "I run a cafe, minimal style please" }));
+  const f = await brainReply({ message: "hi", history: [], earlier, memory: "", areas, styles, sheets, facts: {}, profile: "likes black tees" });
+  assert.match(f.memory, /MOCK NOTE/);
+  assert.match(f.profile, /^likes black tees MOCK PROFILE/);
+});
