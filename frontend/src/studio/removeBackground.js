@@ -57,6 +57,7 @@ function clearFlatColour(image, colour, edge) {
   const { data, width: w, height: h } = image;
   const NEAR = 44; // counts as background
   const SOFT = 96; // edge pixels between NEAR and SOFT fade out (smooth outline)
+  const orig = new Uint8ClampedArray(data);
   const gone = new Uint8Array(w * h);
   const stack = [];
   const push = (p) => {
@@ -86,6 +87,92 @@ function clearFlatColour(image, colour, edge) {
     if (touches) {
       const d = dist(data, i, colour);
       if (d < SOFT) data[i + 3] = Math.round((data[i + 3] * (d - NEAR)) / (SOFT - NEAR));
+    }
+  }
+  edgeCoverage(data, orig, w, h, gone, colour);
+  padClearPixels(data, w, h);
+}
+
+// (the same as server/services/cutoutService.js) The see-through pixels around the artwork keep a colour too, and anything that enlarges the picture (the print
+// file's upscaler, a browser drawing it bigger) blends that colour into the edge. Left as the background colour it
+// put a magenta rim on the print; the rings next to the artwork take the artwork's colour instead (still see-through).
+function padClearPixels(data, w, h, RINGS = 3) {
+  const has = new Uint8Array(w * h);
+  for (let p = 0; p < w * h; p++) if (data[p * 4 + 3] > 0) has[p] = 1;
+  for (let r = 0; r < RINGS; r++) {
+    const next = [];
+    for (let p = 0; p < w * h; p++) {
+      if (has[p]) continue;
+      const x = p % w;
+      let cr = 0, cg = 0, cb = 0, n = 0;
+      const take = (q) => { if (has[q]) { cr += data[q * 4]; cg += data[q * 4 + 1]; cb += data[q * 4 + 2]; n++; } };
+      if (x > 0) take(p - 1);
+      if (x < w - 1) take(p + 1);
+      if (p >= w) take(p - w);
+      if (p < w * (h - 1)) take(p + w);
+      if (n) next.push(p, Math.round(cr / n), Math.round(cg / n), Math.round(cb / n));
+    }
+    for (let k = 0; k < next.length; k += 4) {
+      const i = next[k] * 4;
+      data[i] = next[k + 1]; data[i + 1] = next[k + 2]; data[i + 2] = next[k + 3];
+      has[next[k]] = 1;
+    }
+  }
+}
+
+// (the same as server/services/cutoutService.js) The outline's pixels are part artwork, part background (the AI's smoothing of its lines). Each one gets the
+// see-through of its own mix: it is matched with the purest artwork colour close by (F), its alpha is how far it sits
+// from the background colour (K) towards F, and it takes F's colour. Without this the outline was all-or-nothing, and
+// the print file's vector cut line followed every pixel step (8 Nov 2026: the JCB's edge zigzagged when the print
+// team zoomed in; with it the cut line is one smooth, sharp curve). bg = the cleared pixels the edge is measured from.
+function edgeCoverage(data, orig, w, h, bg, K, REACH = 1, LOOK = 3) {
+  const zone = new Uint8Array(w * h);
+  for (let p = 0; p < w * h; p++) {
+    if (!bg[p]) continue;
+    const x = p % w, y = (p / w) | 0;
+    if (!((x > 0 && !bg[p - 1]) || (x < w - 1 && !bg[p + 1]) || (y > 0 && !bg[p - w]) || (y < h - 1 && !bg[p + w]))) continue;
+    for (let Y = Math.max(0, y - REACH); Y <= Math.min(h - 1, y + REACH); Y++)
+      for (let X = Math.max(0, x - REACH); X <= Math.min(w - 1, x + REACH); X++) zone[Y * w + X] = 1;
+  }
+  // on a coloured key (magenta) a thin line can be half magenta all through, so the colour an edge pixel takes has the
+  // key's tint taken out (for magenta: red and blue both above green by the same amount is magenta, not artwork)
+  const lowK = K.indexOf(Math.min(...K));
+  const hiK = [0, 1, 2].filter((k) => k !== lowK);
+  const keyTint = Math.max(...K) - Math.min(...K) >= 60;
+  for (let p = 0; p < w * h; p++) {
+    if (!zone[p]) continue; // (cleared pixels too: on magenta, a pixel that is mostly background was cleared whole)
+    const i = p * 4;
+    const x = p % w, y = (p / w) | 0;
+    const p0 = orig[i] - K[0], p1 = orig[i + 1] - K[1], p2 = orig[i + 2] - K[2];
+    const pp = p0 * p0 + p1 * p1 + p2 * p2;
+    const tol = Math.max(900, 0.04 * pp); // how far off the straight mix a pixel may sit (JPEG noise)
+    let best = -1, bestA = 1, bestFF = 0;
+    for (let Y = Math.max(0, y - LOOK); Y <= Math.min(h - 1, y + LOOK); Y++) {
+      for (let X = Math.max(0, x - LOOK); X <= Math.min(w - 1, x + LOOK); X++) {
+        const q = Y * w + X;
+        if (q === p || bg[q]) continue;
+        const j = q * 4;
+        const f0 = orig[j] - K[0], f1 = orig[j + 1] - K[1], f2 = orig[j + 2] - K[2];
+        const ff = f0 * f0 + f1 * f1 + f2 * f2;
+        if (ff < 3600 || ff < pp) continue; // only purer artwork than this pixel, and clearly not background
+        const a = Math.max(0, Math.min(1, (p0 * f0 + p1 * f1 + p2 * f2) / ff));
+        const r0 = p0 - a * f0, r1 = p1 - a * f1, r2 = p2 - a * f2;
+        // of the colours this pixel is a mix of, the purest: a neighbour that is itself half background would leave
+        // the edge too solid
+        if (r0 * r0 + r1 * r1 + r2 * r2 <= tol && ff > bestFF) { best = j; bestA = a; bestFF = ff; }
+      }
+    }
+    // no colour explains it as a mix (a thin line of another ink): left as it is
+    if (best < 0) continue;
+    if (bg[p]) {
+      if (bestA < 0.06) continue; // background, apart from noise
+      data[i + 3] = Math.round(255 * bestA);
+    } else data[i + 3] = Math.min(data[i + 3], Math.round(255 * bestA));
+    // its colour: that artwork colour as cleaned of the background tint (by defringe, on the server)
+    if (bestA < 0.98) { data[i] = data[best]; data[i + 1] = data[best + 1]; data[i + 2] = data[best + 2]; }
+    if (keyTint) {
+      const spill = Math.min(data[i + hiK[0]], data[i + hiK[1]]) - data[i + lowK];
+      if (spill > 0) { data[i + hiK[0]] -= spill; data[i + hiK[1]] -= spill; }
     }
   }
 }

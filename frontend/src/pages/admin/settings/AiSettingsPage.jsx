@@ -329,6 +329,28 @@ export default function AiSettingsPage() {
             On: a customer types what they want and gets three numbered tees to pick from; only signed-in customers can use it. Off: the older chat (one plan card at a time) comes back for everyone the moment you save — no release needed.
           </span>
         </label>
+        {/* the print team's options (8 Nov 2026): used when a picture is prepared for print (Orders → Designs & print files) */}
+        <div style={{ display: "grid", gap: 10, borderTop: `1px solid ${t.border}`, paddingTop: 14 }}>
+          <span style={label}>Print files</span>
+          <label style={{ display: "grid", gap: 2 }}>
+            <span style={{ display: "flex", gap: 10, alignItems: "center", ...label }}>
+              <input type="checkbox" checked={form.printDropSpecks !== false} onChange={(e) => setForm({ ...form, printDropSpecks: e.target.checked })} style={{ width: 18, height: 18 }} />
+              Take out dots too small for the film
+            </span>
+            <span style={{ ...help, marginLeft: 28 }}>
+              On: bits of ink smaller than 0.1 mm² (about 0.3 × 0.3 mm) are left out of the print — the film’s glue can’t hold them, so they flake off in the wash. Grunge and distressed designs have thousands. Off: every dot is printed as drawn.
+            </span>
+          </label>
+          <label style={{ display: "grid", gap: 2 }}>
+            <span style={{ display: "flex", gap: 10, alignItems: "center", ...label }}>
+              <input type="checkbox" checked={!!form.printKnockout} onChange={(e) => setForm({ ...form, printKnockout: e.target.checked })} style={{ width: 18, height: 18 }} />
+              Knock-out: leave black out on black tees (white on white)
+            </span>
+            <span style={{ ...help, marginLeft: 28 }}>
+              On: the parts of a picture that are (almost) the tee’s colour aren’t printed — the tee shows through. Less film on the tee: softer, and it breathes. Only on really black or white tees, never navy or cream. Ask the print team before turning it on. Applies to pictures prepared after you save.
+            </span>
+          </label>
+        </div>
         {FIELDS.map(([key, title, hint, min, max, step]) => (
           <label key={key} style={{ display: "grid" }}>
             <span style={label}>{title}</span>

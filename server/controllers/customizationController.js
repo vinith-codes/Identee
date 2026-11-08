@@ -474,9 +474,29 @@ async function printPackOf(order) {
       createdAt: order.createdAt,
       status: order.orderStatus,
       customer: order.user?.name || "",
+      isTest: !!order.isTest,
+      isPaid: !!order.isPaid,
+      paidAt: order.paidAt || null,
+      note: order.printNote || "",
+      // the day it has to leave the workshop (the Shipping policy's making time: 4 working days, a team order 7)
+      shipBy: shipByOf(order.paidAt || order.createdAt, designs.some((d) => d.players?.length) ? 7 : 4),
     },
     designs,
   };
+}
+
+// start date + n working days (Sundays off) -> a date only, e.g. "2026-11-12"
+export function shipByOf(start, n) {
+  const d = new Date(start || Date.now());
+  if (Number.isNaN(+d)) return null;
+  // count in India's time, so an order paid late in the evening counts from the right day
+  const ist = new Date(+d + 330 * 60 * 1000);
+  let left = n;
+  while (left > 0) {
+    ist.setUTCDate(ist.getUTCDate() + 1);
+    if (ist.getUTCDay() !== 0) left--;
+  }
+  return ist.toISOString().slice(0, 10);
 }
 
 // The print data of one design (a Customization, or a Studio tee shaped like one) printed in these sizes

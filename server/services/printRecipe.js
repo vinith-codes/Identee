@@ -185,13 +185,21 @@ export function paethFilter(rgb, W, H) {
  * @param {number} a.W
  * @param {number} a.H
  * @param {"white"|"black"} a.tee   the ink side: a light tee prints like white, a dark one like black
+ * @param {boolean} [a.knockout]   (8 Nov 2026, the print team's choice) colours that look like the tee itself — black on
+ *                                 a black tee, white on a white one — are left out: the shirt shows through there
+ * @param {boolean} [a.dropSpecks] (8 Nov 2026) bits of ink under 0.1 mm² (about 0.3 × 0.3 mm) are left out: DTF film
+ *                                 can't hold them, they drop off in the press or the wash
+ * @param {number} [a.dpi]         the picture's DPI at its print size (for the sizes in mm); 600 if not given
  * @param {(t:string)=>void} [a.log]
- * @returns {{ W, H, flate: Buffer, clip: string, shapes, steps, picture: Buffer }}  picture = the painted RGB (raw)
+ * @returns {{ W, H, flate: Buffer, clip: string, shapes, steps, picture: Buffer, stats }}  picture = the painted RGB
+ *          (raw); stats = { specks, specksDropped, thinPct, knockout }: bits under 0.1 mm² left in (and taken out), the
+ *          share of the ink thinner than 0.3 mm, and whether the tee's colour was left out
  */
-export async function runRecipe({ rgb, alpha: a8, W, H, tee, log = () => {} }) {
+export async function runRecipe({ rgb, alpha: a8, W, H, tee, knockout = false, dropSpecks = false, dpi = PRINT_DPI, log = () => {} }) {
   const t0 = Date.now();
   const N = W * H;
   const teeV = tee === "white" ? 255 : 0;
+  const KO = knockout ? 30 : 0; // knock-out: up to this far from the tee colour counts as the tee
   if (rgb.length !== N * 3 || a8.length !== N) throw new Error("picture and shape sizes do not match");
 
   // what the customer sees on the tee, and how far each pixel is from the tee colour
@@ -207,11 +215,12 @@ export async function runRecipe({ rgb, alpha: a8, W, H, tee, log = () => {} }) {
       const d = Math.abs(v - teeV);
       if (d > vd) vd = d;
     }
-    const s = clamp((vd - 4) / 10, 0, 1);
+    const s = clamp((vd - 4 - KO) / 10, 0, 1);
     clean[i] = Math.round(a8[i] * s * s * (3 - 2 * s));
-    high[i] = a8[i] >= 200 ? 1 : 0;
-    empty[i] = a8[i] <= 40 && vd < 10 ? 1 : 0;
-    S[i] = a8[i] >= 128 ? 1 : 0;
+    const bare = KO > 0 && vd < KO + 4; // knocked out: as good as the tee itself
+    high[i] = a8[i] >= 200 && !bare ? 1 : 0;
+    empty[i] = (a8[i] <= 40 && vd < 10) || bare ? 1 : 0;
+    S[i] = a8[i] >= 128 && !bare ? 1 : 0;
   }
   // the hard-edge zone: solid ink right next to bare tee
   const hiMax = maxFilter(high, W, H, 5), emMax = maxFilter(empty, W, H, 5);
@@ -254,13 +263,90 @@ export async function runRecipe({ rgb, alpha: a8, W, H, tee, log = () => {} }) {
   const edgeImg = Buffer.alloc(N);
   for (let i = 0; i < N; i++) edgeImg[i] = Cs[i] ? 0 : 255;
   const edgePng = await sharp(edgeImg, { raw: { width: W, height: H, channels: 1 }, limitInputPixels: false }).toColourspace("b-w").png({ compressionLevel: 1 }).toBuffer();
-  const svg = convertBuffer(edgePng, { clustering: "bw", mode: "spline", filterSpeckle: 4, cornerThreshold: 60, lengthThreshold: 4.0, spliceThreshold: 45, pathPrecision: 2, optimize: 0 });
+  const stats = inkStats(Cs, W, H, dpi, 16); // (bits under 4×4 px never print: the vector edge leaves them out anyway)
+  log(`tiny details: ${stats.specks} specks under 0.1 mm², ${stats.thinPct}% of the ink thinner than 0.3 mm`);
+  // the vector edge leaves out patches smaller than speckle² px: 4 px as approved, or 0.1 mm² when specks are dropped
+  const speckle = dropSpecks ? Math.max(4, Math.ceil((Math.sqrt(SPECK_MM2) * dpi) / 25.4)) : 4;
+  const svg = convertBuffer(edgePng, { clustering: "bw", mode: "spline", filterSpeckle: speckle, cornerThreshold: 60, lengthThreshold: 4.0, spliceThreshold: 45, pathPrecision: 2, optimize: 0 });
   const { clip, shapes, steps } = svgToClip(svg);
   log(`vector edge: ${shapes} shapes, ${steps} steps, ${((Date.now() - t0) / 1000).toFixed(0)}s`);
 
   const flate = zlib.deflateSync(paethFilter(col, W, H), { level: 6 });
   log(`picture packed: ${(flate.length / 1e6).toFixed(1)} MB, ${((Date.now() - t0) / 1000).toFixed(0)}s`);
-  return { W, H, flate, clip, shapes, steps, picture: col };
+  return { W, H, flate, clip, shapes, steps, picture: col, stats: { specks: dropSpecks ? 0 : stats.specks, specksDropped: dropSpecks ? stats.specks : 0, thinPct: stats.thinPct, knockout: KO > 0 } };
+}
+
+// The print team's limits for DTF film (8 Nov 2026): a bit of ink under 0.1 mm² (about 0.3 × 0.3 mm) isn't held by the
+// film's glue powder, and a line under 0.3 mm wide breaks up.
+export const SPECK_MM2 = 0.1;
+export const THIN_MM = 0.3;
+// How much of the ink is too small for the film: counted on the cut shape at half size (plenty for 0.3 mm at 600 DPI,
+// and a quarter of the memory). { specks: bits under SPECK_MM2, thinPct: % of the ink in parts under THIN_MM wide }
+// minPx: bits smaller than this (full-size pixels) aren't counted — they don't print anyway
+export function inkStats(ink, W, H, dpi = PRINT_DPI, minPx = 0) {
+  const w = Math.ceil(W / 2), h = Math.ceil(H / 2);
+  const half = new Uint8Array(w * h);
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (ink[y * W + x]) half[(y >> 1) * w + (x >> 1)] = 1;
+  const mmPerPx = 25.4 / (dpi / 2);
+  // bits: flood fill, counting the pieces smaller than the limit
+  const maxPx = SPECK_MM2 / (mmPerPx * mmPerPx);
+  const seen = new Uint8Array(w * h);
+  const stack = new Int32Array(w * h);
+  let specks = 0, inkPx = 0;
+  for (let p0 = 0; p0 < w * h; p0++) {
+    if (!half[p0] || seen[p0]) continue;
+    let top = 0, size = 0;
+    stack[top++] = p0;
+    seen[p0] = 1;
+    while (top) {
+      const p = stack[--top];
+      size++;
+      const x = p % w;
+      if (x > 0 && half[p - 1] && !seen[p - 1]) { seen[p - 1] = 1; stack[top++] = p - 1; }
+      if (x < w - 1 && half[p + 1] && !seen[p + 1]) { seen[p + 1] = 1; stack[top++] = p + 1; }
+      if (p >= w && half[p - w] && !seen[p - w]) { seen[p - w] = 1; stack[top++] = p - w; }
+      if (p < w * (h - 1) && half[p + w] && !seen[p + w]) { seen[p + w] = 1; stack[top++] = p + w; }
+    }
+    inkPx += size;
+    if (size < maxPx && size * 4 >= minPx) specks++;
+  }
+  // thin parts: what an opening (shrink, then grow back) by half the limit takes away
+  const r = Math.max(1, Math.round(THIN_MM / 2 / mmPerPx));
+  const out = new Uint8Array(w * h);
+  for (let i = 0; i < out.length; i++) out[i] = half[i] ? 0 : 1;
+  const grownOut = maxFilter(out, w, h, r); // shrinking the ink = growing what is not ink
+  for (let i = 0; i < out.length; i++) out[i] = grownOut[i] ? 0 : 1;
+  const opened = maxFilter(out, w, h, r);
+  let thin = 0;
+  for (let i = 0; i < half.length; i++) if (half[i] && !opened[i]) thin++;
+  return { specks, thinPct: inkPx ? Math.round((thin / inkPx) * 1000) / 10 : 0 };
+}
+
+// The inverse of paethFilter: the picture's raw RGB back from a print-ready picture's stream (for the day sheets)
+export function unPaeth(filtered, W, H) {
+  const row = W * 3;
+  const out = Buffer.alloc(row * H);
+  for (let y = 0; y < H; y++) {
+    const src = y * (row + 1);
+    const type = filtered[src];
+    const dst = y * row;
+    for (let x = 0; x < row; x++) {
+      const a = x >= 3 ? out[dst + x - 3] : 0;
+      const b = y > 0 ? out[dst - row + x] : 0;
+      const c = x >= 3 && y > 0 ? out[dst - row + x - 3] : 0;
+      let pred = 0;
+      if (type === 1) pred = a;
+      else if (type === 2) pred = b;
+      else if (type === 3) pred = (a + b) >> 1;
+      else if (type === 4) {
+        const p = a + b - c;
+        const pa = Math.abs(p - a), pb = Math.abs(p - b), pc = Math.abs(p - c);
+        pred = pa <= pb && pa <= pc ? a : pb <= pc ? b : c;
+      }
+      out[dst + x] = (filtered[src + 1 + x] + pred) & 255;
+    }
+  }
+  return out;
 }
 
 // A one-page PDF of one recipe result: the picture over the whole page at 600 DPI, cut by the vector edge.

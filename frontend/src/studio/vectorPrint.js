@@ -11,10 +11,11 @@
 // A text that can't be made of shapes (a letter the font doesn't have, such as Tamil or an emoji; a font that isn't one
 // of ours; a see-through text) goes in as pixels with the pictures, so the print is still right, and is named for the
 // print team.
-import { PDFDocument, PDFRawStream, LineJoinStyle, appendBezierCurve, clipEvenOdd, closePath, concatTransformationMatrix, drawObject, endPath, lineTo, moveTo, popGraphicsState, pushGraphicsState, rgb, setLineJoin } from "pdf-lib";
+import { PDFDocument, PDFName, PDFRawStream, PDFString, LineJoinStyle, appendBezierCurve, clipEvenOdd, closePath, concatTransformationMatrix, drawObject, endPath, lineTo, moveTo, popGraphicsState, pushGraphicsState, rgb, setLineJoin } from "pdf-lib";
 import fontkit from "@pdf-lib/fontkit";
 import { AreaRenderer, buildNodes } from "./konvaRender";
 import { FONTS, fontsCssUrl } from "./fonts";
+import { srgbIcc } from "./srgbProfile";
 import { FAKE_ITALIC_SKEW, barToSvg, faceFor, fakeBoldWidth, hexToRgb, multiply, outlineToSvg, parseFontFaces, useOwnFiles } from "./vectorText";
 import montserrat400 from "@fontsource/montserrat/files/montserrat-latin-400-normal.woff2?url";
 import montserrat700 from "@fontsource/montserrat/files/montserrat-latin-700-normal.woff2?url";
@@ -242,13 +243,13 @@ function picturePlace(el, r, W, H) {
 
 const EDGE_CHUNK = 5000; // operators per pushOperators call (well under any browser's argument limit)
 
-function drawPicture(pdf, page, pic, place, H) {
+function drawPicture(pdf, page, pic, place, H, colourSpace = "DeviceRGB") {
   const dict = pdf.context.obj({
     Type: "XObject",
     Subtype: "Image",
     Width: pic.width,
     Height: pic.height,
-    ColorSpace: "DeviceRGB",
+    ColorSpace: colourSpace,
     BitsPerComponent: 8,
     Filter: "FlateDecode",
     DecodeParms: { Predictor: 15, Colors: 3, BitsPerComponent: 8, Columns: pic.width },
@@ -273,6 +274,29 @@ function drawPicture(pdf, page, pic, place, H) {
     drawObject(name),
     popGraphicsState(),
   );
+}
+
+/* ---------- colours: sRGB, said inside the file (8 Nov 2026) ---------- */
+// Without a profile a RIP guesses what the RGB numbers mean (often Adobe RGB or its own CMYK default) and the
+// colours shift. The sRGB profile goes in once: as the file's output intent, and as the page's DefaultRGB, so every
+// RGB colour on it (words, plain pictures) is read as sRGB. Returns the colour space for the print-ready pictures.
+function withSrgb(pdf, page) {
+  const icc = pdf.context.register(pdf.context.flateStream(srgbIcc(), { N: 3 }));
+  const space = pdf.context.obj([PDFName.of("ICCBased"), icc]);
+  pdf.catalog.set(
+    PDFName.of("OutputIntents"),
+    pdf.context.obj([
+      pdf.context.obj({
+        Type: "OutputIntent",
+        S: "GTS_PDFA1",
+        OutputConditionIdentifier: PDFString.of("sRGB IEC61966-2.1"),
+        Info: PDFString.of("sRGB IEC61966-2.1"),
+        DestOutputProfile: icc,
+      }),
+    ]),
+  );
+  page.node.normalizedEntries().Resources.set(PDFName.of("ColorSpace"), pdf.context.obj({ DefaultRGB: space }));
+  return space;
 }
 
 /* ---------- the PDF ---------- */
@@ -320,6 +344,7 @@ export async function buildVectorPdf(elements, W, H, title = "IDENTEE print", { 
   pdf.setProducer("IDENTEE print files");
   pdf.setCreator("IDENTEE");
   const page = pdf.addPage([W * PT_PER_PX, H * PT_PER_PX]);
+  const srgb = withSrgb(pdf, page);
   page.pushOperators(pushGraphicsState(), concatTransformationMatrix(PT_PER_PX, 0, 0, PT_PER_PX, 0, 0));
 
   let pixels = []; // elements waiting to go in together, in their order
@@ -330,7 +355,7 @@ export async function buildVectorPdf(elements, W, H, title = "IDENTEE print", { 
   for (const el of sorted) {
     if (prepared(el)) {
       await flush();
-      drawPicture(pdf, page, pictures.get(String(el.id)), places.get(el), H);
+      drawPicture(pdf, page, pictures.get(String(el.id)), places.get(el), H, srgb);
       continue;
     }
     const made = shapes.get(el);

@@ -163,9 +163,11 @@ const orderSchema = mongoose.Schema(
     // print files sent to the print team (Admin → Orders → Designs & print files → Send to print team, 6 Nov 2026):
     // the ZIP is kept on this server for a while and emailed as a link
     printFiles: {
-      type: [new mongoose.Schema({ fileName: String, bytes: Number, token: String, expiresAt: Date, sentTo: String, sentAt: Date, sentBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" } }, { _id: false })],
+      type: [new mongoose.Schema({ fileName: String, bytes: Number, token: String, expiresAt: Date, keepUntil: Date, sentTo: String, sentAt: Date, sentBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" } }, { _id: false })],
       default: [],
     },
+    // the admin's note for the print team (8 Nov 2026): on the order sheet and every job card of the order
+    printNote: { type: String, default: "", maxlength: 1000 },
     // a test order (5 Nov 2026): placed by a team account trying the shop as a customer. Not a sale: left out of
     // the orders list, the counts, the money pages and the print sheets; no copy of its emails to the shop inbox.
     isTest: { type: Boolean, default: false, index: true },

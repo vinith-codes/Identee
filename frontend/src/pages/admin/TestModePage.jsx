@@ -12,6 +12,7 @@ import orderService from "../../services/orderService";
 import { shopHref } from "../../utils/siteUrls";
 import { THEME as theme, getLabelStyle } from "../../theme/theme";
 import CancelInfo from "./CancelInfo";
+import OrderDesignsModal from "./OrderDesignsModal";
 
 const fmt = (d) => (d ? new Date(d).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : "—");
 const rupees = (n) => `₹${Math.round(n || 0).toLocaleString("en-IN")}`;
@@ -39,6 +40,7 @@ export default function TestModePage() {
   const [error, setError] = useState("");
   const [opening, setOpening] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [designsFor, setDesignsFor] = useState(null); // a test order's designs & print files (8 Nov 2026)
 
   const load = useCallback(
     () =>
@@ -145,7 +147,14 @@ export default function TestModePage() {
                     <td style={{ padding: "8px", borderBottom: `1px solid ${theme.border}`, whiteSpace: "nowrap" }}>{fmt(o.createdAt)}</td>
                     <td style={{ padding: "8px", borderBottom: `1px solid ${theme.border}`, fontVariantNumeric: "tabular-nums" }}>{o.invoiceNumber || String(o._id).slice(-8).toUpperCase()}</td>
                     <td style={{ padding: "8px", borderBottom: `1px solid ${theme.border}` }}>{o.user?.name || "—"}</td>
-                    <td style={{ padding: "8px", borderBottom: `1px solid ${theme.border}` }}>{items(o)}</td>
+                    <td style={{ padding: "8px", borderBottom: `1px solid ${theme.border}` }}>
+                      {items(o)}
+                      {o.orderItems?.some((i) => i.customization) && (
+                        <button type="button" onClick={() => setDesignsFor(o._id)} style={{ display: "block", marginTop: 4, border: `1px solid ${theme.border}`, background: "#fff", borderRadius: 999, padding: "3px 10px", minHeight: 30, fontSize: 12, fontWeight: 700, cursor: "pointer", color: theme.text }}>
+                          Designs &amp; print files
+                        </button>
+                      )}
+                    </td>
                     <td style={{ padding: "8px", borderBottom: `1px solid ${theme.border}`, fontVariantNumeric: "tabular-nums" }}>{rupees(o.totalPrice)}</td>
                     <td style={{ padding: "8px", borderBottom: `1px solid ${theme.border}` }}>
                       {o.orderStatus}{o.isPaid ? " · paid" : ""}
@@ -161,6 +170,7 @@ export default function TestModePage() {
           A test order can still be opened from the shop's <b>My orders</b> page while you are in test mode, so you can check the order page and its emails. A cancel request made there shows under the status above, with Approve and Decline.
         </p>
       </div>
+      {designsFor && <OrderDesignsModal orderId={designsFor} onClose={() => setDesignsFor(null)} />}
     </div>
   );
 }

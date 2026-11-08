@@ -11,14 +11,15 @@
 import { AreaRenderer, cachedImage, imageSrcs, loadImage, playerElements } from "./konvaRender";
 import { playerLabel } from "./teamOrder";
 import { fontsReady } from "./fonts";
-import { PRINT_DPI, cmToPx, setPngDpi, toPng, artworkBox, artworkSpot, acrossText, fmtCm, EST_START } from "./printFiles";
+import { PRINT_DPI, cmToPx, setPngDpi, toPng, artworkBox, artworkSpot, acrossText, fmtCm, EST_START, withReadyPictures } from "./printFiles";
 
 export const SHEET = { w: 58, h: 100 }; // cm
 export const GAP = 1; // cm between prints
 export const EDGE = 0.5; // cm kept clear at the sheet's edges
 const BLEED = 0.1; // cm of empty space kept around the artwork when it is cut out of its area
 const MM = 10; // the layout works in whole millimetres
-const LOW_DPI = 150;
+const LOW_DPI = 150; // below this a picture may print blurry
+const GOOD_DPI = 250; // below this it prints a little soft (8 Nov 2026)
 const SIDE_ORDER = { front: 0, back: 1, left: 2, right: 3, shorts: 4 };
 
 /* ---------- 1. the pieces: every print of every tee ---------- */
@@ -75,16 +76,22 @@ export async function collectPieces(packs, onStep = () => {}) {
           const box = artworkBox(drawn, f.cm);
           done += 1;
           if (!box) continue; // nothing printed in this area
-          const art = { canvas: await cutOut(drawn, f.cm, box), order: no, design: d, title, area, n, file: f, spot: {} };
+          // a print-ready picture (Prepare for print) is drawn as in the .ai — its enlarged copy with the vector edge (8 Nov 2026)
+          const swap = await withReadyPictures(drawn, cmToPx(w));
+          if (swap.missed) warnings.push(`Order ${no}, ${area.label} (${f.sizes.join(", ")}): ${swap.missed === 1 ? "a print-ready picture" : `${swap.missed} print-ready pictures`} couldn't be fetched, so the sheet has the plain picture.`);
+          const art = { canvas: await cutOut(swap.elements, f.cm, box), order: no, design: d, title, area, n, file: f, spot: {} };
           art.wCm = art.canvas.width / (PRINT_DPI / 2.54);
           art.hCm = art.canvas.height / (PRINT_DPI / 2.54);
           for (const size of f.sizes) art.spot[size] = artworkSpot(area, size, box, f.cm);
           arts.push(art);
 
           for (const e of els.filter((x) => x.type === "image")) {
-            const img = cachedImage(e.src, true);
-            const dpi = img ? Math.round(img.naturalWidth / ((((e.width || 0) / 100) * w) / 2.54)) : 0;
+            const img = e.printFile?.key ? null : cachedImage(e.src, true);
+            const px = e.printFile?.key ? e.printFile.width : img?.naturalWidth;
+            const dpi = px ? Math.round(px / ((((e.width || 0) / 100) * w) / 2.54)) : 0;
             if (dpi && dpi < LOW_DPI) warnings.push(`Order ${no}, ${area.label} (${f.sizes.join(", ")}): a picture is only ${dpi} DPI at its print size — it may look blurry.`);
+            else if (dpi && dpi < GOOD_DPI) warnings.push(`Order ${no}, ${area.label} (${f.sizes.join(", ")}): a picture is ${dpi} DPI at its print size — a little soft up close.`);
+            else if (!e.printFile?.key) warnings.push(`Order ${no}, ${area.label} (${f.sizes.join(", ")}): a picture is not prepared for print (no vector edge) — press Prepare for print in the order's Designs & print files.`);
           }
 
           // one piece per tee

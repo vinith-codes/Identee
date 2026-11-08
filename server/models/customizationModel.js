@@ -32,6 +32,13 @@ const elementSchema = new mongoose.Schema(
       keep: { type: Number }, // how many times bigger than the uploaded picture
       cm: { type: Number }, // the print width it was made for
       madeAt: { type: Date },
+      // what the print team should know (8 Nov 2026): its real DPI at that width, dots under 0.1 mm² still in it
+      // (and how many were taken out), how much of the ink is thinner than 0.3 mm, and whether the tee's own colour was left out
+      realDpi: { type: Number },
+      specks: { type: Number },
+      specksDropped: { type: Number },
+      thinPct: { type: Number },
+      knockout: { type: Boolean },
     },
     artDesignId: { type: mongoose.Schema.Types.ObjectId, ref: "ArtDesign" },
 

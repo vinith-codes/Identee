@@ -20,6 +20,7 @@ import { imageUrl } from "../utils/imageUrl";
 export const PRINT_DPI = 300;
 export const cmToPx = (cm, dpi = PRINT_DPI) => Math.round((cm / 2.54) * dpi);
 const LOW_DPI = 150; // below this a picture may print blurry
+const GOOD_DPI = 250; // below this a picture prints softer than the print team wants (8 Nov 2026)
 
 /* ---------- PNG with its DPI written in (pHYs chunk) ---------- */
 const CRC = (() => {
@@ -37,23 +38,51 @@ const crc32 = (bytes) => {
   return (c ^ 0xffffffff) >>> 0;
 };
 
-// Inserts a pHYs chunk after IHDR so print software reads 300 DPI
-// (a canvas PNG has no DPI and opens at 72 or 96).
-export function setPngDpi(png, dpi = PRINT_DPI) {
-  const ppm = Math.round(dpi / 0.0254); // pixels per metre
-  const chunk = new Uint8Array(21);
+// one PNG chunk: length, type, data, CRC
+const pngChunk = (type, data) => {
+  const chunk = new Uint8Array(12 + data.length);
   const v = new DataView(chunk.buffer);
-  v.setUint32(0, 9);
-  chunk.set([0x70, 0x48, 0x59, 0x73], 4); // "pHYs"
-  v.setUint32(8, ppm);
-  v.setUint32(12, ppm);
-  chunk[16] = 1; // unit: metre
-  v.setUint32(17, crc32(chunk.subarray(4, 17)));
+  v.setUint32(0, data.length);
+  chunk.set([...type].map((ch) => ch.charCodeAt(0)), 4);
+  chunk.set(data, 8);
+  v.setUint32(8 + data.length, crc32(chunk.subarray(4, 8 + data.length)));
+  return chunk;
+};
+// the chunk types already in a PNG
+const pngChunkTypes = (png) => {
+  const types = new Set();
+  const v = new DataView(png.buffer, png.byteOffset, png.byteLength);
+  for (let at = 8; at + 8 <= png.length; ) {
+    const len = v.getUint32(at);
+    types.add(String.fromCharCode(...png.subarray(at + 4, at + 8)));
+    at += 12 + len;
+  }
+  return types;
+};
+
+// Inserts a pHYs chunk after IHDR so print software reads 300 DPI (a canvas PNG has no DPI and opens at 72 or 96),
+// and an sRGB chunk (8 Nov 2026) so the print team's RIP knows the colours are sRGB instead of guessing.
+export function setPngDpi(png, dpi = PRINT_DPI) {
+  const types = pngChunkTypes(png);
+  const ppm = Math.round(dpi / 0.0254); // pixels per metre
+  const phys = new Uint8Array(9);
+  const v = new DataView(phys.buffer);
+  v.setUint32(0, ppm);
+  v.setUint32(4, ppm);
+  phys[8] = 1; // unit: metre
+  const add = [];
+  if (!types.has("pHYs")) add.push(pngChunk("pHYs", phys));
+  if (!types.has("sRGB") && !types.has("iCCP")) add.push(pngChunk("sRGB", new Uint8Array([0]))); // 0 = perceptual
+  const extra = add.reduce((n, c) => n + c.length, 0);
   const at = 8 + 25; // signature + IHDR
-  const out = new Uint8Array(png.length + chunk.length);
+  const out = new Uint8Array(png.length + extra);
   out.set(png.subarray(0, at), 0);
-  out.set(chunk, at);
-  out.set(png.subarray(at), at + chunk.length);
+  let p = at;
+  for (const c of add) {
+    out.set(c, p);
+    p += c.length;
+  }
+  out.set(png.subarray(at), p);
   return out;
 }
 
@@ -61,6 +90,54 @@ export const toPng = (canvas) =>
   new Promise((resolve, reject) =>
     canvas.toBlob((b) => (b ? b.arrayBuffer().then((a) => resolve(new Uint8Array(a)), reject) : reject(new Error("The picture is too big for this browser"))), "image/png"),
   );
+
+// The print-ready picture (Prepare for print) as a see-through PNG of the width it is drawn at, for pixel files (the
+// day sheets and a PNG print file): the same picture and vector edge as in the .ai, not the customer's original.
+// Asked once per picture and width; null when it can't be had (the original is drawn then).
+const sheetUrls = new Map(); // "key|w" -> Promise<blob url | null>
+export function readySheetUrl(key, w) {
+  const width = Math.max(16, Math.round(w));
+  const id = `${key}|${width}`;
+  if (!sheetUrls.has(id)) {
+    sheetUrls.set(
+      id,
+      printFileService
+        .sheetBlob(key, width)
+        .then((b) => URL.createObjectURL(b))
+        .catch(() => {
+          sheetUrls.delete(id);
+          return null;
+        }),
+    );
+  }
+  return sheetUrls.get(id);
+}
+// elements with every print-ready picture swapped for its sheet PNG at the size it prints in an area of areaPx wide
+// (300 DPI): loaded, so the renderer draws it straight away. { elements, used, missed }
+export async function withReadyPictures(elements, areaPx) {
+  let used = 0;
+  let missed = 0;
+  const out = await Promise.all(
+    elements.map(async (e) => {
+      if (e.type !== "image" || !e.printFile?.key) return e;
+      const want = Math.min(e.printFile.width || Infinity, ((e.width || 0) / 100) * areaPx);
+      const url = want > 0 ? await readySheetUrl(e.printFile.key, want) : null;
+      if (!url) {
+        missed++;
+        return e;
+      }
+      try {
+        await loadImage(url, { full: true });
+        used++;
+        return { ...e, src: url, printSrc: undefined };
+      } catch {
+        missed++;
+        return e;
+      }
+    }),
+  );
+  return { elements: out, used, missed };
+}
 
 /** One area at 300 DPI → PNG bytes. `elements` = that area's elements only. */
 export async function renderPrintFile(elements, [wCm, hCm]) {
@@ -364,21 +441,53 @@ function teeMap({ side, prints, tee }) {
 
 // The whole job card → JPEG bytes.
 // rows: [{ n, label, file, spot, area, size, cm, box, drawn }]   checks / notes: lines of text
-async function jobCard({ heading, sub, rows, tee, checks = [], notes = [] }) {
+// a line of text broken into lines that fit maxW at that font (long notes would be squeezed unreadable otherwise)
+function wrapText(font, text, maxW) {
+  const g = document.createElement("canvas").getContext("2d");
+  g.font = font;
+  const lines = [];
+  let line = "";
+  for (const word of String(text).split(/\s+/)) {
+    const next = line ? `${line} ${word}` : word;
+    if (line && g.measureText(next).width > maxW) {
+      lines.push(line);
+      line = word;
+    } else line = next;
+  }
+  if (line) lines.push(line);
+  return lines.length ? lines : [""];
+}
+async function jobCard({ heading, sub, rows, tee, checks = [], notes = [], banner = "", note = "" }) {
   const W = 2000;
   const sides = ["front", "back"].filter((s) => rows.some((r) => r.area.side === s && r.box));
   const mapW = 960;
   const mapH = Math.round((1060 * mapW) / 1200);
   const rowH = 54;
-  const mapsTop = 196;
+  // the admin's note (and a test order's banner) go right under the heading, where nobody misses them
+  const noteLines = note ? wrapText("bold 28px Arial", `NOTE FROM IDENTEE: ${note}`, W - 100) : [];
+  const top0 = banner ? 70 : 0;
+  const noteH = noteLines.length ? noteLines.length * 38 + 24 : 0;
+  const mapsTop = 196 + noteH; // (below a banner: everything is drawn top0 lower)
   const tableTop = mapsTop + (sides.length ? mapH + 30 : 0);
-  const H = tableTop + 70 + rows.length * rowH + 30 + (checks.length + notes.length) * 34 + 40;
+  const checkLines = checks.flatMap((t) => wrapText("bold 24px Arial", `! ${t}`, W - 80));
+  const noteRows = notes.flatMap((t) => wrapText("22px Arial", t, W - 80));
+  const H = top0 + tableTop + 70 + rows.length * rowH + 30 + (checkLines.length + noteRows.length) * 34 + 40;
   const c = document.createElement("canvas");
   c.width = W;
   c.height = H;
   const g = c.getContext("2d");
   g.fillStyle = "#FFFFFF";
   g.fillRect(0, 0, W, H);
+  if (banner) {
+    g.fillStyle = "#B42318";
+    g.fillRect(0, 0, W, top0);
+    g.fillStyle = "#FFFFFF";
+    g.font = "bold 40px Arial";
+    g.textAlign = "center";
+    g.fillText(banner, W / 2, 50, W - 80);
+    g.textAlign = "left";
+    g.translate(0, top0);
+  }
   // heading
   g.fillStyle = "#141110";
   g.fillRect(0, 0, W, 104);
@@ -388,6 +497,16 @@ async function jobCard({ heading, sub, rows, tee, checks = [], notes = [] }) {
   g.fillStyle = "#141110";
   g.font = "26px Arial";
   g.fillText(sub, 40, 148, W - 80);
+  if (noteLines.length) {
+    g.fillStyle = "#FFF4D6";
+    g.fillRect(30, 196, W - 60, noteH - 8);
+    g.strokeStyle = "#B7791F";
+    g.lineWidth = 3;
+    g.strokeRect(30, 196, W - 60, noteH - 8);
+    g.fillStyle = "#141110";
+    g.font = "bold 28px Arial";
+    noteLines.forEach((t, i) => g.fillText(t, 50, 196 + 40 + i * 38));
+  }
   g.fillStyle = "#B42318";
   g.font = "bold 22px Arial";
   g.fillText("JOB CARD — NOT FOR PRINTING.   TOP = collar seam (centre) ↓ to the artwork's top edge.   SIDE = tee's centre line → artwork's centre.   Print each .ai at 100%.", 40, 184, W - 80);
@@ -437,13 +556,13 @@ async function jobCard({ heading, sub, rows, tee, checks = [], notes = [] }) {
   let y = tableTop + 56 + rows.length * rowH + 44;
   g.font = "bold 24px Arial";
   g.fillStyle = "#B42318";
-  for (const t of checks) {
-    g.fillText(`! ${t}`, 40, y, W - 80);
+  for (const t of checkLines) {
+    g.fillText(t, 40, y, W - 80);
     y += 34;
   }
   g.font = "22px Arial";
   g.fillStyle = "#5A524A";
-  for (const t of notes) {
+  for (const t of noteRows) {
     g.fillText(t, 40, y, W - 80);
     y += 34;
   }
@@ -472,7 +591,9 @@ export async function buildPrintPack(pack, onStep = () => {}) {
   };
   const { default: JSZip } = await import("jszip");
   const zip = new JSZip();
-  const root = zip.folder(`IDENTEE-${safe(pack.order.number)}-print-files`);
+  const test = Boolean(pack.order.isTest);
+  const zipName = `${test ? "TEST-" : ""}IDENTEE-${safe(pack.order.number)}-print-files`;
+  const root = zip.folder(zipName);
   const warnings = [];
   const designs = pack.designs.filter((d) => !d.missing);
   if (pack.designs.length !== designs.length) warnings.push("A design in this order no longer exists — it has no print files.");
@@ -480,15 +601,10 @@ export async function buildPrintPack(pack, onStep = () => {}) {
   const total = designs.reduce((n, d) => n + d.areas.reduce((m, a) => m + a.files.length, 0), 0);
   let done = 0;
   const date = new Date(pack.order.createdAt).toLocaleDateString("en-IN");
-  const sheet = [
-    `IDENTEE · ORDER ${pack.order.number} · ${pack.order.customer || "-"} · ${date}`,
-    "",
-    "Open the JOB-CARD picture of each size: it shows where every print goes, with the measurements.",
-    "Print each file at 100%. The number at the start of a file name is the print's number on the job card.",
-    "Each print is one .ai file: words are vector shapes, and a picture marked PRINT-READY below is enlarged (its DPI is written next to it) with a vector edge.",
-    "(A PNG at 300 DPI is there only for a print whose .ai couldn't be made.)",
-    "",
-  ];
+  const note = String(pack.order.note || "").trim();
+  const shipBy = pack.order.shipBy ? new Date(`${pack.order.shipBy}T12:00:00`).toLocaleDateString("en-IN", { weekday: "short", day: "2-digit", month: "short", year: "numeric" }) : "";
+  // the designs, one block each; the order sheet puts the header, CHECK BEFORE PRINTING and the note above them
+  const sheet = [];
   // the print-ready pictures (Prepare for print): fetched once per picture, drawn into the PDFs by vectorPrint.js
   const readyPictures = new Map(); // key -> { width, height, clip, flate }
 
@@ -517,7 +633,7 @@ export async function buildPrintPack(pack, onStep = () => {}) {
       tick(done, total, `Fetching a print-ready picture for “${title}”…`);
       try {
         const [meta, flate] = await Promise.all([printFileService.meta(key), printFileService.stream(key)]);
-        readyPictures.set(key, { width: meta.width, height: meta.height, clip: meta.clip, flate, keep: meta.keep });
+        readyPictures.set(key, { width: meta.width, height: meta.height, clip: meta.clip, flate, keep: meta.keep, stats: meta.stats || null });
       } catch (err) {
         warnings.push(`“${title}”: a print-ready picture couldn't be fetched (${err.response?.data?.message || err.message}), so that picture is plain pixels in the print files.`);
       }
@@ -565,13 +681,28 @@ export async function buildPrintPack(pack, onStep = () => {}) {
           else if (pictures.size) {
             // the real DPI of each print-ready picture at its print width (the enlarger stops at 4×: not always 600)
             const dpis = drawn.filter((e) => pictures.has(String(e.id))).map((e) => Math.round(pictures.get(String(e.id)).width / ((((e.width || 0) / 100) * w) / 2.54))).filter((x) => x > 0 && Number.isFinite(x));
-            sheet.push(`  ${n} ${area.label}: PRINT-READY picture${pictures.size === 1 ? "" : "s"} (${dpis.length ? `${dpis.join(" / ")} DPI` : "enlarged"}, vector edge).`);
+            sheet.push(`  ${n} ${area.label} (${f.sizes.join(", ")}): PRINT-READY picture${pictures.size === 1 ? "" : "s"} (${dpis.length ? `${dpis.join(" / ")} DPI` : "enlarged"}, vector edge).`);
+          }
+          // what the print team should know about the fine detail in each print-ready picture (counted when it was made)
+          for (const pic of new Set(pictures.values())) {
+            const st = pic.stats;
+            if (!st) continue;
+            const at = `${n} ${area.label} (${f.sizes.join(", ")})`;
+            if (st.knockout) sheet.push(`  ${at}: the tee's own colour is LEFT OUT of the picture (knock-out) — those parts show the tee.`);
+            if (st.specksDropped) sheet.push(`  ${at}: ${st.specksDropped} tiny dot${st.specksDropped === 1 ? "" : "s"} under 0.1 mm² taken out (too small for the film to hold).`);
+            if (st.specks >= 50) checks.push(`${at}: ${st.specks} tiny dots under 0.1 mm² in the picture — they may not hold on the film. Check them after pressing.`);
+            else if (st.specks) sheet.push(`  ${at}: ${st.specks} tiny dot${st.specks === 1 ? "" : "s"} under 0.1 mm² — check after pressing.`);
+            if (st.thinPct >= 5) checks.push(`${at}: ${st.thinPct}% of the ink is thinner than 0.3 mm — fine lines; check they held after pressing.`);
+            else if (st.thinPct >= 1) sheet.push(`  ${at}: ${st.thinPct}% of the ink is thinner than 0.3 mm (fine lines).`);
           }
         } catch (err) {
           console.error("[print files] PDF:", err);
           checks.push(`${n} ${area.label} (${f.sizes.join(", ")}): the .ai couldn't be made (${String(err?.message || err).slice(0, 120)}), so this print is a PNG (300 DPI) instead.`);
           name = `${base}.png`;
-          folder.file(name, await renderPrintFile(drawn, f.cm));
+          // the print-ready pictures as in the .ai (their enlarged copy with the vector edge), not the originals
+          const swap = await withReadyPictures(drawn, cmToPx(w));
+          if (swap.missed) checks.push(`${n} ${area.label} (${f.sizes.join(", ")}): ${swap.missed === 1 ? "a print-ready picture" : `${swap.missed} print-ready pictures`} couldn't be fetched, so the PNG has the plain picture.`);
+          folder.file(name, await renderPrintFile(swap.elements, f.cm));
           files.push(name);
         }
         done += 1;
@@ -586,6 +717,7 @@ export async function buildPrintPack(pack, onStep = () => {}) {
           const px = ready ? ready.width : img?.naturalWidth;
           const dpi = px ? Math.round(px / ((((e.width || 0) / 100) * w) / 2.54)) : 0;
           if (dpi && dpi < LOW_DPI) checks.push(`${n} ${area.label} (${f.sizes.join(", ")}): a picture is only ${dpi} DPI at its print size — it may look blurry.`);
+          else if (dpi && dpi < GOOD_DPI) checks.push(`${n} ${area.label} (${f.sizes.join(", ")}): a picture is ${dpi} DPI at its print size — a little soft up close.`);
         }
       }
     }
@@ -607,13 +739,13 @@ export async function buildPrintPack(pack, onStep = () => {}) {
     // one job card per size (team order: per player)
     const blocks = d.players?.length
       ? d.players.map((p) => ({
-          heading: `ORDER ${pack.order.number}  ·  PLAYER ${String(p.n).padStart(2, "0")}: ${p.name || "-"} · no. ${p.number || "-"}  ·  SIZE ${p.size}`,
+          heading: `${test ? "TEST · " : ""}ORDER ${pack.order.number}  ·  PLAYER ${String(p.n).padStart(2, "0")}: ${p.name || "-"} · no. ${p.number || "-"}  ·  SIZE ${p.size}`,
           key: `player-${String(p.n).padStart(2, "0")}-${safe(playerLabel(p))}`,
           short: `player ${String(p.n).padStart(2, "0")} ${playerLabel(p)}, size ${p.size}`,
           rows: rows.filter((r) => (r.player ? r.player.n === p.n : r.size === p.size)),
         }))
       : d.lines.map((l) => ({
-          heading: `ORDER ${pack.order.number}  ·  SIZE ${l.size}  ·  ${l.qty} TEE${l.qty === 1 ? "" : "S"}`,
+          heading: `${test ? "TEST · " : ""}ORDER ${pack.order.number}  ·  SIZE ${l.size}  ·  ${l.qty} TEE${l.qty === 1 ? "" : "S"}`,
           key: `size-${safe(l.size)}`,
           short: `size ${l.size} × ${l.qty}`,
           rows: rows.filter((r) => r.size === l.size),
@@ -623,7 +755,19 @@ export async function buildPrintPack(pack, onStep = () => {}) {
       tick(done, total, `Making the job card (${b.short}) for “${title}”…`);
       try {
         const bRows = [...b.rows].sort((x, y) => x.n - y.n);
-        folder.file(file, await jobCard({ heading: b.heading, sub: `${title} · ${d.garment.label} · ${colour} · ${pack.order.customer || ""} · ${date}`, rows: bRows, tee: d.colour.hex, checks, notes: [...notesFor(bRows), fonts].filter(Boolean) }));
+        folder.file(
+          file,
+          await jobCard({
+            heading: b.heading,
+            sub: `${title} · ${d.garment.label} · ${colour} · ${pack.order.customer || ""} · ordered ${date}${shipBy ? ` · SHIP BY ${shipBy}` : ""}`,
+            rows: bRows,
+            tee: d.colour.hex,
+            checks,
+            notes: [...notesFor(bRows), fonts].filter(Boolean),
+            banner: test ? "TEST ORDER — DO NOT PRINT" : "",
+            note,
+          }),
+        );
         sheet.push(`  ${file.padEnd(36)} → ${b.short}`);
       } catch {
         warnings.push(`Couldn't make the job card for ${b.short} of “${title}”.`);
@@ -648,8 +792,42 @@ export async function buildPrintPack(pack, onStep = () => {}) {
   }
 
   tick(done, total, "Packing the ZIP…");
-  root.file("ORDER-SHEET.txt", sheet.join("\r\n"));
+  root.file("ORDER-SHEET.txt", orderSheet({ pack, date, shipBy, note, test, warnings, body: sheet }).join("\r\n"));
   const blob = await zip.generateAsync({ type: "blob" }); // PNGs are already compressed
   tick(total, total, "Done");
-  return { blob, fileName: `IDENTEE-${safe(pack.order.number)}-print-files.zip`, warnings };
+  return { blob, fileName: `${zipName}.zip`, warnings };
+}
+
+// ORDER-SHEET.txt (8 Nov 2026, laid out as the print team works): what has to be checked comes first, then how to
+// use the files, each design, and the check after pressing
+function orderSheet({ pack, date, shipBy, note, test, warnings, body }) {
+  const bar = "=".repeat(72);
+  return [
+    ...(test ? [bar, "  TEST ORDER — DO NOT PRINT. (A team member trying the shop.)", bar, ""] : []),
+    `IDENTEE · ORDER ${pack.order.number} · ${pack.order.customer || "-"} · ordered ${date}`,
+    ...(shipBy ? [`SHIP BY: ${shipBy} — the tees leave the workshop by this day.`] : []),
+    "",
+    ...(note ? ["NOTE FROM IDENTEE:", ...note.split(/\r?\n/).map((l) => `  ${l}`), ""] : []),
+    "CHECK BEFORE PRINTING",
+    ...(warnings.length ? warnings.map((w) => `  ! ${w}`) : ["  Nothing to check — every print is ready."]),
+    "",
+    "HOW TO USE THESE FILES",
+    "  Open the JOB-CARD picture of each size: it shows where every print goes, with the measurements.",
+    "  Print each file at 100%. The number at the start of a file name is the print's number on the job card.",
+    "  Each print is one .ai file: words are vector shapes, and a picture marked PRINT-READY below is enlarged",
+    "  (its DPI is written next to it) with a vector edge — nothing outside that edge prints.",
+    "  Colours are sRGB (the profile is inside each file): use your RIP's usual sRGB setting.",
+    "  (A PNG at 300 DPI is there only for a print whose .ai couldn't be made.)",
+    "",
+    ...body,
+    "AFTER PRESSING — check each tee before it is packed",
+    "  [ ] Placement matches TOP and SIDE on the job card (measure with a tape).",
+    "  [ ] Colours match the preview pictures in the design's folder.",
+    "  [ ] Stretch the print gently: no edge lifts or cracks.",
+    "  [ ] Fine lines and small dots are all there.",
+    "  [ ] No glue haze or film left around the print.",
+    "  [ ] The number of tees in each size matches this sheet.",
+    "",
+    "A problem with a file? Reply to the email the link came in.",
+  ];
 }

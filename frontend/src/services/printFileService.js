@@ -13,7 +13,7 @@ const auth = () => {
   }
 };
 
-// { enlarger: { configured, mock, model, priceInr }, teamEmail, keepDays, dpi }
+// { enlarger: { configured, mock, model, priceInr }, teamEmail, keepDays, dpi, options: { knockout, dropSpecks } }
 const status = async () => (await axios.get(`${API}/status`, auth())).data;
 // start making one picture print-ready: { designId, index, printCm } -> { jobId }
 const prepare = async (body) => (await axios.post(`${API}/picture`, body, auth())).data;
@@ -25,6 +25,8 @@ const drop = async (body) => (await axios.delete(`${API}/picture`, { ...auth(), 
 const meta = async (key) => (await axios.get(`${API}/picture/${key}/meta`, auth())).data;
 const stream = async (key) => new Uint8Array((await axios.get(`${API}/picture/${key}/stream`, { ...auth(), responseType: "arraybuffer", timeout: 300000 })).data);
 const previewBlobUrl = async (key) => URL.createObjectURL((await axios.get(`${API}/picture/${key}/preview.webp`, { ...auth(), responseType: "blob" })).data);
+// the print-ready picture as a PNG w px wide, see-through outside its vector edge (for the day sheets and PNG print files)
+const sheetBlob = async (key, w) => (await axios.get(`${API}/picture/${key}/sheet.png`, { ...auth(), params: { w: Math.round(w) }, responseType: "blob", timeout: 300000 })).data;
 
 // Send to print team: the ZIP goes up in parts, then one call emails the link
 const PART = 4 * 1024 * 1024;
@@ -43,7 +45,12 @@ const uploadZip = async (orderId, blob, onPart = () => {}) => {
   return uploadId;
 };
 const send = async (orderId, body) => (await axios.post(`${API}/orders/${orderId}/send`, body, { ...auth(), timeout: 120000 })).data;
+// { teamEmail, note, sent: [{ fileName, bytes, sentTo, sentAt, expiresAt, expired, canResend }] }
 const sent = async (orderId) => (await axios.get(`${API}/orders/${orderId}/sent`, auth())).data;
+// Send again: the same ZIP, a new link (a reprint, a lost email)
+const resend = async (orderId, fileName) => (await axios.post(`${API}/orders/${orderId}/resend`, { fileName }, { ...auth(), timeout: 120000 })).data;
+// the admin's note for the print team (order sheet + job cards)
+const saveNote = async (orderId, note) => (await axios.put(`${API}/orders/${orderId}/note`, { note }, auth())).data;
 
-const printFileService = { status, prepare, job, drop, meta, stream, previewBlobUrl, uploadZip, send, sent };
+const printFileService = { status, prepare, job, drop, meta, stream, previewBlobUrl, sheetBlob, uploadZip, send, sent, resend, saveNote };
 export default printFileService;

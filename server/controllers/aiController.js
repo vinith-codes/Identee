@@ -58,12 +58,15 @@ const DEFAULTS = {
   "ai.assistantV2": { value: true, type: "boolean", description: "The new Assistant (7 Nov 2026): concept sheets, picks by number, several moves per message. Off = the older chat with plan cards" },
   "ai.smartChat": { value: true, type: "boolean", description: "Smart Assistant: Google reads every typed message" },
   "ai.chatPricePerMessageInr": { value: 0.2, type: "number", description: "What one smart Assistant message costs, in rupees (for the spending figures)" },
+  // print files (8 Nov 2026, the print team's needs): both apply when a picture is prepared for print
+  "print.knockout": { value: false, type: "boolean", description: "Print files: leave out black on black tees and white on white tees (the shirt shows through)" },
+  "print.dropSpecks": { value: true, type: "boolean", description: "Print files: leave out bits of ink under 0.1 mm² (about 0.3 × 0.3 mm), too small for DTF film" },
 };
 // how much a customer may type for the AI (a long, detailed idea is fine; 2,000 characters ≈ 300 words — the
 // cut-off only stops something pasted by mistake, like a whole page, from being sent to the AI)
 const PROMPT_MAX = 2000;
 const LIMITS = { "ai.dailyPerUser": [1, 50], "ai.imagesPerRequest": [1, 4], "ai.monthlyCapInr": [0, 1000000], "ai.grokMonthlyCapInr": [0, 1000000], "ai.pricePerImageInr": [0, 100], "ai.grokPricePerImageInr": [0, 100], "ai.replicatePricePerImageInr": [0, 100], [AI_ADDON_KEY]: [0, 5000], "ai.chatPricePerMessageInr": [0, 10] };
-const BOOLEAN_KEYS = ["ai.enabled", "ai.smartChat", "ai.assistantV2"];
+const BOOLEAN_KEYS = ["ai.enabled", "ai.smartChat", "ai.assistantV2", "print.knockout", "print.dropSpecks"];
 
 
 const startOfDay = () => {
@@ -94,6 +97,8 @@ export async function readSettings() {
     smartChat: get("ai.smartChat") !== false,
     assistantV2: get("ai.assistantV2") !== false,
     chatPricePerMessageInr: Number(get("ai.chatPricePerMessageInr")),
+    printKnockout: get("print.knockout") === true,
+    printDropSpecks: get("print.dropSpecks") !== false,
   };
 }
 // a Grok row's model starts with "grok"
@@ -631,6 +636,8 @@ export const saveAiAdmin = asyncHandler(async (req, res) => {
     "ai.smartChat": req.body.smartChat,
     "ai.assistantV2": req.body.assistantV2,
     "ai.chatPricePerMessageInr": req.body.chatPricePerMessageInr,
+    "print.knockout": req.body.printKnockout,
+    "print.dropSpecks": req.body.printDropSpecks,
   };
   for (const [key, raw] of Object.entries(incoming)) {
     if (raw === undefined) continue;
