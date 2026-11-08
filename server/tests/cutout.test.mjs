@@ -47,3 +47,33 @@ test("a white part of the drawing on a magenta background stays", async () => {
   assert.equal(alphaAt(5, 50), 0, "the magenta background is cleared");
   assert.equal(alphaAt(100, 100), 255, "the red drawing stays");
 });
+
+// a hole inside the drawing that shows the magenta background (slightly off-colour, as JPEG leaves it) is cleared too
+test("an enclosed magenta hole is cleared, with a soft edge like the outside", async () => {
+  const pic = await sharp({ create: { width: 300, height: 300, channels: 3, background: "#ff00ff" } })
+    .composite([
+      { input: { create: { width: 200, height: 200, channels: 3, background: "#d02020" } }, left: 50, top: 50 },
+      { input: { create: { width: 60, height: 60, channels: 3, background: "#f80cf8" } }, left: 120, top: 120 }, // the hole, JPEG-shifted magenta
+    ])
+    .png()
+    .toBuffer();
+  const cut = await cutOutPlainBackground(pic);
+  const { data, info } = await sharp(cut.buffer).raw().toBuffer({ resolveWithObject: true });
+  const alphaAt = (x, y) => data[(y * info.width + x) * 4 + 3];
+  assert.equal(alphaAt(150, 150), 0, "the hole is see-through");
+  assert.equal(alphaAt(100, 100), 255, "the drawing stays");
+  assert.equal(alphaAt(10, 10), 0, "the outside is cleared");
+});
+
+test("on a white background a near-white enclosed spot stays (a highlight inside the drawing)", async () => {
+  const pic = await sharp({ create: { width: 300, height: 300, channels: 3, background: "#ffffff" } })
+    .composite([
+      { input: { create: { width: 200, height: 200, channels: 3, background: "#d02020" } }, left: 50, top: 50 },
+      { input: { create: { width: 60, height: 60, channels: 3, background: "#f4f4f4" } }, left: 120, top: 120 }, // a light-grey highlight, not the exact white
+    ])
+    .png()
+    .toBuffer();
+  const cut = await cutOutPlainBackground(pic);
+  const { data, info } = await sharp(cut.buffer).raw().toBuffer({ resolveWithObject: true });
+  assert.equal(data[(150 * info.width + 150) * 4 + 3], 255, "the highlight stays");
+});

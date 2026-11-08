@@ -55,9 +55,21 @@ export async function cutOutPlainBackground(buffer) {
     if (p >= w) push(p - w);
     if (p < w * (h - 1)) push(p + w);
   }
+  // closed-in spots of the background colour (the hole between a JCB's arms, the inside of an O): on a white or
+  // black background only an exact match goes (white highlights inside a drawing must stay); on the magenta
+  // "green screen" (8 Nov 2026) nothing in a drawing is near magenta, so the usual nearness applies — JPEG shifts
+  // magenta more than white, and an exact match missed a whole hole
+  const keyColour = Math.max(...colour) - Math.min(...colour) > 120;
+  const enclosed = keyColour ? NEAR : EXACT;
+  // on the key colour, a sliver blended with it (between a bucket's teeth, inside a letter) is background too:
+  // the key's hue, strongly — nothing a drawing uses, by the instruction the AI gets
+  const lowCh = colour.indexOf(Math.min(...colour));
+  const hi = [0, 1, 2].filter((k) => k !== lowCh);
+  const keyHue = (i) => data[i + hi[0]] > data[i + lowCh] + 90 && data[i + hi[1]] > data[i + lowCh] + 90 && (data[i + hi[0]] + data[i + hi[1]]) / 2 > 80;
+  for (let p = 0; p < w * h; p++) if (!gone[p] && (dist(data, p * 4, colour) < enclosed || (keyColour && keyHue(p * 4)))) gone[p] = 1;
   for (let p = 0; p < w * h; p++) {
     const i = p * 4;
-    if (gone[p] || dist(data, i, colour) < EXACT) {
+    if (gone[p]) {
       data[i + 3] = 0;
       continue;
     }
