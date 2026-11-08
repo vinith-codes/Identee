@@ -33,7 +33,7 @@ import myPicturesService from "../services/myPicturesService";
 import { chatTitle, historyFor, listChats, loadChat, moveLocalChats, saveChat } from "./chatStore";
 import { AFTER_AI_SLOGANS, AFTER_DESIGN_CHIPS, BACK, CHANGE_IDEA, DRAW_MINE, PHOTO_AS_IS, PHOTO_CHOICES, PHOTO_CUT, PHOTO_REVERT, PROMPT_MAX, bot as botSays, checkMessages, chips as chipRow, firstMessages, firstState, smartPlan } from "./assistantScript";
 import { makeShareCard, shareTee } from "./shareTee";
-import { firstMessagesV2, isUntouchedStart, sheetsFromChat, nextConceptNumber, findConcept, piecesOf, pieceArea, placementHint, shrinkForHint, aiPictureOnTee } from "./assistantV2";
+import { firstMessagesV2, isUntouchedStart, sheetsFromChat, nextConceptNumber, findConcept, piecesOf, pieceArea, placementHint, shrinkForHint, aiPictureOnTee, ideaSheet } from "./assistantV2";
 import { styleIn } from "./styleInfo";
 import { areasFromWords, photoJobFrom, SAME_THEME } from "./photoIntent";
 import aiService from "../services/aiService";
@@ -256,6 +256,7 @@ export default function DesignRoomPage() {
   const [shots, setShots] = useState(null);
   const [sharing, setSharing] = useState(false); // Share my tee: the picture is being made
   const [worn, setWorn] = useState(null); // Photo of it worn (round 5): null | "making" | { url }
+  const tryOnRef = useRef(null); // Try it on me (round 7): the customer's own photo
   const [spin, setSpin] = useState(true);
   const [lit, setLit] = useState(false); // Review: the dressing room has been drawn, so its lights can come up
   const litTimer = useRef(null);
@@ -1365,6 +1366,7 @@ export default function DesignRoomPage() {
       else if (step.type === "menu" && step.item === "Photo to art" && (a.photo || chatState.photo)) out.push(...(await chatPhotoUnderstand({ text: a.text, photo: a.photo || chatState.photo }, run)));
       else if (step.type === "develop") out.push(...(await developPicks(step, progress, run)));
       else if (step.type === "match") out.push(...(await matchPiece(step, progress, run)));
+      else if (step.type === "team") out.push(...setupTeam(step));
       else if (step.type === "draw") out.push(...(await drawPlan({ items: [{ subject: step.subject, areaKey: step.area }], style: step.style }, progress, run)).filter((m) => !m.chips));
       else if (step.type === "edit") out.push(...(await chatEdit({ message: step.message }, progress, run)).filter((m) => !m.chips));
       else if (step.type === "slogans") {
@@ -1383,6 +1385,12 @@ export default function DesignRoomPage() {
     const landed = (res.steps || []).some((st) => st.type === "develop" || st.type === "match") && out.some((m) => m.designs);
     const sleeveTaken = elements.some((e) => /sleeve/.test(e.position)) || out.some((m) => m.placedOn?.some((k) => /sleeve/.test(k)));
     if (landed && !sleeveTaken && c.areas.some((ar) => /sleeve/.test(ar.key) && ar.free) && !chips.some((ch) => /sleeve/i.test(ch))) chips.splice(0, 0, "A small matching logo on the sleeve too");
+    // the tee changed: keep this version with a small picture, so the customer can come back to it (round 7)
+    // (a develop or match says what it placed; a drawing, an edit, the team list or an undo count as a change)
+    if (out.some((m) => m.placedOn) || (res.steps || []).some((st) => ["draw", "edit", "team", "undo"].includes(st.type))) {
+      const label = (res.steps || []).map((st) => (st.type === "develop" ? `concept ${st.picks?.join(", ")}` : st.type === "match" ? `matching ${st.piece}` : st.type === "draw" ? "a drawing" : st.type === "edit" ? st.message : st.type === "team" ? "the team list" : "undo")).filter(Boolean).join(" · ");
+      out.push(await versionMessage(label));
+    }
     if (!asked && chips.length) out.push({ chips, smart: true });
     const shown = out.filter((m) => !m.placedOn);
     return shown.length ? shown : [botSays("How can I help with your tee?")];
@@ -1538,6 +1546,138 @@ export default function DesignRoomPage() {
       { placedOn: [pos.key] },
     ];
   };
+  // A pasted team list, or the brain's team step: one tee per player. It is ADDED to the players already entered
+  // (the same name and number twice is skipped), so a second list can't wipe the first.
+  const addPlayers = (list) => {
+    setPlayers((cur) => {
+      const kept = cur.filter(filled);
+      const key = (p) => `${String(p.name || "").trim().toLowerCase()}|${String(p.number || "").trim()}`;
+      const seen = new Set(kept.map(key));
+      const fresh = list.filter((p) => !seen.has(key(p)) && seen.add(key(p)));
+      return [...kept, ...fresh.map((p) => ({ id: makeId(), ...p }))].slice(0, MAX_PLAYERS);
+    });
+    return setTeam(true);
+  };
+  // The brain's team step (round 7, 8 Nov 2026): "Arun 7, Priya 10, Karthik" → a name slot (and a number slot) on
+  // the tee if there is none yet, and one tee per person.
+  const setupTeam = (step) => {
+    let els = elementsRef.current;
+    const first = step.players[0] || {};
+    const ensureRole = (role, piece, sample) => {
+      if (els.some((e) => e.type === "text" && e.role === role)) return;
+      const pos = pieceArea(piece, positions, []) || positions.find((p) => p.main) || positions[0];
+      if (!pos) return;
+      const base = { type: "text", text: sample, fontFamily: "Anton", fontSizePct: role === "number" ? 24 : 11, color: inkDefault, align: "center", effect: "straight", x: 50, y: role === "number" ? 28 : 64, width: 0, height: 0, role };
+      els = [...els, { id: makeId(), position: pos.key, side: pos.side, rotation: 0, zIndex: els.length + 1, ...textBox(base, pos) }];
+    };
+    ensureRole("name", step.namesOn || "back", String(first.name || "NAME").toUpperCase());
+    const numbers = Boolean(step.numbersOn) && step.players.some((p) => p.number);
+    if (numbers) ensureRole("number", step.numbersOn, String(first.number || "7"));
+    if (els !== elementsRef.current) commit(els);
+    addPlayers(step.players.map((p) => ({ name: String(p.name || "").slice(0, NAME_MAX), number: String(p.number || "").slice(0, NUMBER_MAX), size: sizeNow })));
+    const who = step.players.slice(0, 4).map((p) => p.name || p.number).filter(Boolean);
+    return [
+      botSays(`${step.players.length} tee${step.players.length === 1 ? "" : "s"}, one each: ${andList(who)}${step.players.length > 4 ? " and more" : ""}. The name goes on the ${step.namesOn || "back"}${numbers ? ` and the number on the ${step.numbersOn}` : ""} — tell me if you'd like them elsewhere, bigger or in another colour. In Review, tap a player to see their tee.`),
+      chipRow(["Continue to review", "Make the names bigger"]),
+    ];
+  };
+  // Browse ideas (round 7): the concept sheets the admin featured, as a starting point
+  const loadIdeas = async () => {
+    try {
+      const res = await aiService.ideas();
+      return [{ browse: res.ideas || [] }];
+    } catch {
+      return [botSays("The ideas couldn’t be loaded just now. Tell me what you want and I’ll show three concepts.")];
+    }
+  };
+  const startFromIdea = (idea) => {
+    const sheet = ideaSheet(idea, nextConceptNumber(sheetsFromChat(chat)));
+    setChat((m) => [...m.map((x) => (x.browse ? { ...x, done: true } : x)), { from: "me", text: `Start from “${idea.brief || sheet.concepts.map((c) => c.title).join(", ")}”` }, { sheet }, botSays("Here they are in your chat. Tap a number to make one on your tee, or say what to change — “2 but with my cafe’s name”.")]);
+  };
+  // Versions (round 7): after an AI change the tee as it is now is kept with a small picture; "Go back to this" restores it
+  const shrinkDataUrl = (src, width = 180) =>
+    new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        const c = document.createElement("canvas");
+        c.width = width;
+        c.height = Math.round((img.height / img.width) * width);
+        c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+        resolve(c.toDataURL("image/jpeg", 0.7));
+      };
+      img.onerror = () => resolve(null);
+      img.src = src;
+    });
+  const versionMessage = async (label) => {
+    let thumb = null;
+    try {
+      const m = await captureMockups();
+      thumb = m?.front ? await shrinkDataUrl(m.front) : null;
+    } catch {
+      /* no picture then */
+    }
+    const n = chat.filter((x) => x.version).length + 1;
+    return { version: { n, label: String(label || "A change").slice(0, 80), elements: elementsRef.current, colour: colour?.slug || null, thumb } };
+  };
+  const restoreVersion = (v) => {
+    if (!Array.isArray(v?.elements)) return;
+    commit(v.elements);
+    setAiPlaced((cur) => Object.fromEntries(Object.entries(cur).filter(([, p]) => v.elements.some((e) => e.id === p.elId))));
+    setSelectedId(null);
+    say(`Back to version ${v.n}.`);
+  };
+  // "Ask the IDENTEE team to finish it" (round 6, 8 Nov 2026): the customer's line, the tee as it is, the last part of
+  // the chat and a picture of the front go to the team (Admin → Design Studio → Help requests)
+  const askTeam = async (a) => {
+    if (!isLoggedIn()) {
+      goToLogin();
+      return [];
+    }
+    let mockup = null;
+    try {
+      mockup = (await captureMockups())?.front || null;
+    } catch {
+      /* no picture then */
+    }
+    const chatLines = chat
+      .filter((m) => m.from && typeof m.text === "string")
+      .slice(-30)
+      .map((m) => ({ who: m.from === "me" ? "customer" : "assistant", text: m.text }));
+    try {
+      await aiService.help({
+        note: a.note,
+        garment: type,
+        colour: colour?.slug || "",
+        size: sizeNow,
+        design: { elements, positions: positions.map((p) => ({ key: p.key, label: p.label, side: p.side })) },
+        chat: chatLines,
+        ...(mockup ? { mockup } : {}),
+      });
+      return [botSays("Sent to the IDENTEE team. One of our designers will look at your tee and this chat and get in touch on WhatsApp, usually within a day. Your tee stays saved here meanwhile.")];
+    } catch (err) {
+      return [botSays(err.response?.data?.message || "That didn’t send. Please try again in a moment."), { failed: true }];
+    }
+  };
+  // The print, in plain words (round 6): every print's size, how sharp a picture will be, how tall the letters are
+  const printLines = () =>
+    elements
+      .map((el) => {
+        const pos = positions.find((p) => p.key === el.position);
+        if (!pos) return null;
+        const { wCm, hCm } = areaPx(pos);
+        if (el.type === "image") {
+          const printCm = ((el.width || 0) / 100) * wCm;
+          const dpi = el.pxW ? printSharpness(el.pxW, printCm, ai.available).printed : null;
+          const how = dpi == null ? "" : dpi >= 150 ? " — sharp" : dpi >= 100 ? " — prints fine" : " — a little soft";
+          return `${pos.label}: picture ${printCm.toFixed(0)} cm wide${how}${dpi != null ? ` (${Math.round(dpi)} dpi)` : ""}`;
+        }
+        if (el.type === "text") {
+          const mm = Math.round((((el.fontSizePct || 0) / 100) * hCm) * 10);
+          return `${pos.label}: “${String(el.text || "").replace(/\s+/g, " ").trim().slice(0, 24)}” — letters about ${mm} mm tall`;
+        }
+        return null;
+      })
+      .filter(Boolean);
   // Edit the tee by chat: the text AI suggests changes, aiOps checks and applies them (one Undo step).
   // progress(now): tells the assistant's wait card what is happening now (drawing the pictures asked for)
   const chatEdit = async (a, progress, run) => {
@@ -2373,6 +2513,10 @@ export default function DesignRoomPage() {
     if (a.type === "edit") return chatEdit(a, progress, run);
     if (a.type === "smart") return chatSmart(a, progress, run);
     if (a.type === "assist") return chatAssist(a, progress, run);
+    if (a.type === "help") return askTeam(a);
+    if (a.type === "ideas") return loadIdeas();
+    if (a.type === "useIdea") return startFromIdea(a.idea);
+    if (a.type === "restore") return restoreVersion(a.version);
     if (a.type === "photoPick") return openPhotoStudio();
     if (a.type === "aiTab") {
       // (from chats saved before the Draw / Photo pages went: a drawing with words becomes its plan card)
@@ -2402,18 +2546,7 @@ export default function DesignRoomPage() {
       return setSelectedId(null);
     }
     if (a.type === "review") return toReview(true);
-    if (a.type === "players") {
-      // a pasted team list: one tee per player. It is ADDED to the players already entered (the same
-      // name and number twice is skipped), so a second paste can't wipe the first list.
-      setPlayers((list) => {
-        const kept = list.filter(filled);
-        const key = (p) => `${String(p.name || "").trim().toLowerCase()}|${String(p.number || "").trim()}`;
-        const seen = new Set(kept.map(key));
-        const fresh = a.players.filter((p) => !seen.has(key(p)) && seen.add(key(p)));
-        return [...kept, ...fresh.map((p) => ({ id: makeId(), ...p }))].slice(0, MAX_PLAYERS);
-      });
-      return setTeam(true);
-    }
+    if (a.type === "players") return addPlayers(a.players);
     if (a.type === "ink") {
       const texts = elements.filter((e) => e.type === "text" && e.position === active);
       if (!texts.length) return say("There’s no text on this print area yet. Add some, then pick a colour.");
@@ -3266,6 +3399,24 @@ export default function DesignRoomPage() {
                 <div className="eyebrow">Review your design</div>
                 <p className="dr-review-hint">Tap a side to look at it on the tee, or watch it turn 360°.</p>
               </div>
+              {/* The print, in plain words (round 6, 8 Nov 2026): what prints where, how sharp, how big — and anything to fix */}
+              {elements.length > 0 && (
+                <div className="dr-printcheck" aria-label="Print check">
+                  <div className="dr-printcheck-head">{designIssues().length ? "Before you order — worth a look" : "Print check: all good ✓"}</div>
+                  <ul>
+                    {printLines().map((line) => (
+                      <li key={line}>{line}</li>
+                    ))}
+                    {lum(fabricHex) < 0.55 && elements.some((e) => e.type === "image") && <li>White parts of a picture print as white ink on this dark tee.</li>}
+                  </ul>
+                  {designIssues().map((issue) => (
+                    <div key={issue.id} className="dr-printcheck-issue">
+                      <span>{issue.text}</span>
+                      <button type="button" className="dr-mini" onClick={() => applyFix(issue)}>{issue.fixLabel}</button>
+                    </div>
+                  ))}
+                </div>
+              )}
               {/* Share my tee (round 3, 7 Nov 2026): front + back on one picture, to WhatsApp or saved — most group tees need someone else's yes first */}
               {shots?.length === 4 && shots[0]?.url && (
                 <button
@@ -3309,6 +3460,49 @@ export default function DesignRoomPage() {
                 >
                   {worn === "making" ? "Taking the photo… (about 30 s)" : "Photo of it worn"}
                 </button>
+              )}
+              {/* Try it on me (round 7, 8 Nov 2026): the customer's own photo, wearing this tee */}
+              {shots?.length === 4 && shots[0]?.url && ai.available && (
+                <>
+                  <button type="button" className="dr-share alt" disabled={worn === "making"} onClick={() => (isLoggedIn() ? tryOnRef.current?.click() : goToLogin())}>
+                    Try it on me
+                  </button>
+                  <input
+                    ref={tryOnRef}
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    hidden
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      e.target.value = "";
+                      if (!file) return;
+                      setWorn("making");
+                      try {
+                        const photo = await new Promise((resolve, reject) => {
+                          const img = new Image();
+                          const url = URL.createObjectURL(file);
+                          img.onload = () => {
+                            const k = Math.min(1, 1280 / Math.max(img.width, img.height));
+                            const c = document.createElement("canvas");
+                            c.width = Math.round(img.width * k);
+                            c.height = Math.round(img.height * k);
+                            c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+                            URL.revokeObjectURL(url);
+                            resolve(c.toDataURL("image/jpeg", 0.9));
+                          };
+                          img.onerror = () => reject(new Error("That photo couldn’t be read."));
+                          img.src = url;
+                        });
+                        const res = await aiService.tryOn({ photo, image: shots[0].url, garment: garment?.label || "t-shirt", teeColour: colour?.name || "white" });
+                        if (res.left != null) setAi((cur) => ({ ...cur, left: res.left }));
+                        setWorn({ url: res.url });
+                      } catch (err) {
+                        setWorn(null);
+                        say(err?.response?.data?.message || err?.message || "The photo couldn’t be made just now.");
+                      }
+                    }}
+                  />
+                </>
               )}
               {worn?.url &&
                 createPortal(

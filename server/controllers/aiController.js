@@ -584,11 +584,13 @@ export const getAiAdmin = asyncHandler(async (req, res) => {
     AiUsage.find({ kind: "sheet", createdAt: { $gte: since } }).sort({ createdAt: 1 }).select("user prompt createdAt").populate("user", "name email phone").lean(),
     AiUsage.find({ kind: "develop", createdAt: { $gte: since } }).select("user").lean(),
   ]);
+  // the last concept sheets, for Browse ideas (round 7): the admin ticks the ones customers may start from
+  const ideaSheets = (await AiUsage.find({ kind: "sheet", "sheet.url": { $exists: true } }).sort({ createdAt: -1 }).limit(30).select("sheet featured createdAt").lean()).map((r) => ({ id: r._id, url: r.sheet.url, brief: r.sheet.brief || "", titles: (r.sheet.concepts || []).map((c) => c.title), teeColour: r.sheet.teeColour || "", featured: Boolean(r.featured), when: r.createdAt }));
   const orders = sheetRows.length ? await Order.find({ user: { $in: [...new Set(sheetRows.map((r) => String(r.user?._id || r.user)))] }, createdAt: { $gte: since } }).select("user createdAt").lean() : [];
   const monthStart = startOfMonth();
   res.json({
     // what the concept sheets teach us (Assistant v2): all time and this month, and who started but didn't order
-    concepts: { allTime: conceptSummary(conceptRows), month: conceptSummary(conceptRows.filter((r) => r.createdAt >= monthStart)), unfinished: unfinishedDesigns(sheetRows, developRows, orders) },
+    concepts: { allTime: conceptSummary(conceptRows), month: conceptSummary(conceptRows.filter((r) => r.createdAt >= monthStart)), unfinished: unfinishedDesigns(sheetRows, developRows, orders), ideaSheets },
     configured: aiImageConfigured(),
     model: aiImageModel(),
     // the second picture service, for photos Google refuses

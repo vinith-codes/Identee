@@ -11,7 +11,7 @@ test("the v2 start is one line and three suggestions that go to the brain", () =
   const m = firstMessagesV2();
   assert.equal(m.length, 2);
   assert.equal(m[0].from, "bot");
-  assert.deepEqual(m[1], { chips: suggestionsFor(new Date()), smart: true }); // (the first chip follows the season)
+  assert.deepEqual(m[1], { chips: ["Help me start (3 taps)", "Browse ideas", ...suggestionsFor(new Date())], smart: true }); // (the three-tap start and Browse ideas first, then the season's chip)
   assert.equal(isUntouchedStart(m), true);
   assert.equal(isUntouchedStart([...m, { from: "me", text: "hello" }]), false);
 });
@@ -79,7 +79,7 @@ test("the first suggestion follows the season; the other two stay", async () => 
   assert.equal(suggestionsFor(new Date(2026, 9, 20))[0], "A Diwali tee for my family");
   assert.equal(suggestionsFor(new Date(2026, 10, 7))[0], "Designs for my cafe staff");
   assert.deepEqual(suggestionsFor(new Date(2026, 5, 1)).slice(1), ["Draw a lion with a cricket bat", "A slogan for my team"]);
-  assert.equal(firstMessagesV2(new Date(2026, 11, 25))[1].chips[0], "A New Year 2027 tee for our group");
+  assert.equal(firstMessagesV2(new Date(2026, 11, 25))[1].chips[2], "A New Year 2027 tee for our group"); // (chips 0 and 1 are the three-tap start and Browse ideas)
 });
 
 test("placement from the concept's words: a chest badge goes small on the chest area, a full back fills", async () => {
@@ -117,4 +117,26 @@ test("the picture a matching piece starts from: our own picture on the tee, the 
   assert.deepEqual(aiPictureOnTee(els, positions), { url: "/uploads/ai-designs/f.png", position: "centre-front", label: "Centre front" });
   assert.equal(aiPictureOnTee(els.slice(0, 1), positions), null);
   assert.equal(aiPictureOnTee(els.slice(3), positions), null); // library art doesn't count
+});
+
+test("the three-tap start: who → what (depends on who) → look, then one brief for the brain", async () => {
+  const { starterStep, starterOptions, starterBrief, STARTER_CHIP } = await import("../src/studio/assistantV2.js");
+  assert.equal(STARTER_CHIP, "Help me start (3 taps)");
+  assert.equal(starterStep({}), "who");
+  assert.deepEqual(starterOptions({}), ["Me", "My team or group", "My shop or business", "A gift"]);
+  assert.equal(starterStep({ who: "My team or group" }), "what");
+  assert.deepEqual(starterOptions({ who: "My team or group" }), ["Cricket or sports", "College fest", "Office team", "A trip or reunion"]);
+  assert.equal(starterStep({ who: "Me", what: "A trip" }), "mood");
+  assert.equal(starterStep({ who: "Me", what: "A trip", mood: "Funny" }), null);
+  assert.equal(starterBrief({ who: "My team or group", what: "Cricket or sports", mood: "Bold" }), "Design a bold tee for my team or group — cricket or sports. Show me three concepts; ask me for any name or words you need.");
+  assert.match(starterBrief({ who: "A gift", what: "A birthday", mood: "Funny" }), /^Design a funny tee as a gift — a birthday\./);
+});
+
+test("a featured sheet becomes a sheet in the chat, numbered on from the ones already there", async () => {
+  const { ideaSheet, nextConceptNumber } = await import("../src/studio/assistantV2.js");
+  const idea = { url: "/uploads/ai-concepts/x.jpg", brief: "cafe tees", concepts: [{ title: "A", front: "a" }, { title: "B", front: "b" }, { title: "C", back: "c" }] };
+  const s = ideaSheet(idea, 4);
+  assert.deepEqual(s.concepts.map((c) => c.n), [4, 5, 6]);
+  assert.equal(s.fromIdeas, true);
+  assert.equal(nextConceptNumber([s]), 7);
 });

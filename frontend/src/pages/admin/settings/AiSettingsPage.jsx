@@ -7,6 +7,7 @@
 import { useEffect, useState } from "react";
 import { THEME } from "../../../theme/theme";
 import aiService from "../../../services/aiService";
+import { imageUrl } from "../../../utils/imageUrl";
 import { useReportUnsaved } from "../../../utils/unsavedChanges";
 
 const FIELDS = [
@@ -180,6 +181,36 @@ export default function AiSettingsPage() {
             </div>
           )}
           <div style={{ fontSize: 12, color: t.textMuted, marginTop: 6 }}>A sheet shows 3 concepts; the pick rate is concepts made real ÷ concepts shown. A low rate means the sheets miss what customers want — tell Claude which kinds of requests.</div>
+          {data.concepts.ideaSheets?.length > 0 && (
+            <div style={{ marginTop: 12 }}>
+              <div style={{ fontSize: 12, color: t.textMuted, marginBottom: 6 }}>Browse ideas — tick the concept sheets customers may start from (the Assistant shows them under “Browse ideas”; a pick from one is made real as usual).</div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 10 }}>
+                {data.concepts.ideaSheets.map((sh) => (
+                  <label key={sh.id} style={{ display: "grid", gap: 6, padding: 8, border: `1px solid ${sh.featured ? "#C9A24A" : t.border}`, borderRadius: 10, background: sh.featured ? "#FBF4E0" : "#fff", cursor: "pointer" }}>
+                    <img src={imageUrl(sh.url, 600)} alt="" style={{ width: "100%", borderRadius: 6, background: "#F1ECE1" }} />
+                    <div style={{ fontSize: 12.5, lineHeight: 1.35 }}>{sh.brief || sh.titles.join(" · ")}</div>
+                    <div style={{ fontSize: 11.5, color: t.textMuted }}>{sh.titles.join(" · ")}{sh.teeColour ? ` · ${sh.teeColour} tee` : ""}</div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12.5 }}>
+                      <input
+                        type="checkbox"
+                        checked={sh.featured}
+                        onChange={async (e) => {
+                          const featured = e.target.checked;
+                          setData((d) => ({ ...d, concepts: { ...d.concepts, ideaSheets: d.concepts.ideaSheets.map((x) => (x.id === sh.id ? { ...x, featured } : x)) } }));
+                          try {
+                            await aiService.setIdea(sh.id, featured);
+                          } catch {
+                            setData((d) => ({ ...d, concepts: { ...d.concepts, ideaSheets: d.concepts.ideaSheets.map((x) => (x.id === sh.id ? { ...x, featured: !featured } : x)) } }));
+                          }
+                        }}
+                      />
+                      Show in Browse ideas
+                    </div>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
           {data.concepts.unfinished?.length > 0 && (
             <div style={{ marginTop: 12 }}>
               <div style={{ fontSize: 12, color: t.textMuted, marginBottom: 4 }}>Started but not ordered (last 30 days) — customers who got concepts and placed no order since. Worth a WhatsApp.</div>

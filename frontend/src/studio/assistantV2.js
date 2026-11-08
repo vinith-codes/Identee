@@ -31,8 +31,48 @@ export const suggestionsFor = (date = new Date()) => {
 export const CONCEPTS_PER_SHEET = 3;
 export const PIECES = ["front", "back", "sleeve"];
 
-/** The start of a v2 chat: one line and three suggestions (they go to the brain when tapped). */
-export const firstMessagesV2 = (date = new Date()) => [{ from: "bot", text: HELLO_V2 }, { chips: suggestionsFor(date), smart: true }];
+// Round 6 (8 Nov 2026): a start with no typing — three taps make the brief; and the way to a person
+export const STARTER_CHIP = "Help me start (3 taps)";
+export const BROWSE_CHIP = "Browse ideas";
+export const ASK_TEAM = "Ask the IDENTEE team";
+export const STARTER = {
+  who: { ask: "Who is the tee for?", options: ["Me", "My team or group", "My shop or business", "A gift"] },
+  what: {
+    ask: "What is it for?",
+    options: {
+      Me: ["Everyday wear", "A trip", "My college", "Making a statement"],
+      "My team or group": ["Cricket or sports", "College fest", "Office team", "A trip or reunion"],
+      "My shop or business": ["Staff uniform", "Cafe or restaurant", "Brand merchandise", "An event"],
+      "A gift": ["A birthday", "A couple", "A farewell", "A family occasion"],
+    },
+  },
+  mood: { ask: "What look?", options: ["Bold", "Minimal", "Funny", "Classy"] },
+};
+/** The step a starter card is on: "who" → "what" → "mood" → null when all three are picked. */
+export const starterStep = (s = {}) => (!s.who ? "who" : !s.what ? "what" : !s.mood ? "mood" : null);
+/** The options for that step (the second step depends on the first answer). */
+export const starterOptions = (s = {}) => {
+  const step = starterStep(s);
+  if (!step) return [];
+  return step === "what" ? STARTER.what.options[s.who] || STARTER.what.options.Me : STARTER[step].options;
+};
+/** The three answers as one brief the brain understands. */
+export function starterBrief({ who, what, mood }) {
+  const look = String(mood || "bold").toLowerCase();
+  const thing = String(what || "").toLowerCase();
+  const line =
+    who === "My team or group"
+      ? `Design a ${look} tee for my team or group — ${thing}.`
+      : who === "My shop or business"
+        ? `Design ${look} tees for my shop or business — ${thing}.`
+        : who === "A gift"
+          ? `Design a ${look} tee as a gift — ${thing}.`
+          : `Design a ${look} tee for me — ${thing}.`;
+  return `${line} Show me three concepts; ask me for any name or words you need.`;
+}
+
+/** The start of a v2 chat: one line, the three-tap start and three suggestions (they go to the brain when tapped). */
+export const firstMessagesV2 = (date = new Date()) => [{ from: "bot", text: HELLO_V2 }, { chips: [STARTER_CHIP, BROWSE_CHIP, ...suggestionsFor(date)], smart: true }];
 
 /** Is this chat still the untouched start (nothing said yet)? Then it may be swapped for the v2 start. */
 export const isUntouchedStart = (messages) => Array.isArray(messages) && messages.length <= 3 && !messages.some((m) => m.from === "me" || m.pending || m.sheet || m.designs);
@@ -163,3 +203,18 @@ export function aiPictureOnTee(elements = [], positions = []) {
   if (!e) return null;
   return { url: e.src, position: e.position, label: positions.find((p) => p.key === e.position)?.label || "the tee" };
 }
+
+/**
+ * A featured sheet (Browse ideas, round 7) as a sheet in this chat: numbered on from the sheets already here, so
+ * "2" picks from it like any other sheet (its picture is one of our uploads, so a pick develops from it as usual).
+ */
+export const ideaSheet = (idea, numberFrom = 1) => ({
+  url: idea.url,
+  width: idea.width || 1536,
+  height: idea.height || 864,
+  numberFrom,
+  brief: idea.brief || "",
+  concepts: (idea.concepts || []).slice(0, CONCEPTS_PER_SHEET).map((c, i) => ({ n: numberFrom + i, ...c })),
+  developed: [],
+  fromIdeas: true,
+});

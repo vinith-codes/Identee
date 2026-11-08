@@ -30,6 +30,7 @@ export const MENU_ITEMS = {
   "Open the art library": "the free ready-made designs (cars, bikes …)",
   "Upload a picture": "put their own picture on the tee",
   "My pictures": "the pictures they made with the Assistant or uploaded before, in any chat — to put one on this tee again (free, no new drawing)",
+  "Ask the team": "IDENTEE's own designers finish the tee for the customer and get in touch — for a customer who is stuck, frustrated or asks for a person (\"do it for me\", \"I can't do this\", \"can someone help\", \"talk to a human\")",
   "Continue to review": "go to the review and order step",
 };
 export const TONES = ["Funny", "Bold", "Emotional", "Simple"];

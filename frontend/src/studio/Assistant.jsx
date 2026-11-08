@@ -14,13 +14,13 @@ import PlanCard from "./PlanCard";
 import PhotoPlanCard from "./PhotoPlanCard";
 import MyPictures from "./MyPictures";
 import SheetCard from "./SheetCard";
-import { assistAct } from "./assistantV2";
+import { assistAct, STARTER_CHIP, ASK_TEAM, STARTER, starterStep, starterOptions, starterBrief, BROWSE_CHIP } from "./assistantV2";
 import { speechSupported, startListening } from "./voiceInput";
 import { PhotoError, shrinkPhoto } from "./shrinkPhoto";
 
 const PICTURE_HINT = "Usually 20–40 seconds. You can look around the room meanwhile.";
 // the acts that take a while (an AI or the server): the chat waits for them with a wait card
-const SLOW = ["generate", "slogans", "edit", "improve", "drawPlan", "photoPlace", "photoUnderstand", "photoMake", "smart", "assist"];
+const SLOW = ["generate", "slogans", "edit", "improve", "drawPlan", "photoPlace", "photoUnderstand", "photoMake", "smart", "assist", "help", "ideas"];
 // What the wait card says for an AI job: { label, expect (usual seconds), hint }
 const waitFor = (a) =>
   a.type === "assist"
@@ -174,7 +174,7 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
           return;
         }
         // { failed: true } from the page = this request can simply be tried again; { retry: act } = try that one
-        const out = made.flatMap((x) => (x.menu ? helper(x.menu) : [x])).map((x) => (x.failed ? { retry: act, wait } : x.retry && !x.wait ? { ...x, wait: waitFor(x.retry) } : x));
+        const out = made.flatMap((x) => (x.menu === "Ask the team" ? [{ help: {} }] : x.menu ? helper(x.menu) : [x])).map((x) => (x.failed ? { retry: act, wait } : x.retry && !x.wait ? { ...x, wait: waitFor(x.retry) } : x));
         setMessages((m) => [...m.filter((x) => !x.pending), ...out, ...after]);
       });
   };
@@ -204,6 +204,22 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
   // tapped: the customer tapped a choice (typed messages may be sent to the text AI; taps never are)
   const say = (text, tapped = false) => {
     if (thinking || !text) return false;
+    // round 6 (8 Nov 2026): two taps that stay on the page — the three-tap start, and the way to a person
+    if (text === STARTER_CHIP) {
+      setMessages((m) => [...m.map((x) => (x.chips ? { ...x, done: true } : x)), { from: "me", text }, { starter: {} }]);
+      return true;
+    }
+    if (text === BROWSE_CHIP) {
+      // round 7: the sheets the admin featured — a starting point, free to look at
+      setMessages((m) => [...m.map((x) => (x.chips ? { ...x, done: true } : x)), { from: "me", text }]);
+      run({ type: "ideas" }, { label: "Looking up ideas…", expect: 3 });
+      return true;
+    }
+    if (text === ASK_TEAM) {
+      if (!ctx().ai.loggedIn) return onAct({ type: "login" }) || true;
+      setMessages((m) => [...m.map((x) => (x.chips || x.retry ? { ...x, done: true } : x)), { from: "me", text }, { help: {} }]);
+      return true;
+    }
     // the chips just answered can't be tapped again
     // ("Not now" on a plan card closes that card too)
     setMessages((m) => [...m.map((x) => (x.chips || x.retry || ((x.plan || x.photoPlan) && text === NOT_NOW) ? { ...x, done: true } : x)), { from: "me", text }]);
@@ -403,6 +419,7 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
               <div key={i} className={`dr-chatchips${m.done ? " done" : ""}`}>
                 <button type="button" className="dr-chip dr-retry" disabled={m.done || !!thinking} onClick={() => retry(i, m)}>↻ Try again</button>
                 <button type="button" className="dr-chip" disabled={m.done || !!thinking} onClick={() => say("Something else", true)}>Something else</button>
+                <button type="button" className="dr-chip" disabled={m.done || !!thinking} onClick={() => say(ASK_TEAM, true)}>{ASK_TEAM}</button>
               </div>
             );
           }
@@ -539,6 +556,77 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
                 ))}
               </div>
             );
+          }
+          if (m.starter) {
+            // round 6: the three-tap start — who, what for, what look; the three answers become one brief for the brain
+            const step = starterStep(m.starter);
+            const picked = ["who", "what", "mood"].filter((k) => m.starter[k]).map((k) => m.starter[k]);
+            return (
+              <div key={i} className={`dr-starter${m.done ? " done" : ""}`}>
+                {picked.length > 0 && <div className="dr-starter-picked">{picked.join(" · ")}</div>}
+                {step && !m.done && (
+                  <>
+                    <div className="dr-starter-ask">{STARTER[step].ask}</div>
+                    <div className="dr-chatchips">
+                      {starterOptions(m.starter).map((o) => (
+                        <button
+                          key={o}
+                          type="button"
+                          className="dr-chip"
+                          disabled={!!thinking}
+                          onClick={() => {
+                            const next = { ...m.starter, [step]: o };
+                            if (starterStep(next)) return setMessages((all) => all.map((x, n) => (n === i ? { ...x, starter: next } : x)));
+                            setMessages((all) => all.map((x, n) => (n === i ? { ...x, starter: next, done: true } : x)));
+                            setTimeout(() => say(starterBrief(next)), 50);
+                          }}
+                        >
+                          {o}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+            );
+          }
+          if (m.browse) {
+            // round 7: Browse ideas — featured concept sheets; "Start from this" puts the sheet in this chat
+            return (
+              <div key={i} className="dr-browse">
+                {m.browse.map((idea) => (
+                  <div key={idea.id || idea.url} className="dr-idea">
+                    <img src={imageUrl(idea.url, 800)} alt={idea.brief || "Concepts"} loading="lazy" />
+                    <div className="dr-idea-words">
+                      <div className="dr-idea-brief">{idea.brief || (idea.concepts || []).map((c) => c.title).join(" · ")}</div>
+                      {idea.brief && <div className="dr-idea-titles">{(idea.concepts || []).map((c) => c.title).join(" · ")}</div>}
+                    </div>
+                    <button type="button" className="dr-mini" disabled={!!thinking} onClick={() => onAct({ type: "useIdea", idea })}>Start from this</button>
+                  </div>
+                ))}
+                {!m.browse.length && <p className="dr-designhint">No ideas to browse yet — tell me what you want and I’ll show three concepts.</p>}
+              </div>
+            );
+          }
+          if (m.version) {
+            // round 7: a version of the tee after an AI change — tap to go back to it
+            return (
+              <div key={i} className="dr-version">
+                {m.version.thumb && <img src={m.version.thumb} alt="" />}
+                <div className="dr-version-words">
+                  <div className="dr-version-label">Version {m.version.n}</div>
+                  <div className="dr-designhint">{m.version.label}</div>
+                </div>
+                <button type="button" className="dr-mini" disabled={!!thinking} onClick={() => onAct({ type: "restore", version: m.version })}>Go back to this</button>
+              </div>
+            );
+          }
+          if (m.help) {
+            // round 6: "Ask the IDENTEE team to finish it" — a line from the customer, then the tee and the chat go to the team
+            return <HelpCard key={i} done={m.done} busy={!!thinking} onSend={(note) => {
+              setMessages((all) => all.map((x, n) => (n === i ? { ...x, done: true } : x)));
+              run({ type: "help", note }, { label: "Sending to the team…", expect: 6 });
+            }} />;
           }
           if (m.sheet) {
             // Assistant v2: a concept sheet — tap a number to make that concept (a bare pick, no brain), More options for three more
@@ -702,6 +790,27 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
           </button>
         </div>
       </form>
+    </div>
+  );
+}
+
+// "Ask the IDENTEE team to finish it" (round 6, 8 Nov 2026): one line from the customer, sent with their tee and chat
+function HelpCard({ done, busy, onSend }) {
+  const [note, setNote] = useState("");
+  return (
+    <div className={`dr-helpcard${done ? " done" : ""}`}>
+      <div className="dr-starter-ask">Our designers can finish it for you. In a line, what should the tee be?</div>
+      {!done ? (
+        <>
+          <textarea className="dr-helpnote" rows={3} maxLength={1000} placeholder="e.g. A black tee for our cricket team, our logo on the front and the players’ names on the back" value={note} onChange={(e) => setNote(e.target.value)} />
+          <div className="dr-chatchips">
+            <button type="button" className="dr-chip on" disabled={busy || note.trim().length < 3} onClick={() => onSend(note.trim())}>Send to the IDENTEE team</button>
+          </div>
+          <p className="dr-designhint">Your tee as it is now and this chat go with it. A designer gets in touch on WhatsApp, usually within a day. Free.</p>
+        </>
+      ) : (
+        <p className="dr-designhint">Sent.</p>
+      )}
     </div>
   );
 }

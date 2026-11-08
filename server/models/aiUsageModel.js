@@ -12,6 +12,9 @@ const aiUsageSchema = mongoose.Schema(
     images: { type: Number, default: 0 },
     costInr: { type: Number, default: 0 }, // images × the price per picture set by the admin
     model: { type: String, maxlength: 80 },
+    // a concept sheet's picture and concepts (kind "sheet", round 7, 8 Nov 2026) — so the admin can feature it in Browse ideas
+    sheet: { type: mongoose.Schema.Types.Mixed },
+    featured: { type: Boolean, default: false, index: true },
   },
   { timestamps: true },
 );

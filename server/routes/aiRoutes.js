@@ -1,6 +1,7 @@
 // routes/aiRoutes.js — the Design Room's AI design maker (see controllers/aiController.js)
 import express from "express";
-import { makeAssist, makeConcepts, makeDevelop, makeMatch, makeWorn } from "../controllers/assistantController.js";
+import { listIdeas, makeAssist, makeConcepts, makeDevelop, makeMatch, makeTryOn, makeWorn, setIdea } from "../controllers/assistantController.js";
+import { listHelp, requestHelp, setHelpStatus } from "../controllers/designHelpController.js";
 import { dropPrintPicture, getAiAdmin, getAiRequests, getAiStatus, makeAiDesign, makeBackgroundRemoval, makeChat, makeEdit, makeImprovedIdea, makePhotoPlan, makePrintPicture, makeSlogans, saveAiAdmin } from "../controllers/aiController.js";
 import { protect, adminOnly, adminOrSeller } from "../middleware/authMiddleware.js";
 import optionalAuth from "../middleware/optionalAuthMiddleware.js";
@@ -27,6 +28,14 @@ router.post("/develop", protect, rateLimit({ windowMs: 60_000, max: 6, message: 
 // round 5 (8 Nov 2026): a matching piece from the tee's own picture; a photo of the finished tee worn
 router.post("/match", protect, rateLimit({ windowMs: 60_000, max: 6, message: "Slow down a little — try again in a minute." }), makeMatch);
 router.post("/worn", protect, rateLimit({ windowMs: 60_000, max: 4, message: "Slow down a little — try again in a minute." }), makeWorn);
+// round 6 (8 Nov 2026): "Ask the IDENTEE team to finish it" — the customer's request, and the admin's list
+router.post("/help", protect, rateLimit({ windowMs: 60_000, max: 5, message: "Slow down a little — try again in a minute." }), requestHelp);
+router.get("/help", protect, adminOrSeller, listHelp);
+// round 7 (8 Nov 2026): the customer's own photo wearing the tee; Browse ideas (featured concept sheets)
+router.post("/tryon", protect, rateLimit({ windowMs: 60_000, max: 4, message: "Slow down a little — try again in a minute." }), makeTryOn);
+router.get("/ideas", listIdeas);
+router.put("/ideas/:id", protect, adminOnly, setIdea);
+router.put("/help/:id", protect, adminOrSeller, setHelpStatus);
 // a photo sent in the chat: what the customer wants made from it (the text AI reads the photo; almost free)
 router.post("/photo-plan", protect, rateLimit({ windowMs: 60_000, max: 20, message: "Slow down a little — try again in a minute." }), makePhotoPlan);
 // "Remove the background" of a photo: done on this server (free — not an AI service, not a daily request)

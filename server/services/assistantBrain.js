@@ -22,7 +22,7 @@ export const thinkingLevel = () => {
   return ["low", "medium", "high"].includes(v) ? v : null;
 };
 
-export const STEP_TYPES = ["ask", "concepts", "develop", "match", "draw", "edit", "slogans", "menu", "undo"];
+export const STEP_TYPES = ["ask", "concepts", "develop", "match", "draw", "edit", "slogans", "menu", "undo", "team"];
 export const PIECES = ["front", "back", "sleeve"];
 export const MAX_STEPS = 6;
 export const CONCEPTS_PER_SHEET = 3;
@@ -124,6 +124,7 @@ function buildPrompt({ said, history, earlier, memory, design, facts, areas, sty
     '- {"type":"concepts","brief": string,"logo": true|false,"concepts": [exactly ' + CONCEPTS_PER_SHEET + ' objects {"title": up to 5 words,"front": what is printed on the front (null if nothing),"back": the back print (null if nothing),"sleeve": the sleeve print (null if nothing),"colours": the main ink colours,"style": one of the picture styles}]} — each print says WHERE and HOW BIG it goes, in its own text ("small left-chest badge", "large centre-front artwork", "full-back lettering", "small sleeve logo"): the page places and sizes it from those words. logo: true when the tees should carry the customer\'s own logo / artwork (they attached one, or one is on file, and they want it used): then say "logo" in the prints that use it. THE NORMAL ANSWER to any design or picture request: designs, ideas, options, "make me a tee for…", a complete design, AND a single picture ("a lion on the front", "a skull on the back"). The page draws ONE picture showing the three tees numbered 1, 2, 3 (front, back, sleeve) and the customer picks. For a single picture request, the three are three really different takes on THAT picture on THAT area (e.g. a fierce realistic lion, a bold mascot lion, a minimal line lion), the other areas null. Make the three really different from each other and specific to the brief, the tee colour and everything they said. Prints with words must include the exact words. "More options" = another concepts step with three new ones (numbering continues from the sheets listed below). "basis": "tee" (optional) — when the three concepts are versions of the picture ALREADY ON THE TEE ("show this in 3 colourways", "variations of this", "the same in other styles"): the page sends that picture as the reference; each concept then says what changes (the ink colours, the style) and what stays.',
     '- {"type":"develop","picks": [concept numbers],"sheet": the sheet number they are on,"pieces": ["front","back","sleeve"] or a subset or null for all the pieces that concept has,"change": string|null} — when they choose concepts by number or words ("3 and 6", "the second one", "I like 2 but only the front"). Numbers refer to the sheets listed below (sheet 1 has concepts 1-3, sheet 2 has 4-6 …). The page draws the real artwork pieces from the sheet and puts the first pick on the tee. change: a change they want in that concept\'s artwork as it is drawn ("2 but with the text in gold", "2 with the logo bigger", "3 in blue") — in English, null when none. A change INSIDE the artwork (its colours, the words drawn in it, its style) goes in change ONLY — never also as an edit step, because the words in a drawn picture are not text items on the tee. A change to the tee itself (its colour, the size or place of a print) is an edit step after the develop step instead. Mixing concepts ("the front of 1 with the back of 3"): one develop step per concept, each with only its pieces.',
     '- {"type":"match","piece":"back"|"sleeve"|"front","brief": string} — a companion piece drawn FROM the picture already on the tee ("make a matching back", "a sleeve print to go with this"): same style, line quality and ink colours. brief: what the new piece shows, in English, words to print included (a back often carries the name or slogan large). Only when the tee already has a picture (see The tee now); else use concepts.',
+    '- {"type":"team","players": [{"name": string,"number": string|null}],"namesOn": "back"|"front"|"sleeve","numbersOn": "back"|"front"|"sleeve"|null} — one tee per person with their own name (and number) when they list people ("Arun, Priya, Karthik", "Arun 7, Priya 10 …", a pasted list): the page adds a name slot (and a number slot) on those areas and a tee for each. Keep the names exactly as written. Up to 99. The design itself (pictures, team name) goes in the other steps as usual.',
     '- {"type":"draw","subject": string,"area": print area key,"style": one of the picture styles} — the SHORTCUT, only when they clearly want one picture drawn straight away without choosing: "just draw it", "quickly", "one picture", "another one like this", "draw it now", or a lettering/text-art request. subject: the picture only, every detail they gave, in English (words to print inside the picture included). Pick the area and style yourself from what they said and what is free. Up to 3 draw steps in one message (one per area).',
     '- {"type":"edit","message": string} — change what is on the tee: add or change text, colours, fonts, size, position, curve, delete, duplicate, the tee colour, restyle. message: their request as one clear instruction in English, naming the exact element and area. One edit step per change.',
     '- {"type":"slogans","about": string,"tone": ' + JSON.stringify(TONES) + " or null} — slogans, quotes, captions, words to print.",
@@ -132,6 +133,7 @@ function buildPrompt({ said, history, earlier, memory, design, facts, areas, sty
     "- no steps for questions, small talk, advice and off-topic messages: answer in reply (ideas in words are fine there).",
     "Choices first: when in doubt between concepts and draw, use concepts — customers like to pick from three. Changing a concept before it is made: \"2 but in gold\" = develop 2 with change; \"show me variations of 2\" / \"2 in other styles\" / \"I like 2 but not sure\" = a new concepts step with three takes on concept 2 (keep what they liked, vary the rest). After a concept is made, changes to what is on the tee are edit steps. Rules: do everything the message asks, in order, in one go (a brief with a front picture, a back name and a sleeve logo = concepts, or draw + edit + edit). When the tee itself answers the question (\"make it look better\" on grey art over a black tee), do not ask — make two concrete improvements (edit steps) and say what you changed. Never spend pictures on guesses: ask instead. If picturesLeft is 0 or loggedIn is false, do not use concepts/develop/draw — say so kindly and help with words. Use the customer's exact names, numbers and words, spelled as they wrote them.",
     "chips: 0 to 4 short follow-ups the customer may want to say next, written as they would type them (\"More options\", \"Put it on the back\", \"Make it darker\"). After a concepts step always include \"More options\". After a draw step always include \"Show me 3 options\" (three takes to choose from). After a develop or match step, offer among the chips: \"See it on other colours\", \"Show 3 colourways\", and \"A matching back\" or \"A matching sleeve\" when that area is free. After an ask, the chips are the options.",
+    "Budget: when they say how many tees and what they can spend (\"20 tees, ₹500 each\", \"budget 10,000 for the team\"), work it out from the facts — the price per tee, plus pictureAddOn once per tee when a picture print is on it, shipping as in the facts — and say plainly what fits: the total for what they want, and the cheaper way when it doesn't fit (words-only prints keep the base price; fewer print areas don't change the price). Never invent prices or garments that are not in the facts.",
     "Tee colours: when they ask which colours suit the design, or want to see it on other colours (\"See it on other colours\"), do NOT use a step: in the reply name 2 or 3 colours from facts.teeColours that suit the inks on the tee (good contrast, the mood of the design) and why, in a few words, and make the chips \"See it on <Colour>\" for them. \"See it on <Colour>\" / \"show it on maroon\" = one edit step: change the tee colour to that colour. Changing the tee colour is free.",
     "Facts — use these exactly and never invent others. Prices are in rupees and include GST: " + JSON.stringify(facts),
     `Today's date: ${new Date().toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })} — use this year for "class of", batch and event years unless the customer gives one.`,
@@ -190,6 +192,16 @@ export function cleanBrainAnswer(out, { areas = [], styles = [], sheets = [] } =
       if (brief.length >= 2) steps.push({ type, piece: PIECES.includes(raw.piece) ? raw.piece : "back", brief });
       continue;
     }
+    if (type === "team") {
+      const players = (Array.isArray(raw.players) ? raw.players : [])
+        .map((p) => ({ name: clip(p?.name, 24), number: p?.number == null ? null : String(p.number).replace(/[^0-9]/g, "").slice(0, 4) || null }))
+        .filter((p) => p.name || p.number)
+        .slice(0, 99);
+      if (!players.length) continue;
+      const on = (v, fallback) => (PIECES.includes(v) ? v : fallback);
+      steps.push({ type, players, namesOn: on(raw.namesOn, "back"), numbersOn: raw.numbersOn == null ? null : on(raw.numbersOn, "back") });
+      continue;
+    }
     if (type === "develop") {
       const picks = (Array.isArray(raw.picks) ? raw.picks : []).map(Number).filter((n) => Number.isInteger(n) && n >= 1 && (totalConcepts ? n <= totalConcepts : n <= 12));
       if (!picks.length) continue;
@@ -235,6 +247,17 @@ function mockBrain(said, { areas, styles, sheets }, facts = {}, history = [], { 
   const total = sheets.reduce((n, s) => n + (s.concepts || []).length, 0);
   const picks = parsePicks(low, Math.max(total, 1));
   if (/\bundo\b|go back|revert/.test(low)) return { reply: "MOCK: undone.", steps: [{ type: "undo" }], chips: [] };
+  // round 7: a list of people → one tee each; a budget line → worked out from the facts
+  const listM = said.match(/(?:players?|names?|team)\s*[:\-]\s*(.+)$/i);
+  if (listM && /,|\n/.test(listM[1])) {
+    const players = listM[1].split(/[,\n]+/).map((s) => s.trim()).filter(Boolean).map((s) => { const m = s.match(/^(.*?)\s*(\d{1,4})?$/); return { name: m[1].trim(), number: m[2] || null }; });
+    return { reply: `MOCK: ${players.length} tees, one each.`, steps: [{ type: "team", players, namesOn: "back", numbersOn: players.some((p) => p.number) ? "back" : null }], chips: ["Continue to review", "Add a sleeve logo"] };
+  }
+  const budgetM = low.match(/(\d{1,3})\s*tees?.*?(?:₹|rs\.?|budget)\s*([\d,]+)|(?:₹|rs\.?|budget)\s*([\d,]+).*?(\d{1,3})\s*tees?/);
+  if (budgetM) {
+    const n = Number(budgetM[1] || budgetM[4]); const each = Number(String(budgetM[2] || budgetM[3]).replace(/,/g, "")); const price = Number(facts.price) || 699;
+    return { reply: `MOCK: ${n} tees at ₹${price} = ₹${n * price}${each < price ? ` — over ₹${each} each; words-only prints keep it at ₹${price - (Number(facts.pictureAddOn) || 0)}.` : " — fits."}`, steps: [], chips: ["Words-only design", "Show me designs"] };
+  }
   // round 5: colourways of the picture on the tee, a matching piece from it, colours that suit it, "see it on X"
   if (/colourway|colorway|variations? of (this|it)|same in other styles/.test(low)) {
     const base = sheets.length * CONCEPTS_PER_SHEET;
@@ -260,7 +283,7 @@ function mockBrain(said, { areas, styles, sheets }, facts = {}, history = [], { 
   }
   if (attached && /cartoon|sketch|art|redraw/.test(low)) return { reply: "MOCK: let's turn your photo into art.", steps: [{ type: "menu", item: "Photo to art" }], chips: [] };
   // built-in helpers by their words (the real brain reads meaning; the stand-in only keywords)
-  const menus = [["photo to art|my photo|from a photo", "Photo to art"], ["upload|my own logo|my logo", "Upload a picture"], ["my pictures|pictures i made|from before", "My pictures"], ["continue to review|go to review|order now|checkout", "Continue to review"], ["good enough to print|check my design|blurry", "Check my design"], ["team order|player list|for my team of", "Team order"], ["template|ready layout", "Start from a template"], ["which colours|colour help|ink colour", "Colour help"]];
+  const menus = [["photo to art|my photo|from a photo", "Photo to art"], ["upload|my own logo|my logo", "Upload a picture"], ["my pictures|pictures i made|from before", "My pictures"], ["continue to review|go to review|order now|checkout", "Continue to review"], ["good enough to print|check my design|blurry", "Check my design"], ["team order|player list|for my team of", "Team order"], ["template|ready layout", "Start from a template"], ["which colours|colour help|ink colour", "Colour help"], ["do it for me|can't do this|cant do this|talk to a human|ask the team|someone help", "Ask the team"]];
   for (const [re, item] of menus) if (new RegExp(re).test(low)) return { reply: `MOCK: opening ${item}.`, steps: [{ type: "menu", item }], chips: [] };
   // "the front of 1 and the back of 3": one develop step per concept, each with its piece
   const mix = total && low.match(/\b(front|back|sleeve) of (\d{1,2})\b.*\b(front|back|sleeve) of (\d{1,2})\b/);

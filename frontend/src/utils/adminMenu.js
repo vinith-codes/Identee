@@ -55,6 +55,7 @@ export const ADMIN_MENU = [
     children: [
       { to: "/admin/studio", label: "Studio (design a tee)" },
       { to: "/admin/test-mode", label: "Test as a customer" },
+      { to: "/admin/design-help", label: "Help requests" },
     ],
   },
   {

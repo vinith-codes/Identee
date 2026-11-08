@@ -17,7 +17,7 @@ import { xaiConfigured, xaiEditImage, xaiModel, xaiNewImage } from "../services/
 import { AI_STYLES, aiImageModel, generateImage, nearestRatio } from "../services/aiImageService.js";
 import { brainConfigured, brainReply, CONCEPTS_PER_SHEET, PIECES } from "../services/assistantBrain.js";
 import { chatModel, MEMORY_MAX } from "../services/aiChatService.js";
-import { developPrompt, matchPrompt, mockSheet, piecesOf, SHEET_COST_FACTOR, SHEET_RATIO, SHEET_SIZE, sheetPrompt, wornPrompt } from "../services/conceptSheets.js";
+import { developPrompt, matchPrompt, mockSheet, piecesOf, SHEET_COST_FACTOR, SHEET_RATIO, SHEET_SIZE, sheetPrompt, tryOnPrompt, wornPrompt } from "../services/conceptSheets.js";
 import User from "../models/userModel.js";
 import { googleCapped, grokCapped, isOurUpload, readSettings, usedToday, whyOff } from "./aiController.js";
 import { expectedWords, missingWords, readWords, wordCheckReady } from "../services/wordCheck.js";
@@ -200,6 +200,8 @@ export const makeConcepts = asyncHandler(async (req, res) => {
     images: 1,
     costInr: Math.round((byGrok ? s.grokPricePerImageInr : s.pricePerImageInr * SHEET_COST_FACTOR) * 100) / 100,
     model: byGrok ? xaiModel() : aiImageModel(),
+    // the sheet itself, so the admin can feature it in Browse ideas (round 7)
+    sheet: { url: stored.url, width: meta.width || 1536, height: meta.height || 864, brief: text(req.body?.brief, 400), concepts, teeColour, teeIsDark, logo: Boolean(logoUrl || basisUrl) },
   });
   res.status(201).json({
     sheet: { url: stored.url, width: meta.width || 1536, height: meta.height || 864, numberFrom, concepts: concepts.map((c, i) => ({ n: numberFrom + i, ...c })), byGrok, logoUrl: logoUrl || null },
@@ -365,3 +367,53 @@ async function mockPiece(piece) {
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024"><rect width="1024" height="1024" fill="#ff00ff"/><circle cx="512" cy="512" r="380" fill="#2a6f4e" stroke="#f0d585" stroke-width="40"/><text x="512" y="540" font-family="Arial" font-size="110" font-weight="bold" text-anchor="middle" fill="#fff">${piece.toUpperCase()}</text></svg>`;
   return { buffer: await sharp(Buffer.from(svg)).png().toBuffer(), mime: "image/png" };
 }
+
+// POST /api/ai/tryon  (round 7, 8 Nov 2026): the customer's own photo wearing the finished tee
+// { photo: data URL (their photo), image: data URL (the tee's front mock-up), garment, teeColour } -> { url, width, height, left }
+export const makeTryOn = asyncHandler(async (req, res) => {
+  const { s, used } = await mayDraw(req, res);
+  const dataUrl = (v) => String(v || "").match(/^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/);
+  const p = dataUrl(req.body?.photo);
+  const t = dataUrl(req.body?.image);
+  if (!p || !t || p[2].length > 8_000_000 || t[2].length > 8_000_000) {
+    res.status(400);
+    throw new Error("Choose a photo of yourself first.");
+  }
+  const photo = await smallCopy({ data: Buffer.from(p[2], "base64"), mime: p[1] }, 1536);
+  const tee = await smallCopy({ data: Buffer.from(t[2], "base64"), mime: t[1] }, 1024);
+  const prompt = tryOnPrompt({ garment: text(req.body?.garment, 40) || "t-shirt", teeColour: text(req.body?.teeColour, 30).replace(/[^\w \-]/g, "") || "white" });
+  let made;
+  if (mockImages()) made = { buffer: photo.data, mime: photo.mime };
+  else {
+    try {
+      made = await generateImage({ prompt, image: photo, images: [tee], ratio: "3:4" });
+    } catch (err) {
+      // (Grok takes one picture only, so it can't carry the tee: no second try here)
+      if (err?.status === 422 || err?.noImage) {
+        res.status(422);
+        throw new Error("The picture service wouldn’t use this photo. Try a clear photo of yourself facing the camera — or use “Photo of it worn” instead.");
+      }
+      throw err;
+    }
+  }
+  const meta = await sharp(made.buffer).metadata();
+  const stored = await uploadFile(made.buffer, made.mime, "ai-worn");
+  await AiUsage.create({ user: req.user._id, kind: "worn", prompt: "Try it on me (the customer's own photo, Review)", images: 1, costInr: s.pricePerImageInr, model: aiImageModel() });
+  res.status(201).json({ url: stored.url, width: meta.width || 0, height: meta.height || 0, left: Math.max(0, s.dailyPerUser - used - 1) });
+});
+
+// GET /api/ai/ideas  (public): the concept sheets the admin chose for "Browse ideas" (round 7)
+export const listIdeas = asyncHandler(async (req, res) => {
+  const rows = await AiUsage.find({ kind: "sheet", featured: true, "sheet.url": { $exists: true } }).sort({ createdAt: -1 }).limit(12).select("sheet createdAt").lean();
+  res.json({ ideas: rows.map((r) => ({ id: r._id, url: r.sheet.url, width: r.sheet.width, height: r.sheet.height, brief: r.sheet.brief || "", concepts: (r.sheet.concepts || []).map(({ title, front, back, sleeve, colours, style }) => ({ title, front, back, sleeve, colours, style })), teeColour: r.sheet.teeColour || "" })) });
+});
+
+// PUT /api/ai/ideas/:id  (admin): { featured: true|false } — show this sheet in Browse ideas, or not
+export const setIdea = asyncHandler(async (req, res) => {
+  const row = await AiUsage.findOneAndUpdate({ _id: req.params.id, kind: "sheet" }, { featured: Boolean(req.body?.featured) }, { new: true }).lean();
+  if (!row) {
+    res.status(404);
+    throw new Error("That sheet is gone.");
+  }
+  res.json({ ok: true, featured: row.featured });
+});

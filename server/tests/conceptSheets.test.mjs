@@ -95,3 +95,10 @@ test("round 5 instructions: colourways keep the tee's drawing; a matching piece 
   assert.match(w, /EXACTLY as in the attached image/);
   assert.match(w, /college campus/);
 });
+
+test("round 7: the try-on instruction keeps the person and the print", async () => {
+  const { tryOnPrompt } = await import("../services/conceptSheets.js");
+  const p = tryOnPrompt({ garment: "oversized tee", teeColour: "black" });
+  assert.match(p, /keep their face, hair, body, pose/);
+  assert.match(p, /exactly as in the second image/);
+});

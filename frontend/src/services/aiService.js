@@ -64,5 +64,11 @@ const dropPrintPicture = async (body) => (await axios.delete(`${API_URL}/admin/p
 const match = async (body) => (await axios.post(`${API_URL}/match`, body, { ...auth(), timeout: 200000 })).data;
 // { image: data URL of the front mock-up, garment, teeColour } -> { url, width, height, left }
 const worn = async (body) => (await axios.post(`${API_URL}/worn`, body, { ...auth(), timeout: 200000 })).data;
+// round 6 (8 Nov 2026): "Ask the IDENTEE team to finish it" { note, garment, colour, size, design, chat, mockup? } -> { ok }
+const help = async (body) => (await axios.post(`${API_URL}/help`, body, { ...auth(), timeout: 60000 })).data;
+// round 7 (8 Nov 2026): the customer's own photo wearing the tee; Browse ideas (the sheets the admin featured)
+const tryOn = async (body) => (await axios.post(`${API_URL}/tryon`, body, { ...auth(), timeout: 200000 })).data;
+const ideas = async () => (await axios.get(`${API_URL}/ideas`, { timeout: 20000 })).data;
+const setIdea = async (id, featured) => (await axios.put(`${API_URL}/ideas/${id}`, { featured }, auth())).data;
 
-export default { status, design, slogans, edit, improve, photoPlan, removeBg, chat, assist, concepts, develop, match, worn, getAdmin, saveAdmin, getOlderRequests, printPicture, dropPrintPicture };
+export default { status, design, slogans, edit, improve, photoPlan, removeBg, chat, assist, concepts, develop, match, worn, help, tryOn, ideas, setIdea, getAdmin, saveAdmin, getOlderRequests, printPicture, dropPrintPicture };

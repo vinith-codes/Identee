@@ -156,3 +156,21 @@ test("round 5: a match step, a concepts step from the tee's own picture, and the
   assert.match(f.memory, /MOCK NOTE/);
   assert.match(f.profile, /^likes black tees MOCK PROFILE/);
 });
+
+test("round 6: the brain may open the team's help as a helper", () => {
+  assert.deepEqual(clean({ reply: "x", steps: [{ type: "menu", item: "Ask the team" }] }).steps, [{ type: "menu", item: "Ask the team" }]);
+});
+
+test("round 7: a team step keeps names as written, numbers as digits, areas valid; the stand-in reads a list and a budget", async () => {
+  const t = clean({ reply: "x", steps: [{ type: "team", players: [{ name: "Arun", number: 7 }, { name: "Priya" }, { number: "x10" }, {}], namesOn: "back", numbersOn: "nose" }] }).steps[0];
+  assert.deepEqual(t, { type: "team", players: [{ name: "Arun", number: "7" }, { name: "Priya", number: null }, { name: "", number: "10" }], namesOn: "back", numbersOn: "back" });
+  assert.deepEqual(clean({ reply: "x", steps: [{ type: "team", players: [] }] }).steps, []);
+  process.env.AI_CHAT_PROVIDER = "mock";
+  const r = await brainReply({ message: "players: Arun 7, Priya 10, Karthik", history: [], areas, styles, sheets, facts: {} });
+  assert.equal(r.steps[0].type, "team");
+  assert.deepEqual(r.steps[0].players.map((p) => p.name), ["Arun", "Priya", "Karthik"]);
+  assert.equal(r.steps[0].numbersOn, "back");
+  const b = await brainReply({ message: "20 tees, budget ₹500 each", history: [], areas, styles, sheets, facts: { price: 699, pictureAddOn: 100 } });
+  assert.deepEqual(b.steps, []);
+  assert.match(b.reply, /20 tees at ₹699 = ₹13980/);
+});

@@ -148,3 +148,15 @@ export function unfinishedDesigns(sheetRows = [], developRows = [], orders = [],
     .slice(0, max)
     .map(({ who, email, phone, first, last, sheets, picks, asked }) => ({ who, email, phone, first, last, sheets, picks, asked }));
 }
+
+/**
+ * "Try it on me" (round 7, 8 Nov 2026): the customer's own photo (first image) with the finished tee (second image)
+ * put on them — the person, face, pose and place kept, the print exactly as on the tee.
+ */
+export function tryOnPrompt({ garment = "t-shirt", teeColour = "white" }) {
+  return (
+    `Two images are attached. The FIRST is a photo of a person. The SECOND shows a ${clean(garment, 40)} in ${clean(teeColour, 30)} with a printed design. ` +
+    `Dress the person in the first photo in that exact ${clean(garment, 40)}: keep their face, hair, body, pose, hands, the lighting and the background exactly as in their photo — change only their upper-body clothing to this tee. ` +
+    `The printed design must appear exactly as in the second image: the same artwork, words, colours, placement and size, following the folds of the fabric naturally. Photo-real. No text, no watermark, no frame.`
+  );
+}

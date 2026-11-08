@@ -1637,3 +1637,28 @@ p.pc-area { margin: 0; font-size: 13px; color: var(--muted); }
 .dr-worn-acts { display: flex; gap: 8px; flex-wrap: wrap; }
 .dr-worn-acts button { margin: 0; border: 1.5px solid var(--ink, #141110); background: #fff; color: var(--ink, #141110); border-radius: 999px; padding: 9px 16px; font-weight: 700; font-size: 13px; cursor: pointer; }
 .dr-worn-acts button:first-child { background: var(--ink, #141110); color: #fff; }
+
+/* Round 6 (8 Nov 2026): the three-tap start, the "Ask the team" card, the print check on Review */
+.dr-starter, .dr-helpcard { display: grid; gap: 8px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 14px; background: #fff; }
+.dr-starter.done, .dr-helpcard.done { opacity: .7; }
+.dr-starter-picked { font-size: 12.5px; color: var(--gold-deep); font-weight: 700; }
+.dr-starter-ask { font-size: 14px; font-weight: 700; color: var(--ink); }
+.dr-helpnote { width: 100%; box-sizing: border-box; resize: vertical; min-height: 64px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; font: inherit; font-size: 14px; color: var(--ink); background: #FBF8F1; }
+.dr-helpnote:focus { outline: none; border-color: var(--gold); }
+.dr-chip.on { background: var(--ink); color: #fff; border-color: var(--ink); }
+.dr-printcheck { display: grid; gap: 6px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 14px; background: #FBF8F1; font-size: 13px; color: var(--ink-soft); }
+.dr-printcheck-head { font-weight: 700; color: var(--ink); font-size: 13.5px; }
+.dr-printcheck ul { margin: 0; padding-left: 18px; display: grid; gap: 3px; }
+.dr-printcheck-issue { display: flex; gap: 8px; align-items: center; justify-content: space-between; flex-wrap: wrap; padding: 8px 10px; border-radius: 10px; background: #FFF4E5; color: var(--ink); }
+
+/* Round 7 (8 Nov 2026): Browse ideas, versions with pictures */
+.dr-browse { display: grid; gap: 10px; }
+.dr-idea { display: grid; gap: 8px; padding: 10px; border: 1px solid var(--line); border-radius: 14px; background: #fff; }
+.dr-idea img { width: 100%; border-radius: 10px; background: #F1ECE1; }
+.dr-idea-brief { font-size: 13.5px; font-weight: 700; color: var(--ink); }
+.dr-idea-titles { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.dr-idea .dr-mini { justify-self: start; }
+.dr-version { display: grid; grid-template-columns: 64px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 8px 10px; border: 1px dashed var(--line); border-radius: 12px; background: #FBF8F1; }
+.dr-version img { width: 64px; height: 64px; object-fit: cover; border-radius: 8px; background: #F1ECE1; }
+.dr-version-label { font-size: 12.5px; font-weight: 700; color: var(--ink); }
+.dr-version .dr-designhint { margin: 2px 0 0; }
