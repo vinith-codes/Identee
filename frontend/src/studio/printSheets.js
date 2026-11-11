@@ -11,7 +11,8 @@
 import { AreaRenderer, cachedImage, imageSrcs, loadImage, playerElements } from "./konvaRender";
 import { playerLabel } from "./teamOrder";
 import { fontsReady } from "./fonts";
-import { PRINT_DPI, cmToPx, setPngDpi, toPng, artworkBox, artworkSpot, acrossText, fmtCm, EST_START, withReadyPictures } from "./printFiles";
+import { alphaBox } from "./inkBox";
+import { PRINT_DPI, cmToPx, setPngDpi, toPng, artworkBox, inkBoxOf, artworkSpot, acrossText, fmtCm, EST_START, withReadyPictures } from "./printFiles";
 
 export const SHEET = { w: 58, h: 100 }; // cm
 export const GAP = 1; // cm between prints
@@ -73,13 +74,14 @@ export async function collectPieces(packs, onStep = () => {}) {
           tick(done, total, `Drawing ${area.label} (${f.player ? playerLabel(f.player) : f.sizes.join(", ")}) for order ${no}…`);
           const [w, h] = f.cm;
           const drawn = f.player ? playerElements(els, f.player, cmToPx(w), cmToPx(h)) : els;
-          const box = artworkBox(drawn, f.cm);
+          const frame = artworkBox(drawn, f.cm);
+          const box = frame && inkBoxOf(drawn, f.cm); // TOP and SIDE measured on the ink, like the job card (9 Nov 2026)
           done += 1;
           if (!box) continue; // nothing printed in this area
           // a print-ready picture (Prepare for print) is drawn as in the .ai — its enlarged copy with the vector edge (8 Nov 2026)
           const swap = await withReadyPictures(drawn, cmToPx(w));
           if (swap.missed) warnings.push(`Order ${no}, ${area.label} (${f.sizes.join(", ")}): ${swap.missed === 1 ? "a print-ready picture" : `${swap.missed} print-ready pictures`} couldn't be fetched, so the sheet has the plain picture.`);
-          const art = { canvas: await cutOut(swap.elements, f.cm, box), order: no, design: d, title, area, n, file: f, spot: {} };
+          const art = { canvas: await cutOut(swap.elements, f.cm, frame), order: no, design: d, title, area, n, file: f, spot: {} };
           art.wCm = art.canvas.width / (PRINT_DPI / 2.54);
           art.hCm = art.canvas.height / (PRINT_DPI / 2.54);
           for (const size of f.sizes) art.spot[size] = artworkSpot(area, size, box, f.cm);
@@ -111,7 +113,9 @@ export async function collectPieces(packs, onStep = () => {}) {
   return { arts, pieces, warnings, orders: packs.length, tees };
 }
 
-// one print area at 300 DPI, cut to its artwork (+ a hair of empty space)
+// one print area at 300 DPI, cut to its artwork (+ a hair of empty space). box = the artwork's frames (artworkBox);
+// inside them the piece is trimmed to the last pixel with any ink at all, so empty space in a picture doesn't waste
+// film and nothing that prints is ever cut off (9 Nov 2026).
 async function cutOut(elements, cm, box) {
   const W = cmToPx(cm[0]);
   const H = cmToPx(cm[1]);
@@ -127,6 +131,20 @@ async function cutOut(elements, cm, box) {
     c.width = Math.max(1, x1 - x0);
     c.height = Math.max(1, y1 - y0);
     c.getContext("2d").drawImage(full, x0, y0, c.width, c.height, 0, 0, c.width, c.height);
+    const ink = alphaBox(c.getContext("2d").getImageData(0, 0, c.width, c.height).data, c.width, c.height, 1);
+    if (ink) {
+      const ix0 = Math.max(0, Math.floor((ink.x0 / 100) * c.width) - b);
+      const iy0 = Math.max(0, Math.floor((ink.y0 / 100) * c.height) - b);
+      const ix1 = Math.min(c.width, Math.ceil((ink.x1 / 100) * c.width) + b);
+      const iy1 = Math.min(c.height, Math.ceil((ink.y1 / 100) * c.height) + b);
+      if (ix0 > 0 || iy0 > 0 || ix1 < c.width || iy1 < c.height) {
+        const t = document.createElement("canvas");
+        t.width = Math.max(1, ix1 - ix0);
+        t.height = Math.max(1, iy1 - iy0);
+        t.getContext("2d").drawImage(c, ix0, iy0, t.width, t.height, 0, 0, t.width, t.height);
+        return t;
+      }
+    }
     // (no halftone since 6 Nov 2026: the print team approved files with soft parts left as they are)
     return c;
   } finally {

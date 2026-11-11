@@ -13,6 +13,7 @@
 // file per player (their name and number drawn in), named after the player.
 import { AreaRenderer, cachedImage, imageSrcs, loadImage, playerElements } from "./konvaRender";
 import { playerLabel } from "./teamOrder";
+import { alphaBox, insideFrame } from "./inkBox";
 import { fontsReady } from "./fonts";
 import printFileService from "../services/printFileService";
 import { imageUrl } from "../utils/imageUrl";
@@ -174,6 +175,27 @@ export function artworkBox(els, [wCm, hCm]) {
   if (!Number.isFinite(x0)) return null;
   const c = (v) => Math.max(0, Math.min(100, v));
   return { x0: c((x0 / wCm) * 100), y0: c((y0 / hCm) * 100), x1: c((x1 / wCm) * 100), y1: c((y1 / hCm) * 100) };
+}
+
+// The artwork's box measured on the INK, what the presser holds and lines up, not on the pictures' frames: a picture
+// with empty space around its art gave a TOP centimetres too high (VF-2026-0076, 9 Nov 2026 — see inkBox.js).
+// els: one area's elements, pictures already loaded. If the area can't be drawn, the frames' box is used.
+export function inkBoxOf(els, cm) {
+  const frame = artworkBox(els, cm);
+  if (!frame) return null;
+  const PX = 20; // pixels per cm: 0.5 mm steps
+  const W = Math.max(1, Math.round(cm[0] * PX));
+  const H = Math.max(1, Math.round(cm[1] * PX));
+  const r = new AreaRenderer(W, H);
+  try {
+    const canvas = r.render(els, { full: true });
+    return insideFrame(alphaBox(canvas.getContext("2d").getImageData(0, 0, W, H).data, W, H), frame);
+  } catch (err) {
+    console.warn("[print files] ink box:", err);
+    return frame;
+  } finally {
+    r.destroy();
+  }
 }
 
 // Where the ARTWORK lands on the garment for one size — what the print team measures on the tee.
@@ -388,7 +410,7 @@ function teeMap({ side, prints, tee }) {
     g.strokeStyle = "#D6006E";
     g.lineWidth = 2.5;
     g.strokeRect(ax, ay, aw, ah);
-    // TOP: from the collar seam (or the usual start line) down to the artwork's top edge
+    // TOP: from the collar seam (or the usual start line) down to the top of the ink
     const fromY = collarY + startCm * S;
     if (collar == null && !starts.has(startCm)) {
       starts.add(startCm);
@@ -402,7 +424,8 @@ function teeMap({ side, prints, tee }) {
       g.setLineDash([]);
       g.fillStyle = "#B42318";
       g.font = "bold 16px Arial";
-      g.fillText(`YOUR USUAL ${side.toUpperCase()} START LINE*`, cx + half - 330, fromY - 8);
+      const tagRight = ax + aw / 2 >= cx; // the TOP tag sits just right of the artwork's centre
+      g.fillText(`YOUR USUAL ${side.toUpperCase()} START LINE*`, tagRight ? cx - half + 20 : cx + half - 330, fromY - 8);
     }
     const tx = ax + aw / 2;
     g.strokeStyle = "#B42318";
@@ -509,7 +532,7 @@ async function jobCard({ heading, sub, rows, tee, checks = [], notes = [], banne
   }
   g.fillStyle = "#B42318";
   g.font = "bold 22px Arial";
-  g.fillText("JOB CARD — NOT FOR PRINTING.   TOP = collar seam (centre) ↓ to the artwork's top edge.   SIDE = tee's centre line → artwork's centre.   Print each .ai at 100%.", 40, 184, W - 80);
+  g.fillText("JOB CARD — NOT FOR PRINTING.   TOP = collar seam (centre) ↓ to the top of the print (its first ink).   SIDE = tee's centre line → artwork's centre.   Print each .ai at 100%.", 40, 184, W - 80);
   // the tee: front and back side by side
   sides.forEach((side, i) => {
     const map = teeMap({ side, prints: rows.filter((r) => r.area.side === side && r.box), tee });
@@ -706,7 +729,7 @@ export async function buildPrintPack(pack, onStep = () => {}) {
           files.push(name);
         }
         done += 1;
-        const box = artworkBox(drawn, f.cm);
+        const box = inkBoxOf(drawn, f.cm);
         for (const size of f.sizes) rows.push({ n, size, player: f.player || null, label: area.label, spot: box ? artworkSpot(area, size, box, f.cm) : null, file: name, area, cm: f.cm, box, drawn });
 
         // picture sharpness at this print size
@@ -816,6 +839,8 @@ function orderSheet({ pack, date, shipBy, note, test, warnings, body }) {
     "  Print each file at 100%. The number at the start of a file name is the print's number on the job card.",
     "  Each print is one .ai file: words are vector shapes, and a picture marked PRINT-READY below is enlarged",
     "  (its DPI is written next to it) with a vector edge — nothing outside that edge prints.",
+    "  TOP and SIDE on the job card are measured to the PRINT ITSELF (its first ink), not to the edge of the .ai page:",
+    "  a page can have empty space around the print.",
     "  Colours are sRGB (the profile is inside each file): use your RIP's usual sRGB setting.",
     "  (A PNG at 300 DPI is there only for a print whose .ai couldn't be made.)",
     "",
