@@ -189,9 +189,17 @@ export const startPrintPicture = asyncHandler(async (req, res) => {
     const alphaSmall = await sharp(raw, { raw: { width: W0, height: H0, channels: 4 }, limitInputPixels: false }).extractChannel(3).raw().toBuffer();
     bleedEdges(raw, W0, H0);
     const rgbPng = await sharp(raw, { raw: { width: W0, height: H0, channels: 4 }, limitInputPixels: false }).removeAlpha().png({ compressionLevel: 3 }).toBuffer();
-    log(`Enlarging ${keep}× on the graphics-card service (${W0}×${H0} → ${W}×${H})…`);
-    const big = await enlargeWithReplicate(rgbPng, keep, log);
-    const rgb = await sharp(big, { limitInputPixels: false }).removeAlpha().resize(W, H, { kernel: "lanczos3" }).raw().toBuffer();
+    // already big enough for its print size: no enlarging, no Replicate run, no cost (12 Nov 2026)
+    const enlarge = keep > 1;
+    let rgb;
+    if (enlarge) {
+      log(`Enlarging ${keep}× on the graphics-card service (${W0}×${H0} → ${W}×${H})…`);
+      const big = await enlargeWithReplicate(rgbPng, keep, log);
+      rgb = await sharp(big, { limitInputPixels: false }).removeAlpha().resize(W, H, { kernel: "lanczos3" }).raw().toBuffer();
+    } else {
+      log(`Already big enough (${W0}×${H0}): not enlarged`);
+      rgb = await sharp(rgbPng, { limitInputPixels: false }).removeAlpha().raw().toBuffer();
+    }
     // the design's own see-through shape, resized smoothly (as the approved files were made)
     const alpha = await sharp(alphaSmall, { raw: { width: W0, height: H0, channels: 1 }, limitInputPixels: false }).resize(W, H, { kernel: "lanczos3" }).extractChannel(0).raw().toBuffer(); // (one channel: sharp gives 3 otherwise)
     log("Cleaning the edge and drawing the vector edge…");
@@ -214,8 +222,8 @@ export const startPrintPicture = asyncHandler(async (req, res) => {
     const st = made.stats || {};
     target.printFile = { key, width: W, height: H, keep, cm: printCm, madeAt: new Date(), realDpi: dpi, specks: st.specks || 0, specksDropped: st.specksDropped || 0, thinPct: st.thinPct || 0, knockout: Boolean(st.knockout) };
     await fresh.save();
-    const costInr = replicateMock() ? 0 : Math.round((settings.replicatePricePerImageInr || 0) * 100) / 100;
-    await AiUsage.create({ user, kind: "print", prompt: `Print-ready picture (design ${designId}, picture ${index + 1}) · ${keep}× · Replicate`, images: 1, costInr, model: replicateModel() });
+    const costInr = !enlarge || replicateMock() ? 0 : Math.round((settings.replicatePricePerImageInr || 0) * 100) / 100;
+    if (enlarge) await AiUsage.create({ user, kind: "print", prompt: `Print-ready picture (design ${designId}, picture ${index + 1}) · ${keep}× · Replicate`, images: 1, costInr, model: replicateModel() });
     log("Done.");
     return { printFile: target.printFile, costInr };
   };
