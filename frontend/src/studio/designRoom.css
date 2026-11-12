@@ -218,6 +218,7 @@
 .dr-qnote { margin: 2px 0 0; font-size: 11.5px; color: var(--muted); }
 .dr-total small { display: block; font: 500 11px/1.2 var(--body); color: var(--muted); text-align: right; }
 .dr-viewcart { text-decoration: none; }
+.dr-added-more { margin: 0 0 8px; padding: 10px 12px; border-radius: 12px; background: #FFF6DC; border: 1px solid #EBD9A4; font-size: 13.5px; line-height: 1.45; color: var(--ink); }
 .dr-added-actions { display: grid; gap: 10px; }
 .dr-added-actions .dr-cta { margin-left: 0; text-align: center; text-decoration: none; display: block; }
 

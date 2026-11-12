@@ -41,8 +41,9 @@ import { applyAiOps, areaFor, describeDesign } from "./aiOps";
 import WaitCard from "./WaitCard";
 import PriceTag from "../components/PriceTag";
 import { shippingNote, useShippingRule, useSiteOffer } from "../utils/sitePricing";
-import { checkDesign, inksFor, printSharpness } from "./designCheck";
+import { MIN_DPI, checkDesign, inksFor, printSharpness } from "./designCheck";
 import { cropMockup } from "./mockupCrop";
+import { PhotoError, shrinkPhoto } from "./shrinkPhoto";
 import { TEMPLATES } from "./designTemplates";
 import TeamModeChoice from "./TeamModeChoice";
 import SizeFinder from "./SizeFinder.jsx";
@@ -1122,28 +1123,33 @@ export default function DesignRoomPage() {
     ensureArea();
     fileRef.current?.click();
   };
+  // A picture the customer picked, opened and made ready to upload (see shrinkPhoto.js). null = it can't be used,
+  // and the customer has been told why in plain words.
+  const openPhoto = async (file, working, opts) => {
+    setBusy(working);
+    try {
+      return await shrinkPhoto(file, opts);
+    } catch (err) {
+      say(err instanceof PhotoError ? err.message : "The photo couldn’t be prepared. Try another one.");
+      return null;
+    } finally {
+      setBusy("");
+    }
+  };
   const onFile = async (e) => {
     const file = e.target.files?.[0];
     e.target.value = "";
     const pos = positions.find((p) => p.key === active) || ensureArea();
     if (!file || !pos) return;
-    if (!/^image\/(png|jpe?g|webp)$/.test(file.type)) return say("Please choose a JPG, PNG or WebP image.");
-    if (file.size > 10 * 1024 * 1024) return say("That image is over 10 MB. Please choose a smaller one.");
-    let natW = 1000;
-    let natH = 1000;
-    try {
-      const bmp = await createImageBitmap(file);
-      natW = bmp.width;
-      natH = bmp.height;
-      bmp.close?.();
-    } catch {
-      // keep defaults; the quality meter just won't show
-    }
+    // the picture is opened first (12 Nov 2026): a damaged file is refused here — it used to go on the tee as an
+    // invisible picture — and a big phone photo is made smaller instead of being turned away (a logo stays see-through)
+    const ready = await openPhoto(file, "Getting your image ready…", { keepClear: true });
+    if (!ready) return;
     setBusy("Uploading your image…");
-    const res = await dispatch(uploadDesignImage(file));
+    const res = await dispatch(uploadDesignImage(ready.file));
     setBusy("");
     if (!uploadDesignImage.fulfilled.match(res)) return say(res.payload || "Upload failed. Please try again.");
-    addImage(pos, res.payload.path, natW, natH, { pxW: natW });
+    addImage(pos, res.payload.path, ready.w, ready.h, { pxW: ready.w });
   };
   const pickArt = async (design) => {
     const pos = positions.find((p) => p.key === active) || ensureArea();
@@ -1880,10 +1886,10 @@ export default function DesignRoomPage() {
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
-    if (!/^image\/(png|jpe?g|webp)$/.test(file.type)) return say("Please choose a JPG, PNG or WebP photo.");
-    if (file.size > 10 * 1024 * 1024) return say("That photo is over 10 MB. Please choose a smaller one.");
+    const ready = await openPhoto(file, "Getting your photo ready…"); // a damaged file is refused, a big photo made smaller
+    if (!ready) return;
     setBusy("Uploading your photo…");
-    const res = await dispatch(uploadDesignImage(file));
+    const res = await dispatch(uploadDesignImage(ready.file));
     setBusy("");
     if (!uploadDesignImage.fulfilled.match(res)) return say(res.payload || "Upload failed. Please try again.");
     setChatState((st) => ({ ...st, photoUrl: res.payload.path, wait: "photoStyle", backTo: "photo" }));
@@ -2437,7 +2443,8 @@ export default function DesignRoomPage() {
         if (!on.length) return [botSays("Those print areas are covered by another print. Use “Other area” under the photo to pick a free one."), { designs: [r.url], photo: true }];
         const how = a.cutOut ? (r.cut ? ", without its background" : " (it had no background to remove)") : "";
         const dpi = Math.min(...on.map((p) => printDpi(p, r.w, r.h)));
-        return [botSays(`Done — your photo is on ${where}${how}${r.enhanced ? ", made sharper" : ""}.${missed} ${qualityLine(dpi)}`), { designs: [r.url], photo: true }, chipRow(["Check my design", "Something else"])];
+        const blurry = on.some((p) => printsBlurry(p, r.w, r.h));
+        return [botSays(`Done — your photo is on ${where}${how}${r.enhanced ? ", made sharper" : ""}.${missed} ${blurry ? BLURRY_LINE : qualityLine(dpi)}`), { designs: [r.url], photo: true }, chipRow(["Check my design", "Something else"])];
       }
       const { W, H } = areaPx(pos);
       const tee = { teeColour: colour?.name || "white", teeIsDark: lum(fabricHex) < 0.55, ratio: W / H };
@@ -2481,6 +2488,15 @@ export default function DesignRoomPage() {
     const widthCm = w / h > wCm / hCm ? 0.92 * wCm : 0.92 * hCm * (w / h);
     return widthCm > 0 ? w / (widthCm / 2.54) : 300;
   };
+  // …and as it will be printed (the shop can enlarge a small picture before printing): what Review goes by. When
+  // even that is too low, the Assistant says so at once — it used to say "a bit soft" about a photo that Review
+  // then called blurry (12 Nov 2026).
+  const printsBlurry = (pos, w, h) => {
+    const { wCm, hCm } = areaPx(pos);
+    const widthCm = w / h > wCm / hCm ? 0.92 * wCm : 0.92 * hCm * (w / h);
+    return widthCm > 0 && printSharpness(w, widthCm, ai.available).printed < MIN_DPI;
+  };
+  const BLURRY_LINE = "It’s a very small photo for this area, so it would print blurry at this size. Tap “Check my design” and I’ll make it a size that prints sharp, or send a bigger photo.";
   const qualityLine = (dpi) =>
     dpi >= 150 ? "It’s sharp, so it will print well." : dpi >= 100 ? "It will print fine; a bigger photo would be even sharper." : "It’s a small photo, so it may print a bit soft. A bigger one will look sharper.";
   // "Put it on my tee as it is" / "Remove the background first" (both free; a photo is cut out on our server)
@@ -2507,7 +2523,7 @@ export default function DesignRoomPage() {
     if (!on.length) return [botSays(`I couldn’t put it on ${pos.label}. Use “Other area” under the photo to pick a free one.`), { designs: [r.url], photo: true }];
     const how = a.cutOut ? (r.cut ? ", without its background" : " (it had no background to remove)") : "";
     return [
-      botSays(`Done — your photo is on ${andList(on.map((p) => p.label))}${how}. ${qualityLine(Math.min(...on.map((p) => printDpi(p, r.w, r.h))))}`),
+      botSays(`Done — your photo is on ${andList(on.map((p) => p.label))}${how}. ${on.some((p) => printsBlurry(p, r.w, r.h)) ? BLURRY_LINE : qualityLine(Math.min(...on.map((p) => printDpi(p, r.w, r.h))))}`),
       { designs: [r.url], photo: true },
       chipRow(a.cutOut ? ["Check my design", "Something else"] : [PHOTO_CUT, "Check my design", "Something else"]),
     ];
@@ -2847,9 +2863,12 @@ export default function DesignRoomPage() {
     if (!saved) return;
     setBusy("Adding to your cart…");
     try {
-      await customizationService.addDesignToCart(saved._id, chosen);
+      const added = await customizationService.addDesignToCart(saved._id, chosen);
       dispatch(fetchCart(readJSON("userInfo")?.token));
-      setCartNote({ pieces, name: saved.name });
+      // how many pieces of this design the cart holds now: a second "Add to cart" ADDS to the first (12 Nov 2026:
+      // the note said "1 piece" while the cart had 2)
+      const inCart = (added?.cartItems || []).filter((c) => String(c.customization?._id || c.customization || "") === String(saved._id)).reduce((n, c) => n + (c.qty || 0), 0);
+      setCartNote({ pieces, name: saved.name, inCart: Math.max(inCart, pieces) });
     } catch (err) {
       say(err.response?.data?.message || "Couldn't add to your cart. Please try again.");
     } finally {
@@ -3444,7 +3463,7 @@ export default function DesignRoomPage() {
                     </button>
                     <button type="button" className="dr-drop" onClick={pickUpload}>
                       <b>Upload a photo or logo</b>
-                      <span>JPG, PNG or WebP · up to 10 MB</span>
+                      <span>JPG, PNG or WebP · big photos are fine</span>
                     </button>
                     <p className="dr-empty">A print-quality check shows if a picture is too small to print sharp.</p>
                   </>
@@ -3482,8 +3501,8 @@ export default function DesignRoomPage() {
                 <div className="dr-printcheck" aria-label="Print check">
                   <div className="dr-printcheck-head">{designIssues().length ? "Before you order — worth a look" : "Print check: all good ✓"}</div>
                   <ul>
-                    {printLines().map((line) => (
-                      <li key={line}>{line}</li>
+                    {printLines().map((line, i) => (
+                      <li key={`${i}:${line}`}>{line}</li>
                     ))}
                     {lum(fabricHex) < 0.55 && elements.some((e) => e.type === "image") && <li>White parts of a picture print as white ink on this dark tee.</li>}
                   </ul>
@@ -3589,7 +3608,7 @@ export default function DesignRoomPage() {
                         });
                         const res = await aiService.tryOn({ photo, image: shots[0].url, garment: garment?.label || "t-shirt", teeColour: colour?.name || "white" });
                         if (res.left != null) setAi((cur) => ({ ...cur, left: res.left }));
-                        setWorn({ url: res.url });
+                        setWorn({ url: res.url, me: true }); // made from the customer's own photo: the caption says so
                       } catch (err) {
                         setWorn(null);
                         say(err?.response?.data?.message || err?.message || "The photo couldn’t be made just now.");
@@ -3621,7 +3640,11 @@ export default function DesignRoomPage() {
                       </button>
                       <button type="button" className="dr-share" onClick={() => setWorn(null)}>Close</button>
                     </div>
-                    <p className="dr-review-hint">An AI photo of your design on a person — the print is as on your tee; the person and place are made up.</p>
+                    <p className="dr-review-hint">
+                      {worn.me
+                        ? "An AI picture of you in your tee, made from your photo — a preview, not a real photo. The print is as on your tee."
+                        : "An AI photo of your design on a person — the print is as on your tee; the person and place are made up."}
+                    </p>
                   </div>
                 </div>,
                 document.body,
@@ -3766,8 +3789,13 @@ export default function DesignRoomPage() {
               <div>
                 <div className="eyebrow">Added to your cart</div>
                 <h1>
-                  {cartNote.pieces} piece{cartNote.pieces === 1 ? "" : "s"} of “{cartNote.name}”
+                  {cartNote.pieces} {cartNote.inCart > cartNote.pieces ? "more " : ""}piece{cartNote.pieces === 1 ? "" : "s"} of “{cartNote.name}”
                 </h1>
+                {cartNote.inCart > cartNote.pieces && (
+                  <p className="dr-added-more">
+                    This design was already in your cart, so it now has <b>{cartNote.inCart} pieces</b>. Wanted fewer? Change the number in the cart.
+                  </p>
+                )}
                 <p>Want a different design too? Make another one — everything goes into the same cart and you pay once.</p>
               </div>
               <div className="dr-added-actions">

@@ -1,5 +1,6 @@
 import multer from "multer";
 import { uploadFile } from "../utils/imageStorage.js";
+import { isRealPicture, DAMAGED_PICTURE } from "../utils/realPicture.js";
 
 /*
  * Shared upload middleware for the whole API.
@@ -114,6 +115,19 @@ const withErrors = (handler) => (req, res, next) =>
   });
 
 const storeFiles = storeFilesWith();
+
+// A picture for printing is opened before it is kept: a file that only has a picture's name (damaged, cut short,
+// or something else renamed to .jpg) is refused with plain words. Before 12 Nov 2026 such a file went onto the tee
+// as an invisible picture, passed the print check and reached the cart.
+const realPictures = async (req, res, next) => {
+  for (const f of allFiles(req)) {
+    if (f.mimetype.startsWith("image/") && !(await isRealPicture(f.buffer))) {
+      res.status(400);
+      return next(new Error(DAMAGED_PICTURE));
+    }
+  }
+  next();
+};
 const pipeline = (handler, opts) => [withErrors(handler), opts ? storeFilesWith(opts) : storeFiles];
 
 /* ==========================
@@ -137,7 +151,7 @@ export const uploadProductFiles = pipeline(
   ]),
 );
 // Customer artwork uploaded in the customizer
-export const uploadDesignFile = pipeline(upload.single("design"));
+export const uploadDesignFile = [withErrors(upload.single("design")), realPictures, storeFiles];
 // Settings — store logo / favicon
 export const uploadSettingsAsset = pipeline(upload.single("settingsAsset"));
 // Customizer garment photos (Admin → Garment Photos)

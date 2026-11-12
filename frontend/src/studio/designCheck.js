@@ -8,7 +8,7 @@
 //   contrast ink colour too close to the tee colour
 //   outside  part of an item hangs over the print area's edge (it gets cut)
 
-const MIN_DPI = 100; // below this a print looks soft
+export const MIN_DPI = 100; // below this a print looks soft
 const GOOD_DPI = 150;
 const MIN_LETTER_CM = 0.8; // letter size (font size) that still reads on fabric
 const GOOD_LETTER_CM = 1.2;
