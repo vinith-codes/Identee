@@ -11,6 +11,7 @@ import { SHOPS } from "../utils/shopNames";
 import { useShopOpen } from "../utils/shopOpen";
 import ShopComingSoon from "../components/ShopComingSoon";
 import ReadyDesignGrid from "../components/shop/ReadyDesignGrid";
+import ShopAsk from "../components/shop/ShopAsk";
 import { SHOP_CSS } from "../components/shop/shopStyles";
 import { imageUrl } from "../utils/imageUrl";
 import { collectionInfo, collectionLink } from "../utils/shopRules";
@@ -41,6 +42,7 @@ function CollectionCard({ c }) {
 export default function ReadyMadePage() {
   const shop = useShopOpen();
   const [collections, setCollections] = useState(null);
+  const [facets, setFacets] = useState(null); // the shop's colours, styles, sizes: what the Ask bar may filter by
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -48,7 +50,11 @@ export default function ReadyMadePage() {
     let alive = true;
     shopService
       .listProducts({ limit: 1 })
-      .then((d) => alive && setCollections(d.facets?.collections || []))
+      .then((d) => {
+        if (!alive) return;
+        setCollections(d.facets?.collections || []);
+        setFacets(d.facets || {});
+      })
       .catch(() => alive && setError("Couldn't load the collections. Please try again."));
     return () => {
       alive = false;
@@ -67,6 +73,8 @@ export default function ReadyMadePage() {
           text="Finished designs, ready to wear. Every tee can be customized, and they all ship free."
           switchTo={{ to: SHOPS.create.to, label: `${SHOPS.create.name} instead →` }}
         />
+        {/* "black anime tee under ₹500": the ready tees that fit, from every collection (round 8, 11 Nov 2026) */}
+        <ShopAsk facets={facets} />
         {/* the IDENTEE designs that have no category yet (26 Oct 2026); nothing shows while there are none */}
         <ReadyDesignGrid category="none" />
         {error && <p className="sh-error">{error}</p>}

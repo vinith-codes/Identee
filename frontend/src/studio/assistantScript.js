@@ -24,6 +24,7 @@ import { TEMPLATES } from "./designTemplates";
 import { parsePlayers, playerLabel } from "./teamOrder";
 import { styleIn } from "./styleInfo";
 import { areasFromWords } from "./photoIntent";
+import { changeAtSpot } from "./assistantExtras";
 
 const MENU = ["Slogan ideas", "Start from a template", "Check my design", "More help"];
 const MORE_PHOTO = "Photo to art";
@@ -215,7 +216,7 @@ export function replyTo(text, ctx, st, { tapped = false } = {}) {
 
   /* ----- ways back ----- */
   // "Something else" also drops whatever was half-asked (an idea, a layout, a change, a photo)
-  const clean = { idea: null, template: null, changeUrl: null, photoUrl: null, backTo: null };
+  const clean = { idea: null, template: null, changeUrl: null, changeSpot: null, photoUrl: null, backTo: null };
   if (t === BACK) {
     if (st.backTo === "idea" && st.backIdea) {
       const idea = st.backIdea;
@@ -232,7 +233,7 @@ export function replyTo(text, ctx, st, { tapped = false } = {}) {
   // a photo just sent without words: what is typed next says what to make from it (read with the photo)
   if (st.photo && wait === "photoWhat" && !tapped && t.length >= 2 && t !== OUT) return done([act({ type: "photoUnderstand", text: t })]);
   if (t === NOT_NOW) return done([bot("OK, nothing was drawn. Tell me whenever you want to try again."), chips(MENU)], clean);
-  if (t === CANCEL && wait === "aiChange") return done([bot("OK, I left that design as it is."), chips(AFTER_DESIGNS)], { changeUrl: null });
+  if (t === CANCEL && wait === "aiChange") return done([bot("OK, I left that design as it is."), chips(AFTER_DESIGNS)], { changeUrl: null, changeSpot: null });
   if (t === KEEP_DESIGN && st.template) return done([bot("OK, I left your design as it is."), chips(MENU)], { template: null });
   if (t === KEEP_EDITING) return done([bot("OK. Change what you like, then press Review again — or ask me to check it."), chips(["Check again", "Something else"])]);
   // "Change my idea": the idea goes back into the message box to be changed and sent again
@@ -307,7 +308,8 @@ export function replyTo(text, ctx, st, { tapped = false } = {}) {
     return done(ideaPlan(ctx, said, { improvable: !!ctx.ai.text }), { idea: ideaOf(said) });
   }
   if (wait === "aiChange" && !offTopic && st.changeUrl) {
-    return done([act({ type: "generate", baseUrl: st.changeUrl, change: t })], { changeUrl: null });
+    // round 8: "Change a part" marked a spot of the picture: the change is asked for there, and nowhere else
+    return done([act({ type: "generate", baseUrl: st.changeUrl, change: changeAtSpot(t, st.changeSpot) })], { changeUrl: null, changeSpot: null });
   }
   if (t === "Make more" && st.lastDesign) return done([act({ type: "generate", ...st.lastDesign })]);
 

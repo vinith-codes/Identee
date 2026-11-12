@@ -46,7 +46,9 @@ import { cropMockup } from "./mockupCrop";
 import { TEMPLATES } from "./designTemplates";
 import TeamModeChoice from "./TeamModeChoice";
 import SizeFinder from "./SizeFinder.jsx";
-import { FONTS, addStudioFonts } from "./fonts";
+import { FONTS, addStudioFonts, fontChoices, hasTamil } from "./fonts";
+import { fitNote, matchWord, rankSizes } from "./sizeMatch";
+import { playersFromEntries, qtysFromEntries } from "./assistantExtras";
 import "./designRoom.css";
 
 const PX_PER_CM = 24; // texture / editor resolution (print files are made separately at 300 DPI)
@@ -218,6 +220,7 @@ export default function DesignRoomPage() {
   const [chatsOpen, setChatsOpen] = useState(false);
   // the design in My designs this chat is about: opening another one from My designs starts (or finds) its own chat
   const chatDesign = useRef(draft?.designId || null);
+  const openedAgain = useRef(null); // "the same tee again": { id, no, colour } of the copy being opened, so its new chat says why it is new
   // the AI design maker: whether it is on, how many requests are left today, and where its designs sit on the tee
   const [ai, setAi] = useState({ available: false, reason: "setup", styles: [], photoStyles: [], left: null });
   const photoRef = useRef(null); // the file picker for "photo to art"
@@ -255,6 +258,7 @@ export default function DesignRoomPage() {
   const [twirlKey, setTwirlKey] = useState(0); // goes up to make the tee do one full turn
   const [shots, setShots] = useState(null);
   const [sharing, setSharing] = useState(false); // Share my tee: the picture is being made
+  const [emailing, setEmailing] = useState(false); // Email me this design (round 8): the email is on its way
   const [worn, setWorn] = useState(null); // Photo of it worn (round 5): null | "making" | { url }
   const tryOnRef = useRef(null); // Try it on me (round 7): the customer's own photo
   const [spin, setSpin] = useState(true);
@@ -756,6 +760,14 @@ export default function DesignRoomPage() {
         if (other) {
           saveChatNow();
           applyConversation(null);
+          // an ordered tee opened again: its new chat starts by saying what this tee is and where the chat before went
+          const again = openedAgain.current?.id === d._id ? openedAgain.current : null;
+          openedAgain.current = null;
+          if (again)
+            setChat([
+              botSays(`This is your tee from order ${again.no || ""}, opened as a new design${again.colour ? ` in ${again.colour}` : ""}. A new design gets its own chat, so this one starts fresh. The chat we just had is kept under “Your chats” (the button at the top). Tell me what to change, or pick the sizes and go to Review.`.replace("  ", " ")),
+              chipRow(["Continue to review"]),
+            ]);
           listChats().then(({ chats }) => {
             const was = chats.find((c) => c.designId === d._id && c.type === type);
             if (was) loadChat(was.id).then((rec) => alive && rec && chatDesign.current === d._id && applyConversation(rec));
@@ -1212,9 +1224,48 @@ export default function DesignRoomPage() {
     hasRoles: roles, // a text is marked as the player's name / number (team orders)
     roles: rolesIn(elements), // { name, number }: which of the two the tee has a place for
     players: players.filter(filled).length, // a pasted list is added to these, never replaces them
+    // round 8 (11 Nov 2026): what the chat's cards ask the page (studio/AssistantCards.jsx)
+    garmentLabel: garment?.label || "",
+    sizeFor, // height and weight -> the best size of this tee
+    again: orderAgain, // an ordered tee, opened again as a new design
+    groupTeam, // the group link's answers -> one tee per friend, with their name
+    groupSizes, // ... or only a count per size
     // an uploaded picture on the tee (not library art, not an AI design) — "photo to art" can use it
     photoOnTee: [...elements].reverse().find((e) => e.type === "image" && !e.artDesignId && !aiCuts.current.has(e.src))?.src || null,
   });
+  // Round 8: the size card. The same rule as the size finder (sizeMatch.js), from height and weight alone.
+  const sizeFor = (answers) => {
+    const ranked = rankSizes(garment, answers);
+    const best = ranked?.best;
+    if (!best) return null;
+    return { size: best.size, score: best.score, word: matchWord(best.score), note: fitNote(garment, ranked, best), chest: best.row?.chest || 0, length: best.row?.length || 0 };
+  };
+  // Round 8: "the same tee again (in blue)". The tee on screen is saved first; then a copy of the ordered design
+  // opens in its place (the design-open effect above swaps the tee and gives it its own chat).
+  const orderAgain = async (id, colourName, no) => {
+    if (!id) return { ok: false, message: "That order has no design of your own to open again." };
+    try {
+      if (elements.length && unsaved.current && !(await saveDesign({ quiet: true }))) return { ok: false, message: "Your tee couldn’t be saved, so I left everything as it is. Please try again." };
+      const copy = await customizationService.duplicateDesign(id, { colorName: colourName || undefined, again: true });
+      openedAgain.current = { id: copy._id, no, colour: colourName };
+      navigate(`/customize/${copy.garmentType}?design=${copy._id}`);
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, message: err.response?.status === 404 ? "That design isn’t in My designs any more, so it can’t be opened again." : err.response?.data?.message || "That didn’t work just now. Please try again." };
+    }
+  };
+  // Round 8: "email me my design". Saved first (the email's link opens the saved tee), then sent to their own address.
+  const emailMyDesign = async () => {
+    if (!elements.length) return "There is nothing on the tee yet. Design something first, then ask me to email it.";
+    const saved = await saveDesign({ quiet: true });
+    if (!saved) return "Your tee couldn’t be saved, so nothing was sent. Please try again.";
+    try {
+      const res = await customizationService.emailDesign(saved._id);
+      return `Sent to ${res.to}. The email has a picture of your tee and a link that opens it again.`;
+    } catch (err) {
+      return err.response?.data?.message || "The email couldn’t be sent just now. Please try again in a minute.";
+    }
+  };
   // The smart Assistant (23 Oct 2026): a typed message read by Google's text AI. It answers in words and may use
   // ONE of the Assistant's own tools — the edit planner, slogans, a drawing plan card (nothing drawn until Draw is
   // tapped) or a built-in helper ({ menu }, answered by the fixed script in Assistant.jsx). When it can't answer,
@@ -1373,7 +1424,15 @@ export default function DesignRoomPage() {
         setChatState((st) => ({ ...st, ask: step.about, tone: step.tone || null, said: [] }));
         out.push(...(await writeSlogans({ ask: step.about, tone: step.tone, avoid: [] })).filter((m) => !m.from));
       } else if (step.type === "menu") out.push(step.item === "My pictures" ? { mypics: true, find: a.text || "" } : { menu: step.item });
-      else if (step.type === "undo") {
+      // round 8: size from height and weight, orders, the same tee again, email me my design, the group link
+      else if (step.type === "size") out.push({ sizeAsk: { who: step.who || null, heightCm: step.heightCm || null, weightKg: step.weightKg || null } });
+      else if (step.type === "orders") out.push({ orders: true });
+      else if (step.type === "reorder") out.push({ reorder: { order: step.order || null, colour: step.colour || null } });
+      else if (step.type === "group") out.push({ group: {} });
+      else if (step.type === "email") {
+        progress?.({ label: "Sending the email…", expect: 8 });
+        out.push(botSays(await emailMyDesign()));
+      } else if (step.type === "undo") {
         undo();
         if (!res.reply) out.push(botSays("Undone."));
       }
@@ -1574,11 +1633,30 @@ export default function DesignRoomPage() {
     const numbers = Boolean(step.numbersOn) && step.players.some((p) => p.number);
     if (numbers) ensureRole("number", step.numbersOn, String(first.number || "7"));
     if (els !== elementsRef.current) commit(els);
-    addPlayers(step.players.map((p) => ({ name: String(p.name || "").slice(0, NAME_MAX), number: String(p.number || "").slice(0, NUMBER_MAX), size: sizeNow })));
+    addPlayers(step.players.map((p) => ({ name: String(p.name || "").slice(0, NAME_MAX), number: String(p.number || "").slice(0, NUMBER_MAX), size: p.size && sizes.includes(p.size) ? p.size : sizeNow })));
     const who = step.players.slice(0, 4).map((p) => p.name || p.number).filter(Boolean);
     return [
       botSays(`${step.players.length} tee${step.players.length === 1 ? "" : "s"}, one each: ${andList(who)}${step.players.length > 4 ? " and more" : ""}. The name goes on the ${step.namesOn || "back"}${numbers ? ` and the number on the ${step.numbersOn}` : ""} — tell me if you'd like them elsewhere, bigger or in another colour. In Review, tap a player to see their tee.`),
       chipRow(["Continue to review", "Make the names bigger"]),
+    ];
+  };
+  // Round 8, the group link: the friends' answers become tees. With names: one tee each (their own size).
+  const groupTeam = (entries) => {
+    const list = playersFromEntries(entries, sizes, sizeNow);
+    if (!list.length) return [botSays("Nobody has answered yet. Check again when your friends have filled it in.")];
+    return setupTeam({ players: list, namesOn: "back", numbersOn: list.some((p) => p.number) ? "back" : null });
+  };
+  // ... or only how many of each size (no names on the tee)
+  const groupSizes = (entries) => {
+    if (teamMode) return [botSays("This tee has a name on it, so every friend gets their own tee. Tap “Fill my tees with their names” instead.")];
+    const { qtys: counted, skipped } = qtysFromEntries(entries, sizes);
+    const order = sizes.filter((sz) => counted[sz]);
+    const total = order.reduce((sum, sz) => sum + counted[sz], 0);
+    if (!total) return [botSays("There are no sizes to set yet. Check again when your friends have filled it in.")];
+    setQtys(counted);
+    return [
+      botSays(`Set for Review: ${order.map((sz) => `${counted[sz]} × ${sz}`).join(", ")}. That is ${total} tee${total === 1 ? "" : "s"}.${skipped ? ` ${skipped} answer${skipped === 1 ? " has" : "s have"} a size this tee doesn’t come in, so I left ${skipped === 1 ? "it" : "them"} out.` : ""} You can still change the numbers in Review.`),
+      chipRow(["Continue to review"]),
     ];
   };
   // Browse ideas (round 7): the concept sheets the admin featured, as a starting point
@@ -3439,6 +3517,22 @@ export default function DesignRoomPage() {
                   {sharing ? "Making the picture…" : "Share my tee"}
                 </button>
               )}
+              {/* Email me this design (round 8, 11 Nov 2026): saved, then sent to their own address with a link back to it */}
+              {shots?.length === 4 && shots[0]?.url && (
+                <button
+                  type="button"
+                  className="dr-share alt"
+                  disabled={emailing || !!busy}
+                  onClick={async () => {
+                    if (!isLoggedIn()) return goToLogin();
+                    setEmailing(true);
+                    say(await emailMyDesign());
+                    setEmailing(false);
+                  }}
+                >
+                  {emailing ? "Sending the email…" : "Email me this design"}
+                </button>
+              )}
               {/* Photo of it worn (round 5, 8 Nov 2026): one AI photo of the finished tee on a person, for WhatsApp / Instagram */}
               {shots?.length === 4 && shots[0]?.url && ai.available && (
                 <button
@@ -3989,7 +4083,7 @@ function Controls({ sel, areaCmW, areaRatio, onPatch, onDelete, onDuplicate, onL
             <label className="dr-field">
               Font
               <select value={sel.fontFamily} onChange={(e) => onPatch({ fontFamily: e.target.value }, { measure: true })}>
-                {[...new Set([sel.fontFamily, ...FONTS])].map((f) => <option key={f} style={{ fontFamily: f }}>{f}</option>)}
+                {fontChoices(sel.text, sel.fontFamily).map((f) => <option key={f} style={{ fontFamily: f }}>{f}</option>)}
               </select>
             </label>
             <label className="dr-field">
@@ -3997,6 +4091,7 @@ function Controls({ sel, areaCmW, areaRatio, onPatch, onDelete, onDuplicate, onL
               <input type="range" min="2" max="60" step="0.5" value={sel.fontSizePct} onChange={(e) => onPatch({ fontSizePct: +e.target.value }, { measure: true })} />
             </label>
           </div>
+          {hasTamil(sel.text) && <small className="dr-tamilnote">Tamil words: pick a Tamil font from the top of the list. They stay straight, with normal letter spacing, so the letters join the right way.</small>}
           <div className="dr-field">
             Style
             <div className="dr-row" aria-label="Text style">
@@ -4033,13 +4128,14 @@ function Controls({ sel, areaCmW, areaRatio, onPatch, onDelete, onDuplicate, onL
                 ["vertical", "Vertical"],
               ].map(([k, label]) => {
                 const vertical = Math.abs(sel.rotation || 0) === 90;
-                const now = vertical ? "vertical" : sel.effect || "straight";
+                const now = vertical ? "vertical" : hasTamil(sel.text) ? "straight" : sel.effect || "straight";
                 return (
                   <button
                     key={k}
                     type="button"
                     className={now === k ? "on" : ""}
                     aria-pressed={now === k}
+                    disabled={k.startsWith("arc") && hasTamil(sel.text)}
                     onClick={() => {
                       if (k === "vertical") {
                         // turned 90°: its length runs down the area — shrink it to fit the height, and centre it
@@ -4069,7 +4165,7 @@ function Controls({ sel, areaCmW, areaRatio, onPatch, onDelete, onDuplicate, onL
           <div className="dr-row">
             <label className="dr-field">
               Letter spacing
-              <input type="range" min="-5" max="40" step="1" value={sel.letterSpacingPct || 0} onChange={(e) => onPatch({ letterSpacingPct: +e.target.value }, { measure: true })} />
+              <input type="range" min="-5" max="40" step="1" value={sel.letterSpacingPct || 0} disabled={hasTamil(sel.text)} onChange={(e) => onPatch({ letterSpacingPct: +e.target.value }, { measure: true })} />
             </label>
             <label className="dr-field">
               Line spacing

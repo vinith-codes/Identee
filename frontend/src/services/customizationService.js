@@ -42,7 +42,10 @@ const createDesign = async (design) => (await axios.post(API_URL, design, auth()
 // 409 { locked: true } when the design was ordered — save a copy instead
 const updateDesign = async (id, design) => (await axios.put(`${API_URL}/${id}`, design, auth())).data;
 const listMyDesigns = async () => (await axios.get(`${API_URL}/mine`, auth())).data;
-const duplicateDesign = async (id) => (await axios.post(`${API_URL}/${id}/duplicate`, {}, auth())).data;
+// body: {} for a plain copy, or { colorName: "Navy Blue", again: true } for "the same tee again in blue" (the Assistant)
+const duplicateDesign = async (id, body = {}) => (await axios.post(`${API_URL}/${id}/duplicate`, body, auth())).data;
+// "Email me my design": the tee's picture and a link back to it, sent to the customer's own account address
+const emailDesign = async (id) => (await axios.post(`${API_URL}/${id}/email`, {}, auth())).data;
 const deleteDesign = async (id) => (await axios.delete(`${API_URL}/${id}`, auth())).data;
 // cart: items = [{ size, qty }] — one design in any mix of sizes
 const addDesignToCart = async (id, items) => (await axios.post(`${API_URL}/${id}/cart`, { items }, auth())).data;
@@ -62,6 +65,7 @@ const customizationService = {
   updateDesign,
   listMyDesigns,
   duplicateDesign,
+  emailDesign,
   deleteDesign,
   addDesignToCart,
   getOrderPrintPack,

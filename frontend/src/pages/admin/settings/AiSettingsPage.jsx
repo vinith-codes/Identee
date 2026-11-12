@@ -19,6 +19,9 @@ const FIELDS = [
   ["grokPricePerImageInr", "Cost of one Grok picture (₹)", "Grok redraws a customer's photo only when Google refuses it (well-known people). $5 of xAI credit ≈ 71 pictures ≈ ₹6 each — check console.x.ai → Billing.", 0, 100, 0.1],
   ["replicatePricePerImageInr", "Cost of one print-ready picture (₹)", "Orders → Designs & print files → Prepare for print: the picture is enlarged on Replicate's graphics cards (Real-ESRGAN). Replicate charges per run, about ₹0.20–₹1 — check replicate.com → Billing and put the real figure here.", 0, 100, 0.1],
   ["designAddOnInr", "Extra price per tee with a picture (₹)", "What the CUSTOMER pays on top of the garment's price for each tee whose design has an AI-made picture or their own upload. Once per tee, however many pictures. Pictures from the art library are free, and a text-only design costs just the garment's price.", 0, 5000, 10],
+  ["makingDays", "Working days to make one order", "From the order to the parcel leaving us. The Assistant uses this to answer when a tee will arrive. Sundays are not counted.", 1, 30, 1],
+  ["teamMakingDays", "Working days to make a team order", "The same, for team orders with names and numbers (they take longer).", 1, 45, 1],
+  ["shippingDays", "Working days the courier takes", "From leaving us to reaching the customer. Use the longest usual time, so the date the Assistant gives is a safe one.", 1, 30, 1],
   ["chatPricePerMessageInr", "Cost of one smart Assistant message (₹)", "Used only for the spending figures here: Google's text AI reads each message a customer types. Check Google AI Studio's spend page after a few days and put the real figure here. It counts toward Google's monthly cap.", 0, 10, 0.05],
 ];
 const WHY = {

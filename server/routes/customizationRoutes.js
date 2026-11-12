@@ -9,6 +9,7 @@ import {
   updateCustomization,
   listMyCustomizations,
   duplicateCustomization,
+  emailCustomization,
   deleteCustomization,
   addDesignToCart,
   setDesignCartQty,
@@ -18,6 +19,7 @@ import {
 } from "../controllers/customizationController.js";
 import { uploadDesignFile } from "../multer/multer.js";
 import { protect, admin } from "../middleware/authMiddleware.js";
+import rateLimit from "../middleware/rateLimit.js";
 
 const router = express.Router();
 
@@ -39,6 +41,7 @@ router.put("/cart/:cartItemId", protect, setDesignCartQty);
 router.get("/:id", protect, getCustomizationById);
 router.put("/:id", protect, updateCustomization);
 router.post("/:id/duplicate", protect, duplicateCustomization);
+router.post("/:id/email", protect, rateLimit({ windowMs: 10 * 60_000, max: 4, message: "You have asked for a few emails just now — try again in ten minutes." }), emailCustomization);
 router.delete("/:id", protect, deleteCustomization);
 router.post("/:id/cart", protect, addDesignToCart);
 

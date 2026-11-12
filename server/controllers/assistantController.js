@@ -10,6 +10,9 @@ import asyncHandler from "express-async-handler";
 import sharp from "sharp";
 import AiUsage from "../models/aiUsageModel.js";
 import AiChatUsage from "../models/aiChatUsageModel.js";
+import Order from "../models/orderModel.js";
+import { customerCancelMode } from "../services/orderCancel.js";
+import { dayWords, deliveryFact, indiaDay } from "../utils/deliveryDates.js";
 import { uploadFile } from "../utils/imageStorage.js";
 import { cutOutPlainBackground, trimClearEdges } from "../services/cutoutService.js";
 import { rememberPictures } from "./myPictureController.js";
@@ -101,6 +104,9 @@ export const makeAssist = asyncHandler(async (req, res) => {
   const logo = req.body?.logoUrl && isOurUpload(String(req.body.logoUrl)) ? String(req.body.logoUrl) : null;
   // what we know about this customer from earlier visits (round 5, 8 Nov 2026) — kept on their account
   const profile = String((await User.findById(req.user._id).select("aiProfile").lean().catch(() => null))?.aiProfile || "").slice(0, 400);
+  // round 8 (11 Nov 2026): the delivery dates, worked out here, and the customer's own last orders
+  const delivery = deliveryFact({ makingDays: s.makingDays, teamMakingDays: s.teamMakingDays, shippingDays: s.shippingDays });
+  const orders = await myOrdersFact(req.user._id);
   let answer;
   try {
     answer = await brainReply({
@@ -110,7 +116,7 @@ export const makeAssist = asyncHandler(async (req, res) => {
       earlier: said(req.body?.earlier, 40),
       memory: String(req.body?.memory || "").slice(0, MEMORY_MAX),
       design: req.body?.design || {},
-      facts: { ...facts, loggedIn: true, picturesLeft: left },
+      facts: { ...facts, loggedIn: true, picturesLeft: left, delivery, orders },
       areas,
       styles: Object.keys(AI_STYLES),
       sheets,
@@ -128,6 +134,28 @@ export const makeAssist = asyncHandler(async (req, res) => {
   const { profile: _kept, ...sent } = answer; // eslint-disable-line no-unused-vars
   res.json({ ...sent, left });
 });
+
+// The customer's last orders, as the Assistant may talk about them: number, day, status in plain words, what was in
+// it, and whether a cancel can still be asked for. No addresses, no payment details.
+const STATUS_WORDS = { CREATED: "placed", CONFIRMED: "confirmed, being made", PACKED: "packed", OUT_FOR_DELIVERY: "out for delivery", DELIVERED: "delivered", CANCELLED: "cancelled" };
+export async function myOrdersFact(userId) {
+  const rows = await Order.find({ user: userId })
+    .sort({ createdAt: -1 })
+    .limit(5)
+    .select("invoiceNumber orderStatus createdAt totalPrice orderItems.name orderItems.qty orderItems.size orderItems.customization cancelRequest printFiles.sentAt refund.status")
+    .lean()
+    .catch(() => []);
+  return rows.map((o) => ({
+    no: o.invoiceNumber || String(o._id).slice(-6).toUpperCase(),
+    placed: dayWords(indiaDay(o.createdAt)),
+    status: STATUS_WORDS[o.orderStatus] || String(o.orderStatus || "").toLowerCase(),
+    total: o.totalPrice,
+    items: (o.orderItems || []).slice(0, 4).map((i) => `${i.qty} × ${String(i.name || "").slice(0, 40)} (${i.size})`).join(", "),
+    ownDesign: (o.orderItems || []).some((i) => i.customization),
+    cancel: { now: "can still be cancelled", ask: "a cancel request can be sent", asked: "cancel request sent, waiting for the shop" }[customerCancelMode(o)] || "can no longer be cancelled",
+    ...(o.refund?.status ? { refund: o.refund.status } : {}),
+  }));
+}
 
 // the checks every picture request makes: the feature on, the caps, the customer's daily limit
 async function mayDraw(req, res) {

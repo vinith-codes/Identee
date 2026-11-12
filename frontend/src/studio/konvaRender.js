@@ -9,6 +9,7 @@
 // degrees around the box centre, text size is fontSizePct (% of box height).
 import Konva from "konva";
 import { imageUrl } from "../utils/imageUrl";
+import { hasTamil, textFamily } from "./fonts";
 
 /* ---------- images (CORS-safe so the 3D texture isn't "tainted") ---------- */
 const imgCache = new Map(); // src (+ "#full") -> { img, ready: Promise }
@@ -40,7 +41,10 @@ const fontStyle = (el) => [el.bold && "bold", el.italic && "italic"].filter(Bool
 
 // Letter spacing and outline are saved in % of the letter size.
 const letterPx = (el, H) => Math.max(4, ((el.fontSizePct || 15) / 100) * H);
-const spacingPx = (el, H) => ((el.letterSpacingPct || 0) / 100) * letterPx(el, H);
+// Tamil (round 8): Tamil letters join each other (க + ி = கி). With letter spacing, or on a curve, the canvas draws
+// one letter at a time and the joins break. So Tamil words are always drawn whole: no spacing, no curve.
+const spacingPx = (el, H) => (hasTamil(el.text) ? 0 : ((el.letterSpacingPct || 0) / 100) * letterPx(el, H));
+const curved = (el) => (el.effect === "arc-up" || el.effect === "arc-down") && !hasTamil(el.text);
 const outline = (el, H) =>
   el.strokeWidthPct > 0 && el.strokeColor
     ? { stroke: el.strokeColor, strokeWidth: (el.strokeWidthPct / 100) * letterPx(el, H) * 2, fillAfterStrokeEnabled: true, lineJoin: "round" }
@@ -50,7 +54,7 @@ const outline = (el, H) =>
 export function measureText(el, H) {
   const t = new Konva.Text({
     text: el.text || " ",
-    fontFamily: el.fontFamily || "Arial",
+    fontFamily: textFamily(el),
     fontSize: Math.max(4, ((el.fontSizePct || 15) / 100) * H),
     fontStyle: fontStyle(el),
     align: el.align || "center",
@@ -58,7 +62,7 @@ export function measureText(el, H) {
     letterSpacing: spacingPx(el, H),
   });
   const w = t.width();
-  const h = t.height() * (el.effect && el.effect !== "straight" ? 1.25 : 1);
+  const h = t.height() * (el.effect && el.effect !== "straight" && !hasTamil(el.text) ? 1.25 : 1);
   t.destroy();
   return { w, h };
 }
@@ -67,7 +71,7 @@ export function measureText(el, H) {
 function textNode(el, W, H) {
   const fontSize = Math.max(4, ((el.fontSizePct || 15) / 100) * H);
   const common = {
-    fontFamily: el.fontFamily || "Arial",
+    fontFamily: textFamily(el),
     fontSize,
     fontStyle: fontStyle(el),
     textDecoration: el.underline ? "underline" : "",
@@ -75,7 +79,7 @@ function textNode(el, W, H) {
     letterSpacing: spacingPx(el, H),
     ...outline(el, H),
   };
-  if (el.effect === "arc-up" || el.effect === "arc-down") {
+  if (curved(el)) {
     const flat = measureText({ ...el, effect: "straight" }, H);
     const chord = flat.w * 1.06;
     const sag = chord * 0.16;

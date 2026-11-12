@@ -8,6 +8,9 @@ import PrintSheetDay from "../models/printSheetDayModel.js";
 import User from "../models/userModel.js";
 import { customizationLine } from "../services/checkoutService.js";
 import { uploadFile, deleteStoredFile } from "../utils/imageStorage.js";
+import { fromAddress, isEmail, mailer } from "../utils/mailer.js";
+import { siteAddress } from "../utils/siteAddress.js";
+import { publicBase } from "./printFileController.js";
 import { rememberPictures } from "./myPictureController.js";
 import { readyPictures } from "../utils/shopRules.js";
 import { positionsForGarment, catalogForGarment, overlappingPairs, SIZES, SIZE_GROUPS } from "../data/printPositions.js";
@@ -294,24 +297,92 @@ export const listMyCustomizations = async (req, res) => {
 };
 
 // POST /api/customizations/:id/duplicate  (owner) — a new, editable copy
+// Body (optional, 11 Nov 2026 — "same tee again in blue"): { color: a colour slug of this garment, again: true }.
+// Another colour drops the old pictures of the tee (they show the old colour); the Design Room makes new ones on Save.
+// the garment's colour for a slug or a spoken name: exact first, then a name that holds the words ("navy" = Navy Blue)
+export const pickColour = (colors, asked) => {
+  const want = String(asked || "").trim().toLowerCase();
+  if (!want) return null;
+  const low = (c) => String(c.name || "").toLowerCase();
+  return (
+    colors.find((c) => c.slug === want) ||
+    colors.find((c) => low(c) === want) ||
+    colors.find((c) => c.slug === want.replace(/\s+/g, "-")) ||
+    colors.find((c) => low(c).split(/\s+/).includes(want)) ||
+    colors.find((c) => want.split(/\s+/).every((w) => low(c).includes(w))) ||
+    null
+  );
+};
 export const duplicateCustomization = async (req, res) => {
   try {
     const doc = await ownDesign(req);
     const src = doc.toObject();
+    let color = src.color;
+    // the colour asked for: its slug ("navy-blue"), or its name as the customer says it ("navy", "Navy Blue")
+    const asked = String(req.body?.color || req.body?.colorName || "").trim().toLowerCase();
+    if (asked && asked !== src.color) {
+      const garment = await GarmentType.findOne({ key: src.garmentType }).select("colors").lean();
+      const found = pickColour(garment?.colors || [], asked);
+      if (!found) throw badRequest("This tee doesn't come in that colour");
+      color = found.slug;
+    }
     const copy = await Customization.create({
       garmentType: src.garmentType,
-      color: src.color,
+      color,
       size: src.size,
       user: req.user._id,
       layoutVersion: src.layoutVersion,
       elements: src.elements,
       players: src.players,
-      mockups: src.mockups,
-      name: `${src.name || "Design"} (copy)`.slice(0, 60),
+      ...(color === src.color ? { mockups: src.mockups } : {}),
+      name: `${src.name || "Design"} (${req.body?.again ? "again" : "copy"})`.slice(0, 60),
     });
     res.status(201).json(copy);
   } catch (err) {
     sendError(res, err, "Could not copy the design");
+  }
+};
+
+// POST /api/customizations/:id/email  (owner) — "Email me my design" (11 Nov 2026): the tee's picture and a link that
+// opens the design again in the Design Room, sent to the customer's own account address and nowhere else.
+const esc = (v) => String(v ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+export const emailCustomization = async (req, res) => {
+  try {
+    const doc = await ownDesign(req);
+    const to = String(req.user.email || "").trim();
+    if (!isEmail(to)) throw badRequest("Your account has no email address to send it to");
+    const site = await siteAddress();
+    const link = `${site}/customize/${encodeURIComponent(doc.garmentType)}?design=${doc._id}`;
+    const name = String(doc.name || "Your design").slice(0, 60);
+    const pictures = ["front", "back"]
+      .map((view) => doc.mockups?.[view])
+      .filter(Boolean)
+      .map((url) => (/^https?:/i.test(url) ? url : `${publicBase(req)}${url}`));
+    const first = String(req.user.name || "").trim().split(/\s+/)[0];
+    const text = [
+      `Hi${first ? ` ${first}` : ""},`,
+      "",
+      `Here is your IDENTEE design "${name}", saved in your account.`,
+      "",
+      `Open it again: ${link}`,
+      "",
+      "You can change it, pick sizes and order whenever you are ready. (Sign in with this email address to open it.)",
+      "",
+      "IDENTEE",
+    ].join("\n");
+    const html = `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.5;color:#1a1a1a;max-width:560px">
+<h2 style="margin:0 0 6px;color:#8A6F2E;font-size:20px">Your IDENTEE design</h2>
+<p style="margin:0 0 14px">Hi${first ? ` ${esc(first)}` : ""}, here is <b>${esc(name)}</b>, saved in your account.</p>
+${pictures.map((p) => `<img src="${esc(p)}" alt="Your tee" width="250" style="width:250px;max-width:48%;border-radius:12px;border:1px solid #eee;margin:0 6px 10px 0">`).join("")}
+<p style="margin:14px 0 18px"><a href="${esc(link)}" style="display:inline-block;background:#141110;color:#F0D585;text-decoration:none;font-weight:bold;padding:12px 22px;border-radius:999px">Open my design</a></p>
+<p style="margin:0 0 6px;color:#555;font-size:13px">You can change it, pick sizes and order whenever you are ready. Sign in with this email address to open it.</p>
+<p style="margin:0;color:#888;font-size:12px">If the button doesn’t work, copy this link:<br>${esc(link)}</p>
+</div>`;
+    await mailer().sendMail({ from: fromAddress(), to, subject: `Your IDENTEE design: ${name}`, text, html });
+    res.json({ sent: true, to: to.replace(/^(.).*(@.*)$/, "$1…$2") });
+  } catch (err) {
+    if (!err.status) console.error("💥 ERROR: design email:", err?.message || err);
+    sendError(res, err.status ? err : { message: "Could not send the email just now. Please try again in a minute." }, "Could not send the email");
   }
 };
 

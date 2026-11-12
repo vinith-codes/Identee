@@ -70,7 +70,7 @@ export const listShopProducts = asyncHandler(async (req, res) => {
   // every live colour document (light colours, and Royal Blue Round Neck, are not on sale in this shop)
   const all = (
     await Product.find(LIVE)
-      .select("brandname price oldPrice discount images productGroupId productdetails rating numReviews soldCount createdAt isFeatured readyDesign")
+      .select("brandname description price oldPrice discount images productGroupId productdetails rating numReviews soldCount createdAt isFeatured readyDesign")
       .lean()
   ).filter((d) => shownInShop(d.productdetails?.color, d.productdetails?.garmentStyle));
   // a Studio tee (printed to order) opens its own page: its slug goes on the card. Its price is worked out here from
@@ -118,6 +118,9 @@ export const listShopProducts = asyncHandler(async (req, res) => {
   const exclude = String(req.query.exclude || "");
   const excluded = new Set(exclude ? inScope.filter((d) => d.productGroupId === exclude).map(cardKey) : []);
   const featuredOnly = req.query.featured === "1";
+  // ?any=1 (the shop's Ask bar, 11 Nov 2026): a tee matching ANY of the words is shown, the best matches first
+  const anyWord = req.query.any === "1";
+  const wordHits = new Map();
   const matches = inScope.filter((d) => {
     const pd = d.productdetails || {};
     if (style && norm(pd.garmentStyle) !== style) return false;
@@ -128,8 +131,11 @@ export const listShopProducts = asyncHandler(async (req, res) => {
     if (excluded.has(cardKey(d))) return false;
     if (featuredOnly && !d.isFeatured) return false;
     if (q) {
-      const hay = [d.brandname, pd.garmentStyle, pd.color, pd.fabric, categoryOf(d)?.name, genderOf(d)].map(norm).join(" ");
-      if (!q.split(/\s+/).every((w) => hay.includes(w))) return false;
+      const hay = [d.brandname, pd.garmentStyle, pd.color, pd.fabric, categoryOf(d)?.name, genderOf(d), d.description].map(norm).join(" ");
+      const words = q.split(/\s+/);
+      const hits = words.filter((w) => hay.includes(w)).length;
+      if (anyWord ? hits === 0 : hits < words.length) return false;
+      if (anyWord) wordHits.set(cardKey(d), Math.max(wordHits.get(cardKey(d)) || 0, hits));
     }
     return true;
   });
@@ -193,6 +199,7 @@ export const listShopProducts = asyncHandler(async (req, res) => {
     };
   });
   cards.sort(SORTS[sort]);
+  if (anyWord && q) cards.sort((a, b) => (wordHits.get(b.key) || 0) - (wordHits.get(a.key) || 0));
   // in-stock first, keeping the chosen order within each part
   cards.sort((a, b) => Number(b.inStock) - Number(a.inStock));
 

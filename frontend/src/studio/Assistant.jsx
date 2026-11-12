@@ -17,6 +17,8 @@ import SheetCard from "./SheetCard";
 import { assistAct, STARTER_CHIP, ASK_TEAM, STARTER, starterStep, starterOptions, starterBrief, BROWSE_CHIP } from "./assistantV2";
 import { speechSupported, startListening } from "./voiceInput";
 import { PhotoError, shrinkPhoto } from "./shrinkPhoto";
+import { GroupCard, OrdersCard, ReorderCard, SizeCard, SpotPicker } from "./AssistantCards";
+import { leftLine, MIC_LANGS, nextMicLang, readMicLang, saveMicLang, spotName, WAIT_TIPS } from "./assistantExtras";
 
 const PICTURE_HINT = "Usually 20–40 seconds. You can look around the room meanwhile.";
 // the acts that take a while (an AI or the server): the chat waits for them with a wait card
@@ -101,6 +103,8 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
   const [attached, setAttached] = useState(null); // a photo picked with 📎, waiting to be sent with the words: { file, w, h, local }
   // 🎤 speak instead of type (round 3): the words land in the box as they are heard; Send sends them
   const [listening, setListening] = useState(false);
+  const [micLang, setMicLang] = useState(readMicLang); // round 8: English or Tamil, remembered in this browser
+  const [spotFor, setSpotFor] = useState(null); // round 8: the picture whose "Change a part" view is open
   const stopListen = useRef(null);
   const toggleListen = () => {
     if (listening) {
@@ -110,7 +114,7 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
     const before = draft.trim();
     setListening(true);
     stopListen.current = startListening({
-      lang: "en-IN",
+      lang: micLang,
       onText: (text) => setDraft(before ? `${before} ${text}` : text),
       onEnd: () => {
         setListening(false);
@@ -127,6 +131,25 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
   useEffect(() => {
     if (log.current) log.current.scrollTop = log.current.scrollHeight;
   }, [messages, thinking]);
+  // A card that grows after it arrived (the orders are looked up, a group's answers come in) stays in view: while the
+  // reader is at the end of the chat, the chat follows what was added. Someone reading further up is left alone.
+  const atEnd = useRef(true);
+  useEffect(() => {
+    const el = log.current;
+    if (!el || typeof MutationObserver === "undefined") return undefined;
+    const onScroll = () => {
+      atEnd.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+    };
+    const seen = new MutationObserver(() => {
+      if (atEnd.current) el.scrollTop = el.scrollHeight;
+    });
+    el.addEventListener("scroll", onScroll, { passive: true });
+    seen.observe(el, { childList: true, subtree: true });
+    return () => {
+      el.removeEventListener("scroll", onScroll);
+      seen.disconnect();
+    };
+  }, []);
   useEffect(() => () => clearTimeout(timer.current), []);
 
   // The customer must never be stuck: every slow AI job ends (also when it fails), a failed one gets a
@@ -341,10 +364,10 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
     if (sent && next) run(next, waitFor(next));
   };
   // "Change" on a design: the next thing typed is the change to make
-  const startChange = (url) => {
+  const startChange = (url, spot = "") => {
     if (thinking) return;
-    setState({ ...state, wait: "aiChange", changeUrl: url });
-    setMessages((m) => [...m.map((x) => (x.chips ? { ...x, done: true } : x)), { from: "bot", text: "What should I change? For example: make it angrier, remove the crown, add the team name under it." }, { chips: [CANCEL] }]);
+    setState({ ...state, wait: "aiChange", changeUrl: url, changeSpot: spot || null });
+    setMessages((m) => [...m.map((x) => (x.chips ? { ...x, done: true } : x)), { from: "bot", text: spot ? `What should change at ${spotName(spot)}? For example: remove it, make it gold, put a star there.` : "What should I change? For example: make it angrier, remove the crown, add the team name under it." }, { chips: [CANCEL] }]);
   };
   // "Try another": the same request again — a new picture (it uses one of the customer's requests for today)
   const tryAnother = (act) => {
@@ -359,6 +382,12 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
 
   // "Try another" sits under the newest pictures only
   const lastDesigns = messages.reduce((last, m, i) => (m.designs ? i : last), -1);
+  // round 8: the newest concept sheet gets the one-tap feedback chips; the newest orders card is the live one
+  const lastSheet = messages.reduce((last, m, i) => (m.sheet ? i : last), -1);
+  const lastOrders = messages.reduce((last, m, i) => (m.orders ? i : last), -1);
+  const patch = (i, more) => setMessages((all) => all.map((x, n) => (n === i ? { ...x, ...more } : x)));
+  const left = leftLine(ctx().ai);
+  const mic = MIC_LANGS.find((l) => l.key === micLang) || MIC_LANGS[0];
   // only the newest plan can still be changed and drawn (a drawing plan or a photo plan)
   const lastPlan = messages.reduce((last, m, i) => (m.plan || m.photoPlan ? i : last), -1);
   // "Make it" on a photo plan
@@ -630,7 +659,16 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
           }
           if (m.sheet) {
             // Assistant v2: a concept sheet — tap a number to make that concept (a bare pick, no brain), More options for three more
-            return <SheetCard key={i} sheet={m.sheet} live={!thinking} onPick={(n) => say(String(n))} onMore={() => say("More options")} />;
+            return <SheetCard key={i} sheet={m.sheet} live={!thinking} last={i === lastSheet} onPick={(n) => say(String(n))} onMore={() => say("More options")} onSay={(text) => say(text)} />;
+          }
+          /* round 8: size from height and weight, orders, the same tee again, the group link */
+          if (m.sizeAsk) return <SizeCard key={i} ask={m.sizeAsk} ctx={ctx} onUse={(size) => onAct({ type: "size", value: size })} />;
+          if (m.orders) {
+            return i === lastOrders ? <OrdersCard key={i} ctx={ctx} live={!thinking} /> : <div key={i} className="dr-card done"><small className="dr-card-note">Your orders were shown here. Ask for them again to see them now.</small></div>;
+          }
+          if (m.reorder) return <ReorderCard key={i} ask={m.reorder} done={m.done} ctx={ctx} live={!thinking} onDone={(text) => patch(i, { done: text })} />;
+          if (m.group) {
+            return <GroupCard key={i} group={m.group} sheet={lastSheet >= 0 ? messages[lastSheet].sheet : null} ctx={ctx} live={!thinking} onPatch={(more) => patch(i, more)} onSay={(text) => say(text)} onMessages={(msgs) => setMessages((all) => [...all, ...msgs])} />;
           }
           if (m.designs) {
             const areas = ctx().areas.filter((a) => a.free);
@@ -650,6 +688,8 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
                       )}
                       <button type="button" className="dr-dact" onClick={() => setPickFor(pickFor === url ? null : url)} aria-expanded={pickFor === url}>{placed[url]?.length ? "Move or copy to…" : "Other area…"}</button>
                       {!m.photo && <button type="button" className="dr-dact" disabled={!!thinking} onClick={() => startChange(url)}>Change it</button>}
+                      {/* round 8: point at the part that should change (a tap marks it; nothing is drawn on the picture) */}
+                      {!m.photo && <button type="button" className="dr-dact" disabled={!!thinking} onClick={() => setSpotFor(url)}>Change a part</button>}
                       {/* liked only one of the pictures: this one comes off the tee (Undo would take off all drawn together) */}
                       {placed[url]?.length ? <button type="button" className="dr-dact out" onClick={() => onAct({ type: "unplace", url })}>Remove from tee</button> : null}
                     </div>
@@ -705,8 +745,11 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
           return <div key={i} className={`dr-msg ${m.from}`}>{m.text}</div>;
         })}
         {thinking === true && <div className="dr-typing">Thinking…</div>}
-        {thinking && thinking !== true && <WaitCard key={`${messages.length}-${thinking.label}`} {...thinking} onStop={thinking.noStop ? undefined : stop} />}
+        {thinking && thinking !== true && <WaitCard key={`${messages.length}-${thinking.label}`} {...thinking} tips={WAIT_TIPS} onStop={thinking.noStop ? undefined : stop} />}
       </div>
+      {spotFor && <SpotPicker url={spotFor} fabric={fabric} onClose={() => setSpotFor(null)} onUse={(words) => { const url = spotFor; setSpotFor(null); startChange(url, words); }} />}
+      {/* round 8: how many pictures are left today, so the limit is never a surprise */}
+      {left && <p className="dr-leftline">{left}</p>}
       {/* while the assistant works, the customer can type the next message; it is sent when it's done */}
       {thinking && thinking !== true && <p className="dr-busynote">I’m still on your last request. Changed your mind? Press Stop. You can also type your next one; Send works again as soon as I’m done.</p>}
       {/* the message box: one rounded box — the words on top, a slim row of buttons inside it underneath
@@ -760,6 +803,9 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
                 <path d="M5 11a7 7 0 0 0 14 0M12 18v3M9 21h6" />
               </svg>
             </button>
+          )}
+          {speechSupported() && (
+            <button type="button" className="dr-miclang" disabled={listening || !!thinking} onClick={() => { const next = nextMicLang(micLang); setMicLang(next); saveMicLang(next); }} aria-label={`You speak in ${mic.name}. Tap to change the language.`} title={`You speak in ${mic.name}. Tap to change.`}>{mic.label}</button>
           )}
           {/* what is typed is made clear first, free — always here (the examples list is only at the start of a chat);
               not while a photo waits to be sent (what is typed then is about the photo) */}

@@ -22,7 +22,8 @@ export const thinkingLevel = () => {
   return ["low", "medium", "high"].includes(v) ? v : null;
 };
 
-export const STEP_TYPES = ["ask", "concepts", "develop", "match", "draw", "edit", "slogans", "menu", "undo", "team"];
+export const STEP_TYPES = ["ask", "concepts", "develop", "match", "draw", "edit", "slogans", "menu", "undo", "team", "size", "orders", "reorder", "email", "group"];
+export const SIZE_WHO = ["men", "women", "kids"];
 export const PIECES = ["front", "back", "sleeve"];
 export const MAX_STEPS = 6;
 export const CONCEPTS_PER_SHEET = 3;
@@ -130,6 +131,11 @@ function buildPrompt({ said, history, earlier, memory, design, facts, areas, sty
     '- {"type":"slogans","about": string,"tone": ' + JSON.stringify(TONES) + " or null} — slogans, quotes, captions, words to print.",
     '- {"type":"menu","item": ITEM} — open a built-in helper: ' + JSON.stringify(MENU_ITEMS),
     '- {"type":"undo"} — take the last move back ("undo", "go back", "no, revert that").',
+    '- {"type":"size","who":"men"|"women"|"kids"|null,"heightCm": number|null,"weightKg": number|null} — the size finder, right in the chat, filled in with what they told you ("what size for me?", "I am 5 ft 8 and 70 kg", "size for my 8 year old"). Convert feet and inches to cm and pounds to kg; null for what they did not say. Never pick a size yourself: the finder reads this tee\'s own size chart.',
+    '- {"type":"orders"} — show their own orders as cards (status, track, ask to cancel, order again): "where is my order", "cancel my order", "my orders". You may say the status in words from facts.orders, but you never cancel or change an order yourself: the card has the buttons.',
+    '- {"type":"reorder","order": the order number or null,"colour": a tee colour from teeColours or null} — a tee they ORDERED before, opened again as a new design to order ("order my last tee again", "same tee again in blue", "repeat VF-2026-0076"). order null = their latest order with their own design; colour only when they want another tee colour. For the tee on screen (not ordered yet), a colour change is an edit step instead.',
+    '- {"type":"email"} — email them the design that is on the tee, with a picture and a link that opens it again ("email me this", "send it to my mail", "I will finish later"). Only when the tee has something on it.',
+    '- {"type":"group"} — one link for their group: friends open it, vote for a concept and fill in their name, size and number, and the tees fill themselves ("let my friends vote", "collect sizes from my team", "group link", "ask the class which one"). Good to offer when they are choosing for a team, class or family.',
     "- no steps for questions, small talk, advice and off-topic messages: answer in reply (ideas in words are fine there).",
     "Choices first: when in doubt between concepts and draw, use concepts — customers like to pick from three. Changing a concept before it is made: \"2 but in gold\" = develop 2 with change; \"show me variations of 2\" / \"2 in other styles\" / \"I like 2 but not sure\" = a new concepts step with three takes on concept 2 (keep what they liked, vary the rest). After a concept is made, changes to what is on the tee are edit steps. Rules: do everything the message asks, in order, in one go (a brief with a front picture, a back name and a sleeve logo = concepts, or draw + edit + edit). When the tee itself answers the question (\"make it look better\" on grey art over a black tee), do not ask — make two concrete improvements (edit steps) and say what you changed. Never spend pictures on guesses: ask instead. If picturesLeft is 0 or loggedIn is false, do not use concepts/develop/draw — say so kindly and help with words. Use the customer's exact names, numbers and words, spelled as they wrote them.",
     "chips: 0 to 4 short follow-ups the customer may want to say next, written as they would type them (\"More options\", \"Put it on the back\", \"Make it darker\"). After a concepts step always include \"More options\". After a draw step always include \"Show me 3 options\" (three takes to choose from). After a develop or match step, offer among the chips: \"See it on other colours\", \"Show 3 colourways\", and \"A matching back\" or \"A matching sleeve\" when that area is free. After an ask, the chips are the options.",
@@ -137,7 +143,11 @@ function buildPrompt({ said, history, earlier, memory, design, facts, areas, sty
     "Tee colours: when they ask which colours suit the design, or want to see it on other colours (\"See it on other colours\"), do NOT use a step: in the reply name 2 or 3 colours from facts.teeColours that suit the inks on the tee (good contrast, the mood of the design) and why, in a few words, and make the chips \"See it on <Colour>\" for them. \"See it on <Colour>\" / \"show it on maroon\" = one edit step: change the tee colour to that colour. Changing the tee colour is free.",
     "Facts — use these exactly and never invent others. Prices are in rupees and include GST: " + JSON.stringify(facts),
     `Today's date: ${new Date().toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })} — use this year for "class of", batch and event years unless the customer gives one.`,
-    "If they ask something the facts don't cover (delivery days, returns, payment), don't guess: point them to the Shipping & Delivery page (/shipping-policy), Refunds & Cancellations (/refund-policy) or Contact us (/contact-us).",
+    "Delivery: facts.delivery has the dates already worked out — use them exactly and never count days yourself. \"When will it come?\" → orderToday.arrivesBy (\"order today and it should reach you by about Tue 24 Nov\"). \"I need it by the 28th\" → find the LAST row of orderOn whose arrivesBy is on or before that day and say \"order by <that row's order day>\"; if even today's row is later, say plainly that it is too tight and offer Contact us (/contact-us). More than 10 tees, or a team order: use the team dates. Always say it is an estimate. The full rules are on /shipping-policy.",
+    "Sheet feedback: \"Too busy\", \"Too plain\", \"Other colours\", \"More fun\" after a sheet = a new concepts step for the same idea, changed that way (simpler / richer / new ink colours / more playful); say in a few words what you changed.",
+    "Tamil on the tee: the room has Tamil fonts, so Tamil words can be printed — write them in Tamil letters in the edit step when they ask for Tamil (not Tanglish in English letters, unless they want that).",
+    "A message that ends with a spot in brackets, like \"(at this spot of the picture: top right …)\", is about that part of the picture only: keep the spot words in the edit or draw step.",
+    "If they ask something the facts don't cover (returns, payment), don't guess: point them to Refunds & Cancellations (/refund-policy) or Contact us (/contact-us).",
     "Stay on topic: their tee, designs, printing and ordering at IDENTEE. For anything else, answer kindly in one sentence and steer back to their design.",
     "Print areas: " + JSON.stringify(areas.map((a) => ({ key: a.key, label: a.label, free: a.free !== false }))) + ". For \"front\" use centre-front and for \"back\" use full-back unless they name another area or that one isn't free. Picture styles: " + JSON.stringify(styles) + ".",
     "The tee now: " + JSON.stringify(design).slice(0, 6000),
@@ -229,6 +239,20 @@ export function cleanBrainAnswer(out, { areas = [], styles = [], sheets = [] } =
       if (MENU_ITEMS[raw.item]) steps.push({ type, item: raw.item });
       continue;
     }
+    if (type === "size") {
+      const h = Number(raw.heightCm);
+      const w = Number(raw.weightKg);
+      steps.push({ type, who: SIZE_WHO.includes(raw.who) ? raw.who : null, heightCm: h >= 90 && h <= 215 ? Math.round(h) : null, weightKg: w >= 10 && w <= 170 ? Math.round(w) : null });
+      continue;
+    }
+    if (type === "reorder") {
+      steps.push({ type, order: clip(raw.order, 30) || null, colour: clip(raw.colour, 40) || null });
+      continue;
+    }
+    if (type === "orders" || type === "email" || type === "group") {
+      if (!steps.some((s) => s.type === type)) steps.push({ type });
+      continue;
+    }
     if (type === "undo") steps.push({ type });
   }
   let chips = (Array.isArray(out?.chips) ? out.chips : []).map((c) => clip(c, 40)).filter((c) => c.length >= 1).slice(0, 4); // "1", "2" are chips too
@@ -247,6 +271,30 @@ function mockBrain(said, { areas, styles, sheets }, facts = {}, history = [], { 
   const total = sheets.reduce((n, s) => n + (s.concepts || []).length, 0);
   const picks = parsePicks(low, Math.max(total, 1));
   if (/\bundo\b|go back|revert/.test(low)) return { reply: "MOCK: undone.", steps: [{ type: "undo" }], chips: [] };
+  // round 8 (11 Nov 2026): email, group link, orders, order again, delivery dates, size from height and weight
+  if (/e-?mail (me|it|my|this)|mail (me|it) |to my (e-?mail|mail)/.test(low)) return { reply: "MOCK: I'll email your design to you.", steps: [{ type: "email" }], chips: [] };
+  if (/group link|friends? (to )?vote|let .* vote|collect (the )?(names|sizes)|\bpoll\b/.test(low)) return { reply: "MOCK: here is a link for your group.", steps: [{ type: "group" }], chips: [] };
+  if (/(same|that|last|this) tee again|order (\S+ )?again|re-?order|\brepeat\b/.test(low)) {
+    const no = said.match(/[A-Z]{2}-\d{4}-\d{3,}/i)?.[0] || null;
+    const colour = (facts.teeColours || []).find((c) => low.includes(String(c).toLowerCase())) || null;
+    return { reply: `MOCK: opening ${no || "your last tee"} again${colour ? ` in ${colour}` : ""}.`, steps: [{ type: "reorder", order: no, colour }], chips: [] };
+  }
+  if (/my orders?|where('?s| is) my (order|tee)|track|order status|cancel (my|the|that) order/.test(low)) {
+    const last = (facts.orders || [])[0];
+    return { reply: last ? `MOCK: your last order ${last.no} is ${last.status}.` : "MOCK: here are your orders.", steps: [{ type: "orders" }], chips: [] };
+  }
+  if (/deliver|arrive|reach me|how (many days|long)|when will (it|i)|need it by|get it by/.test(low)) {
+    const d = facts.delivery;
+    return { reply: d ? `MOCK: order today and it should reach you by about ${d.orderToday.arrivesBy} (an estimate).` : "MOCK: see the Shipping & Delivery page (/shipping-policy).", steps: [], chips: [] };
+  }
+  const cmM = low.match(/\b(\d{3})\s*cm\b/);
+  const ftM = low.match(/\b(\d)\s*(?:ft|feet|foot)\s*(\d{1,2})?/) || low.match(/\b(\d)'\s*(\d{1,2})/);
+  const kgM = low.match(/(\d{2,3})\s*kgs?\b/);
+  if (cmM || ftM || kgM || /what size|which size|my size|size for (me|my)|size help/.test(low)) {
+    const heightCm = cmM ? Number(cmM[1]) : ftM ? Math.round(Number(ftM[1]) * 30.48 + Number(ftM[2] || 0) * 2.54) : null;
+    const who = /\b(kid|child|son|daughter|year old)\b/.test(low) ? "kids" : /\b(she|her|women|woman|girl|wife|mom|mother)\b/.test(low) ? "women" : /\b(he|him|men|man|boy|husband|dad|father)\b/.test(low) ? "men" : null;
+    return { reply: "MOCK: let's find your size.", steps: [{ type: "size", who, heightCm, weightKg: kgM ? Number(kgM[1]) : null }], chips: [] };
+  }
   // round 7: a list of people → one tee each; a budget line → worked out from the facts
   const listM = said.match(/(?:players?|names?|team)\s*[:\-]\s*(.+)$/i);
   if (listM && /,|\n/.test(listM[1])) {
@@ -294,7 +342,7 @@ function mockBrain(said, { areas, styles, sheets }, facts = {}, history = [], { 
     return { reply: "MOCK: done.", steps: [{ type: "edit", message: said }], chips: ["Undo", "Make it bigger"] };
   if (/my name|put (the )?name|with (the )?name/.test(low) && !/name is|called/.test(low) && !/[A-Z]{2,}/.test(said))
     return { reply: "MOCK: what name should I print?", steps: [{ type: "ask", question: "What name should I print?", options: ["Vinith", "Skip"] }], chips: [] };
-  if (/\bmore\b|another three|different style|more minimal|don't like any/.test(low) || /concept|design|ideas?|tee for|t-?shirt for|make me a|create|complete|something for|birthday|wedding|fest|avengers/.test(low)) {
+  if (/\bmore\b|another three|different style|more minimal|don't like any|too busy|too plain|other colours/.test(low) || /concept|design|ideas?|tee for|t-?shirt for|make me a|create|complete|something for|birthday|wedding|fest|avengers/.test(low)) {
     const brief = said;
     const base = sheets.length * CONCEPTS_PER_SHEET;
     const concepts = Array.from({ length: CONCEPTS_PER_SHEET }, (_, i) => ({
@@ -321,7 +369,7 @@ function mockBrain(said, { areas, styles, sheets }, facts = {}, history = [], { 
   }
   if (/\b(bigger|smaller|colou?r|move|gold|red|curve|delete|font|remove)\b/.test(low)) return { reply: "MOCK: done.", steps: [{ type: "edit", message: said }], chips: ["Undo", "Make it bigger"] };
   if (/slogan|quote|caption/.test(low)) return { reply: "MOCK: here you go.", steps: [{ type: "slogans", about: said, tone: null }], chips: [] };
-  if (/\bsize\b/.test(low)) return { reply: "MOCK: let me help you pick a size.", steps: [{ type: "menu", item: "Size help" }], chips: [] };
+  if (/\bsize\b/.test(low)) return { reply: "MOCK: let's find your size.", steps: [{ type: "size", who: null, heightCm: null, weightKg: null }], chips: [] };
   if (/price|cost|how much/.test(low)) return { reply: `MOCK: this tee is ₹${facts.price || "…"}.`, steps: [], chips: ["Show me designs"] };
   if (/deliver|return|refund/.test(low)) return { reply: "MOCK: see the Shipping & Delivery page (/shipping-policy).", steps: [], chips: [] };
   return { reply: "MOCK: tell me what you'd like on your tee — a design idea, a picture, words, or an occasion.", steps: [], chips: ["Designs for my college fest", "Draw a lion", "A slogan for my team"] };

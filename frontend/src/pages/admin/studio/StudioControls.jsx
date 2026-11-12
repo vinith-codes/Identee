@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import WaitCard from "../../../studio/WaitCard";
 import artDesignService from "../../../services/artDesignService";
 import { imageUrl } from "../../../utils/imageUrl";
-import { FONTS } from "../../../studio/fonts";
+import { fontChoices, hasTamil } from "../../../studio/fonts";
 import { printSharpness } from "../../../studio/designCheck";
 import MyPictures from "../../../studio/MyPictures";
 import { ADD_TABS, ICON_AI, INKS, quarterTurn } from "./studioBits";
@@ -273,7 +273,7 @@ export function Controls({ sel, areaCmW, areaRatio, positions = [], prices = { g
             <label className="dr-field">
               Font
               <select value={sel.fontFamily} onChange={(e) => onPatch({ fontFamily: e.target.value }, { measure: true })}>
-                {[...new Set([sel.fontFamily, ...FONTS])].map((f) => <option key={f} style={{ fontFamily: f }}>{f}</option>)}
+                {fontChoices(sel.text, sel.fontFamily).map((f) => <option key={f} style={{ fontFamily: f }}>{f}</option>)}
               </select>
             </label>
             <label className="dr-field">
@@ -281,6 +281,7 @@ export function Controls({ sel, areaCmW, areaRatio, positions = [], prices = { g
               <input type="range" min="2" max="60" step="0.5" value={sel.fontSizePct} onChange={(e) => onPatch({ fontSizePct: +e.target.value }, { measure: true })} />
             </label>
           </div>
+          {hasTamil(sel.text) && <small className="dr-tamilnote">Tamil words: pick a Tamil font from the top of the list. They stay straight, with normal letter spacing, so the letters join the right way.</small>}
           <div className="dr-field">
             Style
             <div className="dr-row" aria-label="Text style">
@@ -310,13 +311,14 @@ export function Controls({ sel, areaCmW, areaRatio, positions = [], prices = { g
                 ["vertical", "Vertical"],
               ].map(([k, label]) => {
                 const vertical = Math.abs(sel.rotation || 0) === 90;
-                const now = vertical ? "vertical" : sel.effect || "straight";
+                const now = vertical ? "vertical" : hasTamil(sel.text) ? "straight" : sel.effect || "straight";
                 return (
                   <button
                     key={k}
                     type="button"
                     className={now === k ? "on" : ""}
                     aria-pressed={now === k}
+                    disabled={k.startsWith("arc") && hasTamil(sel.text)}
                     onClick={() => {
                       if (k === "vertical") {
                         const lengthPct = (sel.width || 0) * areaRatio;
@@ -345,7 +347,7 @@ export function Controls({ sel, areaCmW, areaRatio, positions = [], prices = { g
           <div className="dr-row">
             <label className="dr-field">
               Letter spacing
-              <input type="range" min="-5" max="40" step="1" value={sel.letterSpacingPct || 0} onChange={(e) => onPatch({ letterSpacingPct: +e.target.value }, { measure: true })} />
+              <input type="range" min="-5" max="40" step="1" value={sel.letterSpacingPct || 0} disabled={hasTamil(sel.text)} onChange={(e) => onPatch({ letterSpacingPct: +e.target.value }, { measure: true })} />
             </label>
             <label className="dr-field">
               Line spacing

@@ -42,6 +42,10 @@ export const toHistory = (m) =>
   : m.plan ? { who: "assistant", text: `Drawing plan shown: ${m.plan.items.map((x) => x.subject).join(" | ")}` }
   : m.designs ? { who: "assistant", text: `${m.designs.length} new picture${m.designs.length === 1 ? "" : "s"} shown` }
   : m.mypics ? { who: "assistant", text: "Showed the pictures they made or uploaded before (My pictures)" }
+  : m.sizeAsk ? { who: "assistant", text: "Showed the size card (height and weight in, the best size out)" }
+  : m.orders ? { who: "assistant", text: "Showed their latest orders (status, cancel, order again)" }
+  : m.reorder ? { who: "assistant", text: "Showed the card to order an earlier tee again" }
+  : m.group ? { who: "assistant", text: m.group.token ? "Their group link is made (friends fill in name and size)" : "Showed the card to make a group link" }
   : null;
 
 export const RECENT = 14; // the latest messages, always sent as they are

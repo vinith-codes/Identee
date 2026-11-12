@@ -105,7 +105,7 @@ test("the mock brain exercises every kind of step (AI_CHAT_PROVIDER=mock)", asyn
   assert.equal((await ask("just draw a lion holding a cricket bat")).steps[0].type, "draw"); // the shortcut
   assert.equal((await ask("make the text gold")).steps[0].type, "edit");
   assert.equal((await ask("a slogan for my mother")).steps[0].type, "slogans");
-  assert.equal((await ask("which size am I")).steps[0].item, "Size help");
+  assert.equal((await ask("which size am I")).steps[0].type, "size"); // round 8: the size finder in the chat
   assert.equal((await ask("undo that")).steps[0].type, "undo");
   assert.equal((await ask("how much is it")).steps.length, 0);
   delete process.env.AI_CHAT_PROVIDER;

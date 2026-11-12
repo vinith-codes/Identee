@@ -5,15 +5,18 @@
 // The bar reaches about 90% at the usual time and then creeps on; it is only "full" when the result arrives.
 // Give it a new `key` for each new wait, so the count starts again from 0.
 import { useEffect, useState } from "react";
+import { tipAt } from "./assistantExtras";
 
 /**
  * @param label   what is happening ("Drawing your design…")
  * @param expect  the usual time in seconds (0 = no bar)
  * @param hint    a line under it ("Usually 20–40 seconds…")
+ * @param tips    things worth knowing, shown one after another during a long wait (round 8)
  * @param onStop  shows a Stop button (the customer changed their mind — never made to wait it out)
  */
-export default function WaitCard({ label, expect = 0, hint = "", onStop }) {
+export default function WaitCard({ label, expect = 0, hint = "", tips, onStop }) {
   const [secs, setSecs] = useState(0);
+  const [first] = useState(() => Math.floor(Math.random() * 97)); // a different tip to start with each time
   useEffect(() => {
     const start = Date.now();
     const id = setInterval(() => setSecs(Math.floor((Date.now() - start) / 1000)), 1000);
@@ -21,6 +24,7 @@ export default function WaitCard({ label, expect = 0, hint = "", onStop }) {
   }, []);
   const pct = expect ? Math.min(97, secs <= expect ? (secs / expect) * 90 : 90 + 7 * (1 - Math.exp(-(secs - expect) / 30))) : null;
   const late = expect > 0 && secs > expect * 1.8;
+  const tip = expect >= 20 && secs >= 4 ? tipAt(tips, secs - 4, first) : "";
   return (
     <div className="dr-wait" role="status" aria-live="polite">
       <div className="dr-waithead">
@@ -43,6 +47,11 @@ export default function WaitCard({ label, expect = 0, hint = "", onStop }) {
         </div>
       )}
       {(late || hint) && <small>{late ? `Taking longer than usual — still working.${expect >= 20 ? " Well-known people go to a second AI and can take up to two minutes." : ""} Please keep this page open.` : hint}</small>}
+      {tip && (
+        <p className="dr-waittip">
+          <b>Tip</b> {tip}
+        </p>
+      )}
     </div>
   );
 }

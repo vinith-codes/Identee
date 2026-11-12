@@ -4,8 +4,10 @@
 import { useState } from "react";
 import { createPortal } from "react-dom";
 import { imageUrl } from "../utils/imageUrl";
+import { FEEDBACK } from "./assistantExtras";
 
-export default function SheetCard({ sheet, live = true, onPick, onMore }) {
+// last + onSay (round 8): the newest sheet also gets one-tap feedback ("Too busy", "Other colours" ...)
+export default function SheetCard({ sheet, live = true, last = false, onPick, onMore, onSay }) {
   const [open, setOpen] = useState(false); // the large view
   const [copied, setCopied] = useState(false); // Share (round 5): the link went to the clipboard
   // the phone's share sheet with the sheet's link (WhatsApp …); else the link is copied
@@ -62,6 +64,14 @@ export default function SheetCard({ sheet, live = true, onPick, onMore }) {
         <button type="button" className="dr-chip" onClick={share} title="Send these three to your friends">{copied ? "Link copied" : "Share"}</button>
         <span className="dr-sheet-hint">Tap a number to make it, or say “2 and 3” — or “2 but with the text in gold”. Tap the picture to zoom.</span>
       </div>
+      {last && live && onSay && (
+        <div className="dr-sheet-fb" role="group" aria-label="Not quite right? Tell me in one tap">
+          <span>Not quite right?</span>
+          {FEEDBACK.map((f) => (
+            <button key={f.label} type="button" className="dr-chip" onClick={() => onSay(f.say)}>{f.label}</button>
+          ))}
+        </div>
+      )}
       {open &&
         createPortal(
           <div className="dr-sheet-full" role="dialog" aria-label="The concepts, larger">

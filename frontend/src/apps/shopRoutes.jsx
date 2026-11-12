@@ -29,6 +29,7 @@ const ReadyMadePage = lazy(() => import("../pages/ReadyMadePage"));
 const ReadyDesignPage = lazy(() => import("../pages/ReadyDesignPage")); // one IDENTEE design (25 Oct 2026)
 const CollectionPage = lazy(() => import("../pages/CollectionPage")); // one collection, e.g. SCENE (30 Oct 2026)
 const TeamOrdersPage = lazy(() => import("../pages/TeamOrdersPage"));
+const GroupPage = lazy(() => import("../pages/GroupPage")); // a group link: friends vote and fill in name + size (11 Nov 2026)
 const CheckoutPage = lazy(() => import("../pages/CheckoutPage"));
 const OrderSuccessPage = lazy(() => import("../pages/OrderSuccessPage"));
 const MyOrdersPage = lazy(() => import("../pages/MyOrderPage"));
@@ -165,6 +166,8 @@ export function shopRoutes({ Guest }) {
         <Route path="/ready-made/design/:slug" element={<ReadyDesignPage />} />
         <Route path="/ready-made/:collection" element={<CollectionPage />} />
         <Route path="/team-orders" element={<TeamOrdersPage />} />
+        {/* a group link from the design room's Assistant: open to everyone, no login */}
+        <Route path="/g/:token" element={<GroupPage />} />
         {/* old address of the customizable list */}
         <Route path="/customize/choose-product" element={<LegacyChooseProduct />} />
         <Route path="/product/:id" element={<SingleProductPage />} />

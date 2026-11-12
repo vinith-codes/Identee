@@ -14,7 +14,7 @@
 import { PDFDocument, PDFName, PDFRawStream, PDFString, LineJoinStyle, appendBezierCurve, clipEvenOdd, closePath, concatTransformationMatrix, drawObject, endPath, lineTo, moveTo, popGraphicsState, pushGraphicsState, rgb, setLineJoin } from "pdf-lib";
 import fontkit from "@pdf-lib/fontkit";
 import { AreaRenderer, buildNodes } from "./konvaRender";
-import { FONTS, fontsCssUrl } from "./fonts";
+import { FONTS, fontsCssUrl, hasTamil } from "./fonts";
 import { srgbIcc } from "./srgbProfile";
 import { FAKE_ITALIC_SKEW, barToSvg, faceFor, fakeBoldWidth, hexToRgb, multiply, outlineToSvg, parseFontFaces, useOwnFiles } from "./vectorText";
 import montserrat400 from "@fontsource/montserrat/files/montserrat-latin-400-normal.woff2?url";
@@ -184,7 +184,8 @@ async function textShapes(el, node, faces) {
 }
 
 // Can this text be made of shapes at all? (the letters are checked when it is laid out)
-const shapeable = (el) => el.type === "text" && FONTS.includes(el.fontFamily) && hexToRgb(el.color || "#000000") && (el.opacity == null || el.opacity >= 1);
+// (Tamil words stay pixels: the font library places letters one by one, which breaks the Tamil joins.)
+const shapeable = (el) => el.type === "text" && FONTS.includes(el.fontFamily) && !hasTamil(el.text) && hexToRgb(el.color || "#000000") && (el.opacity == null || el.opacity >= 1);
 
 /* ---------- pixels: plain pictures, and any text that can't be shapes ---------- */
 async function embedPixels(pdf, page, elements, W, H) {
