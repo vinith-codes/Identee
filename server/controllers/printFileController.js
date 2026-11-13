@@ -5,6 +5,9 @@
 //      files the print team approved), then runs the approved recipe (services/printRecipe.js): no see-through, a
 //      vector edge where solid ink meets the tee, 600 DPI. The result stays on this server (print-work/<key>/) and the
 //      design's element remembers it (el.printFile); the admin's browser draws it into the print PDF (.ai).
+//      Drawn art (a cartoon, a logo — services/vectorArt.js artKind) is also made into VECTOR SHAPES (12 Nov 2026,
+//      the print team OK'd the samples): the shapes sit inside the same vector edge; the admin can switch any picture
+//      between shapes and the sharp picture (POST /picture/vector).
 //   2. "Send to print team": the browser uploads the ZIP it made (in parts, so no upload limit is hit); the server
 //      keeps it for a while (print-files/<order>/) and emails a download link to the print team.
 import asyncHandler from "express-async-handler";
@@ -24,6 +27,7 @@ import { fetchOurImage, isDarkHex, isOurUpload, readSettings } from "./aiControl
 import { enlargeWithReplicate, replicateConfigured, replicateMock, replicateModel } from "../services/replicateService.js";
 import { PRINT_DPI, bleedEdges, runRecipe, unPaeth } from "../services/printRecipe.js";
 import { cleanCutEdge } from "../services/cutoutService.js";
+import { artKind, vectorizeChecked } from "../services/vectorArt.js";
 import { fromAddress, isEmail, mailer } from "../utils/mailer.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -163,6 +167,9 @@ export const startPrintPicture = asyncHandler(async (req, res) => {
   const designId = String(design._id);
   const index = Number(req.body.index);
   const base = `${req.protocol}://${req.get("host")}`;
+  // vector shapes: "auto" (drawn art yes, photos no), "on", "off" — the admin's switch, kept when prepared again
+  const prior = el.printFile?.vector?.made ? (el.printFile.vector.use ? "on" : "off") : "auto";
+  const vectorMode = ["auto", "on", "off"].includes(req.body.vector) ? req.body.vector : prior;
 
   const id = crypto.randomBytes(8).toString("hex");
   const job = { id, status: "queued", step: "Waiting for its turn…", log: [], createdAt: Date.now(), designId, index };
@@ -173,24 +180,38 @@ export const startPrintPicture = asyncHandler(async (req, res) => {
   job.work = async () => {
     log("Fetching the picture…");
     const stored = await fetchOurImage(el.src, { protocol: base.split(":")[0], get: () => base.replace(/^https?:\/\//, "") });
-    const meta = await sharp(stored.data, { limitInputPixels: false }).rotate().metadata();
-    const W0 = meta.width, H0 = meta.height;
+    // the size from the turned picture itself (13 Nov 2026 review: metadata() gives a phone photo's stored size before
+    // its EXIF turn, so a sideways-stored photo was read with width and height swapped — a sheared print file)
+    const { data: raw, info: rawInfo } = await sharp(stored.data, { limitInputPixels: false }).rotate().ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+    const W0 = rawInfo.width, H0 = rawInfo.height;
     // how many times bigger: enough for 600 DPI at its print width, at most 4x, and never a picture too big to hold
     let keep = Math.min(4, Math.max(1, (PRINT_DPI * printCm) / 2.54 / W0));
     keep = Math.min(keep, Math.sqrt(MAX_PIXELS / (W0 * H0)));
     keep = Math.max(1, Math.round(keep * 4) / 4);
     const W = Math.round(W0 * keep), H = Math.round(H0 * keep);
-    // the colours under the see-through area are extended outward first, so no dark fringe appears at the edge
-    const raw = await sharp(stored.data, { limitInputPixels: false }).rotate().ensureAlpha().raw().toBuffer();
+    // (below: the colours under the see-through area are extended outward first, so no dark fringe appears at the edge)
     // an older cut-out's light (or magenta) rim: each outline pixel keeps only its artwork share (8 Nov 2026)
     const cleaned = cleanCutEdge(raw, W0, H0);
     if (cleaned) log(`Cleaned the cut edge: ${cleaned.pixels} outline pixels (background was rgb(${cleaned.key.join(", ")}))`);
+    // drawn art or a photo? (decides whether it becomes vector shapes by itself)
+    const art = await artKind(raw, W0, H0);
+    log(`Looks like ${art.kind === "drawn" ? "drawn art" : "a photo"} (edge score ${art.score}, smooth skin ${art.skin} %)`);
     // the design's own see-through shape (after that clean-up), before the colours under it are filled in
     const alphaSmall = await sharp(raw, { raw: { width: W0, height: H0, channels: 4 }, limitInputPixels: false }).extractChannel(3).raw().toBuffer();
     bleedEdges(raw, W0, H0);
     const rgbPng = await sharp(raw, { raw: { width: W0, height: H0, channels: 4 }, limitInputPixels: false }).removeAlpha().png({ compressionLevel: 3 }).toBuffer();
+    // the customer's own picture on the tee, as the recipe shows the enlarged one (vector shapes: what the enlarger
+    // made up is left out, and the detail check counts only what the customer's picture has too — 13 Nov 2026).
+    // Only when it is enlarged: with nothing enlarged there is nothing made up.
     // already big enough for its print size: no enlarging, no Replicate run, no cost (12 Nov 2026)
     const enlarge = keep > 1;
+    const teeV = tee === "white" ? 255 : 0;
+    const srcRgb = enlarge ? Buffer.alloc(W0 * H0 * 3) : null;
+    if (srcRgb)
+      for (let i = 0; i < W0 * H0; i++) {
+        const a = alphaSmall[i] / 255;
+        for (let c = 0; c < 3; c++) srcRgb[i * 3 + c] = Math.round(raw[i * 4 + c] * a + teeV * (1 - a));
+      }
     let rgb;
     if (enlarge) {
       log(`Enlarging ${keep}× on the graphics-card service (${W0}×${H0} → ${W}×${H})…`);
@@ -204,23 +225,44 @@ export const startPrintPicture = asyncHandler(async (req, res) => {
     const alpha = await sharp(alphaSmall, { raw: { width: W0, height: H0, channels: 1 }, limitInputPixels: false }).resize(W, H, { kernel: "lanczos3" }).extractChannel(0).raw().toBuffer(); // (one channel: sharp gives 3 otherwise)
     log("Cleaning the edge and drawing the vector edge…");
     const dpi = Math.round(W / (printCm / 2.54));
-    const made = await runRecipe({ rgb, alpha, W, H, tee, knockout, dropSpecks, dpi, log });
+    // the edge is traced from the customer's see-through shape, enlarged smoothly: each of its pixels became a
+    // (W/W0)-pixel step, and the tracer kept the steps as a staircase on the outline (user, 12 Nov 2026: "the edges
+    // need to get more sharper"). Smoothing at about 0.85 of one original pixel (13 Nov: 0.6 left small bumps) rounds the steps off and keeps thin
+    // details; a picture not enlarged keeps the approved 0.8.
+    const edgeSigma = Math.max(0.8, Math.round(0.85 * (W / W0) * 10) / 10);
+    const made = await runRecipe({ rgb, alpha, W, H, tee, knockout, dropSpecks, dpi, edgeSigma, log });
     const key = keyOf(el.src, `${tee}${knockout ? "-ko" : ""}${dropSpecks ? "-sp" : ""}`, keep);
     const dir = path.join(WORK, key);
     await fsp.mkdir(dir, { recursive: true });
-    // made again under the same key: the old sheet PNGs are of the old picture
+    // Several designs can share this folder (every Shop order of one ready design, a copied design): the vector shapes
+    // another design uses stay until new ones are written in their place (13 Nov 2026 review: deleting them here left
+    // that design's print ZIP without its shapes for minutes — or for good, when this run made none). Each file is
+    // written whole and then put in place, so a ZIP made meanwhile never reads half a file.
+    await writeWhole(path.join(dir, "picture.flate"), made.flate);
+    // the old sheet PNGs are of the old picture
     for (const f of await fsp.readdir(dir)) if (/^sheet-\d+\.png$/.test(f)) await fsp.rm(path.join(dir, f), { force: true });
-    await fsp.writeFile(path.join(dir, "picture.flate"), made.flate);
+    if (srcRgb) await writeWhole(path.join(dir, "source.png"), await sharp(srcRgb, { raw: { width: W0, height: H0, channels: 3 }, limitInputPixels: false }).png({ compressionLevel: 6 }).toBuffer());
+    else await fsp.rm(path.join(dir, "source.png"), { force: true });
     const preview = await sharp(made.picture, { raw: { width: W, height: H, channels: 3 }, limitInputPixels: false }).resize(1600, 1600, { fit: "inside", withoutEnlargement: true }).webp({ quality: 82 }).toBuffer();
-    await fsp.writeFile(path.join(dir, "preview.webp"), preview);
-    const info = { key, width: W, height: H, keep, cm: printCm, tee, src: el.src, dpi: PRINT_DPI, realDpi: dpi, clip: made.clip, shapes: made.shapes, steps: made.steps, bytes: made.flate.length, stats: made.stats, madeAt: new Date().toISOString() };
-    await fsp.writeFile(path.join(dir, "meta.json"), JSON.stringify(info));
+    await writeWhole(path.join(dir, "preview.webp"), preview);
+    // vector shapes (drawn art by itself; a photo only when the admin switched it on)
+    let vector = { kind: art.kind, score: art.score, skin: art.skin, made: false, use: false };
+    if (vectorMode === "on" || (vectorMode === "auto" && art.kind === "drawn")) {
+      const { v, check } = await makeVector(dir, { rgb: made.picture, ink: made.ink, W, H, tee, clip: made.clip, kind: art.kind, printCm, keep, src: srcRgb ? { rgb: srcRgb, W: W0, H: H0 } : null, log });
+      // used only when the check found every detail (13 Nov 2026) — otherwise the sharp picture prints
+      vector = { ...vector, made: true, use: check.ok, colours: v.colours, shapes: v.shapes, check };
+    }
+    // (no shapes this time: the folder's shapes from before — another design may use them — are kept in its notes)
+    let keptVector = null;
+    if (!vector.made && fs.existsSync(path.join(dir, "vector.flate"))) keptVector = await fsp.readFile(path.join(dir, "meta.json"), "utf8").then((t) => JSON.parse(t).vector || null).catch(() => null);
+    const info = { key, width: W, height: H, keep, cm: printCm, tee, src: el.src, dpi: PRINT_DPI, realDpi: dpi, clip: made.clip, shapes: made.shapes, steps: made.steps, bytes: made.flate.length, stats: made.stats, vector: keptVector?.made ? keptVector : vector, madeAt: new Date().toISOString() };
+    await writeWhole(path.join(dir, "meta.json"), JSON.stringify(info));
     // the design remembers it (read again: the admin may have changed something meanwhile)
     const fresh = await Customization.findById(designId);
     const target = fresh?.elements?.[index];
     if (!fresh || !target) throw new Error("The design changed while the picture was being prepared. Try again.");
     const st = made.stats || {};
-    target.printFile = { key, width: W, height: H, keep, cm: printCm, madeAt: new Date(), realDpi: dpi, specks: st.specks || 0, specksDropped: st.specksDropped || 0, thinPct: st.thinPct || 0, knockout: Boolean(st.knockout) };
+    target.printFile = { key, width: W, height: H, keep, cm: printCm, madeAt: new Date(), realDpi: dpi, specks: st.specks || 0, specksDropped: st.specksDropped || 0, thinPct: st.thinPct || 0, knockout: Boolean(st.knockout), vector };
     await fresh.save();
     const costInr = !enlarge || replicateMock() ? 0 : Math.round((settings.replicatePricePerImageInr || 0) * 100) / 100;
     if (enlarge) await AiUsage.create({ user, kind: "print", prompt: `Print-ready picture (design ${designId}, picture ${index + 1}) · ${keep}× · Replicate`, images: 1, costInr, model: replicateModel() });
@@ -241,6 +283,142 @@ export const getPrintJob = asyncHandler(async (req, res) => {
     throw new Error("That job is not known any more (the server may have restarted). Press Prepare for print again.");
   }
   res.json({ id: job.id, status: job.status, step: job.step, error: job.error || null, result: job.result || null, log: job.log.slice(-6) });
+});
+
+/* ---------- vector shapes ---------- */
+// the shapes, their packed PDF operators, the SVG (preview, day sheets) and a small preview on the tee's colour.
+// Every try is checked at the print size against the print-ready picture (vectorArt.js vectorizeChecked); the files
+// kept are the try that lost least, and check.ok says whether it lost nothing.
+async function makeVector(dir, { rgb, ink, W, H, tee, clip, kind, printCm, keep, src = null, log }) {
+  const { v, check } = await vectorizeChecked({ rgb, ink, W, H, printCm, kind, keep: keep || 1, src, log });
+  if (!check.ok) log(`The shapes would lose ${check.lost} small detail${check.lost === 1 ? "" : "s"} (biggest ${check.biggestMm2} mm²) — the sharp picture prints instead.`);
+  const s = Math.min(1, 1600 / Math.max(W, H));
+  const w = Math.max(1, Math.round(W * s)), h = Math.max(1, Math.round(H * s));
+  const png = await sheetPng(await renderVector(v.svg, W, H, w, h, tee), w, h, { width: W, height: H, clip });
+  const preview = await sharp(png).flatten({ background: tee === "white" ? "#ffffff" : "#000000" }).webp({ quality: 82 }).toBuffer();
+  // (all made first, then put in place one after another: the shapes are never missing while a ZIP is made)
+  await writeWhole(path.join(dir, "vector.flate"), v.content);
+  await writeWhole(path.join(dir, "vector.svg"), v.svg);
+  await writeWhole(path.join(dir, "vector-preview.webp"), preview);
+  for (const f of await fsp.readdir(dir)) if (/^sheet-v-\d+\.png$/.test(f)) await fsp.rm(path.join(dir, f), { force: true });
+  return { v, check };
+}
+// a file written whole under a passing name, then put in place (a reader never sees half of it). If the rename is
+// refused (Windows, while the old file is being read), it is written in place as before.
+async function writeWhole(file, data) {
+  const tmp = `${file}.tmp-${crypto.randomBytes(4).toString("hex")}`;
+  await fsp.writeFile(tmp, data);
+  try {
+    await fsp.rename(tmp, file);
+  } catch {
+    await fsp.writeFile(file, data);
+    await fsp.rm(tmp, { force: true });
+  }
+}
+// the vector SVG drawn at w × h px (raw RGB, on the tee's colour)
+async function renderVector(svg, W, H, w, h, tee) {
+  const sized = svg.replace(`width="${W}" height="${H}"`, `width="${w}" height="${h}"`);
+  const out = await sharp(Buffer.from(sized), { limitInputPixels: false, unlimited: true }).flatten({ background: tee === "white" ? "#ffffff" : "#000000" }).removeAlpha().raw().toBuffer({ resolveWithObject: true });
+  if (out.info.width !== w || out.info.height !== h) throw new Error(`vector drawn at ${out.info.width}×${out.info.height}, not ${w}×${h}`);
+  return out.data;
+}
+// where ink prints, from a stored print-ready picture's vector edge (0/1 per pixel)
+async function inkFromClip(meta) {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${meta.width}" height="${meta.height}" viewBox="0 0 ${meta.width} ${meta.height}"><path fill="#fff" fill-rule="evenodd" d="${meta.clip}"/></svg>`;
+  const a = await sharp(Buffer.from(svg), { limitInputPixels: false, unlimited: true }).ensureAlpha().extractChannel(3).raw().toBuffer();
+  const ink = new Uint8Array(meta.width * meta.height);
+  for (let i = 0; i < ink.length; i++) ink[i] = a[i] >= 128 ? 1 : 0;
+  return ink;
+}
+
+// POST /api/print-files/picture/vector  { designId, index, use }  -> { printFile } or { jobId }   (admin only)
+// The admin's switch: vector shapes or the sharp picture. Shapes not made yet (a photo, or a picture prepared before
+// 12 Nov 2026) are made from the stored print-ready picture — no enlarging again, no cost.
+export const setPictureVector = asyncHandler(async (req, res) => {
+  let found;
+  try {
+    found = await pictureOf(req.body);
+  } catch (err) {
+    res.status(err.status || 500);
+    throw err;
+  }
+  const { design, el } = found;
+  const pf = el.printFile;
+  if (!pf?.key || !isKey(pf.key)) {
+    res.status(400);
+    throw new Error("Prepare this picture for print first.");
+  }
+  const dir = path.join(WORK, pf.key);
+  const use = Boolean(req.body.use);
+  // shapes made before the detail check (13 Nov 2026) are made again, so they are checked too
+  const have = pf.vector?.made && pf.vector?.check?.checkedAt && fs.existsSync(path.join(dir, "vector.flate"));
+  if (!use || have) {
+    const old = pf.vector || {};
+    // switching on shapes that lost details is the admin's own choice: the row and order sheet say so
+    const c = old.check?.checkedAt ? old.check : null;
+    pf.vector = { kind: old.kind, score: old.score, skin: old.skin, made: Boolean(old.made), use, colours: old.colours, shapes: old.shapes, ...(c ? { check: { ok: c.ok, lost: c.lost, biggestMm2: c.biggestMm2, matchPct: c.matchPct, level: c.level, repairs: c.repairs, checkedAt: c.checkedAt } } : {}) };
+    design.markModified("elements");
+    await design.save();
+    res.json({ printFile: pf });
+    return;
+  }
+  if (!fs.existsSync(path.join(dir, "picture.flate"))) {
+    res.status(410);
+    throw new Error("This print-ready picture is no longer on the server. Prepare it again.");
+  }
+  const designId = String(design._id), index = Number(req.body.index);
+  const id = crypto.randomBytes(8).toString("hex");
+  const job = { id, status: "queued", step: "Waiting for its turn…", log: [], createdAt: Date.now(), designId, index };
+  const log = (t) => {
+    job.step = t;
+    job.log.push(`${new Date().toISOString().slice(11, 19)} ${t}`);
+  };
+  job.work = async () => {
+    log("Reading the print-ready picture…");
+    const meta = JSON.parse(await fsp.readFile(path.join(dir, "meta.json"), "utf8"));
+    const rgb = unPaeth(zlib.inflateSync(await fsp.readFile(path.join(dir, "picture.flate"))), meta.width, meta.height);
+    const ink = await inkFromClip(meta);
+    // a picture prepared before 12 Nov 2026 has no kind yet: measure it on a small copy of the print-ready picture
+    let kind = pf.vector?.kind, score = pf.vector?.score, skin = pf.vector?.skin;
+    if (!kind) {
+      const s = Math.min(1, 1024 / Math.max(meta.width, meta.height));
+      const w = Math.max(8, Math.round(meta.width * s)), h = Math.max(8, Math.round(meta.height * s));
+      const small = await sharp(rgb, { raw: { width: meta.width, height: meta.height, channels: 3 }, limitInputPixels: false }).resize(w, h).raw().toBuffer();
+      const m8 = Buffer.alloc(ink.length);
+      for (let i = 0; i < ink.length; i++) m8[i] = ink[i] ? 255 : 0;
+      const m = await sharp(m8, { raw: { width: meta.width, height: meta.height, channels: 1 }, limitInputPixels: false }).resize(w, h).extractChannel(0).raw().toBuffer();
+      const rgba = Buffer.alloc(w * h * 4);
+      for (let i = 0; i < w * h; i++) {
+        rgba[i * 4] = small[i * 3];
+        rgba[i * 4 + 1] = small[i * 3 + 1];
+        rgba[i * 4 + 2] = small[i * 3 + 2];
+        rgba[i * 4 + 3] = m[i];
+      }
+      ({ kind, score, skin } = await artKind(rgba, w, h));
+    }
+    // the customer's own picture, kept since 13 Nov 2026 (a picture prepared before that: the check as it was)
+    let src = null;
+    if ((meta.keep || pf.keep || 1) > 1 && fs.existsSync(path.join(dir, "source.png"))) {
+      const sp = await sharp(path.join(dir, "source.png"), { limitInputPixels: false }).removeAlpha().raw().toBuffer({ resolveWithObject: true });
+      src = { rgb: sp.data, W: sp.info.width, H: sp.info.height };
+    }
+    const { v, check } = await makeVector(dir, { rgb, ink, W: meta.width, H: meta.height, tee: meta.tee, clip: meta.clip, kind, printCm: meta.cm || pf.cm || 30, keep: meta.keep || pf.keep || 1, src, log });
+    const vector = { kind, score, skin, made: true, use: check.ok, colours: v.colours, shapes: v.shapes, check };
+    meta.vector = vector;
+    await writeWhole(path.join(dir, "meta.json"), JSON.stringify(meta));
+    const fresh = await Customization.findById(designId);
+    const target = fresh?.elements?.[index];
+    if (!fresh || !target?.printFile || target.printFile.key !== pf.key) throw new Error("The design changed while the shapes were being made. Try again.");
+    target.printFile.vector = vector;
+    fresh.markModified("elements");
+    await fresh.save();
+    log("Done.");
+    return { printFile: target.printFile, costInr: 0 };
+  };
+  jobs.set(id, job);
+  waiting.push(job);
+  startNext();
+  res.status(202).json({ jobId: id, queued: waiting.length });
 });
 
 // DELETE /api/print-files/picture  { designId, index }  — print from the plain picture again   (admin only)
@@ -281,6 +459,19 @@ export const getPrintPictureStream = asyncHandler(async (req, res) => {
   res.setHeader("Cache-Control", "no-store");
   fs.createReadStream(p).pipe(res);
 });
+export const getPrintPictureVector = asyncHandler(async (req, res) => {
+  const p = workFile(req, res, "vector.flate");
+  res.setHeader("Content-Type", "application/octet-stream");
+  res.setHeader("Content-Length", String((await fsp.stat(p)).size));
+  res.setHeader("Cache-Control", "no-store");
+  fs.createReadStream(p).pipe(res);
+});
+export const getPrintPictureVectorPreview = asyncHandler(async (req, res) => {
+  const p = workFile(req, res, "vector-preview.webp");
+  res.setHeader("Content-Type", "image/webp");
+  res.setHeader("Cache-Control", "no-store");
+  fs.createReadStream(p).pipe(res);
+});
 export const getPrintPicturePreview = asyncHandler(async (req, res) => {
   const p = workFile(req, res, "preview.webp");
   res.setHeader("Content-Type", "image/webp");
@@ -295,8 +486,13 @@ export const getPrintPictureSheet = asyncHandler(async (req, res) => {
   const meta = JSON.parse(await fsp.readFile(workFile(req, res, "meta.json"), "utf8"));
   const w = Math.max(16, Math.min(meta.width, Math.round(Number(req.query.w) || meta.width)));
   const h = Math.max(1, Math.round((meta.height * w) / meta.width));
-  const out = path.join(WORK, req.params.key, `sheet-${w}.png`);
-  if (!fs.existsSync(out)) {
+  // ?v=1: the vector shapes (the picture prints as shapes), else the print-ready picture
+  const vec = req.query.v === "1";
+  const out = path.join(WORK, req.params.key, `sheet-${vec ? "v-" : ""}${w}.png`);
+  if (vec && !fs.existsSync(out)) {
+    const svg = await fsp.readFile(workFile(req, res, "vector.svg"), "utf8");
+    await fsp.writeFile(out, await sheetPng(await renderVector(svg, meta.width, meta.height, w, h, meta.tee), w, h, meta));
+  } else if (!fs.existsSync(out)) {
     const rgb = unPaeth(zlib.inflateSync(await fsp.readFile(workFile(req, res, "picture.flate"))), meta.width, meta.height);
     const small = await sharp(rgb, { raw: { width: meta.width, height: meta.height, channels: 3 }, limitInputPixels: false }).resize(w, h, { kernel: "lanczos3" }).raw().toBuffer();
     await fsp.writeFile(out, await sheetPng(small, w, h, meta));

@@ -245,6 +245,29 @@ function picturePlace(el, r, W, H) {
 const EDGE_CHUNK = 5000; // operators per pushOperators call (well under any browser's argument limit)
 
 function drawPicture(pdf, page, pic, place, H, colourSpace = "DeviceRGB") {
+  const [a, b, c, d, e, f] = place.m;
+  page.pushOperators(
+    pushGraphicsState(),
+    concatTransformationMatrix(1, 0, 0, -1, 0, H), // the layer's y runs down
+    concatTransformationMatrix(a, b, c, d, e, f), // the node's box on the layer
+    concatTransformationMatrix(place.nw / pic.width, 0, 0, place.nh / pic.height, 0, 0), // picture pixels in the box
+  );
+  // the vector edge in parts: a big picture's edge has 200,000+ pieces, and passing them all at once as "...edge"
+  // overflows the browser's stack ("Maximum call stack size exceeded" — SCENE tees, order VF-2026-0077, 7 Nov 2026)
+  const edge = clipOperators(pic.clip);
+  for (let i = 0; i < edge.length; i += EDGE_CHUNK) page.pushOperators(...edge.slice(i, i + EDGE_CHUNK));
+  page.pushOperators(clipEvenOdd(), endPath());
+  if (pic.vector) {
+    // vector shapes (12 Nov 2026): the server's packed operators (picture pixels, y down) go straight onto the page as
+    // its next content part — between the vector edge above and its end below — the way the approved hand-made files
+    // were written (no form wrapper: Illustrator and every RIP read plain page shapes). The page's DefaultRGB (sRGB)
+    // applies to their colours.
+    const part = PDFRawStream.of(pdf.context.obj({ Filter: "FlateDecode", Length: pic.vector.length }), pic.vector);
+    page.node.addContentStream(pdf.context.register(part));
+    page.getContentStream(false); // what is drawn next goes into a new part after the shapes
+    page.pushOperators(popGraphicsState());
+    return;
+  }
   const dict = pdf.context.obj({
     Type: "XObject",
     Subtype: "Image",
@@ -257,24 +280,8 @@ function drawPicture(pdf, page, pic, place, H, colourSpace = "DeviceRGB") {
     Length: pic.flate.length,
   });
   const name = page.node.newXObject("Im", pdf.context.register(PDFRawStream.of(dict, pic.flate)));
-  const [a, b, c, d, e, f] = place.m;
-  page.pushOperators(
-    pushGraphicsState(),
-    concatTransformationMatrix(1, 0, 0, -1, 0, H), // the layer's y runs down
-    concatTransformationMatrix(a, b, c, d, e, f), // the node's box on the layer
-    concatTransformationMatrix(place.nw / pic.width, 0, 0, place.nh / pic.height, 0, 0), // picture pixels in the box
-  );
-  // the vector edge in parts: a big picture's edge has 200,000+ pieces, and passing them all at once as "...edge"
-  // overflows the browser's stack ("Maximum call stack size exceeded" — SCENE tees, order VF-2026-0077, 7 Nov 2026)
-  const edge = clipOperators(pic.clip);
-  for (let i = 0; i < edge.length; i += EDGE_CHUNK) page.pushOperators(...edge.slice(i, i + EDGE_CHUNK));
-  page.pushOperators(
-    clipEvenOdd(),
-    endPath(),
-    concatTransformationMatrix(pic.width, 0, 0, -pic.height, 0, pic.height), // the picture, first row at the top
-    drawObject(name),
-    popGraphicsState(),
-  );
+  // the picture, first row at the top
+  page.pushOperators(concatTransformationMatrix(pic.width, 0, 0, -pic.height, 0, pic.height), drawObject(name), popGraphicsState());
 }
 
 /* ---------- colours: sRGB, said inside the file (8 Nov 2026) ---------- */

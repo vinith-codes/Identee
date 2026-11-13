@@ -96,14 +96,14 @@ export const toPng = (canvas) =>
 // day sheets and a PNG print file): the same picture and vector edge as in the .ai, not the customer's original.
 // Asked once per picture and width; null when it can't be had (the original is drawn then).
 const sheetUrls = new Map(); // "key|w" -> Promise<blob url | null>
-export function readySheetUrl(key, w) {
+export function readySheetUrl(key, w, vec = false) {
   const width = Math.max(16, Math.round(w));
-  const id = `${key}|${width}`;
+  const id = `${key}|${width}|${vec ? "v" : "p"}`;
   if (!sheetUrls.has(id)) {
     sheetUrls.set(
       id,
       printFileService
-        .sheetBlob(key, width)
+        .sheetBlob(key, width, vec)
         .then((b) => URL.createObjectURL(b))
         .catch(() => {
           sheetUrls.delete(id);
@@ -122,7 +122,8 @@ export async function withReadyPictures(elements, areaPx) {
     elements.map(async (e) => {
       if (e.type !== "image" || !e.printFile?.key) return e;
       const want = Math.min(e.printFile.width || Infinity, ((e.width || 0) / 100) * areaPx);
-      const url = want > 0 ? await readySheetUrl(e.printFile.key, want) : null;
+      // a picture printed as vector shapes: the sheet draws the shapes (as the .ai does)
+      const url = want > 0 ? await readySheetUrl(e.printFile.key, want, Boolean(e.printFile.vector?.use)) : null;
       if (!url) {
         missed++;
         return e;
@@ -629,7 +630,8 @@ export async function buildPrintPack(pack, onStep = () => {}) {
   // the designs, one block each; the order sheet puts the header, CHECK BEFORE PRINTING and the note above them
   const sheet = [];
   // the print-ready pictures (Prepare for print): fetched once per picture, drawn into the PDFs by vectorPrint.js
-  const readyPictures = new Map(); // key -> { width, height, clip, flate }
+  const readyPictures = new Map(); // key (+ "|v" when drawn as vector shapes) -> { width, height, clip, flate, vector? }
+  const readyId = (e) => (e.printFile?.key ? `${e.printFile.key}${e.printFile.vector?.use ? "|v" : ""}` : null);
 
   for (const [i, d] of designs.entries()) {
     const title = d.name || `Design ${i + 1}`;
@@ -652,11 +654,13 @@ export async function buildPrintPack(pack, onStep = () => {}) {
     const elements = d.elements.map((e) => (e.type === "image" && e.printSrc ? { ...e, src: e.printSrc } : e));
     for (const e of elements) {
       const key = e.type === "image" && e.printFile?.key;
-      if (!key || readyPictures.has(key)) continue;
+      const id = key && readyId(e);
+      if (!key || readyPictures.has(id)) continue;
       tick(done, total, `Fetching a print-ready picture for “${title}”…`);
       try {
-        const [meta, flate] = await Promise.all([printFileService.meta(key), printFileService.stream(key)]);
-        readyPictures.set(key, { width: meta.width, height: meta.height, clip: meta.clip, flate, keep: meta.keep, stats: meta.stats || null });
+        const asShapes = Boolean(e.printFile.vector?.use);
+        const [meta, flate, vector] = await Promise.all([printFileService.meta(key), asShapes ? null : printFileService.stream(key), asShapes ? printFileService.vector(key) : null]);
+        readyPictures.set(id, { width: meta.width, height: meta.height, clip: meta.clip, flate, vector, colours: meta.vector?.colours || 0, check: e.printFile.vector?.check || null, keep: meta.keep, stats: meta.stats || null });
       } catch (err) {
         warnings.push(`“${title}”: a print-ready picture couldn't be fetched (${err.response?.data?.message || err.message}), so that picture is plain pixels in the print files.`);
       }
@@ -692,7 +696,7 @@ export async function buildPrintPack(pack, onStep = () => {}) {
         try {
           const { buildVectorPdf } = await import("./vectorPrint");
           const pictures = new Map();
-          for (const e of drawn) if (e.type === "image" && e.printFile?.key && readyPictures.has(e.printFile.key)) pictures.set(String(e.id), readyPictures.get(e.printFile.key));
+          for (const e of drawn) if (e.type === "image" && e.printFile?.key && readyPictures.has(readyId(e))) pictures.set(String(e.id), readyPictures.get(readyId(e)));
           tick(done, total, `Making the vector file for ${area.label} of “${title}”…`);
           const vector = await buildVectorPdf(drawn, cmToPx(w), cmToPx(h), `${title} · ${area.label}`, { pictures, always: true });
           if (!vector.bytes) throw new Error("no .ai was made");
@@ -703,8 +707,13 @@ export async function buildPrintPack(pack, onStep = () => {}) {
           if (plain.length) checks.push(`${n} ${area.label} (${f.sizes.join(", ")}): ${plain.length === 1 ? "a picture is" : `${plain.length} pictures are`} plain pixels (not prepared for print).`);
           else if (pictures.size) {
             // the real DPI of each print-ready picture at its print width (the enlarger stops at 4×: not always 600)
-            const dpis = drawn.filter((e) => pictures.has(String(e.id))).map((e) => Math.round(pictures.get(String(e.id)).width / ((((e.width || 0) / 100) * w) / 2.54))).filter((x) => x > 0 && Number.isFinite(x));
-            sheet.push(`  ${n} ${area.label} (${f.sizes.join(", ")}): PRINT-READY picture${pictures.size === 1 ? "" : "s"} (${dpis.length ? `${dpis.join(" / ")} DPI` : "enlarged"}, vector edge).`);
+            const ready = drawn.filter((e) => pictures.has(String(e.id))).map((e) => pictures.get(String(e.id)));
+            const shapes = ready.filter((p) => p.vector);
+            const dpis = drawn.filter((e) => pictures.has(String(e.id)) && !pictures.get(String(e.id)).vector).map((e) => Math.round(pictures.get(String(e.id)).width / ((((e.width || 0) / 100) * w) / 2.54))).filter((x) => x > 0 && Number.isFinite(x));
+            if (shapes.length) sheet.push(`  ${n} ${area.label} (${f.sizes.join(", ")}): ${shapes.length === 1 ? "a picture is" : `${shapes.length} pictures are`} VECTOR SHAPES (${shapes.map((p) => `${p.colours} colours`).join(" / ")}) inside the vector edge — sharp at any size.`);
+            // the detail check (13 Nov 2026): shapes the admin chose although they lose small details
+            for (const p of shapes) if (p.check?.checkedAt && !p.check.ok) sheet.push(`  ${n} ${area.label}: note — the admin chose vector shapes that differ from the picture in ${p.check.lost} small spot${p.check.lost === 1 ? "" : "s"} (biggest ${p.check.biggestMm2} mm²).`);
+            if (ready.length > shapes.length) sheet.push(`  ${n} ${area.label} (${f.sizes.join(", ")}): PRINT-READY picture${ready.length - shapes.length === 1 ? "" : "s"} (${dpis.length ? `${dpis.join(" / ")} DPI` : "enlarged"}, vector edge).`);
           }
           // what the print team should know about the fine detail in each print-ready picture (counted when it was made)
           for (const pic of new Set(pictures.values())) {
@@ -735,7 +744,8 @@ export async function buildPrintPack(pack, onStep = () => {}) {
         // picture sharpness at this print size
         for (const e of els.filter((x) => x.type === "image")) {
           // a print-ready picture (Prepare for print) goes into the .ai at its enlarged size: measure that one
-          const ready = e.printFile?.key && readyPictures.get(e.printFile.key);
+          const ready = e.printFile?.key && readyPictures.get(readyId(e));
+          if (ready?.vector) continue; // vector shapes: sharp at any size
           const img = ready ? null : cachedImage(e.src, true);
           const px = ready ? ready.width : img?.naturalWidth;
           const dpi = px ? Math.round(px / ((((e.width || 0) / 100) * w) / 2.54)) : 0;

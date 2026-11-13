@@ -39,6 +39,30 @@ const elementSchema = new mongoose.Schema(
       specksDropped: { type: Number },
       thinPct: { type: Number },
       knockout: { type: Boolean },
+      // vector shapes instead of pixels (12 Nov 2026): drawn art is made vector by itself, a photo only when the admin
+      // switches it. kind/score: what the picture looked like (services/vectorArt.js artKind); made: the shapes are on
+      // the server; use: the print files draw the shapes (the admin's switch); colours/shapes: how many
+      vector: {
+        kind: { type: String },
+        score: { type: Number },
+        skin: { type: Number }, // % of the ink that is smooth skin (a photo of a person)
+        made: { type: Boolean },
+        use: { type: Boolean },
+        colours: { type: Number },
+        shapes: { type: Number },
+        // the "no detail lost" check (13 Nov 2026): the shapes drawn at the print size against the print-ready
+        // picture. ok: nothing missing (only then are shapes used by themselves); lost: missing spots of 0.1 mm² or
+        // more; level: which try of the ladder (1 = the clean look, 2 = gentler)
+        check: {
+          ok: { type: Boolean },
+          lost: { type: Number },
+          biggestMm2: { type: Number },
+          matchPct: { type: Number },
+          level: { type: Number },
+          repairs: { type: Number }, // repair rounds: missed spots traced again from the picture and laid on top
+          checkedAt: { type: Date },
+        },
+      },
     },
     artDesignId: { type: mongoose.Schema.Types.ObjectId, ref: "ArtDesign" },
 

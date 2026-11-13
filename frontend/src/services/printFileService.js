@@ -26,7 +26,13 @@ const meta = async (key) => (await axios.get(`${API}/picture/${key}/meta`, auth(
 const stream = async (key) => new Uint8Array((await axios.get(`${API}/picture/${key}/stream`, { ...auth(), responseType: "arraybuffer", timeout: 300000 })).data);
 const previewBlobUrl = async (key) => URL.createObjectURL((await axios.get(`${API}/picture/${key}/preview.webp`, { ...auth(), responseType: "blob" })).data);
 // the print-ready picture as a PNG w px wide, see-through outside its vector edge (for the day sheets and PNG print files)
-const sheetBlob = async (key, w) => (await axios.get(`${API}/picture/${key}/sheet.png`, { ...auth(), params: { w: Math.round(w) }, responseType: "blob", timeout: 300000 })).data;
+// vec: the vector shapes drawn instead of the picture (a picture printed as shapes)
+const sheetBlob = async (key, w, vec = false) => (await axios.get(`${API}/picture/${key}/sheet.png`, { ...auth(), params: { w: Math.round(w), ...(vec ? { v: 1 } : {}) }, responseType: "blob", timeout: 300000 })).data;
+// vector shapes (12 Nov 2026): the shapes' packed PDF operators, their preview, and the admin's switch
+// setVector({ designId, index, use }) -> { printFile } (switched) or { jobId } (the shapes are being made: poll job())
+const vector = async (key) => new Uint8Array((await axios.get(`${API}/picture/${key}/vector`, { ...auth(), responseType: "arraybuffer", timeout: 300000 })).data);
+const vectorPreviewBlobUrl = async (key) => URL.createObjectURL((await axios.get(`${API}/picture/${key}/vector-preview.webp`, { ...auth(), responseType: "blob" })).data);
+const setVector = async (body) => (await axios.post(`${API}/picture/vector`, body, auth())).data;
 
 // Send to print team: the ZIP goes up in parts, then one call emails the link
 const PART = 4 * 1024 * 1024;
@@ -52,5 +58,5 @@ const resend = async (orderId, fileName) => (await axios.post(`${API}/orders/${o
 // the admin's note for the print team (order sheet + job cards)
 const saveNote = async (orderId, note) => (await axios.put(`${API}/orders/${orderId}/note`, { note }, auth())).data;
 
-const printFileService = { status, prepare, job, drop, meta, stream, previewBlobUrl, sheetBlob, uploadZip, send, sent, resend, saveNote };
+const printFileService = { status, prepare, job, drop, meta, stream, previewBlobUrl, sheetBlob, vector, vectorPreviewBlobUrl, setVector, uploadZip, send, sent, resend, saveNote };
 export default printFileService;

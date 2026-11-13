@@ -28,7 +28,8 @@ const pictureSharpness = (design, el, sizes) => {
 
 // The customer's original and the enlarged copy side by side, to check before printing that nothing
 // was changed. Both move together: zoom with the buttons or the mouse wheel, drag to look around.
-function ComparePictures({ original, enlarged, tee, onClose }) {
+// printedNote: shown in place of the enlarged copy's pixel width (vector shapes have no pixel size)
+function ComparePictures({ original, enlarged, tee, onClose, printedLabel = "The enlarged copy (this one is printed)", printedNote }) {
   const [view, setView] = useState({ z: 1, x: 0, y: 0 }); // zoom, and how far the picture is moved (% of the pane)
   const [px, setPx] = useState({}); // which -> pixel width of the file
   const drag = useRef(null);
@@ -48,7 +49,7 @@ function ComparePictures({ original, enlarged, tee, onClose }) {
   const zoomTo = (z) => setView((v) => ({ z, x: limit(v.x, z), y: limit(v.y, z) }));
   const panes = [
     ["original", "The customer’s original", original],
-    ["enlarged", "The enlarged copy (this one is printed)", enlarged],
+    ["enlarged", printedLabel, enlarged],
   ];
   return (
     <div
@@ -87,7 +88,7 @@ function ComparePictures({ original, enlarged, tee, onClose }) {
             <div key={key} style={{ background: THEME.surface, minWidth: 0 }}>
               <div style={{ padding: "8px 12px", fontSize: 12.5, fontWeight: 700, display: "flex", justifyContent: "space-between", gap: 8 }}>
                 <span>{label}</span>
-                <span style={{ color: THEME.textMuted, fontWeight: 600, fontVariantNumeric: "tabular-nums" }}>{px[key] ? `${px[key].toLocaleString("en-IN")} px wide` : ""}</span>
+                <span style={{ color: THEME.textMuted, fontWeight: 600, fontVariantNumeric: "tabular-nums" }}>{key === "enlarged" && printedNote ? printedNote : px[key] ? `${px[key].toLocaleString("en-IN")} px wide` : ""}</span>
               </div>
               <div
                 onWheel={(e) => zoomTo(Math.max(1, Math.min(8, view.z * (e.deltaY < 0 ? 1.25 : 0.8))))}
@@ -151,12 +152,26 @@ const withPrintFile = (p, designId, index, printFile) => ({
 });
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// the "no detail lost" check (13 Nov 2026): vector shapes are used by themselves only when, drawn at the print size,
+// nothing of the picture is missing; otherwise the sharp picture prints (it keeps every detail)
+function CheckNote({ vector, shapes }) {
+  const c = vector?.check;
+  if (!vector?.made || !c?.checkedAt) return null;
+  const n = `${c.lost} small detail${c.lost === 1 ? "" : "s"} (biggest ${c.biggestMm2} mm²)`;
+  const [colour, text] = c.ok
+    ? ["#24522F", shapes ? "✓ Detail check: every detail kept at the print size." : "✓ Detail check passed: the shapes keep every detail."]
+    : shapes
+      ? ["#7A5B12", `⚠ You chose shapes that lose ${n}. The sharp picture keeps every detail.`]
+      : [THEME.textMuted, `Detail check: shapes would lose ${n}, so the sharp picture prints — it keeps every detail.`];
+  return <div style={{ fontSize: 12, color: colour, marginTop: 4 }}>{text}</div>;
+}
+
 // "Prepare for print" button (the approved way: enlarged on a graphics card, vector edge, 600 DPI) and, as the old way,
 // a redraw by Google's AI. One row per picture.
 function PrintPictures({ design, price, sizes, pf, onChanged, onReady, locked = false, allPrep = null }) {
   const [busy, setBusy] = useState(null); // index being redrawn by Google
   const [preparing, setPreparing] = useState(null); // { index, jobId, step }
-  const [compare, setCompare] = useState(null); // { index, url } — the picture being compared with its original
+  const [compare, setCompare] = useState(null); // { index, url, label } — the picture being compared with its original
   const [error, setError] = useState("");
   const [grokDone, setGrokDone] = useState(null); // the picture Grok just enlarged, because Google refused
   const rows = design.elements.map((el, index) => ({ el, index })).filter(({ el }) => el.type === "image" && el.src);
@@ -195,7 +210,7 @@ function PrintPictures({ design, price, sizes, pf, onChanged, onReady, locked = 
 
   const prepare = async (index, printCm) => {
     if (!enlarger?.configured) return setError("The enlarger is not set up on this server yet (REPLICATE_API_TOKEN in the server's .env).");
-    if (!window.confirm(`Prepare this picture for print?${prepPrice ? ` It costs ${prepPrice}` : ""}: it is enlarged on the graphics-card service and given its vector edge (about 1–3 minutes). You can compare it with the original afterwards.`)) return;
+    if (!window.confirm(`Prepare this picture for print?${prepPrice ? ` It costs ${prepPrice}` : ""}: it is enlarged on the graphics-card service and given its vector edge; drawn art also becomes vector shapes (about 1–3 minutes). You can compare it with the original afterwards.`)) return;
     setError("");
     try {
       const { jobId } = await printFileService.prepare({ designId: design._id, index, printCm: Math.max(1, Math.round(printCm * 10) / 10) });
@@ -216,9 +231,29 @@ function PrintPictures({ design, price, sizes, pf, onChanged, onReady, locked = 
   };
   const openCompare = async (index, el) => {
     try {
-      setCompare({ index, url: el.printFile?.key ? await printFileService.previewBlobUrl(el.printFile.key) : full(el.printSrc) });
+      const shapes = Boolean(el.printFile?.key && el.printFile.vector?.use);
+      const url = el.printFile?.key ? await (shapes ? printFileService.vectorPreviewBlobUrl(el.printFile.key) : printFileService.previewBlobUrl(el.printFile.key)) : full(el.printSrc);
+      setCompare({ index, url, label: shapes ? "Vector shapes (printed)" : undefined, note: shapes ? "sharp at any size" : undefined });
     } catch (err) {
       setError(err.response?.data?.message || "The preview could not be loaded.");
+    }
+  };
+
+  // the admin's switch (12 Nov 2026): the picture prints as vector shapes or as the sharp picture. Shapes not made yet
+  // are made on the server from the print-ready picture (free, about a minute) — the same "Preparing…" line shows it.
+  const setShapes = async (index, use) => {
+    // shapes that failed the detail check (13 Nov 2026): the admin may still choose them, knowingly
+    const chk = design.elements?.[index]?.printFile?.vector?.check;
+    if (use && chk?.checkedAt && !chk.ok && !window.confirm(`These vector shapes lose ${chk.lost} small detail${chk.lost === 1 ? "" : "s"} of the picture (the biggest is ${chk.biggestMm2} mm²).
+
+The sharp picture keeps every detail. Print the shapes anyway?`)) return;
+    setError("");
+    try {
+      const r = await printFileService.setVector({ designId: design._id, index, use });
+      if (r.jobId) setPreparing({ index, jobId: r.jobId, step: "Making the vector shapes…" });
+      else onReady(index, r.printFile || null);
+    } catch (err) {
+      setError(err.response?.data?.message || "Could not switch how this picture prints.");
     }
   };
 
@@ -256,6 +291,8 @@ function PrintPictures({ design, price, sizes, pf, onChanged, onReady, locked = 
       {rows.map(({ el, index }) => {
         const { area, printCm, shown, dpi } = pictureSharpness(design, el, sizes);
         const ready = Boolean(el.printFile?.key);
+        const shapes = Boolean(ready && el.printFile.vector?.use); // prints as vector shapes (12 Nov 2026)
+        const kind = ready ? el.printFile.vector?.kind : null;
         // (Prepare all runs in the window above: its picture shows its step here too)
         const prep = preparing?.index === index ? preparing : allPrep?.designId === design._id && allPrep.index === index ? allPrep : null;
         const rDpi = ready ? readyDpi(el.printFile, printCm) : null;
@@ -276,10 +313,34 @@ function PrintPictures({ design, price, sizes, pf, onChanged, onReady, locked = 
               <b>{area?.label || el.position}</b>
               <span style={{ color: THEME.textMuted }}> · {printCm ? `${printCm.toFixed(1)} cm wide` : "size unknown"}</span>
               <div style={{ color: tone, fontWeight: 600, fontVariantNumeric: "tabular-nums" }}>
-                {ready ? `✓ Print-ready · ${el.printFile.keep}× bigger · ${rDpi ? `${rDpi} DPI${rDpi < GOOD_DPI ? " (a little soft)" : ""}` : "enlarged"} · vector edge` : dpi != null ? `${dpi} DPI — ${word}` : word}
+                {ready && shapes
+                  ? `✓ Print-ready · vector shapes${el.printFile.vector.colours ? ` (${el.printFile.vector.colours} colours)` : ""} · sharp at any size`
+                  : ready
+                    ? `✓ Print-ready · ${el.printFile.keep}× bigger · ${rDpi ? `${rDpi} DPI${rDpi < GOOD_DPI ? " (a little soft)" : ""}` : "enlarged"} · vector edge`
+                    : dpi != null
+                      ? `${dpi} DPI — ${word}`
+                      : word}
                 {!ready && el.printSrc && <span style={{ color: "#24522F" }}> · redrawn bigger by Google ✓</span>}
               </div>
               {detail && <div style={{ fontSize: 12, color: THEME.textMuted }}>{detail}</div>}
+              {ready && !prep && (
+                <div role="group" aria-label="How this picture prints" style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 6, flexWrap: "wrap", fontSize: 12 }}>
+                  <span style={{ color: THEME.textMuted }}>Prints as</span>
+                  {/* the two choices stay side by side, also on a phone */}
+                  <span style={{ display: "inline-flex", gap: 6, whiteSpace: "nowrap" }}>
+                    {[
+                      [true, "Vector shapes"],
+                      [false, "Sharp picture"],
+                    ].map(([use, label]) => (
+                      <button key={label} type="button" aria-pressed={shapes === use} onClick={() => shapes !== use && setShapes(index, use)} disabled={busy != null || !!preparing || locked} style={{ border: `1px solid ${shapes === use ? THEME.ink : THEME.border}`, background: shapes === use ? THEME.ink : "#fff", color: shapes === use ? "#fff" : THEME.text, borderRadius: 999, padding: "5px 11px", minHeight: 32, fontSize: 12, fontWeight: 700, cursor: busy != null || preparing || locked ? "not-allowed" : "pointer" }}>
+                        {label}
+                      </button>
+                    ))}
+                  </span>
+                  {kind && <span style={{ color: THEME.textMuted }}>· looks like {kind === "drawn" ? "drawn art (shapes look the same)" : "a photo (shapes show colour steps)"}</span>}
+                </div>
+              )}
+              {ready && !prep && <CheckNote vector={el.printFile.vector} shapes={shapes} />}
               {(ready || el.printSrc) && (
                 <button type="button" onClick={() => openCompare(index, el)} style={{ marginTop: 4, background: THEME.goldBg, border: `1px solid ${THEME.goldBorder}`, borderRadius: 8, padding: "5px 11px", fontSize: 12.5, fontWeight: 700, color: THEME.goldDeep, cursor: "pointer" }}>
                   Compare with the original
@@ -323,10 +384,10 @@ function PrintPictures({ design, price, sizes, pf, onChanged, onReady, locked = 
       )}
       {error && <p style={{ margin: "6px 0 0", color: THEME.danger, fontSize: 13, fontWeight: 600 }}>{error}</p>}
       {compare != null && (
-        <ComparePictures original={full(design.elements[compare.index].src)} enlarged={compare.url} tee={design.colour.hex} onClose={() => setCompare(null)} />
+        <ComparePictures original={full(design.elements[compare.index].src)} enlarged={compare.url} printedLabel={compare.label} printedNote={compare.note} tee={design.colour.hex} onClose={() => setCompare(null)} />
       )}
       <p style={{ margin: "6px 0 0", fontSize: 12, color: THEME.textMuted }}>
-        <b>Prepare for print</b> is the way the print team approved: the picture is enlarged on a graphics-card service (the same enlarger that made the approved samples), its edge is cleaned and drawn as a vector, and it goes into the .ai file at up to 600 DPI (the enlarger makes a picture at most 4× bigger, so a small customer picture comes to about 300 DPI — still sharp; the row shows the real number). It keeps the picture as it is. Google's redraw is the older way: it can change details, so compare it before printing.
+        <b>Prepare for print</b> is the way the print team approved: the picture is enlarged on a graphics-card service (the same enlarger that made the approved samples), its edge is cleaned and drawn as a vector, and it goes into the .ai file at up to 600 DPI (the enlarger makes a picture at most 4× bigger, so a small customer picture comes to about 300 DPI — still sharp; the row shows the real number). It keeps the picture as it is. <b>Drawn art</b> (a cartoon, a logo, an illustration) is also turned into <b>vector shapes</b>, sharp at any size, inside the same edge; a photo stays the sharp picture (its shapes would show colour steps). Switch any picture with <b>Prints as</b>, and compare before sending. Google's redraw is the older way: it can change details, so compare it before printing.
       </p>
     </div>
   );

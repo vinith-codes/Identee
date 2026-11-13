@@ -190,12 +190,14 @@ export function paethFilter(rgb, W, H) {
  * @param {boolean} [a.dropSpecks] (8 Nov 2026) bits of ink under 0.1 mm² (about 0.3 × 0.3 mm) are left out: DTF film
  *                                 can't hold them, they drop off in the press or the wash
  * @param {number} [a.dpi]         the picture's DPI at its print size (for the sizes in mm); 600 if not given
+ * @param {number} [a.edgeSigma]   (12 Nov 2026) how much the outline is smoothed before tracing, in pixels: 0.8 as approved;
+ *                                 an enlarged picture gets about 0.6 of one original pixel, so its steps don't show
  * @param {(t:string)=>void} [a.log]
- * @returns {{ W, H, flate: Buffer, clip: string, shapes, steps, picture: Buffer, stats }}  picture = the painted RGB
+ * @returns {{ W, H, flate: Buffer, clip: string, shapes, steps, picture: Buffer, ink: Uint8Array, stats }}  picture = the painted RGB
  *          (raw); stats = { specks, specksDropped, thinPct, knockout }: bits under 0.1 mm² left in (and taken out), the
  *          share of the ink thinner than 0.3 mm, and whether the tee's colour was left out
  */
-export async function runRecipe({ rgb, alpha: a8, W, H, tee, knockout = false, dropSpecks = false, dpi = PRINT_DPI, log = () => {} }) {
+export async function runRecipe({ rgb, alpha: a8, W, H, tee, knockout = false, dropSpecks = false, dpi = PRINT_DPI, edgeSigma = 0.8, log = () => {} }) {
   const t0 = Date.now();
   const N = W * H;
   const teeV = tee === "white" ? 255 : 0;
@@ -258,7 +260,7 @@ export async function runRecipe({ rgb, alpha: a8, W, H, tee, knockout = false, d
   // the vector edge: tight on hard edges, far out at the faintest ink on soft parts
   const C = new Uint8Array(N);
   for (let i = 0; i < N; i++) C[i] = (hz[i] && Ssm[i]) || (!hz[i] && clean[i] >= 20) || high[i] ? 1 : 0;
-  const Cs = await blurThreshold(C, W, H, 0.8, 0.5);
+  const Cs = await blurThreshold(C, W, H, edgeSigma, 0.5);
   fixDiagonals(Cs, W, H);
   const edgeImg = Buffer.alloc(N);
   for (let i = 0; i < N; i++) edgeImg[i] = Cs[i] ? 0 : 255;
@@ -273,7 +275,8 @@ export async function runRecipe({ rgb, alpha: a8, W, H, tee, knockout = false, d
 
   const flate = zlib.deflateSync(paethFilter(col, W, H), { level: 6 });
   log(`picture packed: ${(flate.length / 1e6).toFixed(1)} MB, ${((Date.now() - t0) / 1000).toFixed(0)}s`);
-  return { W, H, flate, clip, shapes, steps, picture: col, stats: { specks: dropSpecks ? 0 : stats.specks, specksDropped: dropSpecks ? stats.specks : 0, thinPct: stats.thinPct, knockout: KO > 0 } };
+  // ink: where ink prints (inside the vector edge) — the vector picture (services/vectorArt.js) colours only these
+  return { W, H, flate, clip, shapes, steps, picture: col, ink: Cs, stats:{ specks: dropSpecks ? 0 : stats.specks, specksDropped: dropSpecks ? stats.specks : 0, thinPct: stats.thinPct, knockout: KO > 0 } };
 }
 
 // The print team's limits for DTF film (8 Nov 2026): a bit of ink under 0.1 mm² (about 0.3 × 0.3 mm) isn't held by the
