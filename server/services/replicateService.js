@@ -57,17 +57,41 @@ export function waitSeconds(retryAfterHeader, message = "") {
   return m ? Math.min(60, Number(m[1]) + 1) : 10;
 }
 
-// a new run, tried again (up to 8 times) while Replicate says "throttled"
-export async function createPrediction(body, log, sleep = (ms) => new Promise((r) => setTimeout(r, ms))) {
+// New runs are spaced at least CREATE_GAP_MS apart across the whole server, one at a time (13 Nov 2026, "Prepare all"
+// still hit "6 requests per minute": with under $5 credit Replicate allows one new run every 10 s, and two runs that
+// came close together — a quick picture, two tabs, two admins — used up the retries). So the limit is never reached;
+// the retries stay for anything else using the same account.
+export const CREATE_GAP_MS = 10500;
+let createQueue = Promise.resolve(), lastCreate = 0;
+export function createPrediction(body, log, sleep = (ms) => new Promise((r) => setTimeout(r, ms))) {
+  const turn = createQueue.then(async () => {
+    const wait = lastCreate + CREATE_GAP_MS - Date.now();
+    if (wait > 0) {
+      log(`Waiting ${Math.ceil(wait / 1000)} s for the enlarger (Replicate takes one new run every 10 s on this account)…`);
+      await sleep(wait);
+    }
+    try {
+      return await createWithRetries(body, log, sleep);
+    } finally {
+      lastCreate = Date.now();
+    }
+  });
+  createQueue = turn.catch(() => {});
+  return turn;
+}
+// a new run, tried again while Replicate says "throttled" — for up to about 10 minutes (13 Nov 2026, user: "I should
+// not see that error again"; 8 tries, about a minute, was not always enough when the account was busy elsewhere)
+export const THROTTLE_TRIES = 60;
+async function createWithRetries(body, log, sleep) {
   for (let tries = 1; ; tries++) {
     try {
       return await api("/predictions", { method: "POST", body: JSON.stringify(body) });
     } catch (err) {
-      if (err.status !== 429 || tries >= 8) {
-        if (err.status === 429) err.message = `Replicate is busy for this account (too many runs a minute while its credit is under $5). Wait a minute and press Prepare again. (${err.message})`;
+      if (err.status !== 429 || tries >= THROTTLE_TRIES) {
+        if (err.status === 429) err.message = `Replicate stayed busy for this account for about 10 minutes (too many runs a minute while its credit is under $5). Wait a few minutes and press Prepare again. (${err.message})`;
         throw err;
       }
-      log(`Replicate asked us to wait (too many runs a minute): trying again in ${err.retryAfter} s…`);
+      log(`Waiting for the enlarger (Replicate is busy): trying again in ${err.retryAfter} s…`);
       await sleep(err.retryAfter * 1000);
     }
   }
