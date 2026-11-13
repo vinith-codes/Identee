@@ -6,6 +6,10 @@ dotenv.config();
 // import colors from "colors";
 
 // a mongoose stuf (mongoose.connect ....) return always a promise
+// the database connection dropping and coming back, in the log (13 Nov 2026)
+mongoose.connection.on("disconnected", () => console.warn("⚠️  MongoDB disconnected"));
+mongoose.connection.on("reconnected", () => console.log("MongoDB reconnected"));
+
 const connectDB = async () => {
   try {
     const MONGO_URI = process.env.MONGO_URI;
