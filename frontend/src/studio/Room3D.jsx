@@ -9,6 +9,7 @@ import { Environment, Lightformer, MeshReflectorMaterial, OrbitControls, Sparkle
 import * as THREE from "three";
 import { DecalGeometry } from "three/examples/jsm/geometries/DecalGeometry.js";
 import { areaCentreRaw } from "./teeModel";
+import { dipFrontNeck } from "./neckDip";
 
 const TEE_SCALE = 2.2; // model metres → room units
 const TEE_Y = 0.18;
@@ -650,6 +651,7 @@ function floatGeometry(src) {
 function useTeeGeometry(model) {
   const gltf = useGLTF(model.url);
   const hang = model.hangHalfHeight;
+  const dip = model.neckDip;
   return useMemo(() => {
     gltf.scene.updateMatrixWorld(true);
     let src = null;
@@ -657,6 +659,10 @@ function useTeeGeometry(model) {
       if (o.isMesh && !src) src = o;
     });
     const geo = floatGeometry(src.geometry).applyMatrix4(src.matrixWorld);
+    // the front collar lower than the back one, so front and back read apart (13 Nov 2026, feedback 1). Before the
+    // centring: the heights are still the anchors' own. The tee's size and middle stay the same, so the Review,
+    // cart and order pictures keep their framing.
+    if (dip) dipFrontNeck(geo, dip);
     geo.computeBoundingBox();
     const c = new THREE.Vector3();
     geo.boundingBox.getCenter(c);
@@ -673,7 +679,7 @@ function useTeeGeometry(model) {
     const map = src.material.map;
     if (map) map.colorSpace = THREE.SRGBColorSpace;
     return { geo, probe, map, normalMap: src.material.normalMap, centre: c };
-  }, [gltf, hang]);
+  }, [gltf, hang, dip]);
 }
 
 const SLEEVE_DEPTH = 0.09; // metres: enough for the sleeve's curve, not enough to reach the body behind it

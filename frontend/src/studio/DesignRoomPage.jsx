@@ -7,7 +7,7 @@
 // Designs are saved in "layout v2" (x/y/width/height in % of the print box),
 // the same format the server validates and checkout prices.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useNavigationType, useParams, useSearchParams } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { fetchGarmentTypes } from "../redux/slices/garmentTypeSlice";
 import { fetchArtCategories } from "../redux/slices/artCategorySlice";
@@ -30,10 +30,10 @@ import MyPictures from "./MyPictures";
 import PlaceSheet from "./PlaceSheet";
 import { PICTURES_CHANGED } from "./pictureHelpers";
 import myPicturesService from "../services/myPicturesService";
-import { chatTitle, historyFor, listChats, loadChat, moveLocalChats, saveChat } from "./chatStore";
+import { accountChat, chatTitle, DRAFT_PREFIX, hashText, historyFor, keptChat, listChats, loadChat, makeRoom, moveLocalChats, myId, ROOM_PREFIX, saveChat, slimForSaving, UNDO_PREFIX, unfinishedRoom } from "./chatStore";
 import { AFTER_AI_SLOGANS, AFTER_DESIGN_CHIPS, BACK, CHANGE_IDEA, DRAW_MINE, PHOTO_AS_IS, PHOTO_CHOICES, PHOTO_CUT, PHOTO_REVERT, PROMPT_MAX, bot as botSays, checkMessages, chips as chipRow, firstMessages, firstState, smartPlan } from "./assistantScript";
 import { makeShareCard, shareTee } from "./shareTee";
-import { firstMessagesV2, isUntouchedStart, sheetsFromChat, nextConceptNumber, findConcept, piecesOf, pieceArea, placementHint, shrinkForHint, aiPictureOnTee, ideaSheet } from "./assistantV2";
+import { firstMessagesV2, isUntouchedStart, sheetsFromChat, nextConceptNumber, findConcept, piecesOf, pieceArea, placementHint, shrinkForHint, aiPictureOnTee, ideaSheet, STARTER_CHIP, suggestionsFor } from "./assistantV2";
 import { styleIn } from "./styleInfo";
 import { areasFromWords, photoJobFrom, SAME_THEME } from "./photoIntent";
 import aiService from "../services/aiService";
@@ -46,10 +46,13 @@ import { cropMockup } from "./mockupCrop";
 import { PhotoError, shrinkPhoto } from "./shrinkPhoto";
 import { TEMPLATES } from "./designTemplates";
 import TeamModeChoice from "./TeamModeChoice";
+import { backDepth, backStepper, closeBackLayer, nextToClose, useBackLayers } from "./backSteps";
 import SizeFinder from "./SizeFinder.jsx";
 import { FONTS, addStudioFonts, fontChoices, hasTamil } from "./fonts";
 import { fitNote, matchWord, rankSizes } from "./sizeMatch";
-import { playersFromEntries, qtysFromEntries } from "./assistantExtras";
+import { keepTyped, playersFromEntries, qtysFromEntries, SUGGEST } from "./assistantExtras";
+import { fitRoomToKeyboard } from "./keyboardFit";
+import { teePicture, wornSideFor } from "./teeSide";
 import "./designRoom.css";
 
 const PX_PER_CM = 24; // texture / editor resolution (print files are made separately at 300 DPI)
@@ -78,11 +81,16 @@ const groupOfSide = (side) => AREA_GROUPS.find(([, sides]) => sides.includes(sid
 const ICON_TEXT = "M5 6h14M12 6v13M9 19h6";
 const ICON_UPLOAD = "M12 16V5m0 0-4 4m4-4 4 4M5 19h14";
 const SIDES = [["front", "Front"], ["back", "Back"], ["left", "Left"], ["right", "Right"]];
-const DRAFT_KEY = (type) => `identee:design:v3:${type}`;
+const DRAFT_KEY = (type) => `${DRAFT_PREFIX}${type}`; // identee:design:v3:<garment>
 // What a reload must bring back besides the design itself: that the customer is in the room, the colour and
 // size, and the assistant's conversation (with the pictures it offered that are not on the tee yet).
-const ROOM_KEY = (type) => `identee:room:v1:${type}`;
-const CHAT_KEPT = 80; // messages
+// 13 Nov 2026 (feedback 9): also the step (Review), the open print area and Review's sizes — and the whole chat.
+const ROOM_KEY = (type) => `${ROOM_PREFIX}${type}`; // identee:room:v1:<garment>
+// the room copy's stamps (13 Nov 2026, chatStore.js): the chat it holds, the stamp of its last save and of the last
+// one the account took, a fingerprint of what was sent, and whose room it is — small, so written as often as needed
+const STAMP_KEY = (type) => `${ROOM_PREFIX}${type}:at`;
+const UNDO_KEY = (type) => `${UNDO_PREFIX}${type}`; // undo / redo after a reload (sessionStorage: this tab only)
+const UNDO_KEPT = 20;
 const SIZE_KEY = "identee:size";
 const ASSIST_WIDE_KEY = "identee:assistWide";
 const ASSIST_SMALL_KEY = "identee:assistSmall"; // phones: the assistant made half height ("Show the tee")
@@ -111,11 +119,46 @@ const readJSON = (key) => {
     return null;
   }
 };
+// -> true when it was written (13 Nov 2026)
 const writeJSON = (key, v) => {
   try {
     localStorage.setItem(key, JSON.stringify(v));
+    return true;
   } catch {
-    // storage blocked — the design just isn't kept after a reload
+    // storage full or blocked — the design just isn't kept after a reload
+    return false;
+  }
+};
+// The room copy, kept even when the browser's storage is nearly full (13 Nov 2026): the other garments' room copies
+// make way first (their chats are safe in Chats, their designs stay), then a shorter chat, then the room without
+// its chat — a reload then takes the chat from the account (`short` / `pointer`). -> "full" | "short" | "none" | ""
+const writeRoom = (type, room) => {
+  if (writeJSON(ROOM_KEY(type), room)) return "full";
+  makeRoom(type);
+  if (writeJSON(ROOM_KEY(type), room)) return "full";
+  if (writeJSON(ROOM_KEY(type), { ...room, chat: keptChat(room.chat, 40, 0), short: true })) return "short";
+  if (writeJSON(ROOM_KEY(type), { ...room, chat: [], pointer: true })) return "none";
+  return "";
+};
+// The tee as a saved chat keeps it: the same fields in the same order wherever it is made (13 Nov 2026), so a chat
+// put away unchanged is known to be saved already.
+const teeOf = (d) => ({ elements: Array.isArray(d.elements) ? d.elements : [], colour: d.colour, size: d.size, designId: d.designId || null, name: d.name || "", dirty: Boolean(d.dirty), locked: Boolean(d.locked), players: Array.isArray(d.players) ? d.players : [] });
+// a saved chat's next stamp: now, but always above the last one (a device with a slow clock still goes up)
+const nextStamp = (last) => Math.max(Date.now(), (Number(last) || 0) + 1);
+// undo / redo kept for a reload of this tab
+const readUndo = (type, chatId) => {
+  try {
+    const v = JSON.parse(sessionStorage.getItem(UNDO_KEY(type)) || "null");
+    return v && v.chatId === chatId && Array.isArray(v.past) && Array.isArray(v.future) ? { past: v.past, future: v.future } : null;
+  } catch {
+    return null;
+  }
+};
+const keepUndo = (type, chatId, h) => {
+  try {
+    sessionStorage.setItem(UNDO_KEY(type), JSON.stringify({ chatId, past: h.past.slice(-UNDO_KEPT), future: h.future.slice(0, UNDO_KEPT) }));
+  } catch {
+    /* blocked or full: undo just starts again after a reload */
   }
 };
 const isLoggedIn = () => !!readJSON("userInfo")?.token;
@@ -178,13 +221,31 @@ export default function DesignRoomPage() {
   const [chatAuto, setChatAuto] = useState(""); // the idea, waiting for the chat to send it
   // was the room opened from another page of the site? (read once: tidying the address below changes location.key)
   const [cameFromSite] = useState(() => location.key !== "default");
+  // The phone's / browser's own Back button steps back inside the room (13 Nov 2026, studio/backSteps.js; wired up
+  // below, after stepBack). It starts from the step mark of the history entry the room opened on: a room opened
+  // again by Back from Buy now, the cart or My designs is on one of its own steps.
+  const navType = useNavigationType();
+  const [back] = useState(() => backStepper(location.state?.drBack));
+  // changing the address in place (tidying it, after Save, a chat opened) keeps the Back step it is on
+  const backState = () => (back.steps() ? { drBack: back.steps() } : undefined);
   const stored = useMemo(() => readJSON(DRAFT_KEY(type)), [type]);
-  // (a design already saved to My designs isn't "unfinished" — it's kept there)
-  const [earlier, setEarlier] = useState(() => (fresh && stored?.elements?.length && !stored.designId ? stored : null));
+  // the room copy's stamps (13 Nov 2026) — whose room it is, and where its chat stands with the account
+  const stamps = useMemo(() => readJSON(STAMP_KEY(type)), [type]);
+  // a room left in this browser by another customer (a shared phone): its tee stays as before, its chat isn't shown.
+  // (Signing out clears the room; a login that only ran out keeps it for the same person.)
+  const othersRoom = Boolean(stamps?.owner && myId() && stamps.owner !== myId());
+  // the room as it was before "Start designing": its chat goes to Chats before the new one starts (below)
+  const oldRoom = useMemo(() => (fresh && !othersRoom ? readJSON(ROOM_KEY(type)) : null), [type]); // eslint-disable-line react-hooks/exhaustive-deps
+  // what "Start designing" offers back: a tee not saved to My designs (or changed since), or a chat with the Assistant
+  const [earlier, setEarlier] = useState(() => (fresh ? unfinishedRoom(stored, oldRoom) : null));
   const draft = fresh ? null : stored;
   const session = useMemo(() => (fresh ? null : readJSON(ROOM_KEY(type))), [type]); // eslint-disable-line react-hooks/exhaustive-deps
-  // the room as it was before "Start designing": its chat goes to Chats before the new one starts (below)
-  const oldRoom = useMemo(() => (fresh ? readJSON(ROOM_KEY(type)) : null), [type]); // eslint-disable-line react-hooks/exhaustive-deps
+  // the room's chat, when it is this customer's (13 Nov 2026)
+  const roomChat = othersRoom ? null : session;
+  // a reload or coming back: the same spot (Review, the open print area) — not when the address opens another
+  // design or chat (13 Nov 2026)
+  const resumable = Boolean(session) && !params.get("chat") && (!params.get("design") || params.get("design") === draft?.designId);
+  const resumeAt = useRef(resumable && (session.step === "review" || session.active) ? { step: session.step, active: session.active } : null);
   const [step, setStep] = useState(draft?.elements?.length || session?.entered ? "design" : "fit");
   // the colour in the address starts a NEW design; a design in progress keeps its own colour
   const [colourSlug, setColourSlug] = useState((fresh && params.get("color")) || draft?.colour || session?.colour || params.get("color") || null);
@@ -212,16 +273,47 @@ export default function DesignRoomPage() {
     writeJSON(ASSIST_SMALL_KEY, !assistSmall);
     setAssistSmall(!assistSmall);
   };
-  // the assistant's conversation (kept while you switch tabs, and across a reload of the page)
-  const [chat, setChat] = useState(() => (Array.isArray(session?.chat) && session.chat.length ? session.chat : firstMessages()));
-  const [chatState, setChatState] = useState(() => session?.chatState || firstState());
+  // the assistant's conversation (kept while you switch tabs, and across a reload of the page) — the whole of it
+  // (13 Nov 2026; keptChat also tidies copies kept before)
+  const [chat, setChat] = useState(() => (Array.isArray(roomChat?.chat) && roomChat.chat.length ? keptChat(roomChat.chat) : firstMessages()));
+  const [chatState, setChatState] = useState(() => roomChat?.chatState || firstState());
   // Chats (23 Oct 2026, studio/chatStore.js): this conversation's id, the memory note of a long chat, the list open
-  const [chatId, setChatId] = useState(() => session?.chatId || makeId());
-  const [chatMemory, setChatMemory] = useState(() => (typeof session?.memory === "string" ? session.memory : ""));
+  const [chatId, setChatId] = useState(() => roomChat?.chatId || makeId());
+  const [chatMemory, setChatMemory] = useState(() => (typeof roomChat?.memory === "string" ? roomChat.memory : ""));
   const [chatsOpen, setChatsOpen] = useState(false);
+  // Where the open chat stands (13 Nov 2026, chatStore.js): its stamp (`at`, only goes up), the stamp and fingerprint
+  // of the last copy the account (or, for a visitor, this browser) took, whose chat it is, and whether only part of
+  // it is here (the browser's storage was full: the rest comes from the account before anything is saved)
+  const known = Boolean(roomChat?.chatId && stamps?.chatId === roomChat.chatId);
+  const chatIdRef = useRef(chatId);
+  const chatAt = useRef(known ? Number(stamps.at) || 0 : 0);
+  const sentAt = useRef(known ? Number(stamps.sentAt) || 0 : 0);
+  const ackHash = useRef(known ? stamps.sentHash || null : null); // the last copy taken
+  const sentHash = useRef(known ? stamps.sentHash || null : null); // the last copy sent (maybe not taken yet)
+  // the copies sent with no answer yet, [{ at, hash }] (13 Nov 2026): after a reload, one of them found on the account
+  // is this device's own copy, not another device's change
+  const unacked = useRef(known && Array.isArray(stamps.unacked) ? stamps.unacked.filter((u) => u && Number(u.at) > 0) : []);
+  const chatOwner = useRef(othersRoom ? myId() : stamps?.owner || myId());
+  const partAtStart = Boolean(roomChat?.chatId && (roomChat.short || roomChat.pointer));
+  const partial = useRef(partAtStart);
+  // the chat's fingerprint as it came in (a reload with only part of it here, "Continue it"): a change after it is
+  // this device's own, kept apart if the account's copy takes its place (wantHash: taken at the next render). Kept
+  // with the stamps, so what was added offline still counts after the next reload.
+  const keptPartHash = known && partAtStart && typeof stamps.partHash === "string" ? stamps.partHash : null;
+  const cameHash = useRef(keptPartHash);
+  const wantHash = useRef(partAtStart && !keptPartHash);
+  const fromAccount = useRef(false); // (with partial) the account's copy is put in whole, tee too: this one is in Chats already
+  const syncing = useRef(false); // the account's copy is being checked: saves wait
+  const checking = useRef(false); // (one check at a time)
+  const lastPut = useRef(0);
+  // (for timers and page events: always this render's saveChatNow / syncRoomChat — set in an effect below)
+  const saveNowRef = useRef(null);
+  const syncRef = useRef(null);
   // the design in My designs this chat is about: opening another one from My designs starts (or finds) its own chat
   const chatDesign = useRef(draft?.designId || null);
-  const openedAgain = useRef(null); // "the same tee again": { id, no, colour } of the copy being opened, so its new chat says why it is new
+  // "the same tee again": { id, no, colour } of the copy being opened, so its new chat says why it is new (set by
+  // orderAgain for the same garment; from the address state when another garment's room opens — a new page)
+  const openedAgain = useRef(location.state?.again || null);
   // the AI design maker: whether it is on, how many requests are left today, and where its designs sit on the tee
   const [ai, setAi] = useState({ available: false, reason: "setup", styles: [], photoStyles: [], left: null });
   const photoRef = useRef(null); // the file picker for "photo to art"
@@ -262,16 +354,27 @@ export default function DesignRoomPage() {
   const [emailing, setEmailing] = useState(false); // Email me this design (round 8): the email is on its way
   const [worn, setWorn] = useState(null); // Photo of it worn (round 5): null | "making" | { url }
   const tryOnRef = useRef(null); // Try it on me (round 7): the customer's own photo
+  // Front or back? (13 Nov 2026, feedback 7 — studio/teeSide.js): a photo of the customer's back gets the tee's back
+  const tryOnSide = useRef("front"); // the side of the customer the chosen photo shows: "front" | "back"
+  const [askSide, setAskSide] = useState(null); // the small Front / Back question in Review: null | "tryon" | "worn"
+  const sidePickRef = useRef(null);
+  useEffect(() => {
+    // phones: the question can open below the part of the Review sheet that is in sight
+    if (askSide) sidePickRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, [askSide]);
   const [spin, setSpin] = useState(true);
   const [lit, setLit] = useState(false); // Review: the dressing room has been drawn, so its lights can come up
   const litTimer = useRef(null);
   const [unfoldKey, setUnfoldKey] = useState(0); // Review opens with the tee unfolding in the air (changes each time)
   const [sideShown, setSideShown] = useState(null); // the side picture last tapped in Review
-  const [qtys, setQtys] = useState({}); // Review: { M: 2, L: 1 } — one design, any mix of sizes // Review: the tee turns 360° until a side is picked
+  // Review: { M: 2, L: 1 } — one design, any mix of sizes (kept across a reload, 13 Nov 2026)
+  const [qtys, setQtys] = useState(() => (resumable && session.qtys && typeof session.qtys === "object" ? session.qtys : {}));
   // Team order (studio/teamOrder.js): one tee per player, each with their own name and number
   // in place of the texts marked for them. Filled in Review; saved with the design.
-  const [players, setPlayers] = useState(() => (Array.isArray(draft?.players) ? draft.players.map((p) => ({ id: makeId(), ...p })) : []));
-  const [team, setTeam] = useState(() => Boolean(draft?.players?.length));
+  // (13 Nov 2026: the design keeps every row, also one not filled in yet, and whether the switch is on)
+  const draftRows = Array.isArray(draft?.rows) ? draft.rows : draft?.players;
+  const [players, setPlayers] = useState(() => (Array.isArray(draftRows) ? draftRows.map((p) => ({ id: makeId(), ...p })) : []));
+  const [team, setTeam] = useState(() => (typeof draft?.team === "boolean" ? draft.team : Boolean(draft?.players?.length)));
   const [previewId, setPreviewId] = useState(null); // Review: the player whose tee is shown
   // light studio (default) or the dark, evening one — the customer's switch in the top bar, remembered on this device
   const [darkRoom, setDarkRoom] = useState(() => readJSON(DARK_KEY) === true);
@@ -295,6 +398,13 @@ export default function DesignRoomPage() {
   // A slow job the customer may stop (a picture fix, removing a background): startBusy gives it a token;
   // Stop marks the token, clears the overlay and the job then leaves the design alone when it finishes.
   const busyRun = useRef(null);
+  const toastTimer = useRef(null);
+  // action: { label, onClick } — a button in the message (e.g. Undo); it stays a little longer then
+  const say = (msg, action = null) => {
+    setToast(action ? { text: msg, action } : msg);
+    clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToast(""), action ? 8000 : 4500);
+  };
   const startBusy = (info) => {
     const me = { stopped: false };
     busyRun.current = me;
@@ -317,16 +427,22 @@ export default function DesignRoomPage() {
   };
   // the chat's AI request in progress (the Assistant reports it), for the leave-page warning below
   const [aiWorking, setAiWorking] = useState(false);
+  const aiWorkingRef = useRef(false); // (for the chat saves, which run outside a render)
   useEffect(() => {
-    if (!busy && !aiWorking) return;
-    // leaving now would lose the result (and a paid picture)
+    aiWorkingRef.current = aiWorking;
+  }, [aiWorking]);
+  useEffect(() => {
+    if (!busy && !aiWorking && worn !== "making") return;
+    // leaving now would lose the result (and a paid picture) — also the photo of it worn (13 Nov 2026)
     const warn = (e) => {
       e.preventDefault();
       e.returnValue = "";
     };
     window.addEventListener("beforeunload", warn);
     return () => window.removeEventListener("beforeunload", warn);
-  }, [busy, aiWorking]);
+  }, [busy, aiWorking, worn]);
+  // the same, for the room's own ways out (the back arrow, My designs): the page asks first (13 Nov 2026)
+  const sureToLeave = () => !(aiWorking || busy || worn === "making") || window.confirm("Your picture is still being made. Leave anyway? Pictures that finish are kept in My pictures.");
   // the saved design this is (My designs); locked = already ordered → saving makes a copy
   const [designId, setDesignId] = useState(params.get("design") || draft?.designId || null);
   // a copy of a Shop your IDENTEE tee: { id, pictures } — its own pictures add nothing to the price and it ships
@@ -400,31 +516,53 @@ export default function DesignRoomPage() {
   // Never replace a stored design with an empty one, unless this visit had
   // elements and the customer removed them all.
   const hadElements = useRef(elements.length > 0);
+  // the browser's storage is full: said once a visit (13 Nov 2026)
+  const toldFull = useRef(false);
+  const tellFull = () => {
+    if (toldFull.current) return;
+    toldFull.current = true;
+    say("This browser’s storage is full, so your latest changes may not come back after a reload. Save your design to keep it.");
+  };
   useEffect(() => {
     if (!type) return;
     if (elements.length) hadElements.current = true;
     else if (!hadElements.current) return;
-    writeJSON(DRAFT_KEY(type), { elements, colour: colour?.slug, size: sizeNow, designId, name: designName, dirty: unsaved.current, locked, players: players.filter(filled).map(({ name, number, size: sz }) => ({ name, number, size: sz })) });
-  }, [type, elements, colour?.slug, sizeNow, designId, designName, players, locked]);
+    // (13 Nov 2026: also the team order's switch and every row, filled in or not — `players` stays the filled ones)
+    const d = { elements, colour: colour?.slug, size: sizeNow, designId, name: designName, dirty: unsaved.current, locked, players: players.filter(filled).map(({ name, number, size: sz }) => ({ name, number, size: sz })), team, rows: players.map(({ name, number, size: sz }) => ({ name, number, size: sz })) };
+    if (writeJSON(DRAFT_KEY(type), d)) return;
+    makeRoom(type);
+    if (!writeJSON(DRAFT_KEY(type), d)) tellFull();
+  }, [type, elements, colour?.slug, sizeNow, designId, designName, players, team, locked, savedAt]); // eslint-disable-line react-hooks/exhaustive-deps -- (savedAt: Save turns `dirty` off)
 
   // The room itself, so a reload comes back to where the customer was — also with an empty tee — and the
   // assistant still remembers the conversation. Not written before they step in, so looking at the first
   // screen never disturbs what was kept from an earlier visit.
+  // 13 Nov 2026 (feedback 9): the whole chat, the step and open print area, Review's sizes; its stamps beside it.
   const entered = useRef(step !== "fit");
+  const writeStamps = () => {
+    if (entered.current) writeJSON(STAMP_KEY(type), { chatId: chatIdRef.current, at: chatAt.current, sentAt: sentAt.current, sentHash: ackHash.current, unacked: unacked.current, partHash: partial.current ? cameHash.current : null, owner: chatOwner.current || myId() });
+  };
   useEffect(() => {
     if (!type) return;
     if (step !== "fit") entered.current = true;
     if (!entered.current) return;
-    writeJSON(ROOM_KEY(type), { entered: step !== "fit", colour: colour?.slug, size: sizeNow, assist, chat: chat.slice(-CHAT_KEPT), chatState, aiPlaced, chatId, memory: chatMemory });
-  }, [type, step, colour?.slug, sizeNow, assist, chat, chatState, aiPlaced, chatId, chatMemory]);
+    // (only part of the chat here, until the account's whole copy comes in: marked, so it never replaces it)
+    const room = { entered: step !== "fit", step, active, qtys, colour: colour?.slug, size: sizeNow, assist, chat: keptChat(chat), chatState, aiPlaced, chatId, memory: chatMemory, ...(partial.current ? { short: true } : {}) };
+    const kept = writeRoom(type, room);
+    writeStamps();
+    // (a shorter copy is fine when logged in: a reload takes the chat from the account)
+    if (!kept || (kept !== "full" && !isLoggedIn())) tellFull();
+  }, [type, step, active, qtys, colour?.slug, sizeNow, assist, chat, chatState, aiPlaced, chatId, chatMemory]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ---------- history (undo / redo) ---------- */
   const elementsRef = useRef(elements);
   useEffect(() => {
     elementsRef.current = elements;
   }, [elements]);
-  const hist = useRef({ past: [], future: [] });
-  const [histSize, setHistSize] = useState({ past: 0, future: 0 });
+  // (13 Nov 2026: a reload of this tab brings back undo and redo — the same tee and chat only)
+  const [undoAtStart] = useState(() => (resumable && !othersRoom && readUndo(type, chatId)) || { past: [], future: [] });
+  const hist = useRef(undoAtStart);
+  const [histSize, setHistSize] = useState({ past: undoAtStart.past.length, future: undoAtStart.future.length });
   const bumpHistory = () => setHistSize({ past: hist.current.past.length, future: hist.current.future.length });
   // soft: a key for a change that repeats quickly (a slider drag, typing) — the same key again within
   // 1.5 s joins the previous step, so one Undo takes the whole drag back instead of one notch
@@ -556,84 +694,185 @@ export default function DesignRoomPage() {
       });
     }
   };
-  const toastTimer = useRef(null);
-  // action: { label, onClick } — a button in the message (e.g. Undo); it stays a little longer then
-  const say = (msg, action = null) => {
-    setToast(action ? { text: msg, action } : msg);
-    clearTimeout(toastTimer.current);
-    toastTimer.current = setTimeout(() => setToast(""), action ? 8000 : 4500);
-  };
-
   /* ---------- Chats: this conversation and its tee, saved as the customer goes (studio/chatStore.js) ---------- */
+  // (13 Nov 2026: the whole chat — slimForSaving keeps a long one under the server's limit — and whose it is)
   const chatRecord = () => {
-    const kept = chat.slice(-CHAT_KEPT);
-    return {
-      id: chatId,
-      type,
-      title: chatTitle(kept, designName || `${garment?.label || "My"} design`),
-      colour: colour?.slug || "",
-      designId,
-      updatedAt: Date.now(),
-      body: {
-        chat: kept,
-        chatState,
-        aiPlaced,
-        memory: chatMemory,
-        design: { elements, colour: colour?.slug, size: sizeNow, designId, name: designName, dirty: unsaved.current, locked, players: players.filter(filled).map(({ name, number, size: sz }) => ({ name, number, size: sz })) },
-      },
-    };
+    const body = slimForSaving({ chat, chatState, aiPlaced, memory: chatMemory, design: teeOf({ elements, colour: colour?.slug, size: sizeNow, designId, name: designName, dirty: unsaved.current, locked, players: players.filter(filled).map(({ name, number, size: sz }) => ({ name, number, size: sz })) }) });
+    return { id: chatId, type, title: chatTitle(body.chat, designName || `${garment?.label || "My"} design`), colour: colour?.slug || "", designId, owner: chatOwner.current || myId(), updatedAt: Date.now(), body };
   };
   const recordNow = useRef(chatRecord);
+  // a chat just put in the room that is saved already (opened from Chats, brought in from the account): as it is
+  // now, it counts as sent — opening a chat is no change, so no save and its place in Chats stays (13 Nov 2026)
+  const adopt = useRef(false);
   useEffect(() => {
     recordNow.current = chatRecord;
+    if (!adopt.current) return;
+    adopt.current = false;
+    const rec = chatRecord();
+    if (rec.id !== chatIdRef.current) return;
+    ackHash.current = sentHash.current = hashText(JSON.stringify(rec.body));
+    writeStamps();
   });
   const saveTimer = useRef(0);
-  // save the open chat now (leaving: the page is closing). Nothing before the customer has stepped into the room.
-  const saveChatNow = (opts) => {
+  const stale = useRef(false); // the account had a newer copy while the Assistant was busy: dealt with after it
+  const toldLong = useRef(false);
+  const mounted = useRef(true);
+  // Save the open chat now (13 Nov 2026). Nothing before the customer has stepped into the room, nothing while the
+  // account's copy is being checked, never when only part of the chat is here, and nothing when it hasn't changed
+  // since the last copy sent. leaving: the page is closing (sent so it arrives after the page has gone).
+  // asKept: put away without being checked against the account first (a reload that opens another chat): it keeps
+  // its own stamp (one above the last it used, not now), so a newer copy on the account is never written over.
+  const saveChatNow = async ({ leaving = false, asKept = false } = {}) => {
     clearTimeout(saveTimer.current);
-    if (!entered.current) return Promise.resolve();
-    return saveChat(recordNow.current(), opts).catch(() => {});
+    if (!entered.current || partial.current || (syncing.current && !asKept)) return null;
+    const rec = recordNow.current();
+    if (rec.id !== chatIdRef.current) return null; // (a record from just before another chat was put in)
+    const sig = hashText(JSON.stringify(rec.body));
+    // (the page closing sends it again unless the account has surely taken it: a save still on its way may be cut off)
+    if (sig === (leaving ? ackHash.current : sentHash.current)) return null;
+    if (stale.current && !asKept) {
+      if (leaving || aiWorkingRef.current) return null;
+      return keepBoth(rec);
+    }
+    // (put away: one above any stamp this device used — the copy sent with that stamp may differ from this one, and
+    // the account would answer "saved already" without taking it; 13 Nov 2026)
+    const at = asKept ? Math.max(chatAt.current, sentAt.current) + 1 : nextStamp(chatAt.current);
+    chatAt.current = at;
+    sentHash.current = sig;
+    unacked.current = [...unacked.current.filter((u) => u.at !== at), { at, hash: sig }].slice(-6);
+    if (isLoggedIn() && !asKept) lastPut.current = at;
+    writeStamps();
+    const r = (await saveChat({ ...rec, at }, { leaving }).catch(() => null)) || { failed: true };
+    if (chatIdRef.current !== rec.id) return r;
+    if (r.saved || r.local) {
+      if (at >= sentAt.current) {
+        sentAt.current = at;
+        ackHash.current = sig;
+        unacked.current = unacked.current.filter((u) => u.at > at);
+        writeStamps();
+      }
+    } else if (r.stale) {
+      // a newer copy is on the account (another device changed it): both are kept and the newer one is shown — or,
+      // for a chat being put away, this one is kept apart if it had changes of its own
+      sentHash.current = null;
+      if (asKept) {
+        if (ackHash.current && ackHash.current !== sig) keepBoth(rec, { show: false });
+      } else if (aiWorkingRef.current) stale.current = true;
+      else keepBoth(rec);
+    } else if (r.tooLong) {
+      if (!toldLong.current) {
+        toldLong.current = true;
+        say("This chat is very long. Start a New chat to keep saving it to your account.");
+      }
+    } else if (!r.left && sentHash.current === sig) sentHash.current = null; // not saved: tried again at the next change
+    return r;
   };
-  // a couple of seconds after each change (typing, dragging and the chat come in bursts)
+  // Two devices changed this chat (13 Nov 2026): this device's version is saved as a chat of its own ("… (this
+  // device)") and the account's newer one is shown (show) — nothing is lost.
+  const keepApart = (rec) => saveChat({ ...rec, id: makeId(), title: `${rec.title} (this device)`, at: nextStamp(0) }).catch(() => null);
+  const keepBoth = async (rec, { show = true, acc = null } = {}) => {
+    stale.current = false;
+    await keepApart(rec);
+    if (!show) return null;
+    const got = acc ? { rec: acc } : await accountChat(rec.id);
+    if (!got.rec || !mounted.current || chatIdRef.current !== rec.id) return null;
+    applyChat(got.rec, { quiet: true });
+    say("This chat was also changed on another device. Your version is saved in Chats as “(this device)”.");
+    return null;
+  };
+  // a couple of seconds after each change (typing, dragging and the chat come in bursts); to the account at most
+  // every 10 s (13 Nov 2026) — the room copy on this device is written at once anyway
   useEffect(() => {
     if (!type || !entered.current) return;
     clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(() => saveChat(recordNow.current()).catch(() => {}), 2000);
+    saveTimer.current = setTimeout(() => saveNowRef.current(), isLoggedIn() ? Math.min(10_000, Math.max(2000, lastPut.current + 10_000 - Date.now())) : 2000);
   }, [type, step, chatId, chat, chatState, aiPlaced, chatMemory, elements, colour?.slug, sizeNow, designId, designName, players, locked]);
   useEffect(() => {
-    // the tab hidden (phones: another app) or closed, and leaving the room for another page
-    const hidden = () => document.visibilityState === "hidden" && saveChatNow({ leaving: true });
-    const gone = () => saveChatNow({ leaving: true });
+    mounted.current = true;
+    const keepUndoNow = () => keepUndo(type, chatIdRef.current, hist.current);
+    // the tab hidden (phones: another app): a normal save, which usually finishes even on a phone (13 Nov 2026)
+    const hidden = () => {
+      if (document.visibilityState !== "hidden") return;
+      keepUndoNow();
+      saveNowRef.current();
+    };
+    // the page closing
+    const gone = () => {
+      keepUndoNow();
+      saveNowRef.current({ leaving: true });
+    };
     document.addEventListener("visibilitychange", hidden);
     window.addEventListener("pagehide", gone);
     moveLocalChats(); // chats made before logging in go to the account
     return () => {
+      // leaving the room for another page of the site
       document.removeEventListener("visibilitychange", hidden);
       window.removeEventListener("pagehide", gone);
-      saveChatNow();
+      keepUndoNow();
+      saveNowRef.current();
+      mounted.current = false;
     };
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // "Start designing" (?new=1) begins a new chat: the one this device had open goes to Chats first
+  // "Start designing" (?new=1) begins a new chat: the one this device had open goes to Chats first.
+  // 13 Nov 2026: with its own stamp (the account answers "saved already", or refuses it when its copy is newer), not
+  // at all when it is saved as it is, and never a room left by someone else or only part of a chat.
   const archivedId = useRef(oldRoom?.chatId || makeId());
+  // where the earlier chat stands (13 Nov 2026): { at, taken: true } in Chats as it is · { at, hash, taken: false } sent,
+  // not known to be taken · { apart: true } the account had a newer copy, so this one is in Chats as "(this device)"
+  const archived = useRef(null);
+  const archiving = useRef(null); // that save, while it is on its way ("Continue it" waits for it)
   useEffect(() => {
-    if (!fresh || (!oldRoom && !stored)) return;
+    if (!fresh || !oldRoom || !Array.isArray(oldRoom.chat) || oldRoom.short || oldRoom.pointer) return;
+    if (stamps?.owner && stamps.owner !== myId()) return;
     const d = stored || {};
-    const body = { chat: Array.isArray(oldRoom?.chat) ? oldRoom.chat : [], chatState: oldRoom?.chatState || null, aiPlaced: oldRoom?.aiPlaced || {}, memory: oldRoom?.memory || "", design: { elements: Array.isArray(d.elements) ? d.elements : [], colour: d.colour || oldRoom?.colour, size: d.size || oldRoom?.size, designId: d.designId || null, name: d.name || "", dirty: Boolean(d.dirty), locked: Boolean(d.locked), players: d.players || [] } };
-    saveChat({ id: archivedId.current, type, title: chatTitle(body.chat, d.name || "My design"), colour: body.design.colour || "", designId: body.design.designId, updatedAt: Date.now(), body }).catch(() => {});
+    const body = slimForSaving({ chat: keptChat(oldRoom.chat), chatState: oldRoom.chatState || null, aiPlaced: oldRoom.aiPlaced || {}, memory: typeof oldRoom.memory === "string" ? oldRoom.memory : "", design: teeOf({ ...d, colour: d.colour || oldRoom.colour, size: d.size || oldRoom.size }) });
+    const was = stamps?.chatId === oldRoom.chatId ? stamps : {};
+    const sig = hashText(JSON.stringify(body));
+    if (sig === was.sentHash) {
+      archived.current = { at: Number(was.sentAt) || 0, taken: true };
+      return;
+    }
+    // (one above any stamp used: the copy sent with that stamp may differ from this one)
+    const at = Math.max(Number(was.at) || 0, Number(was.sentAt) || 0) + 1;
+    const rec = { id: archivedId.current, type, title: chatTitle(body.chat, d.name || "My design"), colour: body.design.colour || "", designId: body.design.designId, owner: was.owner || myId(), updatedAt: Date.now(), at, body };
+    archived.current = { at, hash: sig, taken: false, known: Boolean(was.chatId) };
+    archiving.current = saveChat(rec)
+      .then((r) => {
+        if (r?.saved || r?.local) archived.current = { at, taken: true };
+        else if (r?.stale) {
+          // another device changed it since: this device's version is kept as a chat of its own (nothing is lost)
+          archived.current = { apart: true };
+          return keepApart(rec);
+        }
+        return null;
+      })
+      .catch(() => {});
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Put a chat in the room: the conversation only (a design opened from My designs keeps its own tee) …
-  const applyConversation = (rec) => {
+  // 13 Nov 2026: with the chat's stamp and owner. A saved chat (adopt) counts as sent as it is, so opening it is no
+  // change. rec null = a new chat.
+  const applyConversation = (rec, { adopt: saved = Boolean(rec?.body) } = {}) => {
     const b = rec?.body || {};
-    setChatId(rec?.id || makeId());
-    setChat(Array.isArray(b.chat) && b.chat.length ? b.chat : ai?.v2 ? firstMessagesV2() : firstMessages());
+    const id = rec?.id || makeId();
+    chatIdRef.current = id;
+    chatAt.current = sentAt.current = Number(rec?.at) || 0;
+    ackHash.current = sentHash.current = null;
+    unacked.current = [];
+    chatOwner.current = rec?.owner || myId();
+    partial.current = fromAccount.current = false;
+    stale.current = false;
+    adopt.current = saved;
+    setChatId(id);
+    setChat(Array.isArray(b.chat) && b.chat.length ? keptChat(b.chat) : ai?.v2 ? firstMessagesV2() : firstMessages());
     setChatState(b.chatState || firstState());
     setAiPlaced(b.aiPlaced && typeof b.aiPlaced === "object" ? b.aiPlaced : {});
     setChatMemory(typeof b.memory === "string" ? b.memory : "");
   };
-  // … or the conversation and its tee (Chats, New chat)
-  const applyChat = (rec) => {
+  // … or the conversation and its tee (Chats, New chat). quiet: brought in from the account without moving the
+  // customer (no jump to Design, the Assistant left as it is)
+  const applyChat = (rec, { quiet = false } = {}) => {
     const d = rec?.body?.design || {};
     applyConversation(rec);
     hadElements.current = true; // (an empty tee is written over the one before)
@@ -650,21 +889,22 @@ export default function DesignRoomPage() {
     setPlayers((Array.isArray(d.players) ? d.players : []).map((p) => ({ id: makeId(), ...p })));
     setTeam(Boolean(d.players?.length));
     setSelectedId(null);
+    if (quiet) return;
     setActive(null);
     setStep("design");
     setAssist(true);
     setCamRequest({ view: "front", ms: 1400, n: nextReq() });
     // (a plain address: ?design=<id> would load the saved design over this one; a reload keeps it from this device)
-    navigate(`/customize/${type}`, { replace: true });
+    navigate(`/customize/${type}`, { replace: true, state: backState() });
   };
   const newChat = async () => {
     setChatsOpen(false);
-    await saveChatNow();
+    await saveChatNow({ asKept: syncing.current });
     applyChat({ id: makeId(), body: { design: { colour: colour?.slug, size: sizeNow } } });
     say("New chat started. Your earlier chat is saved in Chats.");
   };
   const openChat = async (c) => {
-    await saveChatNow();
+    await saveChatNow({ asKept: syncing.current });
     // another garment's chat opens in that garment's room
     if (c.type && c.type !== type) return window.location.assign(`/customize/${c.type}?chat=${c.id}`);
     setChatsOpen(false);
@@ -675,20 +915,156 @@ export default function DesignRoomPage() {
   // /customize/<garment>?chat=<id>: a chat opened from another garment's room
   const [chatLink] = useState(() => params.get("chat"));
   useEffect(() => {
-    if (!chatLink) return;
+    if (!chatLink) return undefined;
     let alive = true;
+    syncing.current = true; // (this room's own chat waits: the account may have a newer copy of it)
     loadChat(chatLink).then(async (rec) => {
       if (!alive) return;
       if (!rec) {
-        navigate(location.pathname, { replace: true });
-        return say("Couldn’t open that chat. It may have been deleted.");
+        navigate(location.pathname, { replace: true, state: backState() });
+        say("Couldn’t open that chat. It may have been deleted.");
+        syncRef.current(); // this room's own chat stays: checked against the account as on a reload
+        return;
       }
-      await saveChatNow(); // the chat this device had open here
+      await saveChatNow({ asKept: true }); // the chat this device had open here, put away with its own stamp
+      syncing.current = false;
       applyChat(rec);
     });
     return () => {
       alive = false;
     };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // After a reload (13 Nov 2026) the open chat may have been changed on another device meanwhile, so the account's
+  // copy is looked at before anything is saved:
+  //   not changed there → carry on (what changed here goes with the next save)
+  //   changed there, not here → its newer messages come in
+  //   changed in both places → this device's version is kept as a chat of its own, the account's is shown
+  //   deleted there → a new chat starts; the tee stays
+  //   gone from the account by itself (not changed for 90 days, or past the newest 20) → this device's copy is saved again
+  // Offline: the room's copy is worked from (a part of a chat is looked for again — never saved over the whole one).
+  // 13 Nov 2026: also for "Continue it" (continued: the chat put in Chats as the page opened), and saves wait until the
+  // check is settled, not only while the account is asked.
+  const syncTries = useRef(0);
+  const syncRoomChat = async (id = roomChat?.chatId, { continued = false } = {}) => {
+    if (!id || chatIdRef.current !== id) {
+      syncing.current = false;
+      return null;
+    }
+    if (!isLoggedIn()) {
+      // a visitor's room that held only part of its chat: the whole chat is in this browser's Chats
+      if (partial.current) {
+        const rec = await loadChat(id).catch(() => null);
+        if (rec && chatIdRef.current === id) applyConversation(rec, { adopt: false });
+        partial.current = false;
+      }
+      syncing.current = false;
+      return null;
+    }
+    if (checking.current) return null;
+    checking.current = true;
+    syncing.current = true;
+    try {
+      // (Continue: the earlier chat's trip to Chats, started as the page opened, ends first)
+      const r = await Promise.race([Promise.resolve(continued ? archiving.current : null).then(() => moveLocalChats()).then(() => accountChat(id)), wait(8000).then(() => ({ failed: true }))]);
+      const done = (out = null) => {
+        syncing.current = false;
+        return out;
+      };
+      const saveAfter = () => done(saveNowRef.current()); // (the save waiting for the check, if anything changed)
+      if (!mounted.current) return done();
+      if (chatIdRef.current !== id) return saveAfter();
+      if (r.failed) {
+        if (partial.current && syncTries.current++ < 4) setTimeout(() => syncRef.current(id), 15_000);
+        return saveAfter();
+      }
+      if (r.gone) {
+        const kept = fromAccount.current; // (this version is in Chats as "(this device)" already)
+        partial.current = fromAccount.current = false;
+        if (sentAt.current > 0 || kept) {
+          applyConversation(null);
+          say("This chat was deleted on another device. Your tee is still here.");
+        }
+        return saveAfter();
+      }
+      if (r.missing) {
+        // not on the account: it went by itself (too old, or past the newest 20) or never got there. This device's
+        // copy is all there is, so it is saved again, with a new stamp
+        partial.current = fromAccount.current = false;
+        sentAt.current = 0;
+        ackHash.current = sentHash.current = null;
+        unacked.current = [];
+        writeStamps();
+        return saveAfter();
+      }
+      const acc = r.rec;
+      const accAt = acc.at || 0;
+      const here = recordNow.current();
+      const hereHash = hashText(JSON.stringify(here.body));
+      // (Continue: the trip to Chats ended after the tap, refused — this version is in Chats already: as below)
+      if (continued && archived.current?.apart) partial.current = fromAccount.current = true;
+      if (partial.current) {
+        // only part of the chat was kept here (the storage was full): the whole one comes in, and the tee here stays.
+        // This device's version is kept apart too when it changed since (messages added meanwhile), or when a save
+        // of this device's may not have arrived.
+        const changed = Boolean(cameHash.current) && hereHash !== cameHash.current;
+        const notArrived = !fromAccount.current && chatAt.current > sentAt.current && accAt !== chatAt.current;
+        if (changed || notArrived) await keepBoth(here, { show: false });
+        if (chatIdRef.current !== id) return saveAfter();
+        if (fromAccount.current) {
+          applyChat(acc, { quiet: true });
+          say("This chat was also changed on another device. Your version is saved in Chats as “(this device)”.");
+        } else {
+          applyConversation(acc, { adopt: false });
+          if (changed) say("Your whole chat came back from your account. What you added meanwhile is saved in Chats as “(this device)”.");
+        }
+        return done();
+      }
+      const isKnown = continued ? Boolean(archived.current?.taken || archived.current?.known) : known;
+      if (!isKnown || accAt <= sentAt.current) return saveAfter(); // nothing new there (or a room kept before stamps)
+      const mine = unacked.current.find((u) => u.at === accAt);
+      if (mine || accAt === chatAt.current) {
+        // a copy this device sent did arrive (the page closed before the answer came): it counts as taken, and what
+        // changed since goes with the save after this — never "changed on another device"
+        sentAt.current = accAt;
+        ackHash.current = sentHash.current = mine?.hash || hereHash;
+        unacked.current = unacked.current.filter((u) => u.at > accAt);
+        writeStamps();
+        return saveAfter();
+      }
+      if (hereHash === ackHash.current) {
+        applyChat(acc, { quiet: true });
+        say("Brought in the newer messages from your other device.");
+        return done();
+      }
+      return done(await keepBoth(here, { acc }));
+    } finally {
+      checking.current = false;
+    }
+  };
+  // a chat only partly here: looked for again when the connection comes back or the page is shown again (13 Nov 2026)
+  useEffect(() => {
+    const again = () => {
+      if (partial.current && !checking.current && document.visibilityState !== "hidden") syncRef.current(chatIdRef.current);
+    };
+    window.addEventListener("online", again);
+    document.addEventListener("visibilitychange", again);
+    return () => {
+      window.removeEventListener("online", again);
+      document.removeEventListener("visibilitychange", again);
+    };
+  }, []);
+  useEffect(() => {
+    if (!wantHash.current) return;
+    wantHash.current = false;
+    cameHash.current = hashText(JSON.stringify(chatRecord().body));
+  });
+  useEffect(() => {
+    saveNowRef.current = saveChatNow;
+    syncRef.current = syncRoomChat;
+  });
+  useEffect(() => {
+    if (!fresh && !chatLink && roomChat?.chatId) syncRef.current();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   // a short line for a chat in the list: the garment and the tee colour
   const chatAbout = (c) => {
@@ -707,24 +1083,55 @@ export default function DesignRoomPage() {
     next.delete("color");
     next.delete("team");
     next.delete("start");
-    navigate(`${location.pathname}${next.toString() ? `?${next}` : ""}`, { replace: true });
+    // (a fresh visit has no Back step yet: the home page's idea is dropped from the address state as before)
+    navigate(`${location.pathname}${next.toString() ? `?${next}` : ""}`, { replace: true, state: backState() });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // "Continue it" (13 Nov 2026): everything a reload brings back — the tee with its sizes and team rows, the whole
+  // chat, the words typed, Review or the open print area
   const continueEarlier = () => {
     if (!earlier) return;
+    const room = oldRoom || {};
+    hadElements.current = true;
     setElements(earlier.elements);
-    if (earlier.colour) setColourSlug(earlier.colour);
-    if (earlier.size) setSize(earlier.size);
+    if (earlier.colour || room.colour) setColourSlug(earlier.colour || room.colour);
+    if (earlier.size || room.size) setSize(earlier.size || room.size);
     setDesignId(earlier.designId || null);
     setDesignName(earlier.name || "");
-    setPlayers((earlier.players || []).map((p) => ({ id: makeId(), ...p })));
-    setTeam(Boolean(earlier.players?.length));
-    // and its conversation (saved to Chats when the page opened, under the same id)
-    if (oldRoom) applyConversation({ id: archivedId.current, body: oldRoom });
+    unsaved.current = Boolean(earlier.dirty);
+    setLocked(Boolean(earlier.locked));
+    const rows = Array.isArray(earlier.rows) ? earlier.rows : earlier.players || [];
+    setPlayers(rows.map((p) => ({ id: makeId(), ...p })));
+    setTeam(typeof earlier.team === "boolean" ? earlier.team : Boolean(earlier.players?.length));
+    setQtys(room.qtys && typeof room.qtys === "object" ? room.qtys : {});
+    // and its conversation (put in Chats when the page opened, under the same id)
+    if (oldRoom) {
+      const id = archivedId.current;
+      const st = archived.current || {};
+      const was = stamps?.chatId === oldRoom.chatId ? stamps : null;
+      applyConversation({ id, body: oldRoom, at: st.at || 0, owner: was?.owner }, { adopt: Boolean(st.taken) });
+      if (st.at && !st.taken) {
+        // still on its way to Chats (or not taken): where it stands with the account, as a reload would have it
+        sentAt.current = Number(was?.sentAt) || 0;
+        ackHash.current = sentHash.current = was?.sentHash || null;
+        unacked.current = [...(Array.isArray(was?.unacked) ? was.unacked.filter((u) => u && Number(u.at) > 0) : []), { at: st.at, hash: st.hash }];
+      }
+      if (ideaLink) keepTyped(type, id, ideaLink); // the home page's new idea waits in the box, not sent
+      // 13 Nov 2026: checked against the account before anything is saved, as on a reload (another device may have
+      // changed it). Only part of it kept here: the whole one comes in. The account had a newer copy: that one is
+      // shown (this one is in Chats as "(this device)" already) — nothing is ever saved over it.
+      partial.current = Boolean(oldRoom.short || oldRoom.pointer || st.apart);
+      fromAccount.current = Boolean(st.apart);
+      cameHash.current = null;
+      wantHash.current = true;
+      syncRef.current(id, { continued: true });
+    }
+    setAssist(Boolean(room.assist) || !earlier.elements.length || Boolean(ideaLink)); // (a chat-only room opens on the chat)
     chatDesign.current = earlier.designId || null;
     setEarlier(null);
     setStep("design");
     setCamRequest({ view: "front", ms: 1600, n: nextReq() });
+    resumeAt.current = room.step === "review" || room.active ? { step: room.step, active: room.active } : null;
   };
 
   /* ---------- a saved design shown from this browser's draft: is it a Shop your IDENTEE tee? ---------- */
@@ -745,21 +1152,43 @@ export default function DesignRoomPage() {
   /* ---------- open a saved design: /customize/<garment>?design=<id> ---------- */
   const openId = params.get("design");
   const onScreenId = useRef(keepLocal ? draft.designId : null); // id of the saved design currently shown (set on load and on save)
+  const opening = useRef(null); // a design being opened by its address (the Back steps wait for it)
+  const firstOpen = useRef(true);
   useEffect(() => {
+    // A Back step inside the room can land on an older address (13 Nov 2026): another ?design= — from before Save
+    // made a copy, a chat was opened or New chat started. Only a new address opens a design: the tee on screen
+    // stays, and the address is put right so a reload opens this tee, not the older one. (state: that step's own
+    // mark — in the middle of a Back press the room's count isn't up to date yet)
+    const byBack = !firstOpen.current && navType === "POP";
+    firstOpen.current = false;
+    if (byBack) {
+      if (openId && openId !== designId) {
+        onScreenId.current = designId;
+        navigate(designId ? `${location.pathname}?design=${designId}` : location.pathname, { replace: true, state: location.state });
+      }
+      return;
+    }
     // after Save the address gets ?design=<id> of the design already on screen —
     // nothing to load (re-loading would jump back from Review to Design)
     if (!openId || !isLoggedIn() || openId === onScreenId.current) return;
     let alive = true;
+    const me = {};
+    opening.current = me;
+    const opened = () => {
+      if (opening.current === me) opening.current = null;
+    };
     customizationService
       .getCustomizationById(openId)
       .then((d) => {
+        opened();
         if (!alive) return;
+        // (another garment's room is a new page: it starts its own Back steps)
         if (d.garmentType !== type) return navigate(`/customize/${d.garmentType}?design=${d._id}`, { replace: true });
         // another design than the one this chat is about: the chat goes to Chats, and the design gets its own —
         // the one it had before if there is one, else a new chat
         const other = d._id !== chatDesign.current;
         if (other) {
-          saveChatNow();
+          saveChatNow({ asKept: syncing.current }); // (not checked against the account yet: put away with its own stamp)
           applyConversation(null);
           // an ordered tee opened again: its new chat starts by saying what this tee is and where the chat before went
           const again = openedAgain.current?.id === d._id ? openedAgain.current : null;
@@ -791,7 +1220,10 @@ export default function DesignRoomPage() {
         setCamRequest({ view: "front", ms: 1400, n: nextReq() });
         if (d.orderedAt) setToast("This design was ordered. Changes will be saved as a new design.");
       })
-      .catch(() => alive && setToast("Couldn't open that design. It may have been deleted."));
+      .catch(() => {
+        opened();
+        if (alive) setToast("Couldn't open that design. It may have been deleted.");
+      });
     return () => {
       alive = false;
     };
@@ -1254,7 +1686,12 @@ export default function DesignRoomPage() {
       if (elements.length && unsaved.current && !(await saveDesign({ quiet: true }))) return { ok: false, message: "Your tee couldn’t be saved, so I left everything as it is. Please try again." };
       const copy = await customizationService.duplicateDesign(id, { colorName: colourName || undefined, again: true });
       openedAgain.current = { id: copy._id, no, colour: colourName };
-      navigate(`/customize/${copy.garmentType}?design=${copy._id}`);
+      // (also in the address state: a tee of another garment opens in a new page, which reads it from there)
+      // The same garment opens it in place, like a chat (13 Nov 2026): Back then steps back inside the room and never
+      // brings the earlier design's address back.
+      const to = `/customize/${copy.garmentType}?design=${copy._id}`;
+      if (copy.garmentType === type) navigate(to, { replace: true, state: { ...backState(), again: openedAgain.current } });
+      else navigate(to, { state: { again: openedAgain.current } });
       return { ok: true };
     } catch (err) {
       return { ok: false, message: err.response?.status === 404 ? "That design isn’t in My designs any more, so it can’t be opened again." : err.response?.data?.message || "That didn’t work just now. Please try again." };
@@ -1376,7 +1813,7 @@ export default function DesignRoomPage() {
     else {
       const { history, earlier, fold } = historyFor(chat);
       try {
-        res = await aiService.assist({
+        const got = await aiService.assist({
           message: a.text,
           history,
           earlier,
@@ -1389,8 +1826,12 @@ export default function DesignRoomPage() {
           ...(a.photo?.url ? { photo: { url: a.photo.url, about: a.text || "" } } : {}),
           ...(chatState.logo ? { logoUrl: chatState.logo } : {}),
         });
+        // 💡 Suggest (round 9, 13 Nov 2026): only words and chips come back — a step the brain still sent is dropped, so
+        // nothing is drawn or changed until the customer taps a suggestion (a question it asks is kept)
+        res = a.suggest ? { ...got, steps: (got.steps || []).filter((st) => st.type === "ask") } : got;
       } catch (err) {
-        if (err.response?.status === 503) return [{ fallback: { text: a.text } }];
+        // (💡 Suggest never falls back to the fixed chat: its words would be taken as a change to the tee — 13 Nov 2026)
+        if (err.response?.status === 503) return a.suggest ? [botSays(SUGGEST.off)] : [{ fallback: { text: a.text } }];
         if (err.response?.status === 401) return [botSays("Sign in and I’ll design with you. Your tee stays here."), chipRow(["Log in"])];
         return [botSays(err.response?.data?.message || "I couldn’t answer that just now — the connection was slow. Tap Try again and I’ll answer it."), { failed: true }];
       }
@@ -1669,7 +2110,9 @@ export default function DesignRoomPage() {
   const loadIdeas = async () => {
     try {
       const res = await aiService.ideas();
-      return [{ browse: res.ideas || [] }];
+      // none ticked yet (Admin → AI settings → Browse ideas): ways to start instead of a dead end (round 9, 13 Nov 2026)
+      if (!res.ideas?.length) return [botSays("Here are a few ways to start. Tap one, or tell me your idea in your own words."), { chips: [STARTER_CHIP, ...suggestionsFor()], smart: true }];
+      return [{ browse: res.ideas }];
     } catch {
       return [botSays("The ideas couldn’t be loaded just now. Tell me what you want and I’ll show three concepts.")];
     }
@@ -1679,7 +2122,8 @@ export default function DesignRoomPage() {
     setChat((m) => [...m.map((x) => (x.browse ? { ...x, done: true } : x)), { from: "me", text: `Start from “${idea.brief || sheet.concepts.map((c) => c.title).join(", ")}”` }, { sheet }, botSays("Here they are in your chat. Tap a number to make one on your tee, or say what to change — “2 but with my cafe’s name”.")]);
   };
   // Versions (round 7): after an AI change the tee as it is now is kept with a small picture; "Go back to this" restores it
-  const shrinkDataUrl = (src, width = 180) =>
+  // (128 px wide, 13 Nov 2026: shown at 64 px; a long chat keeps 40 of them, so half the size counts)
+  const shrinkDataUrl = (src, width = 128) =>
     new Promise((resolve) => {
       const img = new Image();
       img.onload = () => {
@@ -2669,6 +3113,7 @@ export default function DesignRoomPage() {
     setStep("review");
     setSpin(true);
     setSideShown(null);
+    setAskSide(null); // the Front / Back question starts closed (also via the Assistant, or after a reload)
     setQtys((q) => (Object.values(q).some((n) => n > 0) ? q : { [sizeNow]: 1 }));
     // a team order opens on the first player's tee (their name and number, not the sample text)
     setPreviewId(teamMode ? players.find(filled)?.id ?? null : null);
@@ -2703,6 +3148,43 @@ export default function DesignRoomPage() {
     for (const [v] of SIDES) out[v] = await cropMockup(api.snapshot(v));
     return out;
   };
+
+  // Back where they were after a reload or "Continue it" (13 Nov 2026): Review, or the print area that was open —
+  // once the room is ready. Anything the customer does first wins: they stay where they are.
+  const toReviewNow = useRef(null);
+  const resuming = useRef(false); // Review is being put back (the Back steps wait for it)
+  useEffect(() => {
+    toReviewNow.current = toReview;
+  });
+  useEffect(() => {
+    const r = resumeAt.current;
+    if (!r || !positions.length || step !== "design") return undefined;
+    // a saved design opened by its address is loaded again first (that load puts the room in Design)
+    if (openId && isLoggedIn() && onScreenId.current !== openId) return undefined;
+    resumeAt.current = null;
+    if (r.step !== "review") {
+      if (r.active && positions.some((p) => p.key === r.active)) openArea(r.active, { force: true });
+      return undefined;
+    }
+    let alive = true;
+    resuming.current = true;
+    (async () => {
+      try {
+        for (let i = 0; i < 50 && !roomApi.current; i++) await wait(300); // (up to 15 s on a slow phone)
+        // the pictures and letters drawn first, so Review's side pictures show the art
+        await Promise.allSettled(imageSrcs(elementsRef.current).map((s) => loadImage(s)));
+        await document.fonts?.ready;
+        if (!alive || !elementsRef.current.length) return;
+        if (roomApi.current) toReviewNow.current(true);
+        else say("You were in Review.", { label: "Back to Review", onClick: () => toReviewNow.current(true) });
+      } finally {
+        resuming.current = false;
+      }
+    })();
+    return () => {
+      alive = false; // the customer changed something meanwhile: they stay where they are
+    };
+  }, [positions.length, step, active, elements]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Review of a team order: the four side pictures follow the player being looked at
   // (taken again a moment after the last change, so typing a name does not retake them per letter).
@@ -2770,7 +3252,7 @@ export default function DesignRoomPage() {
       setDesignName(saved.name);
       setLocked(false);
       setSavedAt(new Date());
-      navigate(`/customize/${type}?design=${saved._id}`, { replace: true });
+      navigate(`/customize/${type}?design=${saved._id}`, { replace: true, state: backState() });
       if (!quiet) say(copied ? "Saved as a new design in My designs." : "Saved to My designs.");
       return saved;
     } catch (err) {
@@ -2793,6 +3275,31 @@ export default function DesignRoomPage() {
     setSideShown(null);
     setCamRequest({ ...SHOWROOM, n: nextReq() });
   };
+  // Photo of it worn (round 5): one AI photo of the tee on a person — from the front, or from behind with the
+  // back's picture (13 Nov 2026, feedback 7). One picture either way, as before.
+  const wornPhoto = async (side) => {
+    setAskSide(null);
+    if (!isLoggedIn()) return goToLogin();
+    const tee = teePicture(shots, side);
+    if (!tee) return say("The picture of the tee isn’t ready. Go back to the design and open Review again.");
+    setWorn("making");
+    try {
+      const res = await aiService.worn({ image: tee, side, garment: garment?.label || "t-shirt", teeColour: colour?.name || "white" });
+      if (res.left != null) setAi((cur) => ({ ...cur, left: res.left }));
+      setWorn({ url: res.url });
+    } catch (err) {
+      setWorn(null);
+      say(err?.response?.data?.message || "The photo couldn’t be made just now.");
+    }
+  };
+  // Try it on me (round 7): the customer says first which side of them the photo shows (13 Nov 2026, feedback 7),
+  // so that side of the tee goes to the AI — a photo of their back gets the back print.
+  const tryOnWith = (side) => {
+    setAskSide(null);
+    if (!isLoggedIn()) return goToLogin();
+    tryOnSide.current = side;
+    tryOnRef.current?.click(); // still inside the tap, so a phone opens its photo picker (as the button did before)
+  };
   const backToDesign = () => {
     setStep("design");
     setShots(null);
@@ -2803,7 +3310,9 @@ export default function DesignRoomPage() {
   // out of the room: back to the page they came from (team page, home, a collection…). Opened straight from a
   // link (nothing to go back to): the team page for a team design, else Create your IDENTEE.
   const leaveRoom = () => {
-    if (cameFromSite) return navigate(-1);
+    if (!sureToLeave()) return; // (a picture still being made: asked first, 13 Nov 2026)
+    // (past the room's own Back steps, if any are still there: 13 Nov 2026)
+    if (cameFromSite) return navigate(-1 - back.steps());
     navigate(teamLink ? "/team-orders" : "/customizable");
   };
   const stepBack = () => {
@@ -2815,6 +3324,65 @@ export default function DesignRoomPage() {
     setStep("fit");
     setCamRequest(narrow ? { position: [0, 1.5, 8], ms: 900, n: nextReq() } : { ...SHOWCASE, ms: 900, n: nextReq() });
   };
+
+  /* ---------- the phone's / browser's own Back button (13 Nov 2026, feedback 8 — studio/backSteps.js) ---------- */
+  // Each step into the room and each panel or pop-up that opens is one step in the browser's history; Back closes
+  // the newest thing, the same way its own ✕, Cancel or back arrow would. Only the first screen with nothing open
+  // lets Back leave the room.
+  const backLayers = useBackLayers(); // pop-ups inside the chat (the zoomed concepts, "Change a part")
+  const openNow = { layers: backLayers, worn: Boolean(worn?.url), cartNote: Boolean(cartNote), placePic: Boolean(placePic), finder: Boolean(finder), saveOpen, step, pickOpen, areasSheet: narrow && areasOpen, assist, chatsOpen, active: Boolean(active) };
+  const backOne = () =>
+    ({
+      layer: closeBackLayer,
+      worn: () => setWorn(null),
+      cartNote: () => setCartNote(null),
+      placePic: () => setPlacePic(null),
+      finder: () => setFinder(null),
+      saveOpen: () => setSaveOpen(false),
+      review: backToDesign,
+      pickOpen: () => setPickOpen(false),
+      chatsOpen: () => setChatsOpen(false),
+      areasSheet: () => setAreasOpen(false),
+      assist: () => setAssist(false),
+      active: () => goView(activePos?.side || "front"), // (as the editor's ✕)
+      design: stepBack,
+    })[nextToClose(openNow)]?.();
+  // this redraw's view for the steps, then the steps put right: one for each thing open
+  useEffect(() => {
+    back.use({
+      depth: () => backDepth(openNow),
+      closeOne: backOne,
+      push: (n) => navigate(window.location.pathname + window.location.search, { state: { drBack: n } }),
+      go: (by) => by && window.history.go(by),
+      // (not once a link has opened another page: its address is already in the bar)
+      here: () => window.location.pathname === location.pathname,
+      canPush: () => navigator.userActivation?.isActive !== false,
+      // still putting things back: a save (it closes the print area and opens it again), a design opening by its
+      // address, the spot from before a reload
+      waiting: () => Boolean(busy) || Boolean(opening.current) || Boolean(resumeAt.current) || resuming.current,
+    });
+    back.settle();
+  });
+  // Back / Forward, and taps (a step is only added right after one). Set up once on purpose: React draws the room
+  // again in the middle of a Back press, and a listener set up again on every change is taken off and put back
+  // during that press — and misses it.
+  useEffect(() => {
+    const onPop = (e) => back.popped(e.state?.usr?.drBack); // (React Router keeps the page's state under "usr")
+    const onTap = () => back.tapped();
+    const onDone = () => back.settle(); // (after the tap's own button: a tap that changed nothing pays a step still owed)
+    window.addEventListener("popstate", onPop);
+    window.addEventListener("pointerup", onTap, true);
+    window.addEventListener("keydown", onTap, true);
+    window.addEventListener("click", onDone);
+    window.addEventListener("keydown", onDone);
+    return () => {
+      window.removeEventListener("popstate", onPop);
+      window.removeEventListener("pointerup", onTap, true);
+      window.removeEventListener("keydown", onTap, true);
+      window.removeEventListener("click", onDone);
+      window.removeEventListener("keydown", onDone);
+    };
+  }, [back]);
   const chosen = teamMode
     ? sizeCounts(teamPlayers)
     : Object.entries(qtys)
@@ -2884,6 +3452,9 @@ export default function DesignRoomPage() {
   //   up to show the box being typed in: while it is open the room is fitted into the part it leaves free (the
   //   chat box / the words stay in sight), and when it closes the page is put back at the top, so the top bar is
   //   where it belongs again (some phone browsers left the page slid up).
+  // · 13 Nov 2026 (feedback 4: the keyboard hid the Assistant's box): it is measured again for 2 s after every tap on
+  //   a box, key or change, and only while a box to type in has the focus — every time, not only the first
+  //   (studio/keyboardFit.js).
   const appRef = useRef(null);
   const ready = Boolean(garment);
   useEffect(() => {
@@ -2892,44 +3463,11 @@ export default function DesignRoomPage() {
     return () => root.classList.remove("dr-open");
   }, []);
   useEffect(() => {
-    const vv = window.visualViewport;
     const el = appRef.current;
-    if (!vv || !el) return undefined;
-    const phone = window.matchMedia("(max-width: 760px)");
-    let wasKeyboard = false;
-    const backToTop = () => {
-      if (window.scrollX || window.scrollY || vv.offsetTop) window.scrollTo(0, 0);
-    };
-    const fit = () => {
-      const keyboard = phone.matches && window.innerHeight - vv.height > 120;
-      if (keyboard) {
-        el.dataset.kb = "1";
-        el.style.setProperty("--vv-top", `${vv.offsetTop}px`);
-        el.style.setProperty("--vv-h", `${vv.height}px`);
-      } else {
-        delete el.dataset.kb;
-        if (wasKeyboard) backToTop();
-      }
-      wasKeyboard = keyboard;
-    };
-    // a box lost the focus (the keyboard is closing): once it has gone, the page goes back to the top
-    const onFocusOut = () => setTimeout(() => {
-      const t = document.activeElement;
-      if (!t || !/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)) backToTop();
-    }, 120);
-    fit();
-    backToTop();
-    vv.addEventListener("resize", fit);
-    vv.addEventListener("scroll", fit);
-    document.addEventListener("focusout", onFocusOut);
-    window.addEventListener("orientationchange", backToTop);
-    return () => {
-      vv.removeEventListener("resize", fit);
-      vv.removeEventListener("scroll", fit);
-      document.removeEventListener("focusout", onFocusOut);
-      window.removeEventListener("orientationchange", backToTop);
-      delete el.dataset.kb;
-    };
+    if (!el) return undefined;
+    // testing on a real phone (dev server only, ?kb=1 in the address): the numbers the fit uses show top left
+    const readout = import.meta.env.DEV && new URLSearchParams(window.location.search).has("kb");
+    return fitRoomToKeyboard(el, { readout });
   }, [ready]); // (ready: the room is on screen — it isn't while the tee is still loading)
 
   if (!garment) {
@@ -3051,7 +3589,9 @@ export default function DesignRoomPage() {
               </svg>
             </button>
           )}
-          <Link to="/my-designs" className="dr-mydesigns">My designs</Link>
+          <Link to="/my-designs" className="dr-mydesigns" onClick={(e) => !sureToLeave() && e.preventDefault()}>
+            My designs
+          </Link>
           {saveOpen && (
             <form
               className="dr-savepop"
@@ -3302,7 +3842,7 @@ export default function DesignRoomPage() {
 
         {step === "design" && assist && (
           // The AI panel: the chat (Assistant.jsx) — drawing, photos and changes all happen there
-          <section className={`dr-editor dr-assist dr-ai tab-${aiTab}`} data-wide={assistWide ? "1" : undefined} data-small={assistSmall ? "1" : undefined} aria-label="AI design">
+          <section className={`dr-editor dr-assist dr-ai tab-${aiTab}`} data-wide={assistWide ? "1" : undefined} data-small={assistSmall ? "1" : undefined} data-chats={chatsOpen ? "1" : undefined} aria-label="AI design">
             <header>
               <div>
                 <div className="eyebrow">AI design</div>
@@ -3366,7 +3906,7 @@ export default function DesignRoomPage() {
                   locked={aiWorking || Boolean(busy)}
                 />
               )}
-              <Assistant key={chatId} messages={chat} setMessages={setChat} state={chatState} setState={setChatState} ctx={assistantCtx} onAct={assistantAct} onFix={applyFix} placed={aiOn} fabric={fabricHex} autoSay={chatAuto} onAutoSaid={() => setChatAuto("")} onWorking={setAiWorking} photoNudge={photoNudge} />
+              <Assistant key={chatId} messages={chat} setMessages={setChat} state={chatState} setState={setChatState} ctx={assistantCtx} onAct={assistantAct} onFix={applyFix} placed={aiOn} fabric={fabricHex} autoSay={chatAuto} onAutoSaid={() => setChatAuto("")} onWorking={setAiWorking} photoNudge={photoNudge} chatId={chatId} roomKey={type} working={aiWorking} />
               {elements.length > 0 && (
                 <button type="button" className="dr-handoff" onClick={editByHand}>
                   Not quite right? Edit it by hand →
@@ -3552,32 +4092,29 @@ export default function DesignRoomPage() {
                   {emailing ? "Sending the email…" : "Email me this design"}
                 </button>
               )}
-              {/* Photo of it worn (round 5, 8 Nov 2026): one AI photo of the finished tee on a person, for WhatsApp / Instagram */}
+              {/* Photo of it worn (round 5, 8 Nov 2026): one AI photo of the finished tee on a person, for WhatsApp / Instagram.
+                  13 Nov 2026 (feedback 7): printed on both sides, it asks Front or Back; on the back only, it shows the back */}
               {shots?.length === 4 && shots[0]?.url && ai.available && (
                 <button
                   type="button"
                   className="dr-share alt"
                   disabled={worn === "making"}
-                  onClick={async () => {
+                  aria-expanded={wornSideFor(usedSides) === "ask" ? askSide === "worn" : undefined}
+                  onClick={() => {
                     if (!isLoggedIn()) return goToLogin();
-                    setWorn("making");
-                    try {
-                      const res = await aiService.worn({ image: shots[0].url, garment: garment?.label || "t-shirt", teeColour: colour?.name || "white" });
-                      if (res.left != null) setAi((cur) => ({ ...cur, left: res.left }));
-                      setWorn({ url: res.url });
-                    } catch (err) {
-                      setWorn(null);
-                      say(err?.response?.data?.message || "The photo couldn’t be made just now.");
-                    }
+                    const side = wornSideFor(usedSides);
+                    if (side === "ask") return setAskSide((a) => (a === "worn" ? null : "worn"));
+                    wornPhoto(side);
                   }}
                 >
                   {worn === "making" ? "Taking the photo… (about 30 s)" : "Photo of it worn"}
                 </button>
               )}
-              {/* Try it on me (round 7, 8 Nov 2026): the customer's own photo, wearing this tee */}
+              {/* Try it on me (round 7, 8 Nov 2026): the customer's own photo, wearing this tee.
+                  13 Nov 2026 (feedback 7): it asks Front or Back first, and sends that side of the tee */}
               {shots?.length === 4 && shots[0]?.url && ai.available && (
                 <>
-                  <button type="button" className="dr-share alt" disabled={worn === "making"} onClick={() => (isLoggedIn() ? tryOnRef.current?.click() : goToLogin())}>
+                  <button type="button" className="dr-share alt" disabled={worn === "making"} aria-expanded={askSide === "tryon"} onClick={() => (isLoggedIn() ? setAskSide((a) => (a === "tryon" ? null : "tryon")) : goToLogin())}>
                     Try it on me
                   </button>
                   <input
@@ -3589,6 +4126,9 @@ export default function DesignRoomPage() {
                       const file = e.target.files?.[0];
                       e.target.value = "";
                       if (!file) return;
+                      const side = tryOnSide.current; // the side of the customer in the photo (picked just before)
+                      const tee = teePicture(shots, side);
+                      if (!tee) return say("The picture of the tee isn’t ready. Go back to the design and open Review again.");
                       setWorn("making");
                       try {
                         const photo = await new Promise((resolve, reject) => {
@@ -3606,7 +4146,7 @@ export default function DesignRoomPage() {
                           img.onerror = () => reject(new Error("That photo couldn’t be read."));
                           img.src = url;
                         });
-                        const res = await aiService.tryOn({ photo, image: shots[0].url, garment: garment?.label || "t-shirt", teeColour: colour?.name || "white" });
+                        const res = await aiService.tryOn({ photo, image: tee, side, garment: garment?.label || "t-shirt", teeColour: colour?.name || "white" });
                         if (res.left != null) setAi((cur) => ({ ...cur, left: res.left }));
                         setWorn({ url: res.url, me: true }); // made from the customer's own photo: the caption says so
                       } catch (err) {
@@ -3616,6 +4156,31 @@ export default function DesignRoomPage() {
                     }}
                   />
                 </>
+              )}
+              {/* Front or back? (13 Nov 2026, feedback 7): Try it on me asks which side of you the photo shows; Photo of it
+                  worn asks when both sides have a print. The answer picks the picture of the tee the AI gets. */}
+              {askSide && shots?.length === 4 && ai.available && (
+                <div ref={sidePickRef} className="dr-sidepick" role="group" aria-label={askSide === "tryon" ? "Which side of you is in the photo" : "Which side of the tee to show"}>
+                  <span>{askSide === "tryon" ? "Which side of you does your photo show?" : "Show the tee from the front or the back?"}</span>
+                  {SIDES.slice(0, 2).map(([sd, label]) => (
+                    <button key={sd} type="button" className="dr-mini" disabled={worn === "making"} onClick={() => (askSide === "tryon" ? tryOnWith(sd) : wornPhoto(sd))}>
+                      {label}
+                    </button>
+                  ))}
+                  <button type="button" className="dr-mini ghost" onClick={() => setAskSide(null)}>
+                    Cancel
+                  </button>
+                  {/* (13 Nov 2026) a side with nothing printed on it: said before a picture request is spent on it */}
+                  {askSide === "tryon" &&
+                    (usedSides.has("front") || usedSides.has("back")) &&
+                    SIDES.slice(0, 2)
+                      .filter(([sd]) => !usedSides.has(sd))
+                      .map(([sd]) => (
+                        <small key={sd} className="dr-sidepick-note">
+                          Nothing is printed on the {sd} of your tee, so a photo of your {sd} will show it plain.
+                        </small>
+                      ))}
+                </div>
               )}
               {worn?.url &&
                 createPortal(
@@ -3928,6 +4493,9 @@ function FindSizeLink({ onClick }) {
   );
 }
 
+// the unfinished design's words on the first screen: its items, or (13 Nov 2026) a chat with nothing on the tee yet
+const unfinishedWords = (e) => (e.elements.length ? `${e.elements.length} item${e.elements.length === 1 ? "" : "s"}${e.name ? ` · ${e.name}` : ""}` : "your chat with the Assistant");
+
 function Fitting({ garment, colours, colour, onColour, sizes, size, onSize, onFindSize, onEnter: enter, onAssistant: assistant, onPhoto: photo, credit, earlier, onContinue }) {
   // with an unfinished design waiting, starting a new one replaces it — so ask first
   const [asking, setAsking] = useState(null); // the way in that was pressed
@@ -3941,8 +4509,7 @@ function Fitting({ garment, colours, colour, onColour, sizes, size, onSize, onFi
         {earlier && (
           <div className="dr-resume">
             <span>
-              You have an unfinished design ({earlier.elements.length} item{earlier.elements.length === 1 ? "" : "s"}
-              {earlier.name ? ` · ${earlier.name}` : ""}).
+              You have an unfinished design ({unfinishedWords(earlier)}).
             </span>
             <button type="button" onClick={onContinue}>Continue it</button>
           </div>
@@ -4011,8 +4578,7 @@ function Fitting({ garment, colours, colour, onColour, sizes, size, onSize, onFi
           <div className="dr-ask" role="alertdialog" aria-modal="true" aria-labelledby="dr-ask-h">
             <h2 id="dr-ask-h">Start a new design?</h2>
             <p>
-              You have an unfinished design ({earlier.elements.length} item{earlier.elements.length === 1 ? "" : "s"}
-              {earlier.name ? ` · ${earlier.name}` : ""}). Starting a new one replaces it.
+              You have an unfinished design ({unfinishedWords(earlier)}). Starting a new one replaces it.
             </p>
             <div className="dr-ask-btns">
               <button type="button" onClick={onContinue}>Continue my design</button>

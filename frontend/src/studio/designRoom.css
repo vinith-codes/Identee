@@ -445,6 +445,8 @@
 .dr-area.used::after { content: ""; display: block; position: absolute; right: 7px; top: 7px; width: 7px; height: 7px; margin: 0; border-radius: 50%; background: var(--gold); }
 .dr-area.on, .dr-area.used.on { border-color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); }
 .dr-thumb .tee { fill: #F5F1E8; stroke: #9A8F7D; }
+/* front cards: the inside of the tee shows through the lower front neckline (AreaThumb.jsx; 13 Nov 2026, feedback 1) */
+.dr-thumb .neck { fill: rgba(0, 0, 0, .2); stroke: #9A8F7D; stroke-width: 3; stroke-linejoin: round; }
 
 /* the view */
 .dr-view { background: radial-gradient(110% 85% at 50% 38%, #FDFBF7 0%, #F1EBDF 62%, #E6DDCB 100%); }
@@ -660,7 +662,7 @@
 @media (prefers-reduced-motion: reduce) { .dr-editor.dr-assist { transition: none; } }
 /* phones: the assistant fills the room under the top bar (the chat and its pictures get room); "Show the tee"
    makes it half height so the tee shows above it. While the keyboard is open the room fits above it (dr-app[data-kb],
-   set in DesignRoomPage) so the chat box stays in sight. */
+   set by studio/keyboardFit.js) so the chat box stays in sight. */
 /* while the design room is open the page behind it can't scroll or bounce (DesignRoomPage: html.dr-open) */
 html.dr-open, html.dr-open body { overflow: hidden; height: 100%; overscroll-behavior: none; }
 .dr-tall { display: none; }
@@ -680,6 +682,10 @@ html.dr-open, html.dr-open body { overflow: hidden; height: 100%; overscroll-beh
   .dr-app[data-kb] { top: var(--vv-top, 0px); bottom: auto; height: var(--vv-h, 100%); }
   /* keyboard open: the full-height chat */
   .dr-app[data-kb] .dr-editor.dr-assist { height: calc(100% - 6px); }
+  /* keyboard open (13 Nov 2026, feedback 4): the box and the newest messages get the little room left — the hand-edit
+     link, the pictures-left line and the busy note come back when it closes (the wait card in the chat still has Stop) */
+  .dr-app[data-kb] .dr-assist :is(.dr-handoff, .dr-leftline, .dr-busynote) { display: none; }
+  .dr-app[data-kb] .dr-assist > header { padding-block: 8px 6px; }
   .dr-assist > header .sub { display: none; } /* (the first chat message says the same) */
 }
 @media (max-width: 760px) and (prefers-reduced-motion: reduce) { .dr-editor.dr-assist { transition: none; } }
@@ -948,6 +954,7 @@ button.dr-back { padding: 0; font: inherit; font-weight: 700; cursor: pointer; }
 /* the small tees on the "Where to print" cards are in the colour of the tee being designed */
 .dr-thumb .tee { transition: fill .35s ease; }
 .dr-thumb.on-dark .tee { stroke: #3A332A; }
+.dr-thumb.on-dark .neck { fill: rgba(0, 0, 0, .4); stroke: rgba(255, 240, 210, .6); } /* a light line keeps the neckline seen on black and maroon */
 .dr-thumb.on-dark .box { fill: rgba(255, 226, 150, .22); stroke: #F2D48A; }
 .dr-area.used .dr-thumb.on-dark .box { fill: var(--gold); stroke: #F6E3B0; }
 .dr-area.hot .dr-thumb.on-dark .box { stroke: #FFF1C9; }
@@ -1467,7 +1474,22 @@ p.pc-area { margin: 0; font-size: 13px; color: var(--muted); }
 .dr-chatsbtn svg { width: 14px; height: 14px; }
 .dr-chatsbtn:hover { border-color: var(--ink); color: var(--ink); }
 .dr-chatsbtn[aria-pressed="true"] { background: var(--gold-soft); border-color: var(--gold); color: var(--gold-deep); }
-.dr-chats { position: absolute; inset: 0; z-index: 5; display: flex; flex-direction: column; gap: 10px; padding: 12px 14px 14px; background: var(--paper); }
+/* (13 Nov 2026) a list that slides in from the left, like ChatGPT's: the chat shows dimmed beside it — a tap there
+   closes the list. 86% of the panel at most, so a 360 px phone keeps about 50 px of chat to tap. */
+.dr-chats { position: absolute; inset: 0 auto 0 0; width: min(320px, 86%); z-index: 5; display: flex; flex-direction: column; gap: 10px; padding: 12px 14px 14px; background: var(--paper);
+  border-right: 1px solid var(--line); box-shadow: 18px 0 40px -24px rgba(20, 17, 16, .45); }
+.dr-chats-shade { position: absolute; inset: 0; z-index: 4; display: block; width: 100%; margin: 0; padding: 0; border: 0; border-radius: 0; background: rgba(20, 17, 16, .28); cursor: pointer; }
+@media (prefers-reduced-motion: no-preference) {
+  .dr-chats { animation: dr-chatsin .22s cubic-bezier(.2, .7, .2, 1) both; }
+  .dr-chats-shade { animation: dr-shadein .22s ease-out both; }
+  @keyframes dr-chatsin { from { opacity: 0; transform: translateX(-28px); } }
+  @keyframes dr-shadein { from { opacity: 0; } }
+}
+.dr-chats-keep { margin: 4px 2px 0; font-size: 12px; line-height: 1.45; color: var(--muted); text-align: center; }
+/* phones: the list gets the whole height, also when the Assistant is half height ("Show the tee") */
+@media (max-width: 760px) {
+  .dr-editor.dr-assist[data-chats] { height: calc(100% - 6px); }
+}
 .dr-chats-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .dr-chats-head b { font-family: var(--display); font-size: 17px; }
 .dr-chats-x { flex: none; width: 36px; height: 36px; border: 0; border-radius: 50%; background: var(--line); color: var(--ink); font-size: 14px; cursor: pointer; }
@@ -1631,6 +1653,16 @@ p.pc-area { margin: 0; font-size: 13px; color: var(--muted); }
 .dr-share { justify-self: start; border: 1.5px solid var(--ink); background: #fff; color: var(--ink); border-radius: 999px; padding: 8px 16px; font-weight: 700; font-size: 13px; cursor: pointer; margin-bottom: 8px; }
 .dr-share:disabled { opacity: .55; cursor: wait; }
 .dr-share.alt { border-color: var(--gold); color: var(--ink); background: var(--gold-soft); margin-left: 8px; }
+/* Front or back? (13 Nov 2026, feedback 7): the small question under Try it on me / Photo of it worn.
+   In line with the buttons above it (8 px in). The question on its own line, the three buttons under it:
+   3 × 84 + 2 × 8 = 268 px, inside the 296 px a 360 px phone leaves (the sheet's padding and border, the 8 px, the box's
+   own padding and border), so one row; they wrap rather than overflow on anything narrower. */
+.dr-sidepick { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 14px; background: var(--paper); margin-left: 8px; min-width: 0; }
+.dr-sidepick > span { flex: 1 1 100%; min-width: 0; font-size: 13px; font-weight: 700; color: var(--ink); overflow-wrap: anywhere; }
+.dr-sidepick .dr-mini { min-height: 40px; min-width: 84px; font-size: 13px; }
+.dr-sidepick .dr-mini.ghost { background: #fff; color: var(--ink); border: 1px solid var(--line); }
+/* a side with nothing printed on it, said under the buttons (13 Nov 2026): its own full-width line, wraps on a phone */
+.dr-sidepick .dr-sidepick-note { flex: 1 1 100%; min-width: 0; font-size: 12px; line-height: 1.4; color: var(--ink); opacity: .75; overflow-wrap: anywhere; }
 /* Photo of it worn (round 5, 8 Nov 2026) */
 .dr-worn { position: fixed; inset: 0; z-index: 1200; display: grid; place-items: center; padding: 16px; background: rgba(20, 17, 16, .72); }
 .dr-worn-card { display: grid; gap: 10px; max-width: min(92vw, 520px); max-height: 92vh; padding: 12px; border-radius: 16px; background: #fff; }
@@ -1663,6 +1695,9 @@ p.pc-area { margin: 0; font-size: 13px; color: var(--muted); }
 .dr-version img { width: 64px; height: 64px; object-fit: cover; border-radius: 8px; background: #F1ECE1; }
 .dr-version-label { font-size: 12.5px; font-weight: 700; color: var(--ink); }
 .dr-version .dr-designhint { margin: 2px 0 0; }
+/* an old version of a long chat (13 Nov 2026): no picture kept, so the words take its place */
+.dr-version.nopic { grid-template-columns: minmax(0, 1fr) auto; }
+.dr-oldcard { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
 
 /* Round 8 (11 Nov 2026): feedback chips, "Change a part", tips while waiting, pictures left, the mic's language,
    and the chat's cards (size, orders, the same tee again, the group link) */
@@ -1675,6 +1710,36 @@ p.pc-area { margin: 0; font-size: 13px; color: var(--muted); }
 .dr-composer.dr-cbox .dr-miclang { flex: none; min-width: 34px; height: 28px; padding: 0 8px; margin-left: -4px; border: 1px solid var(--line); border-radius: 999px; background: #fff; color: var(--ink-soft); font: 700 11px/1 var(--body); cursor: pointer; }
 .dr-composer.dr-cbox .dr-miclang:hover:not(:disabled) { border-color: var(--ink); color: var(--ink); }
 .dr-composer.dr-cbox .dr-miclang:disabled { opacity: .5; cursor: default; }
+
+/* Round 9 (13 Nov 2026): talking with the Assistant and 💡 Suggest.
+   The box's buttons never push Send out of the box: when the row is too full (the old chat's ✨ Improve, தமிழ், a
+   future button) Send goes to a second line, on the right; when it fits, the row looks as before. The count near the
+   limit sits on its own line under the row. */
+.dr-cbar { flex-wrap: wrap; row-gap: 4px; }
+.dr-composer.dr-cbox .dr-send { margin-left: auto; }
+.dr-composer.dr-cbox .dr-count { white-space: nowrap; }
+/* 🔊 reading answers aloud, on or off (quieter when off) */
+.dr-composer.dr-cbox .dr-speak { flex: none; width: 32px; height: 32px; margin-left: -2px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--muted); display: grid; place-items: center; cursor: pointer; }
+.dr-composer.dr-cbox .dr-speak.on { color: var(--ink-soft); }
+.dr-composer.dr-cbox .dr-speak:hover { background: #F3EFE6; color: var(--ink); }
+.dr-composer.dr-cbox .dr-speak svg { width: 19px; height: 19px; }
+.dr-composer.dr-cbox .dr-suggest span { font-size: 13px; line-height: 1; }
+/* the bar over the box: "Sending what I heard… Wait", "Reading my answer… Stop / Turn off", or a short note */
+.dr-voicebar { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; margin: 6px 14px 0; padding: 4px 6px 4px 12px; border-radius: 16px;
+  background: var(--gold-soft); color: var(--ink-soft); font-size: 12.5px; font-weight: 600; line-height: 1.4; }
+.dr-voicebar > span { flex: 1 1 140px; min-width: 0; padding-block: 4px; }
+.dr-voicebar .dr-chip { min-height: 32px; padding: 4px 12px; }
+.dr-voicebar.note { font-weight: 500; }
+.dr-voicebar-x { flex: none; width: 32px; height: 32px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--ink-soft); font-size: 13px; cursor: pointer; }
+.dr-voicebar-x:hover { background: rgba(255, 255, 255, .7); color: var(--ink); }
+@media (max-width: 760px) { .dr-voicebar { margin-inline: 10px; } }
+/* small phones (360–380 px): the row 📎 🎤 EN 🔊 💡 Suggest ➤ stays on one line, also with தமிழ் */
+@media (max-width: 380px) {
+  .dr-cbar { gap: 4px; }
+  .dr-cbar-gap { display: none; } /* (Send keeps to the right by itself: margin-left auto) */
+  .dr-composer.dr-cbox :is(.dr-attach, .dr-mic) { width: 36px; height: 36px; }
+  .dr-composer.dr-cbox .dr-improve { padding-inline: 10px; }
+}
 
 .dr-card { display: grid; gap: 8px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 14px; background: #fff; font-size: 13px; color: var(--ink-soft); min-width: 0; }
 .dr-card.done { opacity: .7; }

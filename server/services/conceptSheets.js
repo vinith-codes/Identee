@@ -51,15 +51,27 @@ export function matchPrompt({ piece = "back", from = "the front", brief = "", te
 }
 
 /**
- * A lifestyle photo of the finished tee on a person (round 5, 8 Nov 2026): for sharing.
- * The attached image is the tee's own front mock-up (from the Review step).
+ * Which side of the tee a worn photo / try-on is about (13 Nov 2026, feedback 7): "back" or "front".
+ * Anything else — an older page sends nothing — is the front, as before.
  */
-export function wornPrompt({ garment = "t-shirt", teeColour = "white", setting = "" }) {
+export const teeSide = (side) => (side === "back" ? "back" : "front");
+
+/**
+ * A lifestyle photo of the finished tee on a person (round 5, 8 Nov 2026): for sharing.
+ * The attached image is the tee's own mock-up from the Review step: its front, or (13 Nov 2026) its back with
+ * side "back" — the person then stands with their back to the camera (the pose of the Studio's back model photos).
+ */
+export function wornPrompt({ garment = "t-shirt", teeColour = "white", setting = "", side = "front" }) {
   const where = clean(setting, 80) || "outdoors on a college campus in India, soft daylight";
+  const back = teeSide(side) === "back";
   return (
-    `A realistic lifestyle photograph of a young Indian adult wearing this exact ${clean(garment, 40)} in ${clean(teeColour, 30)} — the attached image shows the tee and its printed design. ` +
+    `A realistic lifestyle photograph of a young Indian adult wearing this exact ${clean(garment, 40)} in ${clean(teeColour, 30)} — the attached image shows ${back ? "the BACK of the tee and its printed back design" : "the tee and its printed design"}. ` +
     `Reproduce the printed design EXACTLY as in the attached image: the same artwork, words, colours, placement and size on the tee, not redrawn, not restyled, nothing added to the print. ` +
-    `Setting: ${where}. Relaxed natural pose, facing the camera so the front print is fully visible, natural skin and fabric, shallow depth of field. Photo-real, 3:4 portrait. No text, no logo overlays, no watermark, no frame.`
+    `Setting: ${where}. ` +
+    (back
+      ? `Standing relaxed with the back to the camera, looking slightly over one shoulder, so the back print is fully visible with its words reading the right way round, natural skin and fabric, shallow depth of field. `
+      : `Relaxed natural pose, facing the camera so the front print is fully visible, natural skin and fabric, shallow depth of field. `) +
+    `Photo-real, 3:4 portrait. No text, no logo overlays, no watermark, no frame.`
   );
 }
 
@@ -152,8 +164,18 @@ export function unfinishedDesigns(sheetRows = [], developRows = [], orders = [],
 /**
  * "Try it on me" (round 7, 8 Nov 2026): the customer's own photo (first image) with the finished tee (second image)
  * put on them — the person, face, pose and place kept, the print exactly as on the tee.
+ * side "back" (13 Nov 2026, feedback 7): the photo shows the customer's back and the second image is the tee's BACK,
+ * so the back print goes on their back (it used to be the front print, always). A plain back stays plain.
  */
-export function tryOnPrompt({ garment = "t-shirt", teeColour = "white" }) {
+export function tryOnPrompt({ garment = "t-shirt", teeColour = "white", side = "front" }) {
+  if (teeSide(side) === "back") {
+    const g = clean(garment, 40);
+    return (
+      `Two images are attached. The FIRST is a photo of a person seen from behind (their back to the camera). The SECOND shows the BACK of a ${g} in ${clean(teeColour, 30)}, with whatever is printed on its back. ` +
+      `Dress the person in the first photo in that exact ${g}: keep their hair, head, body, pose, hands, the lighting and the background exactly as in their photo, still seen from behind — do not turn them round — change only their upper-body clothing to this tee. ` +
+      `The back of the tee must appear on their back exactly as in the second image: the same artwork, words, colours, placement and size, following the folds of the fabric naturally, the words reading the right way round (not mirrored). If that back is plain, keep it plain. Photo-real. No other text, no watermark, no frame.`
+    );
+  }
   return (
     `Two images are attached. The FIRST is a photo of a person. The SECOND shows a ${clean(garment, 40)} in ${clean(teeColour, 30)} with a printed design. ` +
     `Dress the person in the first photo in that exact ${clean(garment, 40)}: keep their face, hair, body, pose, hands, the lighting and the background exactly as in their photo — change only their upper-body clothing to this tee. ` +

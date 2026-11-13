@@ -5,11 +5,13 @@ import { useState } from "react";
 import { createPortal } from "react-dom";
 import { imageUrl } from "../utils/imageUrl";
 import { FEEDBACK } from "./assistantExtras";
+import { useBackLayer } from "./backSteps";
 
 // last + onSay (round 8): the newest sheet also gets one-tap feedback ("Too busy", "Other colours" ...)
 export default function SheetCard({ sheet, live = true, last = false, onPick, onMore, onSay }) {
   const [open, setOpen] = useState(false); // the large view
   const [copied, setCopied] = useState(false); // Share (round 5): the link went to the clipboard
+  useBackLayer(open, () => setOpen(false)); // the phone's Back button closes the large view first (13 Nov 2026)
   // the phone's share sheet with the sheet's link (WhatsApp …); else the link is copied
   const share = async () => {
     const url = imageUrl(sheet.url, 2000);

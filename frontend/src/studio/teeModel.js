@@ -19,8 +19,14 @@ export const TEE_MODELS = {
     // team's sheet doesn't cover the main areas). Sleeves: below the sleeve top.
     // neck = the collar line at the centre (the print team measures from the collar seam): areas with the print team's
     // start line (collarCm) are measured down from it.
+    // The model's front collar is only ~3 cm below its back one, so the Front and Back views looked alike (13 Nov 2026,
+    // feedback 1). The room draws the front collar 3 cm lower (neckDip.js): neck = the model's own front collar seam
+    // before that, by = how much lower, half = half the neck opening's width (metres).
+    neckDip: { neck: 1.58, by: 0.03, half: 0.09 },
     anchors: {
-      front: { top: 1.58 - 0.08, neck: 1.58 },
+      // 3 cm lower with the collar (neckDip), so prints keep their distance from the collar seam. Keep top 8 cm
+      // under neck: printFiles.js EST_START.front says the same.
+      front: { top: 1.58 - 0.03 - 0.08, neck: 1.58 - 0.03 },
       back: { top: 1.6096 - 0.07, neck: 1.6096 },
       left: { top: 1.5286 - 0.05, lateral: 0.0314 }, // wearer's left sleeve (raw +x)
       right: { top: 1.5174 - 0.05, lateral: 0.0444 }, // wearer's right sleeve (raw −x)
@@ -48,8 +54,9 @@ export const TEE_MODELS = {
     credit: { text: "3D tee: “oversized_t-shirt” by ap-school, CC BY 4.0 (cropped)", href: "https://sketchfab.com/3d-models/oversized-t-shirt-e6f9b60f58404ccaa40e8e3bdb4edc95" },
     lengthCm: 48.3,
     hangHalfHeight: 0.355, // hang from the shoulders at the full tee's height (half the oversized tee's 0.71 m)
+    neckDip: { neck: 1.58, by: 0.03, half: 0.09 }, // the same collar as the oversized tee (same heights to 0.1 mm)
     anchors: {
-      front: { top: 1.58 - 0.08, neck: 1.58 },
+      front: { top: 1.58 - 0.03 - 0.08, neck: 1.58 - 0.03 }, // lowered with the collar, as on the oversized tee
       back: { top: 1.6096 - 0.07, neck: 1.6096 },
       left: { top: 1.5286 - 0.05, lateral: 0.0314 },
       right: { top: 1.5174 - 0.05, lateral: 0.0444 },

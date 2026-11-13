@@ -1,6 +1,7 @@
 // The yellow "Test mode" band at the top of the shop (5 Nov 2026) — shown when a team account is in the shop through
 // Admin → Design Studio → Test as a customer (the login carries testMode). Orders placed meanwhile are test orders.
 import { adminHref } from "../utils/siteUrls";
+import { forgetDesignRoom } from "../studio/chatStore";
 
 export default function TestModeBand({ user }) {
   if (!user?.testMode) return null;
@@ -10,6 +11,7 @@ export default function TestModeBand({ user }) {
     } catch {
       /* nothing saved */
     }
+    forgetDesignRoom(); // (13 Nov 2026) the test design room and its chats go too
     window.location.assign("/"); // a full reload: every page forgets the test login
   };
   return (

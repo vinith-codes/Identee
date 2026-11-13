@@ -10,6 +10,7 @@ import { createPortal } from "react-dom";
 import { imageUrl } from "../utils/imageUrl";
 import orderService from "../services/orderService";
 import groupService from "../services/groupService";
+import { useBackLayer } from "./backSteps";
 import { groupLink, ORDER_WORDS, orderNo, ownDesignId, findOrder, sizeAnswers, spotWords, spotName, voteFromSheet, voteLeader, SIZE_LIMITS } from "./assistantExtras";
 
 const token = () => {
@@ -392,6 +393,7 @@ export function GroupCard({ group = {}, sheet, ctx, live, onPatch, onSay, onMess
 export function SpotPicker({ url, fabric, onUse, onClose }) {
   const [spot, setSpot] = useState(null); // { x, y } from 0 to 1
   const pic = useRef(null);
+  useBackLayer(true, onClose); // the phone's Back button closes it, like ✕ (13 Nov 2026)
   const mark = (e) => {
     const box = pic.current?.getBoundingClientRect();
     if (!box?.width) return;

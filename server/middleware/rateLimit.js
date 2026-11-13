@@ -1,8 +1,10 @@
-// Minimal in-memory, per-IP fixed-window rate limiter.
+// Minimal in-memory, fixed-window rate limiter — per IP address, or per whatever `key(req)` returns.
 // Fine for a single server process; switch to a shared store (e.g. Redis)
 // if the API ever runs on multiple instances.
-const rateLimit = ({ windowMs, max, message = "Too many requests. Please try again later." }) => {
-  const hits = new Map(); // ip -> { count, resetAt }
+// key (13 Nov 2026): routes that run after `protect` can count per customer (key: (req) => req.user._id), so
+// customers behind one mobile-network address don't share one limit.
+const rateLimit = ({ windowMs, max, message = "Too many requests. Please try again later.", key = null }) => {
+  const hits = new Map(); // ip (or key) -> { count, resetAt }
 
   setInterval(() => {
     const now = Date.now();
@@ -10,7 +12,13 @@ const rateLimit = ({ windowMs, max, message = "Too many requests. Please try aga
   }, windowMs).unref();
 
   return (req, res, next) => {
-    const ip = req.ip || req.socket?.remoteAddress || "unknown";
+    let who = "";
+    try {
+      who = key ? String(key(req) || "") : "";
+    } catch {
+      who = "";
+    }
+    const ip = who || req.ip || req.socket?.remoteAddress || "unknown";
     const now = Date.now();
     let entry = hits.get(ip);
 

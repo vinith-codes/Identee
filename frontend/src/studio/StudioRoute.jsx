@@ -30,5 +30,7 @@ export default function StudioRoute() {
       </>
     );
   }
-  return <DesignRoomPage />;
+  // a new page per garment (13 Nov 2026): switching garment inside the room ("the same tee again" of another garment,
+  // a design of another garment from My designs) must not write this tee and chat into that garment's kept room
+  return <DesignRoomPage key={type} />;
 }

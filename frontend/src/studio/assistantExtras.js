@@ -1,6 +1,7 @@
 // studio/assistantExtras.js — the small rules behind the Assistant's round 8 (11 Nov 2026): feedback chips under a
 // concept sheet, "change this spot", tips while a picture is drawn, the pictures-left line, the mic's language,
 // orders in the chat and the group link. All pure (no React, no network), so they are tested in tests/round8.test.mjs.
+// Round 9 (13 Nov 2026): 💡 Suggest and talking with the Assistant (tests/round9.test.mjs).
 
 /* ---------- one-tap feedback under a concept sheet ---------- */
 // label: what the chip shows · say: what is sent to the Assistant (as if typed, so the brain answers with a new sheet)
@@ -72,6 +73,109 @@ export const saveMicLang = (key) => {
   }
 };
 export const nextMicLang = (key) => MIC_LANGS[(MIC_LANGS.findIndex((l) => l.key === key) + 1) % MIC_LANGS.length].key;
+
+/* ---------- round 9 (13 Nov 2026): 💡 Suggest, and talking with the Assistant ---------- */
+// 💡 Suggest: what is sent to the Assistant (it avoids "idea" and "design", so the brain doesn't draw a concept sheet).
+// The brain answers with 3 next steps as chips; nothing on the tee changes until one is tapped.
+// off: said when the smart chat can't answer just now (never handed to the fixed chat, which would take it as a change)
+export const SUGGEST = { label: "Suggest", say: "Give me 3 suggestions for my tee (don't change it yet)", off: "Suggestions aren’t available just now. Tell me what you’d like to change and I’ll help." };
+
+// what the mic says when it couldn't listen ("aborted" and anything unknown: nothing)
+const KEYBOARD = " You can also tap the 🎤 on your keyboard.";
+export const MIC_ERRORS = {
+  "not-allowed": "The microphone isn’t allowed here. Allow it in the browser’s site settings, or type." + KEYBOARD,
+  "service-not-allowed": "Listening is switched off on this phone (iPhone: Settings › General › Keyboard › Dictation)." + KEYBOARD,
+  "no-speech": "I didn’t hear anything. Tap 🎤 and speak while it is red.",
+  "audio-capture": "No microphone was found." + KEYBOARD,
+  network: "Listening needs the internet. Check the connection, or type.",
+  "language-not-supported": "This browser can’t listen in Tamil, so I switched the mic to English." + KEYBOARD,
+};
+export const micError = (why) => MIC_ERRORS[why] || "";
+
+export const isTamil = (t) => /[஀-௿]/.test(String(t || ""));
+
+// An answer as it should be read out: no emoji, no page addresses ("(/refund-policy)"), ₹699 said as "699 rupees",
+// no quote marks or stars. Apostrophes stay (I’ll is still read as I'll). Long answers stop at a sentence near 600 letters.
+export function cleanForVoice(t) {
+  const s = String(t || "")
+    .replace(/\s*\(\/[\w\-/#?=&.]*\)/g, "")
+    .replace(/₹\s?([\d,]+)/g, "$1 rupees")
+    .replace(/[’‘]/g, "'")
+    .replace(/[“”"*#✓↻›•…]/g, " ")
+    .replace(/\p{Extended_Pictographic}|\p{Emoji_Modifier}|\p{Regional_Indicator}|️|‍|⃣/gu, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (s.length <= 600) return s;
+  const cut = s.slice(0, 600);
+  const end = Math.max(cut.lastIndexOf(". "), cut.lastIndexOf("? "), cut.lastIndexOf("! "));
+  return end > 200 ? cut.slice(0, end + 1) : cut.trim();
+}
+
+// What of a chat message is read out: the Assistant's words, or a concept sheet's numbered titles. Nothing else.
+export function spokenLine(m) {
+  if (!m || m.pending) return "";
+  if (m.sheet) {
+    const list = (m.sheet.concepts || []).filter((c) => c && c.title).map((c) => `${c.n}: ${cleanForVoice(c.title)}`);
+    return list.length ? `${list.join(". ")}. Tap or say the number you like.` : "";
+  }
+  if (m.from === "bot" && typeof m.text === "string") return cleanForVoice(m.text);
+  return "";
+}
+
+// The phone's own voice for these words: Tamil words need a Tamil voice (none: null, the answer stays written).
+// English: Indian English, then British, then any English — voices that live on the device first (the online ones
+// send the words to Google and stop after about 15 s). null: the browser's own default voice is used.
+export function voiceFor(voices, text) {
+  const lang = (v) => String(v?.lang || "").replace(/_/g, "-").toLowerCase();
+  const list = (voices || []).filter((v) => v && lang(v));
+  const best = (arr, rank) =>
+    arr.reduce((pick, v) => {
+      const score = (v.localService ? 0 : 10) + rank(lang(v));
+      return !pick || score < pick.score ? { v, score } : pick;
+    }, null)?.v || null;
+  if (isTamil(text)) return best(list.filter((v) => lang(v).startsWith("ta")), () => 0);
+  return best(list.filter((v) => /^en(-|$)/.test(lang(v))), (l) => (l === "en-in" ? 0 : l === "en-gb" ? 1 : 2));
+}
+
+// Reading answers aloud: on unless the customer turned it off on this device
+const READ_KEY = "identee:readAloud";
+export const readReadAloud = () => {
+  try {
+    return localStorage.getItem(READ_KEY) !== "0";
+  } catch {
+    return true;
+  }
+};
+export const saveReadAloud = (on) => {
+  try {
+    localStorage.setItem(READ_KEY, on ? "1" : "0");
+  } catch {
+    /* private window: the choice lasts until the page is closed */
+  }
+};
+
+/* ---------- the words typed in the chat box, kept until sent (13 Nov 2026) ---------- */
+// One box per garment's room (room = the garment key), for the chat it was typed in: closing the Assistant, a reload or
+// an accidental exit doesn't lose them. Tested in tests/typedBox.test.mjs.
+export const TYPED_KEY = (room) => `identee:typed:v1:${room}`;
+export const readTyped = (room, chatId) => {
+  try {
+    const v = JSON.parse(localStorage.getItem(TYPED_KEY(room)) || "null");
+    return v && v.chatId === chatId && typeof v.text === "string" ? v.text : "";
+  } catch {
+    return "";
+  }
+};
+export const keepTyped = (room, chatId, text) => {
+  try {
+    const v = JSON.parse(localStorage.getItem(TYPED_KEY(room)) || "null");
+    if (!text && v?.chatId !== chatId) return; // a new, empty chat leaves the other chat's words alone
+    if (!text) localStorage.removeItem(TYPED_KEY(room));
+    else localStorage.setItem(TYPED_KEY(room), JSON.stringify({ chatId, text: String(text) }));
+  } catch {
+    /* private window: the words last until the page is closed */
+  }
+};
 
 /* ---------- size from height and weight ---------- */
 export const SIZE_LIMITS = { height: [90, 215], weight: [10, 170] };

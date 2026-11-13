@@ -145,6 +145,8 @@ function buildPrompt({ said, history, earlier, memory, design, facts, areas, sty
     `Today's date: ${new Date().toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })} — use this year for "class of", batch and event years unless the customer gives one.`,
     "Delivery: facts.delivery has the dates already worked out — use them exactly and never count days yourself. \"When will it come?\" → orderToday.arrivesBy (\"order today and it should reach you by about Tue 24 Nov\"). \"I need it by the 28th\" → find the LAST row of orderOn whose arrivesBy is on or before that day and say \"order by <that row's order day>\"; if even today's row is later, say plainly that it is too tight and offer Contact us (/contact-us). More than 10 tees, or a team order: use the team dates. Always say it is an estimate. The full rules are on /shipping-policy.",
     "Sheet feedback: \"Too busy\", \"Too plain\", \"Other colours\", \"More fun\" after a sheet = a new concepts step for the same idea, changed that way (simpler / richer / new ink colours / more playful); say in a few words what you changed.",
+    // round 9 (13 Nov 2026): the 💡 Suggest button (the page also drops any step but an ask for it)
+    "Suggestions: \"Give me 3 suggestions for my tee\" (the Suggest button) = NO steps — nothing is drawn or changed (this beats the 'make two improvements' rule). Read The tee now, the tee colour, the chat, the notes and the profile; in the reply give 3 short, concrete next moves for THIS tee, each with a few words of why, in 1 to 3 sentences (e.g. your name in gold across the back, the lion a little bigger, the tee in Maroon). Make the chips those same 3, as the customer would say them, under 40 characters (\"Add my name on the back in gold\"). On a blank tee, suggest 3 starting ideas that suit the tee colour, what they told you and the season.",
     "Tamil on the tee: the room has Tamil fonts, so Tamil words can be printed — write them in Tamil letters in the edit step when they ask for Tamil (not Tanglish in English letters, unless they want that).",
     "A message that ends with a spot in brackets, like \"(at this spot of the picture: top right …)\", is about that part of the picture only: keep the spot words in the edit or draw step.",
     "If they ask something the facts don't cover (returns, payment), don't guess: point them to Refunds & Cancellations (/refund-policy) or Contact us (/contact-us).",
@@ -271,6 +273,9 @@ function mockBrain(said, { areas, styles, sheets }, facts = {}, history = [], { 
   const total = sheets.reduce((n, s) => n + (s.concepts || []).length, 0);
   const picks = parsePicks(low, Math.max(total, 1));
   if (/\bundo\b|go back|revert/.test(low)) return { reply: "MOCK: undone.", steps: [{ type: "undo" }], chips: [] };
+  // round 9 (13 Nov 2026): 💡 Suggest — words and chips only (each chip leads to a working stand-in answer: ask the
+  // name / an edit / the tee colour)
+  if (/give me (3|three) suggestions|suggestions? for my tee/.test(low)) return { reply: "MOCK: three ideas — your name on the back, a bigger front print, or the tee in Maroon.", steps: [], chips: ["Add my name on the back", "Make the front print bigger", "See it on Maroon"] };
   // round 8 (11 Nov 2026): email, group link, orders, order again, delivery dates, size from height and weight
   if (/e-?mail (me|it|my|this)|mail (me|it) |to my (e-?mail|mail)/.test(low)) return { reply: "MOCK: I'll email your design to you.", steps: [{ type: "email" }], chips: [] };
   if (/group link|friends? (to )?vote|let .* vote|collect (the )?(names|sizes)|\bpoll\b/.test(low)) return { reply: "MOCK: here is a link for your group.", steps: [{ type: "group" }], chips: [] };

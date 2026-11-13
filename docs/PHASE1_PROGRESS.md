@@ -1184,3 +1184,178 @@ tee ₹599 + ₹100; mixed cart of 2 pays ₹100, of 3 free), light-only tee pag
   (`?colour=` on the tee page). Backend: `etag` off and `Cache-Control: no-store` on /api — a browser that had opened
   the admin kept the admin's /api/settings/public, Apache's 304 has no Access-Control header, so the shop showed
   "Coming soon" in that browser.
+
+## 12. Design room autosave + saved chats like ChatGPT (13 Nov 2026, feedback point 9 — not committed)
+
+The owner: "the entire design room should be auto saved including the assistant" and "if they click the chat the
+entire chat history is visible". Built on the working copy of `feature/vector-print` (not committed, not live).
+
+- **Whole room kept on this device:** besides the tee, the room copy (`identee:room:v1:<garment>`) now keeps the step
+  (Review comes back, with its sizes), the open print area, the whole chat (no more "last 80 messages"), the words
+  typed but not sent (`identee:typed:v1:<garment>`), a 📎 photo picked but not sent (IndexedDB, `studio/roomFiles.js`),
+  the team order's switch and empty rows, and undo/redo after a reload of the tab (sessionStorage). "Start designing"
+  offers "Continue it" also for a chat with nothing on the tee yet, and Continue brings everything back.
+- **Leaving while a picture is made:** the back arrow and My designs ask first; the browser warns also for "Photo of it
+  worn". A request cut off by leaving says so, with Try again / Something else (+ My pictures for a picture job).
+- **Saved chats:** the whole chat goes to the account (a long one stays under the server's 1,000,000 limit: old idea
+  cards, then the oldest version pictures go — never messages; version pictures are 128 px now). Chats opens as a
+  drawer from the left (86% wide on phones, 320 px on desktop; a tap on the dimmed chat or Esc closes it) and says how
+  long chats are kept.
+- **No lost or mixed-up chats:** every save carries a stamp (`at`, only goes up) — the server keeps the newer copy and
+  answers 409 to an older one (`server/utils/chatStamps.js`). After a reload the page first looks at the account's copy:
+  newer messages from another device come in; if both devices changed it, this device's version is kept as
+  "… (this device)". Nothing is sent when nothing changed (opening a chat doesn't move it up the list). Chats left
+  in a browser carry their owner: signing out clears the design room, and another customer's chats are never shown or
+  moved into a new login. Storage full: other garments' room copies make way, then a shorter copy (the rest comes from
+  the account); a visitor is told once.
+- **Limits unchanged:** 20 chats per customer, 90 days after the last change — one constant each:
+  `frontend/src/studio/chatStore.js` (CHATS_KEPT, CHAT_DAYS), `server/controllers/designChatController.js` (CHATS_KEPT),
+  `server/models/designChatModel.js` (CHAT_DAYS). After changing CHAT_DAYS run `node scripts/updateChatExpiry.js`
+  (dry run) then `--apply` (also gives old chats their stamp) — not run yet.
+- **Server:** the chat save limit counts per customer (120 a minute), not per address.
+- Tests: `frontend/tests/roomSave.test.mjs`, `frontend/tests/typedBox.test.mjs`, `server/tests/designChat.test.mjs`.
+  Not yet checked in a browser (phone 360/375 and desktop) — see the steps in the hand-over.
+
+## 13. Phone / browser Back steps back inside the design room (13 Nov 2026, feedback point 8 — not committed)
+
+The owner: Back on the phone / browser left the design room at once. Now Back steps back inside it first. Built on the
+working copy of `feature/vector-print` after §12 (not committed, not live).
+
+- **What Back does:** the newest thing closes first: a zoomed concept sheet or "Change a part", then the worn photo,
+  the "Added to cart" card, "Where should it go?", Find my size, the Save box, Review (back to Design, with the
+  Assistant as it was), the colour & size menu, Chats, the phone's "Where to print" sheet, the Assistant, the open
+  print area, and then the design step (back to the colour & size card). Only that first screen, with nothing open,
+  lets Back leave the room, as before. Forward after Back opens nothing again.
+- **How:** each step into the room and each panel or pop-up adds one step to the tab's history: the same address, marked
+  `{ drBack: n }`. Something closed with its own ✕ / Cancel / arrow takes its step away quietly, so no Back press is
+  a dead one. The logic is in `frontend/src/studio/backSteps.js`. It is wired in `DesignRoomPage.jsx`, and the chat
+  pop-ups report themselves with `useBackLayer` (`SheetCard.jsx`, `AssistantCards.jsx`).
+- **Chrome's rule:** Chrome's Back skips history steps a page adds without a tap. So a step is only added right after a
+  tap, one per tap. A step not added yet (one tap that opened two things, a photo that arrived later, a reload) is
+  added at the next tap. Until then one Back may close two things, but the room's own entry always shows the card. A
+  room that opens straight into Design (reload, link) with no tap yet still leaves on Back, as before.
+- **Addresses:** the room's in-place address changes (tidying ?new / ?color, Save → ?design=, a chat opened) keep their
+  step. "The same tee again" of the same garment now opens in place. A Back step that lands on an older ?design=
+  never loads that older design: the tee on screen stays and the address is corrected.
+- **Not covered:** the flat 2D studio (no 3D). The "Start a new design?" question inside the colour & size card is
+  untouched (owner's rule), so Back there still leaves the room.
+- Tests: `frontend/tests/backSteps.test.mjs` (a simulated tab history with Chrome's skip rule). Not yet checked in a
+  browser: real Android Chrome (Back button / gesture), iPhone Safari swipe-back, desktop Alt+← / mouse Back, and
+  that Google Analytics / Meta Pixel send no extra page views for these same-address steps.
+
+## 14. Phone keyboard no longer hides the Assistant's question box (13 Nov 2026, feedback point 4 — not committed)
+
+The owner: on a phone the keyboard covered the Assistant's "Describe your idea…" box, so the customer couldn't see
+what they typed. Built on the working copy of `feature/vector-print` after §13 (not committed, not live).
+
+- **Why:** a phone's keyboard covers the screen without making the page shorter. Since 21 Oct the room is moved into
+  the strip above the keyboard (`.dr-app[data-kb]`, `--vv-top` / `--vv-h`), but only when the phone sent a
+  visible-area event, with the numbers of that one moment. iPhones send the keyboard's height and the page's slide
+  late and in steps (above all the first time), sometimes with no event at the end, so the box could stay under it.
+- **Now (`frontend/src/studio/keyboardFit.js`, used by `DesignRoomPage.jsx`):** after every tap on a box, focus, key or
+  visible-area change, a phone measures the room again on every frame for 2 s — every time a box is used, not only
+  the first. A tap on a box that already has the focus counts too (no focus event then). The keyboard only counts
+  while a box to type in (or a list) has the focus, so the room is never left squeezed after it has gone (iOS 26).
+  When it closes the page is held at the top while the keyboard slides away. Numbers are written only when they
+  change. Laptops: one look per event, never fitted, as before.
+- **Room for the box:** while the keyboard is up (phones only), the "Edit it by hand" link, the "pictures left today"
+  line and the busy note hide, and the panel header is a little slimmer; all come back when it closes. The wait card
+  in the chat still has Stop. The chat keeps its newest message in sight when it gets shorter or taller (keyboard,
+  box growing), but not while a box inside the chat (team note, size card) is being typed in.
+- **Testing on a real phone:** on the dev server only, `?kb=1` in the address shows a small line of the numbers at the
+  top left (`inner`, `vv`, `top`, `y`, `box`, `kb`). Photograph it if the box hides again. Never in the live build.
+- **Not changed:** `index.html` (no `interactive-widget`: iPhone Safari ignores it, and on Android it would lift the
+  shop's bottom bar on every page). The room's top bar still shows while typing; hiding it would give small iPhones
+  about 60 px more chat, but it is a visible design change and waits for the owner.
+- Tests: `frontend/tests/keyboardFit.test.mjs` (a stand-in phone with late and missing events). Not yet checked on a
+  real iPhone / Android phone.
+
+## 15. Talk to the Assistant, and 💡 Suggest (13 Nov 2026, feedback points 5 + 6 — not committed)
+
+The owner: "Talk to me for design" and "Suggestions from AI". Built on the working copy of `feature/vector-print` after
+§14 (not committed, not live). More detail: docs/ASSISTANT_V2_PLAN.md, "Round 9".
+
+- **Talking (point 5):** the customer taps 🎤 and speaks; the words appear in the box and are sent by themselves 1.5 s
+  after they stop ("Sending what I heard… Wait"). Wait, or a tap on the words, stops the sending so a word can be
+  fixed; Send then sends it and the answer is still read out. Only words heard without a mic error are sent.
+- **Answers read aloud:** the answer to a spoken message (the first reply, then the concept titles when the sheet lands)
+  is read with the phone's own free voice (`studio/voiceInput.js` `speak`), with "🔊 Reading my answer… Stop / Turn
+  off" over the box. The speaker button next to the mic turns it on or off, remembered on the device
+  (`identee:readAloud`). Typed messages are never read out. Closing the Assistant or opening another chat stops it.
+  Tamil answers are read only where the phone has a Tamil voice; else they stay written.
+- **Mic problems** (not allowed, no speech, no mic, no internet, Tamil not supported) now get a plain note over the box,
+  ending with the keyboard's own 🎤 where that helps. After listening, a phone's keyboard no longer jumps up.
+- **💡 Suggest (point 6):** in the new Assistant's box, in place of "✨ Improve my idea" (the old chat keeps Improve).
+  The Assistant looks at the tee and offers 3 next steps as chips; nothing changes until one is tapped (the page drops
+  any step the AI still sends). One chat message per tap. Hidden while words are in the box or a photo waits.
+- **Browse ideas** with no sheets ticked in Admin now offers "Help me start (3 taps)" and this month's starters instead
+  of "No ideas to browse yet".
+- **Send button fix:** the box's row now wraps, so Send can never leave the box (it did on 360/375 px phones and in
+  761–1279 px laptop windows while Improve showed). Phones up to 380 px get a tighter row (4 px gaps, 36 px 📎/🎤), so
+  📎 🎤 EN 🔊 💡 Suggest ➤ fits one line, also with தமிழ். Server: one new brain rule and a stand-in answer for Suggest.
+- Tests: `frontend/tests/round9.test.mjs` (16, with a stand-in browser voice) and one more in
+  `server/tests/assistantBrain.test.mjs`. Not yet checked: a real phone's mic and voice (Android Chrome, iPhone Safari —
+  an iPhone may play the answer quietly after the mic, or not at all with the silent switch on), and Suggest with the
+  real AI (about ₹0.20 a tap, owner's OK first).
+
+## 16. Try it on me uses the back design for a back photo (13 Nov 2026, feedback point 7 — not committed)
+
+The owner: when the customer uploads a photo of their back in "Try it on me", the AI must put the BACK design on it
+(it used the front). Built on the working copy of `feature/vector-print` after §15 (not committed, not live).
+
+- **Why:** Review already takes a picture of each side of the tee (`shots`: front, back, left, right), but both AI
+  buttons always sent the front one, and the AI instructions never mentioned a side. So a back photo got the front
+  print, and "Photo of it worn" could never show a back print (a tee printed only on the back came out plain).
+- **Try it on me:** the tap now opens a small question under the buttons, "Which side of you does your photo show?"
+  with Front / Back / Cancel. The photo picker opens from the Front / Back tap itself (phones allow that). The page
+  sends that side's picture of the tee and `side` to `POST /api/ai/tryon`. For the back, the instruction keeps the
+  person seen from behind (not turned round), the words the right way round, and a plain back stays plain. It always
+  asks, because the answer depends on the photo, not on the design.
+- **Photo of it worn:** printed on the front and the back → the same question ("Show the tee from the front or the
+  back?"); printed on the back only → the back straight away; anything else → the front, as before. From behind it
+  uses the Studio's back pose (back to the camera, looking over one shoulder).
+- **Unchanged:** the front instructions word for word, the price (still one AI picture per tap, the same daily
+  count), and an older open page that sends no side (it gets the front). The question starts closed every time Review
+  opens. It is not a Back step of its own (feedback 8): the phone's Back from Review goes to Design as before, so the
+  history never moves at the moment the photo picker opens. The colour + size card is not touched.
+- **Release:** put the server and the website live together (or the server first). A new page with the old server
+  would send the back picture with the old "facing the camera" worn instruction.
+- **Layout:** the question sits in line with the buttons above it; the three buttons (84 px each) fit one row in the
+  296 px a 360 px phone leaves, and wrap rather than overflow. Desktop: the 380 px Review panel.
+- Code: `frontend/src/studio/teeSide.js` (new), `DesignRoomPage.jsx`, `designRoom.css`, `services/aiService.js`
+  (comments), `server/services/conceptSheets.js` (`teeSide`, `side` in `wornPrompt` / `tryOnPrompt`),
+  `server/controllers/assistantController.js`. Tests: `frontend/tests/teeSide.test.mjs` (4) and one more in
+  `server/tests/conceptSheets.test.mjs`. Not yet checked in a browser, on a real phone (the picker must open from the
+  Back tap on iPhone Safari and Android Chrome), or with the real AI (owner's OK first, about ₹3 a picture).
+- **Testing on the laptop:** start the server with `$env:AI_IMAGE_PROVIDER = "mock"; $env:FILE_STORAGE = "local"`
+  in the same PowerShell window. `server/.env` has no FILE_STORAGE line but has the Cloudinary keys, so without it the
+  result pictures would go to the real Cloudinary.
+
+## 17. Front and back of the tee told apart at a glance (13 Nov 2026, feedback point 1 — not committed)
+
+The owner: you should be able to tell the front of the tee from the back by looking at it; the front neckline must
+sit lower than the back one. Built on the working copy of `feature/vector-print` after §16 (not committed, not live).
+
+- **Why:** the bought Oversized 3D model has its front collar only 2.8 cm under the back one (a real crew neck is
+  about 6–8 cm), so with one plain colour and the camera straight on, Front and Back looked the same. The small tees
+  on the "Where to print" cards differed by one curve number: under 2 px on a card.
+- **3D Oversized tee (and Oversized Crop, same collar):** `studio/neckDip.js` (new) lowers the front of the collar by
+  3 cm in a round U when the model loads (full in the middle, nothing at the shoulders, fading out 15 cm down; the
+  back half never moves). The front now sits about 6 cm under the back, like the Round Neck. Settings in
+  `teeModel.js` (`neckDip`). The tee's size and middle do not change, so the Review, cart, order and admin mockup
+  pictures (`MockupCamera.jsx`, `mockupCrop.js`) keep their framing and simply show the new neck.
+- **Front prints:** the front anchors moved down 3 cm with the collar, so every front print keeps its distance from
+  the collar seam (how the print team measures). On the 3D tee they show 3 cm lower against the shoulders. Print
+  files, job cards and real print sizes do not change. The anchors stay 8 cm apart (`printFiles.js` EST_START).
+- **Round Neck 3D:** not changed. Its front collar is already 4.9 cm under the back. Its 2D hanger photos are being
+  redone separately and were not touched.
+- **Cards ("Where to print", also the admin Studio):** one outline for both sides (the back collar); Front and Sleeve
+  cards add the lower front neckline with the inside of the tee showing (darker band, a light line on dark tees).
+  About 4 px deep on a 58 px phone card, 6 px on desktop. Card sizes and layout do not change; no print box is
+  covered (the highest starts at y 46.6, the neck ends at 23).
+- **Checked:** 8 tiny triangles (under 1 cm² together) at the collar seam turn over when the collar moves; none is
+  the first thing seen from any of 42 camera directions (front, sides, above). The critic tried the same function on the live page (in
+  memory): no specks in the light or dark studio. Not yet opened in a browser after the change.
+- Code: `frontend/src/studio/neckDip.js` (new), `Room3D.jsx` (`useTeeGeometry`), `teeModel.js`, `AreaThumb.jsx`,
+  `designRoom.css`. Tests: `frontend/tests/neckDip.test.mjs` (6, on the real model files).
+- **Owner question:** is 3 cm deeper right, or a little more or less? (`neckDip.by`, one number for each tee.)
