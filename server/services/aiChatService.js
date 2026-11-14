@@ -10,7 +10,8 @@
 //
 //   AI_CHAT_MODEL      optional, defaults to AI_IDEA_MODEL or gemini-flash-latest
 //   AI_CHAT_PROVIDER   "mock": a fixed stand-in answer, no Google call (for testing without cost)
-import { askJson, aiTextConfigured } from "./aiTextService.js";
+import { askJson, aiTextConfigured, AREA_WORDS_RULE } from "./aiTextService.js";
+import { aiAreas } from "../data/printPositions.js";
 
 export const chatModel = () => process.env.AI_CHAT_MODEL?.trim() || process.env.AI_IDEA_MODEL?.trim() || "gemini-flash-latest";
 const mock = () => process.env.AI_CHAT_PROVIDER?.trim() === "mock";
@@ -105,7 +106,7 @@ function buildPrompt({ said, history, earlier = [], memory = "", design, facts, 
     `Today's date: ${new Date().toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })} — use this year for "class of", batch and event years unless the customer gives one.`,
     "If they ask something the facts don't cover (delivery days, returns, payment), don't guess: point them to the Shipping & Delivery page (/shipping-policy), Refunds & Cancellations (/refund-policy) or Contact us (/contact-us).",
     "Stay on topic: their tee, designs, printing and ordering at IDENTEE. For anything else, answer kindly in one sentence and steer back to their design.",
-    "Print areas: " + JSON.stringify(areas.map((a) => ({ key: a.key, label: a.label, free: a.free !== false }))) + ". For \"front\" use centre-front and for \"back\" use full-back (as the rest of the Assistant does), unless they name another area or that one isn't free. Picture styles: " + JSON.stringify(styles) + ".",
+    "Print areas: " + JSON.stringify(aiAreas(areas.map((a) => ({ key: a.key, label: a.label, free: a.free !== false })))) + ". For \"front\" use centre-front and for \"back\" use full-back (as the rest of the Assistant does), unless they name another area or that one isn't free. " + AREA_WORDS_RULE + " Picture styles: " + JSON.stringify(styles) + ".",
     "The tee now: " + JSON.stringify(design).slice(0, 6000),
     memory ? "Notes from earlier in this chat (the customer's own wishes, keep to them): " + JSON.stringify(clip(memory, MEMORY_MAX)) : "",
     earlier.length ? "Earlier messages:\n" + asLines(earlier) : "",

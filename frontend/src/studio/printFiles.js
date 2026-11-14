@@ -304,7 +304,6 @@ const isDark = (hex) => {
 // One side of the tee with its prints → a 1200 × 1060 canvas.
 // prints: [{ n, area, size, cm: [w, h], box, drawn }] all on `side`
 function teeMap({ side, prints, tee }) {
-  const S = MAP_PX;
   const c = document.createElement("canvas");
   c.width = 1200;
   c.height = 1060;
@@ -318,12 +317,24 @@ function teeMap({ side, prints, tee }) {
   g.font = "bold 40px Arial";
   g.fillText(side === "back" ? "BACK" : "FRONT", 30, 56);
 
-  // the tee
+  // the tee: 74 cm from the shoulders, or longer when a print reaches lower (a Lower Back on a 3XL starts 64 cm
+  // under the collar, 14 Nov 2026) — then drawn a little smaller so it still fits; prints and distances stay to scale
+  const dropCm = side === "back" ? 2.5 : 8; // neckline depth at the centre
+  const ribCm = 2;
+  const lowest = Math.max(
+    0,
+    ...prints.map((pr) => {
+      const collar = pr.area.collarCm?.[String(pr.size).toUpperCase()];
+      return (collar != null ? collar : (EST_START[side] || 8) + (pr.area.main ? 0 : pr.area.place?.topCm || 0)) + pr.cm[1];
+    }),
+  );
+  const lengthCm = Math.max(74, dropCm + ribCm + lowest + 2);
+  const S = Math.min(MAP_PX, (c.height - top - 76) / lengthCm);
   const half = 32 * S; // body half width
-  const hem = top + 74 * S;
+  const hem = top + lengthCm * S;
   const neckHalf = 9 * S;
-  const drop = (side === "back" ? 2.5 : 8) * S; // neckline depth at the centre
-  const rib = 2 * S;
+  const drop = dropCm * S;
+  const rib = ribCm * S;
   g.fillStyle = tee || "#EEEEEE";
   g.strokeStyle = "#3A3530";
   g.lineWidth = 3;

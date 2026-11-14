@@ -2,13 +2,15 @@
 // Every print area of the tee, grouped Front / Back / Sleeves, each marked Free, Has a design (then "Add next to
 // it" or "Replace it") or Covered by another print (can't be picked, and says why). Free areas come first in each
 // group; the area being edited is suggested. Centred on a laptop, a sheet from the bottom on a phone (dr-ask).
+// Each row: the size for the chosen tee size and a few words on where it is ("26 × 7 cm · One line of words across
+// the chest"); the rows come in list order (areaGroups.js: main spot, big prints, chest and strips, small hits).
 import { useState } from "react";
 import { imageUrl } from "../utils/imageUrl";
 import { pictureLabel } from "./pictureHelpers";
 
 /**
  *   picture   { url, kind, about, style }
- *   groups    [[groupLabel, [{ key, label, cm: [w, h], state: "free" | "used" | "blocked", has, blockers, hint }]]]
+ *   groups    [[groupLabel, [{ key, label, where, cm: [w, h], state: "free" | "used" | "blocked", has, blockers, hint }]]]
  *   suggest   the print area to suggest (the one open now, when free)
  *   onPlace(key, replace)   put it there — replace: take off what that area has first
  *   onForget()   take the picture off My pictures
@@ -71,9 +73,10 @@ export default function PlaceSheet({ picture, groups, suggest, onPlace, onForget
                         </b>
                         <small>
                           {a.cm[0]} × {a.cm[1]} cm
+                          {a.where ? ` · ${a.where}` : ""}
                         </small>
                       </span>
-                      <span className={`dr-place-pill ${a.state}`}>{a.state === "free" ? (a.hint ? `Free · ${a.hint}` : "Free") : a.state === "used" ? `Has ${a.has}` : `Covered by ${a.blockers[0]}`}</span>
+                      <span className={`dr-place-pill ${a.state}`}>{a.state === "free" ? (a.hint ? `Free · ${a.hint}` : "Free") : a.state === "used" ? `Has ${a.has}` : `Covered by ${a.blockers[0]}${a.blockers.length > 1 ? ` +${a.blockers.length - 1}` : ""}`}</span>
                     </button>
                   ),
                 )}

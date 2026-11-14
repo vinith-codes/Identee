@@ -6,8 +6,12 @@
 // costs a fraction of a paisa.
 //
 //   AI_TEXT_MODEL   optional, defaults to gemini-flash-lite-latest
+import { aiAreas } from "../data/printPositions.js";
 
 const TIMEOUT_MS = 20_000;
+// (the area lists below carry each area's "where" and the "words" customers use for it: aiAreas)
+export const AREA_WORDS_RULE =
+  'A place named in the customer\'s own words is the area whose label, "where" or "words" match it ("the nape" / "back of the neck", "a line across the chest", "on the belly", "bottom left corner", "the left strip"). Only use areas from the list.';
 const apiKey = () => process.env.IDENTEE_GEMINI_API_KEY?.trim() || process.env.GEMINI_API_KEY?.trim() || "";
 export const aiTextConfigured = () => Boolean(apiKey());
 const model = () => process.env.AI_TEXT_MODEL?.trim() || "gemini-flash-lite-latest";
@@ -131,7 +135,7 @@ export async function improveIdea({ idea, teeColour, teeIsDark, styles = [], are
     "Never mention the t-shirt, a shirt, a mockup, a background, a base, a frame or a watermark in the prompt. Do not add objects they did not ask for; you may add style details that make it look good. When a word could mean two different things, pick one meaning and name it precisely (never leave the vague word).",
     "expect (in each entry): 2 to 5 short lines for the customer, about that picture only, in the customer's language, each label one or two words (for example Words, Top, Bottom, Style, Colours) and each value under 60 characters. Say plainly what each part will look like, naming objects precisely so the customer can spot a misunderstanding. If there are words, the first line is Words: the exact words. Only if a word the customer wrote really has two likely meanings in this design, the LAST line has the label Check (no Check line otherwise) and says which meaning you chose and what to write instead for the other (for example: Check — I read \"glass\" as a drinking glass; write \"eyeglasses\" if you meant spectacles).",
     "style: the one of these picture styles that suits best; when the customer names a style (lettering, cartoon, watercolour, retro badge…), choose that one; when they want it to look real, realistic, lifelike or like a photo, choose Realistic (or Detailed art for a lifelike painting): " + JSON.stringify(styles),
-    "area (in each entry): the key of the print area the customer named for it (front = the main front area, back = the main back area); when they named none, the one that suits the design's shape best (tall designs with parts at top and bottom suit a tall area; a small logo suits a chest area). Choose from: " + JSON.stringify(areas),
+    "area (in each entry): the key of the print area the customer named for it (front = the main front area, back = the main back area); when they named none, the one that suits the design's shape best (tall designs with parts at top and bottom suit a tall area; a small logo suits a chest area). Choose from: " + JSON.stringify(aiAreas(areas)) + ". " + AREA_WORDS_RULE,
     "The customer's idea: " + JSON.stringify(String(idea).slice(0, 2000)),
   ].join("\n");
   // a stronger (still cheap: about ₹0.03) model than the slogans use — it has to follow many rules at once
@@ -193,7 +197,8 @@ export async function planEdit({ message, design }) {
     "Style requests (\"make it look royal\", \"sporty\", \"cute\", \"minimal\", \"retro\", \"elegant\"): restyle every text item with update ops — choose a fontFamily from the fonts list that suits the mood, an ink color that suits it and shows on the tee, and where it helps a shape, letterSpacingPct or outlineColor. Keep the words unchanged. Say in the reply which font and colours you chose.",
     "A text item may have \"is\": what it stands for — \"team name\", \"player name\" or \"player number\". When the customer names one of these (\"change the team name to…\"), change the item with that \"is\", never another text. A team name can be on the tee more than once: update each item whose \"is\" is \"team name\" with the same new text. \"player name\" and \"player number\" are samples that are replaced per player when ordering; only change them if the customer asks for exactly that.",
     "Rules: only use ids and area keys from the design below. \"it\" / \"this\" / \"the text\" means the selected item if there is one, else the only item of that kind, else the last item in the open area. If it is unclear which item is meant, change nothing and ask. Pick ink colours that show on the tee colour. For words like bigger/smaller use scale. Do not invent slogans unless asked to write or add text.",
-    "The design: " + JSON.stringify(design),
+    AREA_WORDS_RULE,
+    "The design: " + JSON.stringify(Array.isArray(design?.areas) ? { ...design, areas: aiAreas(design.areas) } : design),
     "The customer's message: " + JSON.stringify(String(message).slice(0, 2000)),
   ].join("\n");
   const out = await askJson(prompt, 0.2);
@@ -297,7 +302,7 @@ export async function readPhotoRequest({ image, message, styles = [], photoStyle
     "job: copy = ONLY when they clearly want that exact design reproduced: \"same design\", \"exactly this\", \"copy this\", \"only this design\", \"the design from this tee\", \"print this design on my tee\". photo = print the photo itself (a person, pet, place, object), possibly without its background. art = the photo itself redrawn in an art style (cartoon, sketch, sticker, watercolour, pop art). inspired = a NEW, original design that uses the photo only as a reference or inspiration, with or without a new subject: \"like this\", \"similar to this\", \"something like this\", \"in this style\", \"based on this\", \"inspired by this\", \"use this as a reference\", \"like this but with a tiger\". When you are unsure between copy and inspired, choose inspired. unclear = you cannot tell which; then ask.",
     "seen: what is in the photo, in at most 12 plain words, as you would tell the customer (\"a black t-shirt with a lion and the word ROAR\").",
     "style: for art, one of " + JSON.stringify(photoStyles) + "; for inspired, one of " + JSON.stringify(styles) + "; otherwise null. Only if they named a style or it is clearly implied.",
-    "area: the print area they named, as one of these keys, else null: " + JSON.stringify(areas.map((a) => ({ key: a.key, label: a.label }))),
+    "area: the print area they named, as one of these keys, else null: " + JSON.stringify(aiAreas(areas.map((a) => ({ key: a.key, label: a.label })))) + ". " + AREA_WORDS_RULE,
     'areas: EVERY print area they named for this photo, as keys from the same list, in the order they wrote them ("on the full back and the left chest" → both); [] when none.',
     "change: for copy, what to change while copying (\"the name KINGS XI instead of LIONS\"), else null.",
     "subject: for inspired, what the new design should show, in English: what they asked for, or — when they named nothing new — a fresh idea on the same theme as the photo (for a lion mascot: \"a different fierce animal mascot in the same bold style\"), never a description of the same artwork. Else null.",

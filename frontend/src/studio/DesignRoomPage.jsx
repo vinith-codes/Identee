@@ -23,6 +23,8 @@ import { AreaRenderer, cachedImage, imageSrcs, loadImage, measureText, playerEle
 import { MAX_PLAYERS, NAME_MAX, NUMBER_MAX, filled, hasRoles, parsePlayers, playerLabel, rolesIn, sizeCounts } from "./teamOrder";
 import { areaCm, blockersOf, clashesIn, modelForGarment, placeArea } from "./teeModel";
 import AreaThumb from "./AreaThumb";
+import { AREA_GROUPS, groupOfSide, listOrder } from "./areaGroups";
+import { startFontPct, startTextY } from "./textStart";
 import Rolling from "./Rolling";
 import Assistant from "./Assistant";
 import ChatsPanel from "./ChatsPanel";
@@ -72,13 +74,7 @@ const ICON_AI = "m12 3 1.8 4.7L18 9.5l-4.2 1.8L12 16l-1.8-4.7L6 9.5l4.2-1.8L12 3
 const ICON_PHOTO = "M4 8h3l2-3h6l2 3h3v11H4zM12 16.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z";
 const ICON_AREAS = "M8 4 4 6.5 2 10l3 1.5V20h14v-8.5L22 10l-2-3.5L16 4a4 4 0 0 1-8 0Z";
 const ICON_ADD = "M12 5v14M5 12h14";
-const AREA_GROUPS = [
-  ["Front", ["front"]],
-  ["Back", ["back"]],
-  ["Sleeves", ["left", "right"]],
-  ["Shorts", ["shorts"]], // the co-ord set's shorts (only shown for a garment that has shorts areas)
-];
-const groupOfSide = (side) => AREA_GROUPS.find(([, sides]) => sides.includes(side))?.[0] || AREA_GROUPS[0][0];
+// (the groups Front / Back / Sleeves / Shorts and the order of the areas in them: areaGroups.js)
 const ICON_TEXT = "M5 6h14M12 6v13M9 19h6";
 const ICON_UPLOAD = "M12 16V5m0 0-4 4m4-4 4 4M5 19h14";
 const SIDES = [["front", "Front"], ["back", "Back"], ["left", "Left"], ["right", "Right"]];
@@ -1354,7 +1350,13 @@ export default function DesignRoomPage() {
   const addText = (text, opts = {}) => {
     const pos = ensureArea();
     if (!pos) return;
-    const base = { type: "text", text, fontFamily: "Anton", fontSizePct: opts.small ? 7 : 12, color: inkDefault, align: "center", effect: opts.effect || "straight", x: 50, y: 18 + (elements.filter((e) => e.position === pos.key).length % 4) * 18, width: 0, height: 0 };
+    // the letters start at a size that suits the area's shape (a wide strip like Chest Line gets letters to match its
+    // width, not 8 mm words); a vertical line keeps the plain start, it is fitted to the strip below
+    const n = elements.filter((e) => e.position === pos.key).length;
+    const plainPct = opts.small ? 7 : 12;
+    const box = areaPx(pos);
+    const fontSizePct = opts.vertical ? plainPct : startFontPct(box.W, box.H, opts.small);
+    const base = { type: "text", text, fontFamily: "Anton", fontSizePct, color: inkDefault, align: "center", effect: opts.effect || "straight", x: 50, y: 18 + (n % 4) * 18, width: 0, height: 0 };
     let el = textBox(base, pos);
     if (opts.vertical) {
       // turned 90°: its length runs down the area, so fit it to 90% of the area's height
@@ -1363,9 +1365,13 @@ export default function DesignRoomPage() {
       if (lengthPctOfHeight > 90) el = textBox({ ...el, fontSizePct: (el.fontSizePct * 90) / lengthPctOfHeight }, pos);
       // "up": reads from bottom to top (turned left); otherwise from top to bottom (turned right)
       el = { ...el, rotation: opts.vertical === "up" ? -90 : 90, x: 50 - el.width / 2, y: 50 - el.height / 2 };
-    } else if (el.width > 90) {
-      // long text: shrink so it fits inside the print area (90% wide)
-      el = textBox({ ...el, fontSizePct: (el.fontSizePct * 90) / el.width }, pos);
+    } else {
+      if (el.width > 90) {
+        // long text: shrink so it fits inside the print area (90% wide)
+        el = textBox({ ...el, fontSizePct: (el.fontSizePct * 90) / el.width }, pos);
+      }
+      // the first words in a wide strip sit in its middle; more words stack down without hanging off the bottom
+      el = { ...el, y: startTextY({ n, heightPct: el.height, grown: fontSizePct > plainPct }) };
     }
     addElement(pos, el);
   };
@@ -1966,7 +1972,7 @@ export default function DesignRoomPage() {
       const used = [...new Set(els.map((e) => e.position))].filter((k) => !aiPlaced[k]);
       const hints = {};
       for (const pc of pieces) {
-        hints[pc] = placementHint(concept[pc]); // "small left-chest badge" → the chest area, small
+        hints[pc] = placementHint(concept[pc], positions); // "small left-chest badge" → the chest area, small; "nape logo" → Back Neck
         const pos = pieceArea(pc, positions, used, hints[pc]);
         if (!pos) continue;
         areasFor[pc] = pos;
@@ -2561,8 +2567,7 @@ export default function DesignRoomPage() {
     };
     return AREA_GROUPS.map(([group, sides]) => [
       group,
-      areas
-        .filter((p) => sides.includes(p.side))
+      listOrder(areas.filter((p) => sides.includes(p.side)))
         .map((p) => {
           const { wCm, hCm } = areaPx(p);
           const blockers = usedKeys.includes(p.key) ? [] : blockersOf(p.key, positions, usedKeys).map((b) => b.label);
@@ -2570,11 +2575,14 @@ export default function DesignRoomPage() {
           return {
             key: p.key,
             label: p.label,
+            where: p.hint || "",
             cm: [Math.round(wCm), Math.round(hCm)],
             state: usedKeys.includes(p.key) ? "used" : blockers.length ? "blocked" : "free",
             has: usedKeys.includes(p.key) ? said(p.key) : "",
             blockers,
-            hint: big && p.main ? "best for big pictures" : wCm * hCm <= 200 ? "small, for a logo" : "",
+            // (an area with its own words on where it is — "One line of words across the chest" — needs no size hint;
+            // "small, for a logo" would contradict a words strip and repeat "Small logo on the left chest")
+            hint: big && p.main ? "best for big pictures" : !p.hint && wCm * hCm <= 200 ? "small, for a logo" : "",
           };
         }),
     ]).filter(([, list]) => list.length);
@@ -2814,7 +2822,8 @@ export default function DesignRoomPage() {
   const chatPhotoUnderstand = async (a, run) => {
     const photo = a.photo || chatState.photo;
     if (!photo) return [botSays("I don’t have your photo any more. Tap 📎 and send it again.")];
-    const areas = assistantCtx().areas;
+    // (with the other names customers use for each place, so "at the back of the neck" finds the Back Neck, not Full Back)
+    const areas = assistantCtx().areas.map((x) => ({ ...x, aka: positions.find((p) => p.key === x.key)?.aka || [] }));
     let plan = a.job ? { job: a.job, areaKey: chatState.photoAreaKey || null, areaKeys: chatState.photoAreaKeys || [] } : photoJobFrom(a.text, { areas, photoStyles: ai.photoStyles || [] });
     // their words make the photo a reference ("a design like this", "in this style"): a new design, even if the photo
     // reading says copy — only clear words ("same design", "copy this") make a copy (23 Oct 2026)
@@ -3695,7 +3704,8 @@ export default function DesignRoomPage() {
                     })}
                   </div>
                   {AREA_GROUPS.filter(([title]) => title === areaTab).map(([title, sides]) => {
-                    const list = positions.filter((p) => sides.includes(p.side));
+                    // the side's main spot first, then the big prints, chest prints and strips, then the small hits
+                    const list = listOrder(positions.filter((p) => sides.includes(p.side)));
                     if (!list.length) return null;
                     return (
                       <div key={title}>
@@ -3708,13 +3718,13 @@ export default function DesignRoomPage() {
                               <button
                                 key={p.key}
                                 type="button"
-                                className={`dr-area${active === p.key ? " on" : ""}${used ? " used" : ""}${blockedBy.length ? " blocked" : ""}${hoverKey === p.key && active !== p.key ? " hot" : ""}`}
+                                className={`dr-area${active === p.key ? " on" : ""}${used ? " used" : ""}${blockedBy.length ? " blocked says-why" : ""}${hoverKey === p.key && active !== p.key ? " hot" : ""}`}
                                 onMouseEnter={() => hoverCard(blockedBy.length ? null : p)}
                                 onMouseLeave={() => hoverCard(null)}
                                 onFocus={() => !blockedBy.length && setHoverKey(p.key)}
                                 onBlur={() => setHoverKey(null)}
-                                title={blockedBy.length ? `Overlaps ${blockedBy.map((b) => b.label).join(" and ")} — remove that design first` : `${p.label} · ${w} × ${h} cm`}
-                                aria-label={`${p.label}, ${w} by ${h} cm${used ? ", has a design" : ""}${blockedBy.length ? `, blocked by ${blockedBy.map((b) => b.label).join(" and ")}` : ""}`}
+                                title={blockedBy.length ? `Overlaps ${blockedBy.map((b) => b.label).join(" and ")} — remove that design first` : `${p.label} · ${w} × ${h} cm${p.hint ? ` · ${p.hint}` : ""}`}
+                                aria-label={`${p.label}, ${w} by ${h} cm${p.hint ? `, ${p.hint}` : ""}${used ? ", has a design" : ""}${blockedBy.length ? `, blocked by ${blockedBy.map((b) => b.label).join(" and ")}` : ""}`}
                                 aria-disabled={blockedBy.length ? "true" : undefined}
                                 aria-pressed={active === p.key}
                                 onClick={() => pickAreaByHand(p.key)}
@@ -3723,7 +3733,9 @@ export default function DesignRoomPage() {
                                 <AreaThumb position={p} size={sizeNow} print={used ? thumbs[p.key] : null} fabric={fabricHex} />
                                 {used && <span className="tick" aria-hidden="true">✓</span>}
                                 <b>{p.label}</b>
-                                <span>{w}×{h} cm</span>
+                                {/* a covered card says which print it can't share the tee with (phones have no hover title); "+1" when
+                                    more than one is in the way, so taking off the named one doesn't look like it failed */}
+                                {blockedBy.length ? <span className="why">Not with {blockedBy[0].label}{blockedBy.length > 1 ? ` +${blockedBy.length - 1}` : ""}</span> : <span>{w}×{h} cm</span>}
                               </button>
                             );
                           })}

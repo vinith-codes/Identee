@@ -25,6 +25,9 @@ const AREA_NAMES = {
   "left-sleeve": "Left Sleeve", "right-sleeve": "Right Sleeve", "full-front": "Full Front", "vertical-front": "Vertical Front",
   "front-right-vertical": "Front Right Vertical", "lower-left": "Lower Left", "lower-right": "Lower Right", "top-back": "Top Back",
   "centre-back": "Centre Back", "lower-back": "Lower Back", "vertical-back": "Vertical Back",
+  // free placement phase 1 (14 Nov 2026) — the same names as server/data/printPositions.js
+  "chest-line": "Chest Line", "mid-front": "Mid Front", "front-left-vertical": "Front Left Vertical", "mid-back": "Mid Back",
+  nape: "Back Neck", "left-leg": "Shorts – Left Leg", "right-leg": "Shorts – Right Leg",
 };
 
 /**

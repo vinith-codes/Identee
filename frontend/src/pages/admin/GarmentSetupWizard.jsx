@@ -41,7 +41,10 @@ const withDefaults = (g) => {
 const errMsg = (err, fallback) => err?.response?.data?.message || fallback;
 
 // What's finished, and the one-line summary under each step name.
-function progress(g, images) {
+// catalog = the server's print-area list for this garment (printAreaCatalog): its `offered` is what customers really
+// get. An old saved "offered" with no size on a newer place (Lower Left …) does not count, so the count matches the
+// Print areas step and the design room.
+function progress(g, images, catalog) {
   if (!g) return [];
   const docs = images.filter((d) => d.garmentType === g.key);
   // (a Shop-your-IDENTEE-only colour needs no photos: the Studio takes its own 3D pictures)
@@ -52,7 +55,11 @@ function progress(g, images) {
     return n + VIEWS.filter((v) => d?.[v]?.imageUrl).length;
   }, 0);
   const chartOk = g.sizes.length > 0 && g.sizes.every((s) => g.sizeChart.some((r) => r.size === s && r.chest && r.length));
-  const offered = g.printAreas?.length ? g.printAreas.filter((p) => p.offered).length : 6;
+  const offered = catalog?.length
+    ? catalog.filter((a) => a.offered).length
+    : g.printAreas?.length
+      ? g.printAreas.filter((p) => p.offered).length
+      : 6;
   return [
     { done: g.fabrics.length > 0 && !!g.label, sub: g.basePrice > 0 ? `₹${g.basePrice}` : "Name, fabrics, price" },
     { done: chartOk, sub: g.sizes.length ? `${g.sizes.length} sizes` : "Not set" },
@@ -130,7 +137,7 @@ export default function GarmentSetupWizard() {
     }
   };
 
-  const steps = useMemo(() => progress(garment, images), [garment, images]);
+  const steps = useMemo(() => progress(garment, images, catalog), [garment, images, catalog]);
   const doneCount = steps.filter((s) => s.done).length;
 
   if (loadError) {

@@ -25,19 +25,51 @@ const sideOfKey = (key, positions) => {
   const k = String(key || "");
   if (/leg|shorts/.test(k)) return "shorts";
   if (/sleeve/.test(k)) return k.startsWith("right") ? "right" : "left";
-  return /back/.test(k) ? "back" : "front";
+  return /back|nape/.test(k) ? "back" : "front"; // the nape ("Back Neck") is on the back
 };
+
+// lower case, words only: "Bottom-left corner!" → "bottom left corner"
+const plain = (s) => String(s || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+const ON = "(?:on|at|to|onto|near|in|across|over|under|below|above)"; // a one-word other name needs one of these first
+
+/**
+ * The print area of this garment named in plain words — "the nape", "back of the neck", "bottom left corner", "a
+ * line across the chest", "on the belly": its label ("Back Neck"), its key ("chest-line") or one of the other names
+ * customers use (`aka`, server/data/printPositions.js). The longest name found wins ("left chest" over "chest"). A
+ * one-word other name ("belly", "pocket") counts only after "on / at / to …" or as the whole text: "a cat with a
+ * big belly" names no place. Only areas this garment offers can be found; null when none is named.
+ */
+export function areaInWords(text, positions = []) {
+  const t = plain(text);
+  if (!t) return null;
+  let best = null;
+  let bestLen = 0;
+  for (const p of positions) {
+    const own = [plain(p.label), plain(p.key)];
+    for (const n of [...own, ...(p.aka || []).map(plain)]) {
+      if (!n || n.length <= bestLen) continue;
+      const loose = !own.includes(n) && !n.includes(" ");
+      const hit = t === n || (!loose ? ` ${t} `.includes(` ${n} `) : new RegExp(`(?:^| )${ON} (?:the |my |your |its |his |her )?${n}(?: |$)`).test(t));
+      if (hit) {
+        best = p;
+        bestLen = n.length;
+      }
+    }
+  }
+  return best;
+}
 
 /**
  * The print area to use for an area key the AI chose: that area when this garment has it and it is free,
  * else the biggest free area on the same side (front / back / a sleeve / the shorts), else null.
+ * The AI may also name the place in words ("nape", "Back Neck", "bottom left corner"): those find the area too.
  * @param used  area keys that already carry a print
  */
 export function areaFor(key, positions, used) {
   const free = (p) => used.includes(p.key) || !blockersOf(p.key, positions, used).length;
-  const asked = positions.find((p) => p.key === key);
+  const asked = positions.find((p) => p.key === key) || areaInWords(key, positions);
   if (asked && free(asked)) return asked;
-  const side = sideOfKey(key, positions);
+  const side = asked?.side || sideOfKey(key, positions);
   const size = (p) => (p.cm?.standard ? p.cm.standard[0] * p.cm.standard[1] : 0);
   return positions.filter((p) => p.side === side && free(p)).sort((a, b) => size(b) - size(a))[0] || null;
 }

@@ -1814,3 +1814,14 @@ p.pc-area { margin: 0; font-size: 13px; color: var(--muted); }
 .dr-spot-go:disabled { opacity: .45; cursor: default; }
 .dr-spot-no { border: 1.5px solid rgba(255, 255, 255, .7); background: transparent; color: #fff; }
 .dr-tamilnote { display: block; margin-top: -4px; font-size: 12px; line-height: 1.45; color: var(--ink-soft); }
+
+/* "Where to print" (free placement phase 1, 14 Nov 2026): a card that can't be used now says why ("Not with Centre
+   Front") in words that stay readable; its little tee and name fade as before. Only cards that say why (says-why:
+   the customer's room) — the admin Studio shares these cards without the reason and keeps the whole card faded */
+.dr-side .dr-cards .dr-area.blocked.says-why { opacity: 1; }
+.dr-side .dr-cards .dr-area.blocked.says-why .dr-thumb, .dr-side .dr-cards .dr-area.blocked.says-why b { opacity: .45; }
+.dr-side .dr-cards .dr-area span.why { color: #8A4A12; font-weight: 600; line-height: 1.2; text-wrap: balance; }
+/* phones: the Front / Back / Sleeves tabs over the cards are a full finger tall (44 px), like the cards under them */
+@media (max-width: 760px) {
+  .dr-areatabs button { min-height: 44px; }
+}

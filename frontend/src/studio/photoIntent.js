@@ -25,14 +25,24 @@ const AS_IT_IS = /\b(as|like) (it|this|that) is\b|\bas is\b/;
 // what an inspired design shows when the customer named nothing new: the photo's theme, as new artwork
 export const SAME_THEME = "a new, original design on the same theme as the reference picture";
 
-// The print area named in the words ("on the back", "left chest") — the longest name wins ("vertical front" over
-// "front"); "the front" / "the back" is that side's main free area. null when none is named.
+// Every name a customer may use for an area, longest first, each with the pattern that finds it: its label (and for
+// the shorts' areas also without "Shorts –"), and the other names it is known by when the area carries them (`aka`,
+// server/data/printPositions.js: "nape", "back of the neck", "bottom left" — free placement phase 1, 14 Nov 2026).
+// A one-word other name ("belly", "pocket") counts only after "on / at / in …": "a cat with a big belly" names no place.
+const AKA_BEFORE = String.raw`\b(?:on|at|to|onto|near|in|across|over|under|below|above) (?:the |my |your )?`;
+const namesOf = (areas) =>
+  areas
+    .flatMap((a) => [
+      ...[a.label, a.label.replace(/^shorts\s*[–-]\s*/i, "")].map((n) => ({ a, n: n.toLowerCase(), re: String.raw`\b${escapeRe(n.toLowerCase())}\b` })),
+      ...(a.aka || []).map((n) => ({ a, n, re: n.includes(" ") ? String.raw`\b${escapeRe(n)}\b` : String.raw`${AKA_BEFORE}${escapeRe(n)}\b` })),
+    ])
+    .sort((x, y) => y.n.length - x.n.length);
+
+// The print area named in the words ("on the back", "left chest", "at the back of the neck") — the longest name wins
+// ("vertical front" over "front"); "the front" / "the back" is that side's main free area. null when none is named.
 export function areaFromWords(text, areas = []) {
   const low = String(text || "").toLowerCase();
-  const named = areas
-    .flatMap((a) => [a.label, a.label.replace(/^shorts\s*[–-]\s*/i, "")].map((n) => ({ a, n: n.toLowerCase() })))
-    .sort((x, y) => y.n.length - x.n.length)
-    .find(({ n }) => new RegExp(String.raw`\b${escapeRe(n)}\b`).test(low));
+  const named = namesOf(areas).find(({ re }) => new RegExp(re).test(low));
   if (named) return named.a.key;
   const side = /\b(on|at|for|to) (the |my )?back\b/.test(low) ? "back" : /\b(on|at|for|to) (the |my )?front\b/.test(low) ? "front" : null;
   return side ? areas.find((a) => a.side === side && a.main && a.free)?.key || areas.find((a) => a.side === side && a.free)?.key || null : null;
@@ -42,16 +52,13 @@ export function areaFromWords(text, areas = []) {
 // count only when no area of that side is named by its full name.
 export function areasFromWords(text, areas = []) {
   let rest = String(text || "").toLowerCase();
-  const names = areas
-    .flatMap((a) => [a.label, a.label.replace(/^shorts\s*[–-]\s*/i, "")].map((n) => ({ a, n: n.toLowerCase() })))
-    .sort((x, y) => y.n.length - x.n.length);
   const found = [];
-  for (const { a, n } of names) {
-    const m = new RegExp(String.raw`\b${escapeRe(n)}\b`).exec(rest);
+  for (const { a, re } of namesOf(areas)) {
+    const m = new RegExp(re).exec(rest);
     if (!m) continue;
     if (!found.some((f) => f.key === a.key)) found.push({ key: a.key, side: a.side, at: m.index });
-    // (blanked out, so "front" inside "vertical front" isn't counted again)
-    rest = rest.slice(0, m.index) + " ".repeat(n.length) + rest.slice(m.index + n.length);
+    // (blanked out, so "front" inside "vertical front" — or "back" inside "back of the neck" — isn't counted again)
+    rest = rest.slice(0, m.index) + " ".repeat(m[0].length) + rest.slice(m.index + m[0].length);
   }
   for (const side of ["front", "back"]) {
     const m = new RegExp(String.raw`\b(on|at|for|to|and) (the |my )?${side}\b`).exec(rest);

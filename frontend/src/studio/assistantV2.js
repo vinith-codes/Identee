@@ -2,7 +2,7 @@
 //
 // Pure functions the chat and the page share: the first screen, the concept sheets kept in a chat, picks by number
 // ("3, 6 and 9", "the second one"), and which print area a concept's piece goes on.
-import { areaFor } from "./aiOps";
+import { areaFor, areaInWords } from "./aiOps";
 // (placementHint / shrinkForHint: where a concept's print goes and how big, from its own words — round 4)
 // (placementHint / shrinkForHint: where a concept's print goes and how big, from its own words — round 4)
 
@@ -138,27 +138,63 @@ export function assistAct(text, messages) {
 /**
  * Where and how big a concept's print goes, read from its own words (round 4, 8 Nov 2026 — the brain writes
  * "small left-chest badge", "large centre-front artwork", "full-back lettering"):
- * { area: "chest" | "full" | null, size: "small" | "large" | null }
+ * { area: "chest" | "full" | an area key | null, size: "small" | "large" | null }
+ * positions (free placement phase 1, 14 Nov 2026): with the garment's areas, a place named in words is that area's
+ * key — "a small nape logo" → "nape", "words across the lower back" → "lower-back" (aiOps.areaInWords) — but only
+ * when the whole piece (it is ONE drawn picture) suits that place: see wholePieceFits. Otherwise the old reading.
  */
-export function placementHint(text) {
+export function placementHint(text, positions = null) {
   const t = String(text || "").toLowerCase();
   const chest = /left[- ]chest|right[- ]chest|chest (badge|logo|emblem|crest|pocket|icon|mark)|pocket[- ]?(size|print|logo)|(badge|logo|emblem|crest|icon|monogram)\b[^.]{0,30}\b(on|at|over) the chest/.test(t);
   const full = /full[- ](back|front)|\b(covers?|covering|across) the (whole|full|entire)|edge[- ]to[- ]edge/.test(t);
   const small = /\b(small|tiny|little|subtle|minimal|pocket[- ]?size|discreet)\b/.test(t);
   const large = /\b(large|big|huge|bold|oversized|statement|full[- ](back|front))\b/.test(t);
-  return { area: chest ? "chest" : full ? "full" : null, size: small && !large ? "small" : large ? "large" : null };
+  const size = small && !large ? "small" : large ? "large" : null;
+  const named = positions ? areaInWords(t, positions) : null;
+  const spot = named && wholePieceFits(named, t, size) ? named.key : null;
+  return { area: spot || (chest ? "chest" : full ? "full" : null), size };
+}
+
+const LETTERING = /\b(words?|text|names?|lettering|letters|slogan|quote|tagline|wordmark|script|title|initials|numbers?)\b/;
+const MARK = /\b(small|tiny|little|mini|subtle|minimal|discreet|logo|badge|emblem|crest|icon|mark|monogram|initials|symbol|tag)\b/;
+/**
+ * Does a concept's whole piece go on the place its words name? Only when the words are about that one print and
+ * suit the place, so a big picture is never squeezed into a strip or a logo spot named in passing:
+ *   - the side's main place (Centre Front, Full Back, a sleeve): yes;
+ *   - one thing only: no second thing after a comma, "with", "plus" or "and a / the …" ("a roaring lion with KINGS
+ *     XI on the chest line", "phoenix rising, the name small at the nape", "the team name across the shoulders and a
+ *     big number" are big pictures, not a strip or a nape mark);
+ *   - never "big" / "bold", unless the place is a big print itself (Full Front, Centre Back: 900 cm² or more);
+ *   - a strip (one side 2.5 times the other or more: Chest Line, Top Back, Lower Back, the vertical strips) only for
+ *     lettering — words, a name, a slogan;
+ *   - a logo spot (200 cm² or less: Back Neck, Lower Left / Right, the chests) only for a small mark — "small",
+ *     a logo, a badge, an icon.
+ */
+function wholePieceFits(p, t, size) {
+  if (p.main) return true;
+  const [w, h] = p.cm?.standard || [0, 0];
+  if (!w || !h) return false;
+  if (/[,;+]|\b(with|plus)\b|\b(and|&) (a|an|the|its|his|her|their|some|\d+)\b/.test(t)) return false;
+  if (size === "large" && w * h < 900) return false;
+  if (Math.max(w, h) / Math.min(w, h) >= 2.5) return LETTERING.test(t);
+  if (w * h <= 200) return MARK.test(t);
+  return true;
 }
 
 /**
  * The print area for a concept's piece: front → centre front (or the main front area), back → full back (or the
  * main back area), sleeve → the left sleeve, else the right one. A taken area falls back the way the AI's own
  * drawings do (aiOps.areaFor). used: area keys that already carry a print the piece must not cover.
- * hint: placementHint() of the concept's words — a chest badge goes on a chest area when the tee has one.
+ * hint: placementHint() of the concept's words — a chest badge goes on a chest area when the tee has one, a place
+ * named in words (hint.area = its key: "nape", "lower-left") on that area when it is on this piece's side.
  */
 export function pieceArea(piece, positions = [], used = [], hint = null) {
   const has = (key) => positions.some((p) => p.key === key);
+  const onPiece = (p) => (piece === "sleeve" ? p.side === "left" || p.side === "right" : p.side === piece);
+  const namedKey = positions.find((p) => p.key === hint?.area && onPiece(p))?.key || null;
   const chestKey = hint?.area === "chest" && piece === "front" ? ["left-chest", ...positions.filter((p) => p.side === "front" && /chest|pocket/.test(p.key)).map((p) => p.key)].find(has) : null;
   const want =
+    namedKey ||
     chestKey ||
     (piece === "sleeve"
       ? ["left-sleeve", "right-sleeve", ...positions.filter((p) => /sleeve/.test(p.key)).map((p) => p.key)].find(has)
