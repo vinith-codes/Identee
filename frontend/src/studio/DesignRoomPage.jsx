@@ -43,6 +43,7 @@ import PriceTag from "../components/PriceTag";
 import { shippingNote, useShippingRule, useSiteOffer } from "../utils/sitePricing";
 import { MIN_DPI, checkDesign, inksFor, printSharpness } from "./designCheck";
 import { cropMockup } from "./mockupCrop";
+import { NECK_LABEL, labelWords } from "./neckLabel";
 import { PhotoError, shrinkPhoto } from "./shrinkPhoto";
 import { TEMPLATES } from "./designTemplates";
 import TeamModeChoice from "./TeamModeChoice";
@@ -350,6 +351,7 @@ export default function DesignRoomPage() {
   );
   const [twirlKey, setTwirlKey] = useState(0); // goes up to make the tee do one full turn
   const [shots, setShots] = useState(null);
+  const [labelShot, setLabelShot] = useState(null); // Review: the neck label close-up picture (13 Nov 2026)
   const [sharing, setSharing] = useState(false); // Share my tee: the picture is being made
   const [emailing, setEmailing] = useState(false); // Email me this design (round 8): the email is on its way
   const [worn, setWorn] = useState(null); // Photo of it worn (round 5): null | "making" | { url }
@@ -486,6 +488,9 @@ export default function DesignRoomPage() {
   const bottomLengthCm = chartRow?.bottomLength ? chartRow.bottomLength * 2.54 : model?.bottom?.lengthCm;
   const fabricHex = colour?.hex || "#1C1C1D";
   const inkDefault = lum(fabricHex) < 0.55 ? "#FFFFFF" : "#141110";
+  // The identee woven neck label sewn inside the back neck of every garment (neckLabel.js): the same tag on every
+  // colour, this size on its tab
+  const neckLabel = useMemo(() => (NECK_LABEL.on && model ? { ...labelWords(sizeNow), lengthCm } : null), [model, sizeNow, lengthCm]);
   // Price per piece (launch, 16 Oct 2026): the garment's price + a set amount when the design has a picture —
   // AI-made or uploaded (Admin → Settings → AI designs); once per tee. Art library pictures and text only add
   // nothing. The server works it out the same way at checkout (checkoutService.customizationLine).
@@ -1296,6 +1301,11 @@ export default function DesignRoomPage() {
   const goView = (view) => {
     closeArea();
     setCamRequest({ view, n: nextReq() });
+  };
+  // the neck label close up (13 Nov 2026): the camera looks down into the neck, like the sample the owner picked
+  const goLabel = () => {
+    closeArea();
+    setCamRequest({ label: true, ms: 1100, n: nextReq() });
   };
   // the Assistant header's flip (phones): the side the tee will turn to next
   const [flipSide, setFlipSide] = useState("front");
@@ -3127,7 +3137,11 @@ export default function DesignRoomPage() {
     litTimer.current = setTimeout(() => setLit(true), 3000);
     // let the outline disappear from the textures, then take pictures
     // (retry for a few seconds in case the 3D view is still starting)
-    captureMockups().then((m) => m && setShots(SIDES.map(([v, label]) => ({ label, url: m[v] }))));
+    captureMockups().then((m) => {
+      if (!m) return;
+      setShots(SIDES.map(([v, label]) => ({ label, url: m[v] })));
+      setLabelShot(m.label || null);
+    });
   };
 
   // Pictures of each side (data URLs), taken from the 3D room without the editing outline.
@@ -3146,6 +3160,9 @@ export default function DesignRoomPage() {
     }
     const out = {};
     for (const [v] of SIDES) out[v] = await cropMockup(api.snapshot(v));
+    // the neck label close up (13 Nov 2026) — for the cart and order pages; the print files never use it
+    const label = api.snapshot("label"); // none when the tee has no label (the 3D view then has nothing to shoot)
+    if (label) out.label = await cropMockup(label);
     return out;
   };
 
@@ -3203,7 +3220,11 @@ export default function DesignRoomPage() {
     firstSig.current = previewSig;
     let alive = true;
     const timer = setTimeout(() => {
-      captureMockups().then((m) => alive && m && setShots(SIDES.map(([v, label]) => ({ label, url: m[v] }))));
+      captureMockups().then((m) => {
+        if (!alive || !m) return;
+        setShots(SIDES.map(([v, label]) => ({ label, url: m[v] })));
+        setLabelShot(m.label || null);
+      });
     }, 600);
     return () => {
       alive = false;
@@ -3227,7 +3248,7 @@ export default function DesignRoomPage() {
     setBusy("Saving your design…");
     try {
       const mockups = shots?.length === 4 && step === "review"
-        ? Object.fromEntries(shots.map((sh, i) => [SIDES[i][0], sh.url]))
+        ? { ...Object.fromEntries(shots.map((sh, i) => [SIDES[i][0], sh.url])), ...(labelShot ? { label: labelShot } : {}) }
         : await captureMockups();
       const body = { garmentType: type, color: colour.slug, size: sizeNow, elements, name: name || `${garment.label} design`, mockups: mockups || undefined, players: teamPlayers.map(({ name: n, number, size: sz }) => ({ name: n, number, size: sz })) };
       let saved;
@@ -3270,6 +3291,12 @@ export default function DesignRoomPage() {
     // the tee turns to that side; the camera comes back to the front of the dressing room
     setCamRequest({ ...SHOWROOM, n: nextReq() });
   };
+  // Review: the neck label close up — the tee turns to the front and the camera looks down into the neck
+  const showLabel = () => {
+    setSpin(false);
+    setSideShown("label");
+    setCamRequest({ label: true, ms: 1100, n: nextReq() });
+  };
   const turn360 = () => {
     setSpin(true);
     setSideShown(null);
@@ -3303,6 +3330,7 @@ export default function DesignRoomPage() {
   const backToDesign = () => {
     setStep("design");
     setShots(null);
+    setLabelShot(null);
     setCamRequest({ view: "front", n: nextReq() });
   };
   // a team order is one tee per player; otherwise the sizes × quantities picked
@@ -3742,6 +3770,7 @@ export default function DesignRoomPage() {
                 face={sideShown}
                 unfoldKey={step === "review" ? unfoldKey : 0}
                 onLit={() => setLit(true)}
+                neckLabel={neckLabel}
               />
             </div>
           )}
@@ -3809,6 +3838,11 @@ export default function DesignRoomPage() {
                     <span className="dot" />
                   </button>
                 ))}
+                {neckLabel && (
+                  <button type="button" onClick={goLabel} aria-label="Show the IDENTEE label sewn inside the neck">
+                    Label
+                  </button>
+                )}
               </div>
               <div className="dr-credit">
                 <a href={model?.credit.href} target="_blank" rel="noopener noreferrer">{model?.credit.text}</a>
@@ -4222,6 +4256,16 @@ export default function DesignRoomPage() {
                   </button>
                 ))}
               </div>
+              {/* the IDENTEE woven label sewn inside the back neck, close up (13–14 Nov 2026) */}
+              {neckLabel && (
+                <button type="button" className={`dr-labelshot${sideShown === "label" ? " on" : ""}`} aria-pressed={sideShown === "label"} onClick={showLabel} aria-label="Show the neck label on the 3D tee">
+                  <span className="pic">{labelShot ? <img src={labelShot} alt="" /> : <span className="ph" />}</span>
+                  <span className="words">
+                    <b>Neck label</b>
+                    IDENTEE woven label with your size, sewn inside the back neck
+                  </span>
+                </button>
+              )}
               {roles && (
                 <TeamModeChoice
                   teamMode={teamMode}

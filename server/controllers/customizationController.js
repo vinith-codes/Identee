@@ -126,7 +126,9 @@ export const uploadDesignImage = async (req, res) => {
 
 // Mockup pictures arrive as small JPEG/PNG data URLs (made in the browser
 // from the 3D view) and are stored in Cloudinary identee/mockups.
-const MOCKUP_VIEWS = ["front", "back", "left", "right"];
+// "label" (13 Nov 2026): a close-up of the IDENTEE neck label printed inside the back neck — for the customer's
+// cart and order pages only; the print files take the four sides' pictures, never this one.
+const MOCKUP_VIEWS = ["front", "back", "left", "right", "label"];
 const MAX_MOCKUP_BYTES = 800 * 1024;
 const DATA_URL = /^data:image\/(jpeg|png|webp);base64,([A-Za-z0-9+/=]+)$/;
 

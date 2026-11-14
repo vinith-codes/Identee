@@ -120,6 +120,8 @@ const customizationSchema = new mongoose.Schema(
       back: { type: String, default: null },
       left: { type: String, default: null },
       right: { type: String, default: null },
+      // the IDENTEE neck label printed inside the back neck, close up (13 Nov 2026) — cart and order pages only
+      label: { type: String, default: null },
     },
     // Team order: one tee per player, each with their own name and number (in place of
     // the texts marked role "name" / "number"). Empty = every tee is printed the same.

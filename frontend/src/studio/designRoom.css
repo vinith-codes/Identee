@@ -122,6 +122,16 @@
 .dr-shot:hover { border-color: var(--gold); }
 .dr-shot img, .dr-shot .ph { width: 100%; aspect-ratio: 4 / 5; object-fit: cover; display: block; background: var(--wall); }
 .dr-shot span { font-size: 12px; font-weight: 700; padding: 6px 10px; }
+/* Review: the IDENTEE neck label close up (13 Nov 2026) — a wide strip under the side pictures; the picture is
+   zoomed to its middle, where the label is */
+.dr-labelshot { flex: none; margin: 0; padding: 0; width: 100%; display: flex; align-items: center; gap: 12px; background: #fff; border: 1px solid var(--line); border-radius: 14px; overflow: hidden; text-align: left; cursor: pointer; font: inherit; color: inherit; transition: border-color .2s, box-shadow .2s; }
+.dr-labelshot:hover { border-color: var(--gold); }
+.dr-labelshot.on { border-color: var(--gold); box-shadow: 0 0 0 2px var(--gold-soft); }
+.dr-labelshot .pic { flex: none; width: 128px; height: 72px; overflow: hidden; background: var(--wall); display: block; }
+.dr-labelshot .pic img { width: 100%; height: 100%; object-fit: cover; transform: scale(1.45); display: block; }
+.dr-labelshot .ph { display: block; width: 100%; height: 100%; }
+.dr-labelshot .words { font-size: 12px; line-height: 1.35; color: var(--muted); padding: 8px 12px 8px 0; min-width: 0; }
+.dr-labelshot .words b { display: block; font-size: 12.5px; color: var(--ink); margin-bottom: 2px; }
 .dr-summary { display: flex; justify-content: space-between; align-items: center; gap: 12px; border-top: 1px solid var(--line); padding-top: 12px; margin-top: auto; }
 .dr-summary p { margin: 2px 0 0; }
 .dr-summary .muted { color: var(--muted); font-size: 12.5px; }

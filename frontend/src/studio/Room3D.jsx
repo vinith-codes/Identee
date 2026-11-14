@@ -3,13 +3,15 @@
 // The 3D "Design Room": a warm studio with the chosen tee floating in the
 // centre. Each print area is a decal (DecalGeometry) pressed onto the tee at
 // its true physical size; its picture comes from the area's Konva render.
-import { Suspense, useEffect, useLayoutEffect, useMemo, useRef, forwardRef } from "react";
+import { Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState, forwardRef } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Environment, Lightformer, MeshReflectorMaterial, OrbitControls, Sparkles, useGLTF } from "@react-three/drei";
 import * as THREE from "three";
 import { DecalGeometry } from "three/examples/jsm/geometries/DecalGeometry.js";
 import { areaCentreRaw } from "./teeModel";
 import { dipFrontNeck } from "./neckDip";
+import { LABEL_VIEW, labelCloser, labelSpot, pressLabel } from "./neckLabel";
+import { neckLabelCanvas } from "./neckLabelArt";
 
 const TEE_SCALE = 2.2; // model metres → room units
 const TEE_Y = 0.18;
@@ -839,6 +841,43 @@ function Decal({ probe, spot, canvas, version, areaKey, onPick, interactive, ord
   );
 }
 
+// The IDENTEE woven neck label sewn inside the back neck (13–14 Nov 2026, neckLabel.js). Part of the blank tee, never a
+// print area: it can't be tapped (taps go through to the tee as before), it never fades with the prints, and the
+// print files never see it. It shows through the neck opening from the front, and close up in the "label" view.
+const noHit = () => {};
+function NeckLabel({ probe, model, label }) {
+  const built = useMemo(() => pressLabel(probe, labelSpot(model, label.lengthCm)), [probe, model, label.lengthCm]);
+  const [tex, setTex] = useState(null);
+  const shown = useRef(null);
+  useEffect(() => {
+    let alive = true;
+    // the same woven tag on every colour (14 Nov 2026): only the size on its tab changes
+    neckLabelCanvas({ size: label.size })
+      .then((canvas) => {
+        if (!alive) return;
+        const t = new THREE.CanvasTexture(canvas);
+        t.colorSpace = THREE.SRGBColorSpace;
+        t.anisotropy = 8;
+        const old = shown.current;
+        shown.current = t;
+        setTex(t);
+        old?.dispose();
+      })
+      .catch(() => {}); // (its font didn't load: no label rather than one in the wrong letters)
+    return () => {
+      alive = false;
+    };
+  }, [label.size]);
+  useEffect(() => () => shown.current?.dispose(), []);
+  useEffect(() => () => built?.geo.dispose(), [built]);
+  if (!built || !tex) return null;
+  return (
+    <mesh geometry={built.geo} renderOrder={2} name="neck-label" userData={{ point: built.point }} raycast={noHit}>
+      <meshStandardMaterial map={tex} transparent depthWrite={false} polygonOffset polygonOffsetFactor={-4} roughness={0.85} metalness={0} onBeforeCompile={foldable} customProgramCacheKey={foldKey} />
+    </mesh>
+  );
+}
+
 // Print areas that can be picked by pointing at a garment piece: where each one's middle lands on it.
 function useTargets(hotspots, probe) {
   return useMemo(
@@ -925,7 +964,7 @@ function Bottoms({ part, teeCentre, colour, areas, hotspots, glowKey, glowSpot, 
 
 const onBottoms = (spot) => spot?.side === "shorts";
 
-function Tee({ model, colour, areas, onPickArea, interactive, still, spotsRef, turntable, spin, face, spinSpeed, unfoldKey, onLit, hotspots, glowKey, activeKey, onHoverArea, popKey, showcase, twirlKey, handKey }) {
+function Tee({ model, colour, areas, onPickArea, interactive, still, spotsRef, turntable, spin, face, spinSpeed, unfoldKey, onLit, hotspots, glowKey, activeKey, onHoverArea, popKey, showcase, twirlKey, handKey, neckLabel }) {
   const { geo, probe, map, normalMap, centre } = useTeeGeometry(model);
   // a full turn that eases out: on stepping into the room and when the tee's colour is changed there
   const twirl = useRef({ key: twirlKey, t: 9, from: 0 });
@@ -1144,6 +1183,7 @@ function Tee({ model, colour, areas, onPickArea, interactive, still, spotsRef, t
           <Decal key={`${a.key}-${a.spotKey}`} order={i} areaKey={a.key} probe={probe} spot={a.spot} canvas={a.canvas} version={a.version} onPick={onPickArea} interactive={interactive} />
         ))}
         {interactive && glowSpot && !onBottoms(glowSpot) && <AreaGlow key={glowKey} probe={probe} spot={glowSpot} />}
+        {neckLabel && <NeckLabel probe={probe} model={model} label={neckLabel} />}
       </mesh>
       {model.bottom && (
         <Bottoms
@@ -1167,15 +1207,50 @@ function Tee({ model, colour, areas, onPickArea, interactive, still, spotsRef, t
 }
 
 /* ---------- camera ---------- */
-function CameraRig({ request, getSpot, apiRef, wakeKey, room, dark }) {
+function CameraRig({ request, getSpot, apiRef, wakeKey, room, dark, setNearest }) {
   const { camera, controls, gl, scene, size, invalidate } = useThree();
   const anim = useRef(null);
 
   const pending = useRef(null); // area request waiting for its decal to exist
+  // the neck label close-up: the dressing room's lean (which follows the pointer) waits, so the view stays put
+  const holdLean = useRef(false);
+  // Where the neck label is in the room, with the tee facing the front — it turns to the front for the label view,
+  // so the camera goes where the label will be, not where it is in the middle of a turn. With the tee's scale.
+  const labelAt = () => {
+    const m = scene.getObjectByName("neck-label");
+    const tee = scene.getObjectByName("tee");
+    if (!m?.userData.point || !tee) return null;
+    const was = [tee.rotation.x, tee.rotation.y];
+    tee.rotation.x = 0;
+    tee.rotation.y = 0;
+    tee.updateMatrixWorld(true);
+    const point = m.userData.point.clone().applyMatrix4(m.matrixWorld);
+    const scale = m.getWorldScale(new THREE.Vector3()).x;
+    [tee.rotation.x, tee.rotation.y] = was;
+    tee.updateMatrixWorld(true);
+    return { point, scale };
+  };
+  const labelCamera = (l, closer = 1) => l.point.clone().add(new THREE.Vector3(0, LABEL_VIEW.up, LABEL_VIEW.out).multiplyScalar(l.scale * closer));
   const start = (request) => {
     let to;
     let look = new THREE.Vector3(0, 0.1, 0);
-    if (request.view) {
+    holdLean.current = !!request.label;
+    // the room's nearest view; only the label close-up on a small 3D view goes nearer (set again just below)
+    setNearest(1);
+    if (request.label) {
+      // the label close-up, like the sample the owner picked: from the front, a little above, looking down into the neck
+      const l = labelAt();
+      if (!l) {
+        // its picture is still being drawn — try again then
+        if (!pending.current || pending.current.request !== request) pending.current = { request, frames: 120 };
+        return;
+      }
+      pending.current = null;
+      look = l.point;
+      // a phone's small view comes nearer, so the label is about as big on screen as on a computer
+      to = labelCamera(l, labelCloser(size.height));
+      setNearest(Math.min(1, to.distanceTo(look) * 0.98));
+    } else if (request.view) {
       to = new THREE.Vector3(...VIEWS[request.view]);
       if (VIEW_LOOK[request.view]) look = new THREE.Vector3(...VIEW_LOOK[request.view]);
     } else if (request.area) {
@@ -1264,7 +1339,7 @@ function CameraRig({ request, getSpot, apiRef, wakeKey, room, dark }) {
     }
     const a = anim.current;
     // dressing room: the view leans slightly towards the pointer, which gives the room depth
-    if (!a && controls && room === "boutique" && !dragging.current) {
+    if (!a && controls && room === "boutique" && !dragging.current && !holdLean.current) {
       controls.setAzimuthalAngle(THREE.MathUtils.lerp(controls.getAzimuthalAngle(), -frame.pointer.x * 0.2, 0.03));
       controls.setPolarAngle(THREE.MathUtils.lerp(controls.getPolarAngle(), Math.PI * 0.48 - frame.pointer.y * 0.05, 0.03));
     }
@@ -1320,10 +1395,19 @@ function CameraRig({ request, getSpot, apiRef, wakeKey, room, dark }) {
         tee.position.z = 0;
       }
       paintBackdrop(scene, "studio", false);
-      camera.position.set(...VIEWS[view]);
-      camera.lookAt(0, 0.1, 0);
-      gl.render(scene, camera);
-      const url = gl.domElement.toDataURL("image/jpeg", 0.85);
+      // "label": the neck label close up (13 Nov 2026), a little closer than the room's label view; none when the
+      // tee has no label
+      const label = view === "label" ? labelAt() : null;
+      if (label) {
+        camera.position.copy(labelCamera(label, LABEL_VIEW.picture));
+        camera.lookAt(label.point);
+      } else {
+        camera.position.set(...(VIEWS[view] || VIEWS.front));
+        camera.lookAt(0, 0.1, 0);
+      }
+      const shoot = view !== "label" || !!label;
+      if (shoot) gl.render(scene, camera);
+      const url = shoot ? gl.domElement.toDataURL("image/jpeg", 0.85) : null;
       if (studio) studio.visible = was.studio;
       if (boutique) boutique.visible = was.boutique;
       if (tee) {
@@ -1355,9 +1439,13 @@ function CameraRig({ request, getSpot, apiRef, wakeKey, room, dark }) {
   return null;
 }
 
-const Room3D = forwardRef(function Room3D({ model, colour, areas, onPickArea, camRequest, interactive = true, still = false, room = "studio", spin = false, face = null, spinSpeed = 1.6, unfoldKey = 0, onLit, hotspots, glowKey = null, activeKey = null, onHoverArea, popKey = 0, showcase = false, twirlKey = 0, dark = false }, ref) {
+// neckLabel: { brand, size, line, lengthCm } (neckLabel.js labelWords + the size's length) = the IDENTEE label inside
+// the back neck; null = none (the admin's Studio and Collection maker don't show it)
+const Room3D = forwardRef(function Room3D({ model, colour, areas, onPickArea, camRequest, interactive = true, still = false, room = "studio", spin = false, face = null, spinSpeed = 1.6, unfoldKey = 0, onLit, hotspots, glowKey = null, activeKey = null, onHoverArea, popKey = 0, showcase = false, twirlKey = 0, dark = false, neckLabel = null }, ref) {
   const boutique = room === "boutique";
   const spotsRef = useRef(() => null);
+  // the camera's nearest distance: 1, or nearer only while the neck label is shown close up on a small view
+  const [nearest, setNearest] = useState(1);
   return (
     <Canvas
       shadows
@@ -1371,14 +1459,14 @@ const Room3D = forwardRef(function Room3D({ model, colour, areas, onPickArea, ca
       <Studio visible={!boutique} colour={colour} />
       <Suspense fallback={null}>
         <Boutique visible={boutique} model={model} colour={colour} />
-        <Tee model={model} colour={colour} areas={areas} onPickArea={onPickArea} interactive={interactive} still={still} spotsRef={spotsRef} turntable={boutique} handKey={camRequest?.n} spin={spin} face={face} spinSpeed={spinSpeed} unfoldKey={unfoldKey} onLit={onLit} hotspots={hotspots} glowKey={glowKey} activeKey={activeKey} onHoverArea={onHoverArea} popKey={popKey} showcase={showcase} twirlKey={twirlKey} />
+        <Tee model={model} colour={colour} areas={areas} onPickArea={onPickArea} interactive={interactive} still={still} spotsRef={spotsRef} turntable={boutique} handKey={camRequest?.n} spin={spin} face={face} spinSpeed={spinSpeed} unfoldKey={unfoldKey} onLit={onLit} hotspots={hotspots} glowKey={glowKey} activeKey={activeKey} onHoverArea={onHoverArea} popKey={popKey} showcase={showcase} twirlKey={twirlKey} neckLabel={neckLabel} />
       </Suspense>
       <OrbitControls
         makeDefault
         enableDamping
         dampingFactor={0.08}
         enablePan={false}
-        minDistance={1}
+        minDistance={nearest}
         maxDistance={9}
         minPolarAngle={Math.PI * 0.28}
         maxPolarAngle={Math.PI * 0.62}
@@ -1389,7 +1477,7 @@ const Room3D = forwardRef(function Room3D({ model, colour, areas, onPickArea, ca
         // (in the dressing room a drag turns the tee instead — see Tee's turnDrag)
         enableRotate={!boutique}
       />
-      <CameraRig request={camRequest} getSpot={(k) => spotsRef.current(k)} apiRef={ref} room={room} dark={dark} wakeKey={`${dark}|${colour}|${still}|${interactive}|${glowKey}|${popKey}|${twirlKey}|${areas.map((a) => `${a.key}:${a.version}`).join(",")}`} />
+      <CameraRig request={camRequest} getSpot={(k) => spotsRef.current(k)} apiRef={ref} room={room} dark={dark} setNearest={setNearest} wakeKey={`${dark}|${colour}|${still}|${interactive}|${glowKey}|${popKey}|${twirlKey}|${areas.map((a) => `${a.key}:${a.version}`).join(",")}`} />
     </Canvas>
   );
 });
