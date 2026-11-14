@@ -848,7 +848,6 @@ const noHit = () => {};
 function NeckLabel({ probe, model, label }) {
   const built = useMemo(() => pressLabel(probe, labelSpot(model, label.lengthCm)), [probe, model, label.lengthCm]);
   const [tex, setTex] = useState(null);
-  const shown = useRef(null);
   useEffect(() => {
     let alive = true;
     // the same woven tag on every colour (14 Nov 2026): only the size on its tab changes
@@ -858,17 +857,15 @@ function NeckLabel({ probe, model, label }) {
         const t = new THREE.CanvasTexture(canvas);
         t.colorSpace = THREE.SRGBColorSpace;
         t.anisotropy = 8;
-        const old = shown.current;
-        shown.current = t;
         setTex(t);
-        old?.dispose();
       })
       .catch(() => {}); // (its font didn't load: no label rather than one in the wrong letters)
     return () => {
       alive = false;
     };
   }, [label.size]);
-  useEffect(() => () => shown.current?.dispose(), []);
+  // the old picture is let go only once the label shows the new one (letting go before could upload it again)
+  useEffect(() => () => tex?.dispose(), [tex]);
   useEffect(() => () => built?.geo.dispose(), [built]);
   if (!built || !tex) return null;
   return (

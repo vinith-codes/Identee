@@ -19,10 +19,11 @@ import { DecalGeometry } from "three/examples/jsm/geometries/DecalGeometry.js";
 // for the shadow under them (the tag's top edge is the picture's top edge). Row places are mm from the tag's top.
 export const LABEL_TAG = {
   w: 56, // the main tag
-  h: 17.2,
-  tabH: 8.2, // the size tab: how far it shows under the tag,
+  h: 18,
+  tabH: 7.4, // the size tab: how far it shows under the tag,
   tabTuck: 2, // how much of it is under the tag,
-  tabMinW: 17.6, // and its narrowest (as wide as "— L —"; wider for "XL", "13-14")
+  tabMinW: 17.65, // and its width: every size has "— size —" in it, the dashes shorter for wider sizes, and the
+  // tab wider only when they would get shorter than dashMinMm ("2XL", "13-14")
   // row 1: the tee mark | identee™
   markTopMm: 2.9, // the mark (the tee and its two sparkles): its top and height
   markMm: 8.75,
@@ -34,29 +35,33 @@ export const LABEL_TAG = {
   wordMm: 5.6, // "identee": the height of its d, at most,
   wordWMm: 26.7, // and its width, at most
   baseMm: 11.1, // its baseline
-  tmCapMm: 1.3, // ™: its height,
+  tmCapMm: 1.25, // ™: its height,
   tmTopMm: 4.85, // its top (a little above the d),
   tmBackMm: 0.9, // and how far it starts back over the last "e"
   // row 2: —— DESIGN • CUSTOMIZE • WEAR ——
-  lineCapMm: 1.35,
-  lineWMm: 34, // the words' width (the letters spaced out to it)
+  lineCapMm: 1.3,
+  lineWMm: 34, // the words' width (the letters, narrowed to lineSqueeze, spaced out to it)
+  lineSqueeze: 0.88,
+  dotMm: 0.58, // the dots between the words,
+  dotGapMm: 1.7, // with this much clear each side
   lineBaseMm: 15.05,
   ruleMm: 5.6, // the line each side of the words,
   ruleGapMm: 1.85, // its gap to them,
   ruleThickMm: 0.2, // and its thickness
   // the size tab: — L —
   sizeCapMm: 3.35,
-  sizeMidMm: 4.45, // the size's middle, under the tag's bottom edge
-  dashMm: 4,
+  sizeSqueeze: 0.9, // the size's letters a little narrow, as in the owner's "L"
+  sizeMidMm: 3.65, // the size's middle, under the tag's bottom edge
+  dashMinMm: 2,
   dashGapMm: 1.95,
   tabPadMm: 1.85,
   boxW: 60,
   boxH: 27.5,
   stitchInMm: 0.8, // the stitching down both ends of the tag and of the tab, this far in
   cloth: "#121110", // black damask
-  thread: "#ECE6DD", // the cream-white words: 16 : 1 on the black
+  thread: "#F3EDE5", // the cream-white words (after the weave ~#EEE8E2, as in the owner's picture): 17 : 1 on the black
   edge: "#2E2B27", // the fine edge where the cloth turns (so the tag keeps its shape on a black tee too)
-  stitch: "#5A554E", // the dark grey stitching
+  stitch: "#36322E", // the faint dark grey stitching
 };
 
 export const NECK_LABEL = {

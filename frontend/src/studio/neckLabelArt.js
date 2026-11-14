@@ -5,8 +5,9 @@
 // WEAR ——" under it, in cream — with a small black size tab below ("— L —"). The same on every tee colour.
 // Drawn at the real size (mm, the places measured off the owner's picture) and made to look woven: fine weft and warp
 // threads in the cloth and in the words, a fine edge where the cloth turns, stitching down both ends of the tag and the
-// tab, a slight shade where the top goes into the seam, and a soft shadow under it on the tee (it stands off the fabric
-// a little). Browser only.
+// tab, a slight shade where the top goes into the seam and where the tab goes under the tag, and a soft shadow under it
+// on the tee (it stands off the fabric a little). Browser only.
+import montserrat500 from "@fontsource/montserrat/files/montserrat-latin-500-normal.woff2?url";
 import montserrat600 from "@fontsource/montserrat/files/montserrat-latin-600-normal.woff2?url";
 import montserrat700 from "@fontsource/montserrat/files/montserrat-latin-700-normal.woff2?url";
 import { LABEL_TAG } from "./neckLabel";
@@ -19,6 +20,7 @@ function labelFonts() {
   if (!fontsLoading) {
     fontsLoading = Promise.all(
       [
+        [montserrat500, "500"],
         [montserrat600, "600"],
         [montserrat700, "700"],
       ].map(async ([url, weight]) => document.fonts.add(await new FontFace(FAMILY, `url(${url})`, { weight }).load())),
@@ -38,24 +40,29 @@ function ink(g, text) {
   return { left: m.actualBoundingBoxLeft, w: m.actualBoundingBoxLeft + m.actualBoundingBoxRight, up: m.actualBoundingBoxAscent };
 }
 
-// A line of letters spaced by hand (the same on every browser): its ink width, and drawing it with its ink from x.
-function spacedWidth(g, chars, spacing) {
+// A word of letters narrowed to `squeeze` and spaced by hand (the same on every browser): its ink width, and drawing
+// it with its ink starting at x on a baseline.
+function wordWidth(g, chars, spacing, squeeze) {
   const first = ink(g, chars[0]);
   const last = g.measureText(chars[chars.length - 1]);
-  const pen = chars.slice(0, -1).reduce((sum, ch) => sum + g.measureText(ch).width + spacing, 0);
-  return pen + last.actualBoundingBoxRight + first.left;
+  const pen = chars.slice(0, -1).reduce((sum, ch) => sum + g.measureText(ch).width * squeeze + spacing, 0);
+  return first.left * squeeze + pen + last.actualBoundingBoxRight * squeeze;
 }
-function drawSpaced(g, chars, x, y, spacing) {
-  x += ink(g, chars[0]).left;
+function drawWord(g, chars, x, y, spacing, squeeze) {
+  x += ink(g, chars[0]).left * squeeze;
   for (const ch of chars) {
-    g.fillText(ch, x, y);
-    x += g.measureText(ch).width + spacing;
+    g.save();
+    g.translate(x, y);
+    g.scale(squeeze, 1);
+    g.fillText(ch, 0, 0);
+    g.restore();
+    x += g.measureText(ch).width * squeeze + spacing;
   }
 }
 
-// A four-point sparkle centred on (x, y), r = its half-height.
+// A four-point sparkle centred on (x, y), r = its half-height: thin points that flare near the middle.
 function sparkle(g, x, y, r) {
-  const k = r * 0.22; // how pinched the sides are
+  const k = r * 0.11; // how pinched the sides are
   g.beginPath();
   g.moveTo(x, y - r);
   g.quadraticCurveTo(x + k, y - k, x + r, y);
@@ -66,36 +73,37 @@ function sparkle(g, x, y, r) {
   g.fill();
 }
 
-// The mark, as in the owner's picture: a wide tee outline with a sparkle on its chest and one above its right
-// shoulder. (x, y) = top left, h = its height in px; it is 24.2 × 18.65 units (the tee 14.4 high, the sparkle above).
-const MARK_W = 24.2;
-const MARK_H = 18.65;
+// The mark, as in the owner's picture: a wide crew-neck tee outline with a sparkle on its chest and one above its right
+// shoulder. (x, y) = top left, h = its height in px; it is MARK_W × MARK_H units (the tee 14.4 high plus its line,
+// the sparkle above it).
+const MARK_W = 24.25;
+const MARK_H = 18.94;
 function teeMark(g, x, y, h) {
   const u = h / MARK_H;
-  const P = (px, py) => [x + (px + 0.1) * u, y + (py + 3.8) * u];
+  const P = (px, py) => [x + (px + 0.09) * u, y + (py + 3.9) * u];
   const right = [
     [14.8, 0], // the neck's right end
     [18.3, 0], // the shoulder
-    [23.65, 5.0], // the sleeve's tip
-    [18.9, 7.3], // the armpit
-    [18.9, 14.4], // the hem's right corner
+    [23.45, 5.0], // the sleeve's tip
+    [18.4, 7.3], // the armpit
+    [18.4, 14.4], // the hem's right corner
   ];
   const left = right.map(([px, py]) => [24 - px, py]).reverse();
-  g.lineWidth = 0.9 * u;
+  g.lineWidth = 1.28 * u; // 0.6 mm, as woven in the owner's label
   g.lineJoin = "round";
   g.lineCap = "round";
   g.beginPath();
   g.moveTo(...P(...right[0]));
   for (const p of right.slice(1)) g.lineTo(...P(...p));
   for (const p of left) g.lineTo(...P(...p));
-  // the neck: a soft scoop between the two ends
-  const [nx, ny] = P(12, 2.1);
+  // the neck: a round crew-neck dip between the two ends
+  const [nx, ny] = P(12, 3.4);
   const [ex, ey] = P(...right[0]);
   g.quadraticCurveTo(nx, ny, ex, ey);
   g.closePath();
   g.stroke();
   sparkle(g, ...P(14.67, 6.9), 2.35 * u); // on the chest
-  sparkle(g, ...P(21.56, -1.3), 2.5 * u); // above the right shoulder
+  sparkle(g, ...P(21.56, -1.3), 2.6 * u); // above the right shoulder
   return MARK_W * u; // its width
 }
 
@@ -139,13 +147,20 @@ export async function neckLabelCanvas(words) {
   const tagX = (W - mm(T.w)) / 2;
   const size = String(words.size || "").trim();
 
-  // the size tab: "— L —" for the short sizes; long ones ("13-14", "5XL") without the dashes, the tab as wide as needed
+  // the size tab, the same "— size —" on every size: the owner's tab width, the dashes shorter for a wider size; only
+  // when they would get shorter than dashMinMm ("2XL", "13-14") the tab grows instead
   const sizeFont = (T.sizeCapMm / 0.7) * PX; // Montserrat's capitals are 0.7 of the font size
   const probe = document.createElement("canvas").getContext("2d");
   probe.font = font(700, sizeFont);
   const sizeInk = size ? ink(probe, size) : { left: 0, w: 0 };
-  const dashes = size.length <= 2;
-  const tabW = size ? Math.max(mm(T.tabMinW), sizeInk.w + (dashes ? 2 * mm(T.dashMm + T.dashGapMm) : 0) + 2 * mm(T.tabPadMm)) : 0;
+  const sizeW = sizeInk.w * T.sizeSqueeze;
+  let dash = (mm(T.tabMinW) - 2 * mm(T.tabPadMm) - 2 * mm(T.dashGapMm) - sizeW) / 2;
+  let tabW = mm(T.tabMinW);
+  if (dash < mm(T.dashMinMm)) {
+    dash = mm(T.dashMinMm);
+    tabW = sizeW + 2 * (dash + mm(T.dashGapMm)) + 2 * mm(T.tabPadMm);
+  }
+  if (!size) tabW = 0;
   const tabX = (W - tabW) / 2;
   const tabTop = mm(T.h) - mm(T.tabTuck);
   const tabBottom = mm(T.h) + mm(T.tabH);
@@ -173,7 +188,7 @@ export async function neckLabelCanvas(words) {
   const markH = mm(T.markMm);
   const markW = (MARK_W / MARK_H) * markH;
   const tmFont = (T.tmCapMm / 0.7) * PX;
-  c.font = font(700, tmFont);
+  c.font = font(500, tmFont);
   const tm = ink(c, "TM");
   const rowW = markW + mm(T.gapMarkMm) + mm(T.barWMm) + mm(T.gapWordMm) + word.w - mm(T.tmBackMm) + tm.w;
   let x = (W - rowW) / 2;
@@ -193,28 +208,46 @@ export async function neckLabelCanvas(words) {
   c.strokeText("identee", 0, 0);
   c.restore();
   x += word.w - mm(T.tmBackMm);
-  c.font = font(700, tmFont);
+  c.font = font(500, tmFont);
   c.fillText("TM", x + tm.left, mm(T.tmTopMm) + tm.up);
-  // row 2: —— DESIGN • CUSTOMIZE • WEAR ——, the letters spaced out to the line's width
-  const line = [..."DESIGN • CUSTOMIZE • WEAR"];
-  c.font = font(600, (T.lineCapMm / 0.7) * PX);
-  const natural = spacedWidth(c, line, 0);
-  const spacing = (mm(T.lineWMm) - natural) / (line.length - 1);
-  const lineX = (W - mm(T.lineWMm)) / 2;
-  drawSpaced(c, line, lineX, mm(T.lineBaseMm), spacing);
-  const ruleY = mm(T.lineBaseMm - T.lineCapMm / 2 - T.ruleThickMm / 2);
+  // row 2: —— DESIGN • CUSTOMIZE • WEAR ——: narrowed letters spaced out so the line is lineWMm wide, round dots
+  // between the words
+  const lineWords = ["DESIGN", "CUSTOMIZE", "WEAR"].map((w) => [...w]);
+  c.font = font(500, (T.lineCapMm / 0.7) * PX);
+  const q = T.lineSqueeze;
+  const between = mm(2 * T.dotGapMm + T.dotMm); // a dot and its gaps
+  const bare = lineWords.reduce((sum, w) => sum + wordWidth(c, w, 0, q), 0);
+  const gaps = lineWords.reduce((sum, w) => sum + w.length - 1, 0);
+  const spacing = Math.max(0, (mm(T.lineWMm) - (lineWords.length - 1) * between - bare) / gaps);
+  const lineW = bare + spacing * gaps + (lineWords.length - 1) * between;
+  const lineX = (W - lineW) / 2;
+  const base = mm(T.lineBaseMm);
+  const mid = base - mm(T.lineCapMm) / 2;
+  let lx = lineX;
+  lineWords.forEach((w, i) => {
+    drawWord(c, w, lx, base, spacing, q);
+    lx += wordWidth(c, w, spacing, q);
+    if (i === lineWords.length - 1) return;
+    c.beginPath();
+    c.arc(lx + mm(T.dotGapMm + T.dotMm / 2), mid, mm(T.dotMm / 2), 0, 2 * Math.PI);
+    c.fill();
+    lx += between;
+  });
+  const ruleY = mid - mm(T.ruleThickMm) / 2;
   c.fillRect(lineX - mm(T.ruleGapMm + T.ruleMm), ruleY, mm(T.ruleMm), mm(T.ruleThickMm));
-  c.fillRect(lineX + mm(T.lineWMm + T.ruleGapMm), ruleY, mm(T.ruleMm), mm(T.ruleThickMm));
+  c.fillRect(lineX + lineW + mm(T.ruleGapMm), ruleY, mm(T.ruleMm), mm(T.ruleThickMm));
   // the size tab: — size —
   if (size) {
     c.font = font(700, sizeFont);
-    const mid = mm(T.h + T.sizeMidMm);
-    c.fillText(size, (W - sizeInk.w) / 2 + sizeInk.left, mid + mm(T.sizeCapMm) / 2);
-    if (dashes) {
-      const t = mm(T.ruleThickMm);
-      c.fillRect((W - sizeInk.w) / 2 - mm(T.dashGapMm + T.dashMm), mid - t / 2, mm(T.dashMm), t);
-      c.fillRect((W + sizeInk.w) / 2 + mm(T.dashGapMm), mid - t / 2, mm(T.dashMm), t);
-    }
+    const sm = mm(T.h + T.sizeMidMm);
+    c.save();
+    c.translate((W - sizeW) / 2, sm + mm(T.sizeCapMm) / 2);
+    c.scale(T.sizeSqueeze, 1);
+    c.fillText(size, sizeInk.left, 0);
+    c.restore();
+    const t = mm(T.ruleThickMm);
+    c.fillRect((W - sizeW) / 2 - mm(T.dashGapMm) - dash, sm - t / 2, dash, t);
+    c.fillRect((W + sizeW) / 2 + mm(T.dashGapMm), sm - t / 2, dash, t);
   }
 
   // 3. woven texture over cloth and threads alike
@@ -222,12 +255,17 @@ export async function neckLabelCanvas(words) {
   weave(img, W, H, randoms(11));
   c.putImageData(img, 0, 0);
 
-  // 4. the top goes into the neck seam (a soft shade there); the fine edge where the cloth turns; the lower edges
-  const seam = c.createLinearGradient(0, 0, 0, mm(1.6));
-  seam.addColorStop(0, "rgba(0,0,0,0.35)");
-  seam.addColorStop(1, "rgba(0,0,0,0)");
-  c.fillStyle = seam;
-  c.fillRect(tagX, 0, mm(T.w), mm(1.6));
+  // 4. shade where the top goes into the neck seam and where the tab goes under the tag; the fine edge where the
+  // cloth turns; the stitching down both ends of the tag and of the tab
+  const shade = (y0, y1, x0, w, dark) => {
+    const grad = c.createLinearGradient(0, y0, 0, y1);
+    grad.addColorStop(0, `rgba(0,0,0,${dark})`);
+    grad.addColorStop(1, "rgba(0,0,0,0)");
+    c.fillStyle = grad;
+    c.fillRect(x0, y0, w, y1 - y0);
+  };
+  shade(0, mm(1.6), tagX, mm(T.w), 0.35);
+  if (size) shade(mm(T.h), mm(T.h + 0.8), tabX, tabW, 0.55);
   c.strokeStyle = T.edge;
   c.lineWidth = mm(0.22);
   c.strokeRect(tagX + mm(0.11), -mm(1), mm(T.w) - mm(0.22), mm(T.h) + mm(1) - mm(0.11));
@@ -239,10 +277,9 @@ export async function neckLabelCanvas(words) {
     c.lineTo(tabX + tabW - mm(0.11), mm(T.h));
     c.stroke();
   }
-  // the stitching down both ends of the tag and of the tab
   c.fillStyle = T.stitch;
   const stitches = (sx, top, bottom) => {
-    for (let sy = top; sy < bottom - mm(0.45); sy += mm(0.7)) c.fillRect(sx - mm(0.09), sy, mm(0.18), mm(0.45));
+    for (let sy = top; sy < bottom - mm(0.45); sy += mm(0.7)) c.fillRect(sx - mm(0.07), sy, mm(0.14), mm(0.45));
   };
   stitches(tagX + mm(T.stitchInMm), mm(0.6), mm(T.h) - mm(0.5));
   stitches(tagX + mm(T.w - T.stitchInMm), mm(0.6), mm(T.h) - mm(0.5));
@@ -251,16 +288,20 @@ export async function neckLabelCanvas(words) {
     stitches(tabX + tabW - mm(T.stitchInMm), mm(T.h) + mm(0.3), tabBottom - mm(0.5));
   }
 
-  // 5. on the tee: a soft shadow under the tag and tab (it stands off the fabric), then the tag on top
+  // 5. on the tee: a soft shadow under the tag and tab (it stands off the fabric), then the tag on top. The shadow is
+  // the blurred shadow of shapes drawn off the canvas (shadowBlur works in every browser; a canvas filter does not).
   const out = document.createElement("canvas");
   out.width = W;
   out.height = H;
   const g = out.getContext("2d");
-  if ("filter" in g) g.filter = `blur(${mm(0.9)}px)`;
-  g.fillStyle = "rgba(20,17,16,0.32)";
-  g.fillRect(tagX - mm(0.3), mm(0.5), mm(T.w) + mm(0.6), mm(T.h) + mm(0.4));
-  if (size) g.fillRect(tabX - mm(0.2), tabTop, tabW + mm(0.4), tabBottom - tabTop + mm(0.7));
-  g.filter = "none";
+  const away = W + mm(10);
+  g.shadowColor = "rgba(20,17,16,0.32)";
+  g.shadowBlur = 2 * mm(0.9); // twice the blur's spread
+  g.shadowOffsetX = away;
+  g.fillStyle = "#000";
+  g.fillRect(tagX - mm(0.3) - away, mm(0.5), mm(T.w) + mm(0.6), mm(T.h) + mm(0.4));
+  if (size) g.fillRect(tabX - mm(0.2) - away, tabTop, tabW + mm(0.4), tabBottom - tabTop + mm(0.7));
+  g.shadowColor = "transparent";
   g.drawImage(cloth, 0, 0);
   return out;
 }

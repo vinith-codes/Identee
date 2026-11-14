@@ -139,10 +139,10 @@ test("bigger sizes: the same real size, so smaller on the one-size model; the ga
   assert.ok(Math.abs(m.anchors.back.neck - (M.mid + M.h / 2) - (NECK_LABEL.gapCm / 100) * (72.4 / 76.2)) < 1e-9);
   // no size chart length: the model's own size
   assert.equal(labelSpot(m, 0).w, 0.06);
-  // the picture = the woven tag (56 × 17.2 mm, as in the owner's picture) and its size tab, with room for the shadow;
+  // the picture = the woven tag (56 × 18 mm, as in the owner's picture) and its size tab, with room for the shadow;
   // its top in the neck seam
   assert.deepEqual({ w: NECK_LABEL.wCm, h: NECK_LABEL.hCm, gap: NECK_LABEL.gapCm }, { w: 6, h: 2.75, gap: 0.15 });
-  assert.deepEqual([LABEL_TAG.w, LABEL_TAG.h, LABEL_TAG.tabH], [56, 17.2, 8.2]);
+  assert.deepEqual([LABEL_TAG.w, LABEL_TAG.h, LABEL_TAG.tabH], [56, 18, 7.4]);
   assert.ok(LABEL_TAG.boxW >= LABEL_TAG.w + 2 && LABEL_TAG.boxH >= LABEL_TAG.h + LABEL_TAG.tabH + 1.5);
 });
 
@@ -175,8 +175,9 @@ test("one woven tag for all colours: the owner's black label with cream words, n
   assert.ok(LABEL_TAG.lineCapMm >= 1.3 && LABEL_TAG.tmCapMm >= 1.25 && LABEL_TAG.sizeCapMm >= 3.3 && LABEL_TAG.ruleThickMm >= 0.2);
   const art = src("../src/studio/neckLabelArt.js");
   assert.doesNotMatch(art, /gold|#C9A45C/i);
-  // the long sizes lose the dashes and the tab widens ("13-14", "5XL")
-  assert.match(art, /const dashes = size\.length <= 2;/);
+  // every size has the same "— size —": shorter dashes for a wider size, the tab wider only past the shortest dash
+  assert.doesNotMatch(art, /const dashes/);
+  assert.match(art, /if \(dash < mm\(T\.dashMinMm\)\)/);
 });
 
 test("the close-up looks down into the neck from the front, inside the room's camera limits", () => {
