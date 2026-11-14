@@ -526,7 +526,7 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
     run(act, act.photoUrl ? waitFor(act) : { ...waitFor(act), label: "Drawing another one…" });
   };
   const fix = (i, issue) => {
-    onFix(issue);
+    if (onFix(issue) === false) return; // nothing to fix any more (the print is gone): the card stays as it was
     setMessages((m) => m.map((x, n) => (n === i ? { ...x, issues: x.issues.map((y) => (y.id === issue.id ? { ...y, fixed: true } : y)) } : x)));
   };
 

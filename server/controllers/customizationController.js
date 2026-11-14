@@ -13,7 +13,8 @@ import { siteAddress } from "../utils/siteAddress.js";
 import { publicBase } from "./printFileController.js";
 import { rememberPictures } from "./myPictureController.js";
 import { readyPictures } from "../utils/shopRules.js";
-import { positionsForGarment, catalogForGarment, overlappingPairs, SIZES, SIZE_GROUPS } from "../data/printPositions.js";
+import { positionsForGarment, catalogForGarment, overlappingPairs, maxPrintBySize, CATALOG_BY_KEY, SIZES, SIZE_GROUPS } from "../data/printPositions.js";
+import { MAX_SPOTS, SPOT_SIDES, isSpotKey, overlapPair, panelKind, spotLabel, spotPosition, spotProblem } from "../data/panelModel.js";
 
 const MAX_ELEMENTS = 40;
 const clampNum = (v, min, max, fallback) => {
@@ -51,6 +52,8 @@ const cleanElement = (positionByKey) => (el, i) => {
     height: clampNum(el.height, 2, 200, 20),
     rotation: clampNum(el.rotation, -360, 360, 0),
     zIndex: clampNum(el.zIndex, -1000, 1000, 0),
+    // a free place: its box (the same, checked one on every element of the spot — cleanSpots)
+    ...(pos.spot ? { spot: pos.spot } : {}),
     // see-through and mirrored (the admin's Studio, 25 Oct 2026); left out when they are the defaults
     ...(el.opacity != null && Number(el.opacity) < 1 ? { opacity: clampNum(el.opacity, 0.05, 1, 1) } : {}),
     ...(el.flipH ? { flipH: true } : {}),
@@ -105,7 +108,8 @@ export const getPrintPositions = async (req, res) => {
     const garment = key ? await GarmentType.findOne({ key }).lean() : null;
     const { positions, scales } = positionsForGarment(garment);
     res.set("Cache-Control", "public, max-age=60");
-    res.json({ positions, scales, sizes: SIZES, sizeGroups: SIZE_GROUPS });
+    // maxPrint: the biggest print a free place can be on each size and side (data/panelModel.js maxPrintFor)
+    res.json({ positions, scales, sizes: SIZES, sizeGroups: SIZE_GROUPS, maxPrint: maxPrintBySize(garment) });
   } catch (err) {
     res.status(500).json({ message: err.message || "Could not load print positions" });
   }
@@ -158,6 +162,64 @@ async function dropMockups(mockups, exceptId) {
   }
 }
 
+/* ---------- prints in free places ("spots", 14 Nov 2026: data/panelModel.js, docs/FREE_PLACEMENT.md) ---------- */
+const r1 = (n) => Math.round(n * 10) / 10;
+// One spot's box as sent (el.spot of its first element) -> the box to store, or a clear refusal.
+function cleanSpotBox(raw, key, sizes, elements) {
+  if (!raw || typeof raw !== "object" || raw.key !== key) throw badRequest("A print in a free place has no place on the tee. Please move it again.");
+  if (!SPOT_SIDES.includes(raw.side)) throw badRequest("A print in a free place isn't on the front, back or a sleeve.");
+  const num = (v) => Number(v);
+  const [downCm, acrossCm, wCm, hCm] = [raw.downCm, raw.acrossCm, raw.wCm, raw.hCm].map(num);
+  if (![downCm, acrossCm, wCm, hCm].every(Number.isFinite) || wCm < 1 || hCm < 1 || wCm > 80 || hCm > 80 || downCm < 0 || downCm > 90 || Math.abs(acrossCm) > 45) {
+    throw badRequest("A print in a free place has a size or place that can't be printed. Please move it again.");
+  }
+  if (!sizes.includes(String(raw.base))) throw badRequest("A print in a free place was measured on a size this tee doesn't come in.");
+  const label = String(raw.label || "").replace(/\s+/g, " ").trim().slice(0, 30) || spotLabel(raw.side, elements);
+  const sleeve = raw.side === "left" || raw.side === "right";
+  return {
+    key,
+    side: raw.side,
+    label,
+    from: typeof raw.from === "string" && Object.hasOwn(CATALOG_BY_KEY, raw.from) ? raw.from : null,
+    downCm: r1(downCm),
+    acrossCm: sleeve ? 0 : r1(acrossCm), // a sleeve print sits on the sleeve's centre line (this version)
+    wCm: r1(wCm),
+    hCm: r1(hCm),
+    base: String(raw.base),
+    scale: raw.scale === "F" ? "F" : "G",
+  };
+}
+
+// The spots of a design (elements on "spot-N"), checked: at most MAX_SPOTS, a 3D tee to show them on, each on a side
+// the garment prints on, its box inside the safe zone and the biggest print of its size, none overlapping another spot
+// or a print area in use, on any size. Each keeps a name of its own (one already taken by another spot or a print
+// area gets the next free "Front 3"), so the print team never reads two prints of the same name.
+// Returns their positions (the same shape as a print area's, with the checked box as `spot`) for cleanElement.
+export function cleanSpots(elements, garment, positions) {
+  const keys = [...new Set(elements.map((e) => e?.position).filter((k) => isSpotKey(k) && !Object.hasOwn(CATALOG_BY_KEY, k)))];
+  if (!keys.length) return [];
+  if (keys.length > MAX_SPOTS) throw badRequest(`A tee can have at most ${MAX_SPOTS} prints in free places. Join some of them or remove one.`);
+  if (!panelKind(garment)) throw badRequest("Prints in free places need this garment's 3D design room.");
+  const sizes = garment.sizes?.length ? garment.sizes : SIZES; // (the sizes the design room offers)
+  const maxPrint = maxPrintBySize(garment);
+  const names = new Set([...Object.values(CATALOG_BY_KEY).map((c) => c.label), ...positions.map((p) => p.label)].map((l) => String(l).toLowerCase()));
+  const spots = keys.map((key) => {
+    const box = cleanSpotBox(elements.find((e) => e?.position === key && e.spot && typeof e.spot === "object")?.spot, key, sizes, elements);
+    // a side this garment has no print area on (an admin switched off every sleeve print): the print team doesn't print there
+    if (!positions.some((p) => p.side === box.side)) throw badRequest(`${box.label}: this garment isn't printed on ${box.side === "front" || box.side === "back" ? `the ${box.side}` : "the sleeves"}. Please move it.`);
+    if (names.has(box.label.toLowerCase())) box.label = spotLabel(box.side, [], [...names]);
+    names.add(box.label.toLowerCase());
+    const preset = box.from ? positions.find((p) => p.key === box.from) || null : null;
+    const problem = spotProblem(box, garment, { preset, maxPrint });
+    if (problem) throw badRequest(`${box.label}: ${problem}. Please move or shrink it.`);
+    return spotPosition(box, garment, { preset, maxPrint });
+  });
+  const used = positions.filter((p) => elements.some((e) => e?.position === p.key));
+  const pair = overlapPair(spots, used, garment);
+  if (pair) throw badRequest(`${pair[0].label} and ${pair[1].label} overlap on the tee — move one of them.`);
+  return spots;
+}
+
 // Validates garment / colour / size / elements; returns the fields to store.
 export async function cleanDesign(body) {
   const { garmentType, color, elements, size, name, players } = body;
@@ -176,6 +238,8 @@ export async function cleanDesign(body) {
   // Areas that overlap on the tee (e.g. Full Front and Centre Front): only one may be used.
   const [clash] = overlappingPairs([...new Set(elements.map((e) => e?.position))], positions);
   if (clash) throw badRequest(`${clash[0]} and ${clash[1]} overlap on the tee — keep your design in one of them.`);
+  // prints in free places (spots): checked, and offered to the elements like one more print area each
+  for (const spot of cleanSpots(elements, garment, positions)) positionByKey[spot.key] = spot;
   const cleaned = elements.map(cleanElement(positionByKey));
   return {
     garmentType: garment.key,
@@ -584,15 +648,26 @@ export function designPrintData(doc, garment, lines) {
   // where an area sits on the garment: its own placement rule, and the name of its side's main area
   // (placements are given relative to that one — see data/printPositions.js)
   const where = (a) => (a ? { main: !!a.main, place: a.place || null, collarCm: a.collarCm || null, mainLabel: catalog.find((c) => c.side === a.side && c.main)?.label || null } : {});
+  // a print in a free place (a spot) goes to the print team like a print area of its own: its page is its size for
+  // each size group, collarCm its top below the collar seam per size (sleeves: below the sleeve's top seam) and
+  // placeBySize its place across, so the job card's TOP / SIDE are the spot's own (studio/printFiles.js artworkSpot)
+  let spotCtx = null;
+  const spotArea = (key) => {
+    const box = isSpotKey(key) ? doc.elements.find((e) => e.position === key && e.spot?.key === key)?.spot : null;
+    if (!box) return null;
+    spotCtx ||= { offered: positionsForGarment(garment).positions, maxPrint: maxPrintBySize(garment) };
+    return spotPosition(box, garment, { preset: box.from ? spotCtx.offered.find((p) => p.key === box.from) || null : null, maxPrint: spotCtx.maxPrint });
+  };
+  const spotFields = (a) => (a?.spot ? { spot: true, placeBySize: a.placeBySize } : {});
   const areas = used.map((key) => {
-    const a = catalog.find((c) => c.key === key);
+    const a = catalog.find((c) => c.key === key) || spotArea(key);
     const files = [];
     // an area with the player's name or number: one print file per player
     if (a && players.length && doc.elements.some((e) => e.position === key && e.role)) {
       for (const p of players) {
         files.push({ group: `player-${p.n}`, sizes: [p.size], cm: a.cmBySize[String(p.size).toUpperCase()] || a.cmBySize.L, player: p });
       }
-      return { key, label: a.label, side: a.side || null, files, perPlayer: true, ...where(a) };
+      return { key, label: a.label, side: a.side || null, files, perPlayer: true, ...where(a), ...spotFields(a) };
     }
     // one print file per print size among the ordered sizes (same cm → same file)
     for (const l of a ? lines : []) {
@@ -603,7 +678,7 @@ export function designPrintData(doc, garment, lines) {
         if (!f.sizes.includes(l.size)) f.sizes.push(l.size);
       } else files.push({ group: id, sizes: [l.size], cm });
     }
-    return { key, label: a?.label || key, side: a?.side || null, files, ...where(a) };
+    return { key, label: a?.label || key, side: a?.side || null, files, ...where(a), ...spotFields(a) };
   });
   return {
     _id: String(doc._id),

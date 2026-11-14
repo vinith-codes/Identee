@@ -6,7 +6,7 @@
 // costs a fraction of a paisa.
 //
 //   AI_TEXT_MODEL   optional, defaults to gemini-flash-lite-latest
-import { aiAreas } from "../data/printPositions.js";
+import { aiAreas, spotWhereOf } from "../data/printPositions.js";
 
 const TIMEOUT_MS = 20_000;
 // (the area lists below carry each area's "where" and the "words" customers use for it: aiAreas)
@@ -302,7 +302,7 @@ export async function readPhotoRequest({ image, message, styles = [], photoStyle
     "job: copy = ONLY when they clearly want that exact design reproduced: \"same design\", \"exactly this\", \"copy this\", \"only this design\", \"the design from this tee\", \"print this design on my tee\". photo = print the photo itself (a person, pet, place, object), possibly without its background. art = the photo itself redrawn in an art style (cartoon, sketch, sticker, watercolour, pop art). inspired = a NEW, original design that uses the photo only as a reference or inspiration, with or without a new subject: \"like this\", \"similar to this\", \"something like this\", \"in this style\", \"based on this\", \"inspired by this\", \"use this as a reference\", \"like this but with a tiger\". When you are unsure between copy and inspired, choose inspired. unclear = you cannot tell which; then ask.",
     "seen: what is in the photo, in at most 12 plain words, as you would tell the customer (\"a black t-shirt with a lion and the word ROAR\").",
     "style: for art, one of " + JSON.stringify(photoStyles) + "; for inspired, one of " + JSON.stringify(styles) + "; otherwise null. Only if they named a style or it is clearly implied.",
-    "area: the print area they named, as one of these keys, else null: " + JSON.stringify(aiAreas(areas.map((a) => ({ key: a.key, label: a.label })))) + ". " + AREA_WORDS_RULE,
+    "area: the print area they named, as one of these keys, else null: " + JSON.stringify(aiAreas(areas.map((a) => ({ key: a.key, label: a.label, ...spotWhereOf(a) })))) + ". " + AREA_WORDS_RULE,
     'areas: EVERY print area they named for this photo, as keys from the same list, in the order they wrote them ("on the full back and the left chest" → both); [] when none.',
     "change: for copy, what to change while copying (\"the name KINGS XI instead of LIONS\"), else null.",
     "subject: for inspired, what the new design should show, in English: what they asked for, or — when they named nothing new — a fresh idea on the same theme as the photo (for a lion mascot: \"a different fierce animal mascot in the same bold style\"), never a description of the same artwork. Else null.",

@@ -136,3 +136,114 @@ New places stay **off** on every garment until you switch them on, so nothing ch
 Please send the print team the table above and ask them to confirm or correct the sizes and positions. They are
 especially needed for Front Left Vertical, the Lower places and Back Neck (and how close to the collar rib they
 press). Until they reply, the places are marked "estimate" in the admin.
+
+---
+
+# Free placement — phase 2: prints at any place, behind the scenes (14 Nov 2026)
+
+Same branch, `feature/free-placement`. There are **no new buttons for customers** in this phase. It teaches every part
+of the website to handle a print that sits at **any place** on the tee, measured in centimetres. Phase 3 then adds the
+part customers see: dragging a print anywhere on the 3D tee.
+
+## What a "free place" is
+
+A print in a free place is called a **spot** in the code. Customers and the print team see its name, for example
+**"Front 1"**, **"Back 1"** or **"Left sleeve 1"**. They never see "spot-1".
+
+Each spot stores six things, all in cm, measured on the tee size it was designed on (the "base" size):
+
+- how far its top edge is **below the collar seam** (on a sleeve: below the **shoulder seam**),
+- how far its middle is **from the centre line** (to the wearer's left or right),
+- its **width and height**,
+- whether it **grows** with the tee size (a big print: smaller on S, bigger on 2XL) or **stays the same cm** (a logo),
+- the print area it started from, if any (for example "moved from Left Chest").
+
+A growing print gets **one size for each size group** (XS–S, M–XL, 2XL–3XL). So the print team gets **at most 3
+print files** per print, as today. It grows by how much wider the tee is (the size chart's chest).
+
+### Example: the test design (Oversized tee, made on size M)
+
+| Print | XS–S | M–XL | 2XL–3XL |
+|---|---|---|---|
+| Front 1, logo (same cm) | 9 x 9 cm, 8 cm down, 9 cm to the wearer's left | the same | the same |
+| Front 2, "IDENTEE" (grows) | 23 x 5.7 cm, 38.3 cm down, centred | 24 x 6 cm, 40 cm down | 27.1 x 6.8 cm, 45.2 cm down |
+| Back 1, picture (grows) | 28.7 x 36.3 cm, 9.6 cm down | 30 x 38 cm, 10 cm down | 33.9 x 43 cm, 11.3 cm down |
+| Left sleeve 1, words (same cm) | 8 x 6 cm, 4 cm below the shoulder seam | the same | the same |
+
+"Down" means below the collar seam at the centre line.
+
+## The safe zone and the biggest print (our ESTIMATES until the print team answers)
+
+A print must keep clear of the seams. A print too close to a seam on one size is **moved in** or **shrunk** on that size only, and the design check tells the customer.
+
+- **Collar seam:** 3 cm. **Side seams:** 5 cm. **Hem:** 4 cm.
+- **Sleeve:** 2.5 cm from the shoulder seam, the sleeve's hem and its sides.
+- **Biggest print:** the print team's Full Front / Centre Back, which is 35 x 52 cm (37 x 54 at 2XL–3XL).
+- **Biggest sleeve print:** 10 x 10 cm (13 x 14 at 2XL–3XL).
+- **Sleeve prints only on garments that print on the sleeves.** If every sleeve print area of a garment is
+  switched off in Admin, a print in a free place on its sleeve is refused too (and the same for the front or back).
+
+The owner's answers file suggested 30 x 40 cm as a safe biggest print. This phase uses the print team's 35 x 52,
+which the biggest print follows (the Full Front / Centre Back sizes in **Admin → Print areas**). **Do not change those
+sizes while orders are open:** that changes the print pages of every unprinted Full Front / Centre Back order, and it
+shrinks prints in free places too (see "Two things to know for later").
+
+The 3D tee's body is narrower than the real tee, so a print also keeps 1 cm inside the 3D tee's outline. On M the
+widest print that fits is 35.8 cm. On a sleeve it also keeps 1 cm inside the 3D sleeve's hem: the regular round-neck
+tee's 3D sleeve is short, so a sleeve print there is at most about 7 cm tall. The crop tops keep their full sleeve
+(cropping the body doesn't shorten the sleeve). Prints in their usual print areas are never moved or shrunk.
+
+On the 3D tee a sleeve print is placed by its drop straight down from the shoulder; the print team measures along the
+sloping sleeve. On a long sleeve print the preview can sit up to about 1 cm lower than the pressed print. The job
+card's number is the one to follow.
+
+## What is checked when a design is saved (the server)
+
+- At most **8** prints in free places per tee.
+- Each one inside the safe zone and no bigger than the biggest print. A refusal names it, for example: "Front 1: it
+  is too near the side seam (keep 5 cm clear). Please move or shrink it."
+- No two prints overlap on **any** size the tee comes in. This covers a print in a free place and one in a print area
+  too. A print area without the print team's start line (Centre Front, the chests, Full Back) is checked both where
+  our usual start line puts it and where the 3D tee draws it (lower on the big sizes), so they never overlap on either.
+- Each print in a free place has its own name. A name already used by another print (or a print area's name, like
+  "Full Front") becomes the next free one, for example "Front 3".
+- Only garments with a 3D design room. The flat page has no free places.
+
+## What the print team sees
+
+- Each print in a free place gets **its own page** in the order ZIP, at its size for each size group.
+- The job card's **TOP** is measured from the **collar seam** (on a sleeve: **"cm below shoulder seam"**). **SIDE**
+  is measured from the centre line; less than 0.5 cm off it is "centred" on the job card, the tee drawing, the day
+  sheets and the order sheet alike. There is no "*" mark, because nothing is measured from "your usual start line".
+- The tee drawing on the job card shows it where it really goes.
+- The order sheet gets **one extra line per print**, for example
+  `1 Front 2 (M, L, XL) · 24 x 6 cm · top 40 cm below collar seam · centred`.
+- The day sheets' tags say "below the shoulder seam" for a sleeve print.
+
+## Old designs and old orders
+
+They are **not changed in any way**. A design without free places is saved, checked, shown on the 3D tee and printed exactly as before. The tests prove it:
+
+- every print area on every size is placed on the 3D tee and on the job card exactly as before,
+- made-up old designs give exactly the same print data as before, down to the last character.
+
+## Two things to know for later
+
+- **Only the size it was made on is stored.** A print in a free place stores its box in cm on the size it was
+  designed on (for example M). Its size and place on the other sizes are **worked out when the print files are made**,
+  from the garment's size chart, the sizes it is sold in and the biggest print (the Full Front / Centre Back sizes).
+  So changing any of those later changes the print pages of orders not yet printed — even on the size it was made on,
+  if the biggest print gets smaller. Print areas work the same way today. Until the cm per size are frozen on each
+  order (a later phase), any change to the size chart, the sizes sold or the print-area sizes must be versioned (a
+  new key or a dated note) and made only when no such order is waiting to print, never edited in place.
+- **The admin's Studio** (hand-made shop tees) has no free places in this phase. Its print check and "Enlarge for
+  print" only see print areas (planned for phase 6). For customer orders, "Prepare for print" works on prints in
+  free places like any other print. It takes the print's width from its own page.
+- **Phones without 3D:** the flat page never opens a saved design (this was true before too). A design with free
+  places can only be opened in the 3D design room.
+
+## For testing on the laptop
+
+`free-placement-plan/work/phase2/seed-three-spot.mjs <userId>` saves the test design above into a **local** test
+database through the website's own save check. It only works with a database on the laptop. It prints the address
+that opens the design in the design room.

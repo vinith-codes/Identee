@@ -6,11 +6,29 @@
 // answer is treated as a suggestion: unknown items, areas, fonts or values
 // are simply skipped, so a wrong answer can never break a design.
 import { blockersOf } from "./teeModel";
+import { isSpotKey } from "./panelModel";
 
 const HEX = /^#[0-9a-f]{6}$/i;
 const SHAPES = { straight: "straight", "curved-up": "arc-up", "curved-down": "arc-down" };
 const clamp = (n, lo, hi) => Math.min(hi, Math.max(lo, n));
 const turned = (el) => Math.abs((el.rotation || 0) % 180) === 90;
+// Letters may fill a print in a free place's tight box (80–87 % of its height; the box grows round bigger ones:
+// panelModel.js reboxChanged); a print area keeps its old cap.
+const fontMax = (pos) => (pos?.spot ? 100 : 60);
+// A thing added to or moved into a print in a free place that already has things goes just under them (or above, when
+// asked for the top), centred, keeping its own size — not on top of them in the middle of a tight box. The box then
+// grows round it when the room commits the change (reboxChanged).
+function besideThings(el, pos, others, areaPx, above = false) {
+  const { W, H, hCm } = areaPx(pos);
+  const there = others.filter((e) => e.position === pos.key);
+  if (!there.length) return el;
+  const tall = (e) => (turned(e) ? (e.width * W) / H : e.height); // how tall it looks, in % of the box
+  const mid = (e) => (e.y || 0) + (e.height || 0) / 2;
+  const gap = (0.5 / (hCm || 1)) * 100; // 0.5 cm, in % of the box's height
+  const h = tall(el);
+  const cy = above ? Math.min(...there.map((e) => mid(e) - tall(e) / 2)) - gap - h / 2 : Math.max(...there.map((e) => mid(e) + tall(e) / 2)) + gap + h / 2;
+  return { ...el, x: 50 - el.width / 2, y: cy - el.height / 2 };
+}
 
 /**
  * @param ops  the AI's list
@@ -63,10 +81,12 @@ export function areaInWords(text, positions = []) {
  * The print area to use for an area key the AI chose: that area when this garment has it and it is free,
  * else the biggest free area on the same side (front / back / a sleeve / the shorts), else null.
  * The AI may also name the place in words ("nape", "Back Neck", "bottom left corner"): those find the area too.
+ * A free place ("spot-2") the design doesn't have is ignored (null), like an answer that names nothing usable.
  * @param used  area keys that already carry a print
  */
 export function areaFor(key, positions, used) {
   const free = (p) => used.includes(p.key) || !blockersOf(p.key, positions, used).length;
+  if (isSpotKey(key) && !positions.some((p) => p.key === key)) return null;
   const asked = positions.find((p) => p.key === key) || areaInWords(key, positions);
   if (asked && free(asked)) return asked;
   const side = asked?.side || sideOfKey(key, positions);
@@ -129,7 +149,7 @@ export function applyAiOps(ops, d) {
           next.effect = "straight";
           next.rotation = 90;
         }
-        if (Number.isFinite(s.scale)) next.fontSizePct = clamp((el.fontSizePct || 12) * clamp(s.scale, 0.3, 3), 2, 60);
+        if (Number.isFinite(s.scale)) next.fontSizePct = clamp((el.fontSizePct || 12) * clamp(s.scale, 0.3, 3), 2, fontMax(pos));
         if (Number.isFinite(s.rotation)) next.rotation = clamp(Math.round(s.rotation), -180, 180);
         next = d.textBox(next, pos); // its box follows the new words / size / font (the middle stays put)
       } else {
@@ -159,9 +179,16 @@ export function applyAiOps(ops, d) {
       // keep its real size (cm) in the new area, but never larger than the area
       const a = d.areaPx(from);
       const b = d.areaPx(to);
-      let next = { ...el, position: to.key, side: to.side };
-      if (el.type === "text") {
-        next.fontSizePct = clamp(((el.fontSizePct || 12) * a.hCm) / b.hCm, 2, 60);
+      // (a free place's box goes with it; a print area needs none)
+      let next = { ...el, position: to.key, side: to.side, spot: to.spot };
+      if (!to.spot) delete next.spot;
+      if (to.spot && others.some((e) => e.position === to.key)) {
+        // into a print in a free place that has things: its real size (cm) kept, just under them (the box grows)
+        if (el.type === "text") next = d.textBox({ ...next, fontSizePct: clamp(((el.fontSizePct || 12) * a.hCm) / b.hCm, 2, fontMax(to)), x: 50, y: 50, width: 0, height: 0 }, to);
+        else next = { ...next, width: (el.width * a.wCm) / b.wCm, height: (el.height * a.hCm) / b.hCm };
+        next = besideThings(next, to, others, d.areaPx);
+      } else if (el.type === "text") {
+        next.fontSizePct = clamp(((el.fontSizePct || 12) * a.hCm) / b.hCm, 2, fontMax(to));
         next = d.textBox({ ...next, x: 50, y: 50, width: 0, height: 0 }, to);
         if (next.width > 92) next = d.textBox({ ...next, fontSizePct: (next.fontSizePct * 92) / next.width }, to);
       } else {
@@ -199,11 +226,14 @@ export function applyAiOps(ops, d) {
       const pos = (op.area && areaFor(op.area, d.positions, used)) || posOf(d.active);
       if (!pos || !free(pos.key)) continue;
       const count = els.filter((e) => e.position === pos.key).length;
+      // words added to a print in a free place start at the size of its words already there (in its tight box 12 %
+      // would be tiny), and go under its things (besideThings)
+      const like = pos.spot ? Math.max(0, ...els.filter((e) => e.position === pos.key && e.type === "text").map((e) => e.fontSizePct || 0)) : 0;
       let el = {
         type: "text",
         text: op.text.slice(0, 200),
         fontFamily: d.fonts.includes(op.fontFamily) ? op.fontFamily : "Anton",
-        fontSizePct: clamp(12 * (Number.isFinite(op.scale) ? clamp(op.scale, 0.3, 3) : 1), 2, 60),
+        fontSizePct: clamp((like || 12) * (Number.isFinite(op.scale) ? clamp(op.scale, 0.3, 3) : 1), 2, fontMax(pos)),
         color: HEX.test(op.color) ? op.color.toUpperCase() : d.inkDefault,
         align: "center",
         effect: SHAPES[op.shape] || "straight",
@@ -214,8 +244,9 @@ export function applyAiOps(ops, d) {
       };
       el = d.textBox(el, pos);
       if (el.width > 90) el = d.textBox({ ...el, fontSizePct: (el.fontSizePct * 90) / el.width }, pos);
-      el = { id: d.makeId(), position: pos.key, side: pos.side, rotation: 0, zIndex: els.length + 1, ...el };
-      if (op.placeY) el = place(el, pos, null, op.placeY);
+      el = { id: d.makeId(), position: pos.key, side: pos.side, rotation: 0, zIndex: els.length + 1, ...el, ...(pos.spot ? { spot: pos.spot } : {}) };
+      if (pos.spot && count) el = besideThings(el, pos, els, d.areaPx, op.placeY === "top");
+      else if (op.placeY) el = place(el, pos, null, op.placeY);
       els = [...els, el];
       focus = pos.key;
       changed++;
@@ -225,7 +256,8 @@ export function applyAiOps(ops, d) {
 }
 
 // A small description of the design for the text AI (no pictures, no positions in pixels).
-export function describeDesign({ elements, positions, active, selectedId, fonts, teeName, teeColours = [], areaPx }) {
+// whereOf(position): a free place in words ("24 x 6 cm, 40 cm below the collar seam, centred"), so the AI knows it.
+export function describeDesign({ elements, positions, active, selectedId, fonts, teeName, teeColours = [], areaPx, whereOf = null }) {
   const used = [...new Set(elements.map((e) => e.position))];
   return {
     tee: teeName,
@@ -233,7 +265,7 @@ export function describeDesign({ elements, positions, active, selectedId, fonts,
     openArea: active || "",
     selectedId: selectedId || null,
     fonts,
-    areas: positions.map((p) => ({ key: p.key, label: p.label, side: p.side, free: used.includes(p.key) || !blockersOf(p.key, positions, used).length })),
+    areas: positions.map((p) => ({ key: p.key, label: p.label, side: p.side, free: used.includes(p.key) || !blockersOf(p.key, positions, used).length, ...(p.spot && whereOf ? { where: whereOf(p) } : {}) })),
     items: elements.map((e) => {
       const pos = positions.find((p) => p.key === e.position);
       const { wCm, hCm } = pos ? areaPx(pos) : { wCm: 0, hCm: 0 };

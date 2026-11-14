@@ -22,6 +22,7 @@ import AreaEditor from "./AreaEditor";
 import { AreaRenderer, cachedImage, imageSrcs, loadImage, measureText, playerElements, printThumb } from "./konvaRender";
 import { MAX_PLAYERS, NAME_MAX, NUMBER_MAX, filled, hasRoles, parsePlayers, playerLabel, rolesIn, sizeCounts } from "./teamOrder";
 import { areaCm, blockersOf, clashesIn, modelForGarment, placeArea } from "./teeModel";
+import { applySpotFix, isSpotKey, normaliseSpots, reboxChanged, spotsIn, spotWhere, withSpotBoxes } from "./panelModel";
 import AreaThumb from "./AreaThumb";
 import { AREA_GROUPS, groupOfSide, listOrder } from "./areaGroups";
 import { startFontPct, startTextY } from "./textStart";
@@ -60,6 +61,9 @@ import "./designRoom.css";
 
 const PX_PER_CM = 24; // texture / editor resolution (print files are made separately at 300 DPI)
 const MIN_AREA_PX = 480; // small areas (sleeves, chest) are drawn finer so they stay sharp on the 3D tee
+// ...but never longer than this: a thin print in a free place (a 20 × 1.2 cm strip of words) would otherwise need a
+// picture too big for a phone's 3D tee. Every print area stays well under it (the longest, Vertical Front: 2,592 px).
+const MAX_AREA_PX = 4096;
 const INKS = ["#FFFFFF", "#141110", "#C9A24B", "#C2352C", "#2441B5", "#1C5A2B", "#F0C24C", "#B7A2E0", "#F08A24", "#8DC1EC"];
 // what can be added to a print area — the tabs in the editor: [key, label, icon path]
 const ADD_TABS = [
@@ -247,8 +251,17 @@ export default function DesignRoomPage() {
   // the colour in the address starts a NEW design; a design in progress keeps its own colour
   const [colourSlug, setColourSlug] = useState((fresh && params.get("color")) || draft?.colour || session?.colour || params.get("color") || null);
   const [size, setSize] = useState(draft?.size || session?.size || readJSON(SIZE_KEY) || "M");
-  const [elements, setElements] = useState(() => (Array.isArray(draft?.elements) ? draft.elements : []));
-  const [positions, setPositions] = useState([]);
+  const [elements, setElements] = useState(() => (Array.isArray(draft?.elements) ? normaliseSpots(draft.elements) : []));
+  // the garment's print areas as the server sends them, and the biggest print per size (for the free places)
+  const [catalog, setCatalog] = useState([]);
+  const [maxPrint, setMaxPrint] = useState(null);
+  // Free placement phase 2 (14 Nov 2026, panelModel.js): a print can sit in a free place (a "spot", its box kept on its
+  // elements). The room's print positions = the print areas + one position per spot, shaped like a print area, so
+  // everything below treats it as one. Worked out again only when a spot's box changes; a design with no spots gets
+  // the server's list itself.
+  const spotSig = JSON.stringify(spotsIn(elements));
+  const spotBoxes = useMemo(() => JSON.parse(spotSig), [spotSig]);
+  const positions = useMemo(() => withSpotBoxes(catalog, spotBoxes, garment, maxPrint), [catalog, spotBoxes, garment, maxPrint]);
   const [active, setActive] = useState(null); // print area key being edited
   const [selectedId, setSelectedId] = useState(null);
   // Step 1 (left): where to print. Step 2 (right, in the editor): what to add.
@@ -465,7 +478,11 @@ export default function DesignRoomPage() {
     let alive = true;
     customizationService
       .getPrintPositions(type)
-      .then((d) => alive && setPositions(d.positions || []))
+      .then((d) => {
+        if (!alive) return;
+        setCatalog(d.positions || []);
+        setMaxPrint(d.maxPrint || null);
+      })
       .catch(() => alive && setToast("Couldn't load the print areas. Please reload the page."));
     return () => {
       alive = false;
@@ -499,6 +516,12 @@ export default function DesignRoomPage() {
   const siteOffer = useSiteOffer(); // "+ Extra 10% off with code …" (Admin → Offers, shown on the site)
   const shipRule = useShippingRule(); // ₹100 shipping, free from 3 pieces
   const activePos = positions.find((p) => p.key === active) || null;
+  // a free place whose last thing was removed is gone, so its editor closes (a print area stays open, empty). Set while
+  // drawing, as React suggests for state that follows other state: it runs once, then `active` is null.
+  if (active && isSpotKey(active) && catalog.length && !activePos) {
+    setActive(null);
+    setSelectedId(null);
+  }
   const roles = hasRoles(elements);
   const teamMode = roles && team;
   const teamPlayers = teamMode ? players.filter(filled) : [];
@@ -507,7 +530,7 @@ export default function DesignRoomPage() {
   const areaPx = useCallback(
     (pos) => {
       const [w, h] = areaCm(pos, sizeNow);
-      const pxPerCm = Math.max(PX_PER_CM, MIN_AREA_PX / Math.min(w, h));
+      const pxPerCm = Math.min(Math.max(PX_PER_CM, MIN_AREA_PX / Math.min(w, h)), MAX_AREA_PX / Math.max(w, h));
       return { W: Math.round(w * pxPerCm), H: Math.round(h * pxPerCm), wCm: w, hCm: h };
     },
     [sizeNow],
@@ -560,6 +583,11 @@ export default function DesignRoomPage() {
   useEffect(() => {
     elementsRef.current = elements;
   }, [elements]);
+  // what commit needs to re-box a print in a free place (panelModel.js reboxChanged)
+  const spotCtx = useRef({ garment: null, catalog: [], maxPrint: null });
+  useEffect(() => {
+    spotCtx.current = { garment, catalog, maxPrint };
+  }, [garment, catalog, maxPrint]);
   // (13 Nov 2026: a reload of this tab brings back undo and redo — the same tee and chat only)
   const [undoAtStart] = useState(() => (resumable && !othersRoom && readUndo(type, chatId)) || { past: [], future: [] });
   const hist = useRef(undoAtStart);
@@ -570,7 +598,9 @@ export default function DesignRoomPage() {
   const softRef = useRef({ key: null, at: 0 });
   const commit = useCallback((next, { soft = null } = {}) => {
     const prev = elementsRef.current;
-    const value = typeof next === "function" ? next(prev) : next;
+    // (every thing in a free place carries its spot's box: a new picture or words there take it; a thing made bigger,
+    // copied or added past the box's edge grows the box round it, so nothing is cut off — panelModel.js)
+    const value = reboxChanged(normaliseSpots(typeof next === "function" ? next(prev) : next, prev), prev, spotCtx.current);
     const joins = soft && softRef.current.key === soft && Date.now() - softRef.current.at < 1500;
     softRef.current = { key: soft, at: Date.now() };
     hist.current = { past: joins ? hist.current.past : [...hist.current.past, prev].slice(-HISTORY_CAP), future: [] };
@@ -626,7 +656,23 @@ export default function DesignRoomPage() {
         const canvas = entry.r.render(els, { outline });
         updates[pos.key] = { canvas, version: nextReq() };
       }
-      if (alive && Object.keys(updates).length) setTextures((t) => ({ ...t, ...updates }));
+      // a free place whose last thing was removed has no position any more: its drawing and picture go too (the
+      // mockup pictures redraw every drawing that is kept)
+      const keys = new Set(positions.map((p) => p.key));
+      const gone = [...renderers.current.keys()].filter((key) => !keys.has(key));
+      for (const key of gone) {
+        renderers.current.get(key).r.destroy();
+        renderers.current.delete(key);
+        lastSig.current.delete(key);
+        paintedEls.current.delete(key);
+      }
+      if (alive && (Object.keys(updates).length || gone.length)) {
+        setTextures((t) => {
+          const next = { ...t, ...updates };
+          for (const key of gone) delete next[key];
+          return next;
+        });
+      }
     };
     run();
     // Draw again only when a picture or font was still loading. (Doing this on
@@ -879,7 +925,7 @@ export default function DesignRoomPage() {
     hadElements.current = true; // (an empty tee is written over the one before)
     hist.current = { past: [], future: [] };
     bumpHistory();
-    setElements(Array.isArray(d.elements) ? d.elements : []);
+    setElements(Array.isArray(d.elements) ? normaliseSpots(d.elements) : []);
     if (d.colour) setColourSlug(d.colour);
     if (d.size) setSize(d.size);
     unsaved.current = Boolean(d.dirty);
@@ -1094,7 +1140,7 @@ export default function DesignRoomPage() {
     if (!earlier) return;
     const room = oldRoom || {};
     hadElements.current = true;
-    setElements(earlier.elements);
+    setElements(normaliseSpots(earlier.elements));
     if (earlier.colour || room.colour) setColourSlug(earlier.colour || room.colour);
     if (earlier.size || room.size) setSize(earlier.size || room.size);
     setDesignId(earlier.designId || null);
@@ -1207,7 +1253,7 @@ export default function DesignRoomPage() {
         chatDesign.current = d._id;
         shopTeeChecked.current = d._id;
         setShopTee(d.fromReady ? { id: d._id, pictures: d.readyPictures || [] } : null);
-        setElements(d.elements.map((e) => ({ ...e, id: e._id || e.id || makeId() })));
+        setElements(normaliseSpots(d.elements.map((e) => ({ ...e, id: e._id || e.id || makeId() }))));
         setColourSlug(d.color);
         if (d.size) setSize(d.size);
         onScreenId.current = d._id;
@@ -1289,6 +1335,8 @@ export default function DesignRoomPage() {
   };
   const ensureArea = () => {
     if (active) return positions.find((p) => p.key === active);
+    // (before the print areas come, a design's prints in free places are its only positions: wait for them)
+    if (!catalog.length) return null;
     const free = (p) => usedKeys.includes(p.key) || !blockersOf(p.key, positions, usedKeys).length;
     const main = positions.find((p) => p.side === "front" && p.main && free(p)) || positions.find((p) => p.side === "front" && free(p)) || positions.find(free) || positions[0];
     if (main) openArea(main.key);
@@ -1532,7 +1580,9 @@ export default function DesignRoomPage() {
       prev.map((e) => {
         if (e.id !== selectedId) return e;
         if (e.type === "text") {
-          const fontSizePct = Math.min(60, Math.max(2, e.fontSizePct * f));
+          // (words in a free place fill its tight box — 80–87 % of its height — so they may go up to the server's 100 %;
+          // the box then grows round them: commit)
+          const fontSizePct = Math.min(isSpotKey(e.position) ? 100 : 60, Math.max(2, e.fontSizePct * f));
           return textBox({ ...e, fontSizePct, ownSizePct: fontSizePct }, positions.find((p) => p.key === e.position));
         }
         const width = Math.min(150, Math.max(4, e.width * f));
@@ -1660,7 +1710,10 @@ export default function DesignRoomPage() {
     setTwirlKey((k) => k + 1);
   };
   /* ---------- the design assistant ---------- */
-  const designIssues = () => checkDesign(elements, positions, { fabricHex, inkDefault, cmOf: (pos) => areaPx(pos), canEnlarge: ai.available });
+  // (a print in a free place is checked on every size the tee comes in: designed on M, it may move on 2XL)
+  const designIssues = () => checkDesign(elements, positions, { fabricHex, inkDefault, cmOf: (pos) => areaPx(pos), canEnlarge: ai.available, garment, size: sizeNow, sizes, maxPrint });
+  // a free place in words for the AI ("24 x 6 cm, 40 cm below the collar seam, centred"): "make Front 1 bigger" works
+  const whereOf = (p) => spotWhere(p, sizeNow, garment);
   // what the assistant knows about the tee right now
   const assistantCtx = () => ({
     areaLabel: activePos?.label || "the tee",
@@ -1669,7 +1722,7 @@ export default function DesignRoomPage() {
     sizes,
     sizeNow,
     chart: (sz) => garment.sizeChart?.find((r) => r.size === sz),
-    areas: positions.map((p) => ({ key: p.key, label: p.label, side: p.side, main: !!p.main, free: usedKeys.includes(p.key) || !blockersOf(p.key, positions, usedKeys).length })),
+    areas: positions.map((p) => ({ key: p.key, label: p.label, side: p.side, main: !!p.main, free: usedKeys.includes(p.key) || !blockersOf(p.key, positions, usedKeys).length, ...(p.spot ? { where: whereOf(p) } : {}) })),
     activeKey: active || null,
     issues: designIssues,
     inks: inksFor(fabricHex, INKS),
@@ -1741,7 +1794,7 @@ export default function DesignRoomPage() {
         history,
         earlier,
         memory: chatMemory,
-        design: describeDesign({ elements, positions, active, selectedId, fonts: FONTS, teeName: colour?.name || "", teeColours: colours.map((x) => x.name), areaPx }),
+        design: describeDesign({ elements, positions, active, selectedId, fonts: FONTS, teeName: colour?.name || "", teeColours: colours.map((x) => x.name), areaPx, whereOf }),
         // what the page shows the customer — the AI quotes these, never its own numbers
         facts: {
           garment: garment?.label || "",
@@ -1758,7 +1811,7 @@ export default function DesignRoomPage() {
           canDraw: ai.available && isLoggedIn() && ai.left !== 0,
           pieces,
         },
-        areas: c.areas.map(({ key, label, free }) => ({ key, label, free })),
+        areas: c.areas.map(({ key, label, free, where }) => ({ key, label, free, ...(where ? { where } : {}) })),
       });
     } catch (err) {
       // switched off or paused on purpose (503): the fixed replies answer, as before. Only a hiccup (slow internet,
@@ -1834,9 +1887,9 @@ export default function DesignRoomPage() {
           history,
           earlier,
           memory: chatMemory,
-          design: describeDesign({ elements, positions, active, selectedId, fonts: FONTS, teeName: colour?.name || "", teeColours: colours.map((x) => x.name), areaPx }),
+          design: describeDesign({ elements, positions, active, selectedId, fonts: FONTS, teeName: colour?.name || "", teeColours: colours.map((x) => x.name), areaPx, whereOf }),
           facts: v2Facts(),
-          areas: c.areas.map(({ key, label, free }) => ({ key, label, free })),
+          areas: c.areas.map(({ key, label, free, where }) => ({ key, label, free, ...(where ? { where } : {}) })),
           sheets: sheetsFromChat(chat).map((sh) => ({ brief: sh.brief, concepts: (sh.concepts || []).map(({ n, title }) => ({ n, title })), developed: sh.developed || [] })),
           // a picture sent with this message, and the logo on file in this chat
           ...(a.photo?.url ? { photo: { url: a.photo.url, about: a.text || "" } } : {}),
@@ -2228,7 +2281,7 @@ export default function DesignRoomPage() {
     try {
       const res = await aiService.edit({
         message: a.message,
-        design: describeDesign({ elements, positions, active, selectedId, fonts: FONTS, teeName: colour?.name || "", teeColours: colours.map((c) => c.name), areaPx }),
+        design: describeDesign({ elements, positions, active, selectedId, fonts: FONTS, teeName: colour?.name || "", teeColours: colours.map((c) => c.name), areaPx, whereOf }),
       });
       if (run?.stopped) return []; // stopped while the AI was thinking: nothing changes
       const all = Array.isArray(res.ops) ? res.ops : [];
@@ -2575,14 +2628,15 @@ export default function DesignRoomPage() {
           return {
             key: p.key,
             label: p.label,
-            where: p.hint || "",
+            // (a print in a free place says where it is: "40 cm below the collar seam, centred" — its size is in the row)
+            where: p.hint || (p.spot ? whereOf(p).replace(/^[^,]*, /, "") : ""),
             cm: [Math.round(wCm), Math.round(hCm)],
             state: usedKeys.includes(p.key) ? "used" : blockers.length ? "blocked" : "free",
             has: usedKeys.includes(p.key) ? said(p.key) : "",
             blockers,
             // (an area with its own words on where it is — "One line of words across the chest" — needs no size hint;
             // "small, for a logo" would contradict a words strip and repeat "Small logo on the left chest")
-            hint: big && p.main ? "best for big pictures" : !p.hint && wCm * hCm <= 200 ? "small, for a logo" : "",
+            hint: p.spot ? "" : big && p.main ? "best for big pictures" : !p.hint && wCm * hCm <= 200 ? "small, for a logo" : "",
           };
         }),
     ]).filter(([, list]) => list.length);
@@ -2746,7 +2800,7 @@ export default function DesignRoomPage() {
         idea,
         teeColour: colour?.name || "white",
         teeIsDark: lum(fabricHex) < 0.55,
-        areas: free.map((p) => ({ key: p.key, label: p.label, side: p.side, cm: areaCm(p, sizeNow) })),
+        areas: free.map((p) => ({ key: p.key, label: p.label, side: p.side, cm: areaCm(p, sizeNow), ...(p.spot ? { where: whereOf(p) } : {}) })),
       });
     } catch (err) {
       throw aiFailed(err, "I couldn’t improve that just now. Try again, or draw it with your own words.");
@@ -2832,7 +2886,7 @@ export default function DesignRoomPage() {
     let question = "";
     if (a.text && ai.available && ai.text && isLoggedIn()) {
       try {
-        const r = await aiService.photoPlan({ photoUrl: photo.url, message: a.text, areas: areas.filter((x) => x.free).map(({ key, label }) => ({ key, label })) });
+        const r = await aiService.photoPlan({ photoUrl: photo.url, message: a.text, areas: areas.filter((x) => x.free).map(({ key, label, where }) => ({ key, label, ...(where ? { where } : {}) })) });
         seen = r.seen || "";
         if (r.job && r.job !== "unclear") {
           const job = wordsSayNew && r.job === "copy" ? "inspired" : r.job;
@@ -3054,6 +3108,17 @@ export default function DesignRoomPage() {
     ]);
   };
   const applyFix = (issue) => {
+    // a fix for a whole print in a free place: its box, made again round its things, or two prints joined (panelModel.js)
+    if (issue.spotFix) {
+      // (an old card in the chat: the print may be gone — nothing to fix, and the card isn't marked fixed)
+      const keys = issue.spotFix.keys || [issue.spotFix.key];
+      if (!keys.every((k) => positions.some((p) => p.key === k) && elements.some((e) => e.position === k))) {
+        setToast("That print isn’t on the tee any more.");
+        return false;
+      }
+      commit((prev) => applySpotFix(prev, issue.spotFix, { positions, garment, size: sizeNow, maxPrint }));
+      return true;
+    }
     const pos = positions.find((p) => p.key === issue.position);
     commit((prev) => prev.map((e) => (e.id !== issue.elId ? e : issue.measure && pos ? textBox({ ...e, ...issue.patch }, pos) : { ...e, ...issue.patch })));
   };
@@ -3184,7 +3249,8 @@ export default function DesignRoomPage() {
   });
   useEffect(() => {
     const r = resumeAt.current;
-    if (!r || !positions.length || step !== "design") return undefined;
+    // (the print areas first: a design with prints in free places has positions before they come)
+    if (!r || !catalog.length || !positions.length || step !== "design") return undefined;
     // a saved design opened by its address is loaded again first (that load puts the room in Design)
     if (openId && isLoggedIn() && onScreenId.current !== openId) return undefined;
     resumeAt.current = null;
@@ -3210,7 +3276,7 @@ export default function DesignRoomPage() {
     return () => {
       alive = false; // the customer changed something meanwhile: they stay where they are
     };
-  }, [positions.length, step, active, elements]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [catalog.length, positions.length, step, active, elements]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Review of a team order: the four side pictures follow the player being looked at
   // (taken again a moment after the last change, so typing a name does not retake them per letter).
@@ -4738,7 +4804,7 @@ function Controls({ sel, areaCmW, areaRatio, onPatch, onDelete, onDuplicate, onL
             </label>
             <label className="dr-field">
               Size
-              <input type="range" min="2" max="60" step="0.5" value={sel.fontSizePct} onChange={(e) => onPatch({ fontSizePct: +e.target.value }, { measure: true })} />
+              <input type="range" min="2" max={isSpotKey(sel.position) ? 100 : 60} step="0.5" value={sel.fontSizePct} onChange={(e) => onPatch({ fontSizePct: +e.target.value }, { measure: true })} />
             </label>
           </div>
           {hasTamil(sel.text) && <small className="dr-tamilnote">Tamil words: pick a Tamil font from the top of the list. They stay straight, with normal letter spacing, so the letters join the right way.</small>}

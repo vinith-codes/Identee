@@ -19,7 +19,9 @@ const BIG_CM2 = 900; // Full Front, Centre Back (35 × 52)
 const SMALL_CM2 = 120; // Lower Left / Right (10 × 10), Back Neck (7 × 4)
 
 // 0 main · 1 big · 2 chest, bands and strips · 3 small hits — measured at M, so the order stays put when the size changes
+// (a print in a free place, "Front 1", phase 2: after the print areas, Front 1 before Front 2)
 const rankOf = (p) => {
+  if (p.spot) return 4;
   if (p.main) return 0;
   const [w, h] = areaCm(p, "M");
   return w * h >= BIG_CM2 ? 1 : w * h <= SMALL_CM2 ? 3 : 2;

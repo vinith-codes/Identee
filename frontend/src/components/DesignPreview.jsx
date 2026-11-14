@@ -10,6 +10,7 @@ import customizationService from "../services/customizationService";
 import { THEME } from "../theme/theme";
 import { useLockBodyScroll } from "../utils/lockScroll";
 import { imageUrl } from "../utils/imageUrl";
+import { spotNameIn } from "../studio/panelModel";
 
 const SIDES = [
   ["front", "Front"],
@@ -72,6 +73,8 @@ export default function DesignPreview({ designId, onClose, extra }) {
   const available = SIDES.filter(([k]) => mockups[k]);
   const current = mockups[side] ? side : available[0]?.[0];
   const areas = design ? [...new Set(design.elements.map((e) => e.position))] : [];
+  // a free place (free placement phase 2) is named by its own label ("Front 1"), kept on its elements — never "spot-1"
+  const areaName = (a) => AREA_NAMES[a] || spotNameIn(design?.elements, a) || a;
 
   return (
     <div role="dialog" aria-modal="true" aria-label="Design preview" onClick={onClose} style={sx.backdrop}>
@@ -113,7 +116,7 @@ export default function DesignPreview({ designId, onClose, extra }) {
               <Fact label="Colour" value={design.color.replace(/-/g, " ")} />
               <Fact label="Size" value={extra?.size || design.size || "—"} />
               {extra?.qty ? <Fact label="Quantity" value={extra.qty} /> : null}
-              <Fact label="Print areas" value={areas.map((a) => AREA_NAMES[a] || a).join(", ") || "—"} />
+              <Fact label="Print areas" value={areas.map(areaName).join(", ") || "—"} />
               {mockups.label && <Fact label="Neck label" value="IDENTEE woven label with the size, sewn inside the back neck" />}
               <Fact label="Elements" value={`${design.elements.length} (${design.elements.filter((e) => e.type === "text").length} text, ${design.elements.filter((e) => e.type === "image").length} image)`} />
               {design.orderedAt && <Fact label="Status" value="Ordered — locked" />}

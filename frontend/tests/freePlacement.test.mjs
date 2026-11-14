@@ -189,12 +189,12 @@ test("a blocked card says which print it clashes with; every card and row carrie
   // "Not with Centre Front", and "+1" when more than one print is in the way (the PlaceSheet pill too)
   assert.match(room, /\{blockedBy\.length \? <span className="why">Not with \{blockedBy\[0\]\.label\}\{blockedBy\.length > 1 \? ` \+\$\{blockedBy\.length - 1\}` : ""\}<\/span> : <span>\{w\}×\{h\} cm<\/span>\}/);
   assert.match(room, /\$\{blockedBy\.length \? " blocked says-why" : ""\}/);
-  assert.match(room, /where: p\.hint \|\| ""/);
+  assert.match(room, /where: p\.hint \|\| \(p\.spot \? whereOf\(p\)\.replace\(\/\^\[\^,\]\*, \/, ""\) : ""\)/); // (a print in a free place: where it is, phase 2)
   const sheet = src("../src/studio/PlaceSheet.jsx");
   assert.match(sheet, /\{a\.where \? ` · \$\{a\.where\}` : ""\}/);
   assert.match(sheet, /`Covered by \$\{a\.blockers\[0\]\}\$\{a\.blockers\.length > 1 \? ` \+\$\{a\.blockers\.length - 1\}` : ""\}`/);
   // a row that says where it is gets no "small, for a logo" pill (it contradicted Chest Line, a words strip)
-  assert.match(room, /hint: big && p\.main \? "best for big pictures" : !p\.hint && wCm \* hCm <= 200 \? "small, for a logo" : ""/);
+  assert.match(room, /hint: p\.spot \? "" : big && p\.main \? "best for big pictures" : !p\.hint && wCm \* hCm <= 200 \? "small, for a logo" : ""/);
   const css = src("../src/studio/designRoom.css");
   assert.match(css, /\.dr-side \.dr-cards \.dr-area span\.why \{ color: #8A4A12;/);
   // the clear look is only for cards that say why: the admin Studio's covered cards (no reason) stay faded

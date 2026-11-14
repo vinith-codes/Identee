@@ -28,8 +28,9 @@ export const TEE_MODELS = {
       // under neck: printFiles.js EST_START.front says the same.
       front: { top: 1.58 - 0.03 - 0.08, neck: 1.58 - 0.03 },
       back: { top: 1.6096 - 0.07, neck: 1.6096 },
-      left: { top: 1.5286 - 0.05, lateral: 0.0314 }, // wearer's left sleeve (raw +x)
-      right: { top: 1.5174 - 0.05, lateral: 0.0444 }, // wearer's right sleeve (raw −x)
+      // shoulder = the sleeve's top seam (the sleeve mesh's top): a print in a free place on a sleeve is measured down from it
+      left: { top: 1.5286 - 0.05, lateral: 0.0314, shoulder: 1.5286 }, // wearer's left sleeve (raw +x)
+      right: { top: 1.5174 - 0.05, lateral: 0.0444, shoulder: 1.5174 }, // wearer's right sleeve (raw −x)
     },
   },
   // Regular-fit round-neck tee — the boys', girls' and kids' round necks (and the co-ord set's tee).
@@ -44,8 +45,10 @@ export const TEE_MODELS = {
       front: { top: 1.6328 - 0.08, neck: 1.6328 },
       back: { top: 1.6802 - 0.07, neck: 1.6802 },
       // the sleeves are short (≈14 cm at their outer side): the print's top sits so it is centred on the sleeve
-      left: { top: 1.535, lateral: 0.072 },
-      right: { top: 1.545, lateral: 0.069 },
+      // shoulder: the sleeves' top seam, one line for both (the outer sleeve tops at 1.561 and 1.559 — the two sleeves
+      // are alike; measured 14 Nov 2026, free-placement-plan/work/phase2/review-print/glbRegular.cjs)
+      left: { top: 1.535, lateral: 0.072, shoulder: 1.56 },
+      right: { top: 1.545, lateral: 0.069, shoulder: 1.56 },
     },
   },
   // Oversized Crop: the oversized tee cut to 2/3 of its length (crop 20" ÷ tee 30" at M), same print anchors.
@@ -58,8 +61,8 @@ export const TEE_MODELS = {
     anchors: {
       front: { top: 1.58 - 0.03 - 0.08, neck: 1.58 - 0.03 }, // lowered with the collar, as on the oversized tee
       back: { top: 1.6096 - 0.07, neck: 1.6096 },
-      left: { top: 1.5286 - 0.05, lateral: 0.0314 },
-      right: { top: 1.5174 - 0.05, lateral: 0.0444 },
+      left: { top: 1.5286 - 0.05, lateral: 0.0314, shoulder: 1.5286 },
+      right: { top: 1.5174 - 0.05, lateral: 0.0444, shoulder: 1.5174 },
     },
   },
   // Crop Top with Collar: a polo with the buttons, button strip and pocket removed, the front slit opened into a
@@ -73,8 +76,8 @@ export const TEE_MODELS = {
       // the front prints start 1.5 cm below the bottom of the V (1.470), clear of the opening
       front: { top: 1.455, neck: 1.6057 },
       back: { top: 1.638 - 0.07, neck: 1.638 },
-      left: { top: 1.6217 - 0.05, lateral: 0.0676 },
-      right: { top: 1.6225 - 0.05, lateral: 0.0686 },
+      left: { top: 1.6217 - 0.05, lateral: 0.0676, shoulder: 1.6217 },
+      right: { top: 1.6225 - 0.05, lateral: 0.0686, shoulder: 1.6225 },
     },
   },
 };
@@ -156,10 +159,15 @@ export function placeArea(model, position, size, sizeLengthCm) {
   const w = wCm / 100 / s;
   const h = hCm / 100 / s;
   const anchor = model.anchors[position.side] || model.anchors.front;
-  const place = position.place || { align: "centre", topCm: 0 };
+  // a print in a free place (data/panelModel.js) may sit a little differently on each size group: placeBySize
+  const place = position.placeBySize?.[size] || position.place || { align: "centre", topCm: 0 };
   const collar = position.collarCm?.[size];
-  const top = collar != null && anchor.neck != null ? anchor.neck - collar / 100 / s : anchor.top - ((place.topCm || 0) / 100) / s;
-  if (position.side === "left" || position.side === "right") {
+  const sleeve = position.side === "left" || position.side === "right";
+  // the line collarCm is measured from: the collar seam, or on a sleeve its top seam (only a free place has collarCm
+  // on a sleeve; the sleeve areas keep their own start)
+  const line = sleeve ? anchor.shoulder : anchor.neck;
+  const top = collar != null && line != null ? line - collar / 100 / s : anchor.top - ((place.topCm || 0) / 100) / s;
+  if (sleeve) {
     return { side: position.side, lateral: anchor.lateral, top, w, h };
   }
   const gap = ((place.gapCm || 0) / 100) / s;

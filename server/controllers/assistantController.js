@@ -24,7 +24,7 @@ import { developPrompt, matchPrompt, mockSheet, piecesOf, SHEET_COST_FACTOR, SHE
 import User from "../models/userModel.js";
 import { googleCapped, grokCapped, isOurUpload, readSettings, usedToday, whyOff } from "./aiController.js";
 import { expectedWords, missingWords, readWords, wordCheckReady } from "../services/wordCheck.js";
-import { AI_AREAS_MAX } from "../data/printPositions.js";
+import { AI_AREAS_MAX, spotWhereOf } from "../data/printPositions.js";
 
 const PROMPT_MAX = 2000;
 const mockImages = () => process.env.AI_IMAGE_PROVIDER?.trim() === "mock";
@@ -84,7 +84,7 @@ export const makeAssist = asyncHandler(async (req, res) => {
       .filter((h) => h.text);
   const areas = (Array.isArray(req.body?.areas) ? req.body.areas : [])
     .slice(0, AI_AREAS_MAX) // (every place a garment can offer: none is silently left out)
-    .map((a) => ({ key: text(a?.key, 40), label: text(a?.label, 60), free: a?.free !== false }))
+    .map((a) => ({ key: text(a?.key, 40), label: text(a?.label, 60), free: a?.free !== false, ...spotWhereOf(a) }))
     .filter((a) => a.key);
   const sheets = (Array.isArray(req.body?.sheets) ? req.body.sheets : [])
     .slice(-8)

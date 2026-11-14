@@ -37,7 +37,7 @@ import sharp from "sharp";
 import { artFilters, FILTER_STYLE } from "../services/artFilterService.js";
 import { xaiConfigured, xaiEditImage, xaiModel, xaiNewImage } from "../services/xaiImageService.js";
 import { replicateConfigured, replicateModel } from "../services/replicateService.js";
-import { AI_AREAS_MAX } from "../data/printPositions.js";
+import { AI_AREAS_MAX, spotWhereOf } from "../data/printPositions.js";
 import { AI_STYLES, PHOTO_STYLES, aiImageConfigured, aiImageModel, changeDesignPrompt, copyDesignPrompt, inspiredDesignPrompt, generateImage, nearestRatio, newDesignPrompt, photoArtPrompt, FIX_KINDS, fixPrompt, printPrompt, RATIO_VALUES } from "../services/aiImageService.js";
 
 const CATEGORY = "ai";
@@ -227,7 +227,7 @@ export const makeChat = asyncHandler(async (req, res) => {
   const memory = String(req.body?.memory || "").slice(0, MEMORY_MAX);
   const areas = (Array.isArray(req.body?.areas) ? req.body.areas : [])
     .slice(0, AI_AREAS_MAX) // (every place a garment can offer: none is silently left out)
-    .map((a) => ({ key: String(a?.key || "").slice(0, 40), label: String(a?.label || "").slice(0, 60), free: a?.free !== false }))
+    .map((a) => ({ key: String(a?.key || "").slice(0, 40), label: String(a?.label || "").slice(0, 60), free: a?.free !== false, ...spotWhereOf(a) }))
     .filter((a) => a.key);
   // what the page shows the customer (prices, shipping, the tee): only these fields, each kept short
   const FACT_KEYS = ["garment", "teeColour", "teeColours", "size", "sizes", "price", "wasPrice", "pictureAddOn", "shipping", "offer", "picturesLeft", "canDraw", "pieces"];
@@ -532,6 +532,7 @@ export const makeImprovedIdea = asyncHandler(async (req, res) => {
     label: str(a.label, 40),
     side: str(a.side, 10),
     cm: Array.isArray(a.cm) ? a.cm.slice(0, 2).map((n) => Math.round(Number(n) || 0)) : null,
+    ...spotWhereOf(a),
   }));
   const styles = Object.entries(AI_STYLES).map(([name, about]) => ({ name, about: String(about).slice(0, 120) }));
   try {
@@ -565,7 +566,7 @@ export const makeEdit = asyncHandler(async (req, res) => {
     fonts: (Array.isArray(d.fonts) ? d.fonts : []).slice(0, 20).map((f) => str(f, 40)),
     teeColours: (Array.isArray(d.teeColours) ? d.teeColours : []).slice(0, 30).map((c) => str(c, 30)),
     pictureStyles: Object.keys(AI_STYLES),
-    areas: (Array.isArray(d.areas) ? d.areas : []).slice(0, AI_AREAS_MAX).map((a) => ({ key: str(a.key, 40), label: str(a.label, 40), side: str(a.side, 10), free: Boolean(a.free) })),
+    areas: (Array.isArray(d.areas) ? d.areas : []).slice(0, AI_AREAS_MAX).map((a) => ({ key: str(a.key, 40), label: str(a.label, 40), side: str(a.side, 10), free: Boolean(a.free), ...spotWhereOf(a) })),
     items: (Array.isArray(d.items) ? d.items : []).slice(0, 30).map((it) => ({
       id: str(it.id, 40),
       type: it.type === "text" ? "text" : "picture",
@@ -834,7 +835,7 @@ export const makePhotoPlan = asyncHandler(async (req, res) => {
   }
   const photo = await fetchOurImage(req.body.photoUrl, req);
   const small = await sharp(photo.data).rotate().resize(1024, 1024, { fit: "inside", withoutEnlargement: true }).flatten({ background: "#ffffff" }).jpeg({ quality: 85 }).toBuffer();
-  const areas = (Array.isArray(req.body.areas) ? req.body.areas : []).slice(0, AI_AREAS_MAX).map((a) => ({ key: String(a?.key || "").slice(0, 40), label: String(a?.label || "").slice(0, 60) }));
+  const areas = (Array.isArray(req.body.areas) ? req.body.areas : []).slice(0, AI_AREAS_MAX).map((a) => ({ key: String(a?.key || "").slice(0, 40), label: String(a?.label || "").slice(0, 60), ...spotWhereOf(a) }));
   try {
     const plan = await readPhotoRequest({ image: { data: small, mime: "image/jpeg" }, message: String(req.body.message || "").slice(0, PROMPT_MAX), styles: Object.keys(AI_STYLES), photoStyles: Object.keys(PHOTO_STYLES), areas });
     res.json(plan);

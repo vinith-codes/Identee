@@ -311,13 +311,16 @@ export function drawSheet(sheet, pxPerCm, { preview = false } = {}) {
 const where = (art, size) => {
   const s = art.spot[size];
   if (!s) return "";
-  const from = s.fromCollar
-    ? "below the collar seam"
-    : s.sleeve
-      ? "below the top of the sleeve print area"
-      : s.side === "shorts"
-        ? `below the shorts' usual start (${EST_START.shorts} cm under the waistband)`
-        : `below the usual ${s.side} start line`;
+  // (a print in a free place on a sleeve is measured from the shoulder seam, 14 Nov 2026)
+  const from = s.fromShoulder
+    ? "below the shoulder seam"
+    : s.fromCollar
+      ? "below the collar seam"
+      : s.sleeve
+        ? "below the top of the sleeve print area"
+        : s.side === "shorts"
+          ? `below the shorts' usual start (${EST_START.shorts} cm under the waistband)`
+          : `below the usual ${s.side} start line`;
   return `TOP ${fmtCm(s.down)} cm ${from} · SIDE ${acrossText(s)}`;
 };
 

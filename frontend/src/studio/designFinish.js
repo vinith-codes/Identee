@@ -9,12 +9,13 @@ import { areaCm } from "./teeModel";
 
 const PX_PER_CM = 24; // as the design room (DesignRoomPage.jsx)
 const MIN_AREA_PX = 480;
+const MAX_AREA_PX = 4096; // as the design room: a thin print in a free place stays within a phone's picture size
 const round2 = (n) => Math.round(n * 100) / 100;
 
 // The pixel size an area is drawn at (the same rule as the design room's areaPx).
 export function areaPx(pos, size) {
   const [w, h] = areaCm(pos, size);
-  const pxPerCm = Math.max(PX_PER_CM, MIN_AREA_PX / Math.min(w, h));
+  const pxPerCm = Math.min(Math.max(PX_PER_CM, MIN_AREA_PX / Math.min(w, h)), MAX_AREA_PX / Math.max(w, h));
   return { W: Math.round(w * pxPerCm), H: Math.round(h * pxPerCm), wCm: w, hCm: h };
 }
 

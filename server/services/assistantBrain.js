@@ -13,7 +13,7 @@
 //   AI_CHAT_PROVIDER    "mock": keyword answers, no Google call (for testing the whole room without cost)
 //   AI_CHAT_THINKING    optional: "low" | "medium" | "high" — asks the text model to think before answering
 import { askJson, aiTextConfigured, AREA_WORDS_RULE } from "./aiTextService.js";
-import { aiAreas } from "../data/printPositions.js";
+import { aiAreas, spotWhereOf } from "../data/printPositions.js";
 import { chatModel, MENU_ITEMS, TONES, FOLD_AT, MEMORY_MAX } from "./aiChatService.js";
 
 const mock = () => process.env.AI_CHAT_PROVIDER?.trim() === "mock";
@@ -152,7 +152,7 @@ function buildPrompt({ said, history, earlier, memory, design, facts, areas, sty
     "A message that ends with a spot in brackets, like \"(at this spot of the picture: top right …)\", is about that part of the picture only: keep the spot words in the edit or draw step.",
     "If they ask something the facts don't cover (returns, payment), don't guess: point them to Refunds & Cancellations (/refund-policy) or Contact us (/contact-us).",
     "Stay on topic: their tee, designs, printing and ordering at IDENTEE. For anything else, answer kindly in one sentence and steer back to their design.",
-    "Print areas: " + JSON.stringify(aiAreas(areas.map((a) => ({ key: a.key, label: a.label, free: a.free !== false })))) + ". For \"front\" use centre-front and for \"back\" use full-back unless they name another area or that one isn't free. " + AREA_WORDS_RULE + " In an edit step, name the area by its label (\"move the logo to the Back Neck\"). Picture styles: " + JSON.stringify(styles) + ".",
+    "Print areas: " + JSON.stringify(aiAreas(areas.map((a) => ({ key: a.key, label: a.label, free: a.free !== false, ...spotWhereOf(a) })))) + ". For \"front\" use centre-front and for \"back\" use full-back unless they name another area or that one isn't free. " + AREA_WORDS_RULE + " In an edit step, name the area by its label (\"move the logo to the Back Neck\"). Picture styles: " + JSON.stringify(styles) + ".",
     "The tee now: " + JSON.stringify(design).slice(0, 6000),
     attached ? "The customer attached a picture WITH THIS MESSAGE (their logo, artwork or a photo): " + JSON.stringify(clip(attached.about || "a picture", 200)) + ". If they want it printed as it is or built into designs, use concepts with logo: true (or edit to place it). If they want it redrawn as art (cartoon, sketch …), use menu \"Photo to art\". If unclear, ask." : "",
     !attached && logo ? "The customer's own logo / artwork is on file from earlier in this chat: concepts may use it (logo: true) when they ask for their logo or brand." : "",

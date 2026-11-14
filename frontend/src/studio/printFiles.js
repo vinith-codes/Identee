@@ -202,9 +202,10 @@ export function inkBoxOf(els, cm) {
 // Where the ARTWORK lands on the garment for one size — what the print team measures on the tee.
 //   down:   its top edge in cm below the collar (fromCollar: the area has the print team's start line), else
 //           below the side's usual start line (the top of the main area) or, on a sleeve, the sleeve area's top
+//           (fromShoulder: a print in a free place on a sleeve, measured from the shoulder seam: the sleeve's top)
 //   across: its centre's distance from the tee's centre line, + = the wearer's left
 //           (sleeves: from the sleeve area's centre, as seen in the file)
-// box = the artwork's box in % of the area.
+// box = the artwork's box in % of the area. A free place may sit a little differently on each size group (placeBySize).
 export function artworkSpot(area, size, box, [w, h]) {
   const left = (box.x0 / 100) * w;
   const top = (box.y0 / 100) * h;
@@ -212,9 +213,11 @@ export function artworkSpot(area, size, box, [w, h]) {
   const ah = ((box.y1 - box.y0) / 100) * h;
   const mid = left + aw / 2;
   const sleeve = area.side === "left" || area.side === "right";
-  const p = area.place || { align: "centre", topCm: 0 };
-  const collar = sleeve ? null : area.collarCm?.[String(size).toUpperCase()];
-  const down = collar != null ? collar + top : sleeve || area.main ? top : (p.topCm || 0) + top;
+  const p = area.placeBySize?.[String(size).toUpperCase()] || area.place || { align: "centre", topCm: 0 };
+  const line = area.collarCm?.[String(size).toUpperCase()];
+  const collar = sleeve ? null : line;
+  const shoulder = sleeve && line != null ? line : null;
+  const down = collar != null ? collar + top : shoulder != null ? shoulder + top : sleeve || area.main ? top : (p.topCm || 0) + top;
   let across;
   if (sleeve) across = mid - w / 2;
   else {
@@ -226,12 +229,39 @@ export function artworkSpot(area, size, box, [w, h]) {
         : (p.align === "wearer-left" ? gap : p.align === "wearer-right" ? -(gap + w) : -w / 2) + mid;
   }
   const r = (n) => Math.round(n * 10) / 10;
-  return { down: r(down), fromCollar: collar != null, across: r(across), sleeve, side: area.side, aw: r(aw), ah: r(ah) };
+  // (free: a print in a free place — "centred" within 0.5 cm on every print-team page, as on its order-sheet line)
+  return { down: r(down), fromCollar: collar != null, ...(shoulder != null ? { fromShoulder: true } : {}), across: r(across), sleeve, side: area.side, aw: r(aw), ah: r(ah), ...(area.spot ? { free: true } : {}) };
+}
+// How far off the centre line a print still counts as centred (cm): a print area 0.3, a print in a free place 0.5
+export const centredCm = (s) => (s.free ? 0.5 : 0.3);
+
+// A print in a free place on the order sheet: "24 x 6 cm · top 40 cm below collar seam · centred"
+export const placementWords = (s) =>
+  `${fmtCm(s.aw)} x ${fmtCm(s.ah)} cm · top ${fmtCm(s.down)} cm below ${s.sleeve ? "shoulder seam" : "collar seam"} · ${
+    s.sleeve
+      ? Math.abs(s.across) < 0.5 ? "on the sleeve's centre line" : `${fmtCm(Math.abs(s.across))} cm ${s.across > 0 ? "right" : "left"} of the sleeve's centre line`
+      : Math.abs(s.across) < 0.5 ? "centred" : `${fmtCm(Math.abs(s.across))} cm to wearer's ${s.across > 0 ? "left" : "right"} of centre`
+  }`;
+
+// TOP in words, the job card's column: "8 cm below", "2 cm below front start*", "4 cm below shoulder seam"
+export const topText = (s) =>
+  s.fromShoulder ? `${fmtCm(s.down)} cm below shoulder seam` : s.sleeve ? `${fmtCm(s.down)} cm from sleeve top*` : `${fmtCm(Math.abs(s.down))} cm ${s.down >= 0 ? "below" : "above"}${s.fromCollar ? "" : ` ${s.side} start*`}`;
+
+// A print in a free place on the order sheet: one line per place (the sizes of one file usually share it), e.g.
+// "  ② Front 2 (S, M) · 24 x 6 cm · top 40 cm below collar seam · centred". spotOf(size) = artworkSpot for that size.
+export function spotSheetLines(n, label, sizes, spotOf, who = "") {
+  const places = new Map();
+  for (const size of sizes) {
+    const sp = spotOf(size);
+    const k = `${sp.down}|${sp.across}`;
+    places.set(k, { sp, sizes: [...(places.get(k)?.sizes || []), size] });
+  }
+  return [...places.values()].map(({ sp, sizes: at }) => `  ${n} ${label} (${who || at.join(", ")}) · ${placementWords(sp)}`);
 }
 
 // SIDE in words: "centred · 5 cm each side", "8.8 cm to wearer's LEFT"
 export const acrossText = (s) =>
-  Math.abs(s.across) < 0.3
+  Math.abs(s.across) < centredCm(s)
     ? s.sleeve ? "centred on sleeve" : `centred · ${fmtCm(s.aw / 2)} cm each side`
     : s.sleeve
       ? `${fmtCm(Math.abs(s.across))} cm ${s.across > 0 ? "right" : "left"} of sleeve centre`
@@ -397,7 +427,7 @@ function teeMap({ side, prints, tee }) {
   for (const pr of prints) {
     const { area, size, box } = pr;
     const [w, h] = pr.cm;
-    const p = area.place || { align: "centre", topCm: 0 };
+    const p = area.placeBySize?.[String(size).toUpperCase()] || area.place || { align: "centre", topCm: 0 };
     const collar = area.collarCm?.[String(size).toUpperCase()];
     const startCm = collar != null ? 0 : EST_START[side] || 8; // the line its TOP is measured from, below the collar seam
     const areaTop = collar != null ? collar : startCm + (area.main ? 0 : p.topCm || 0);
@@ -450,7 +480,7 @@ function teeMap({ side, prints, tee }) {
     g.strokeStyle = "#1D4ED8";
     g.fillStyle = "#1D4ED8";
     g.lineWidth = 2.5;
-    if (Math.abs(spot.across) >= 0.3) {
+    if (Math.abs(spot.across) >= centredCm(spot)) {
       arrow(g, cx, my, tx, my);
       // the label goes on the far side of the artwork, away from the centre line and the other prints
       const out = tx > cx;
@@ -581,7 +611,7 @@ async function jobCard({ heading, sub, rows, tee, checks = [], notes = [], banne
     g.font = "24px Arial";
     const s = r.spot;
     g.fillText(s ? `${fmtCm(s.aw)} × ${fmtCm(s.ah)} cm` : "-", cols[2][1], y + 35, 230);
-    g.fillText(s ? (s.sleeve ? `${fmtCm(s.down)} cm from sleeve top*` : `${fmtCm(Math.abs(s.down))} cm ${s.down >= 0 ? "below" : "above"}${s.fromCollar ? "" : ` ${s.side} start*`}`) : "-", cols[3][1], y + 35, 400);
+    g.fillText(s ? topText(s) : "-", cols[3][1], y + 35, 400);
     g.fillText(s ? acrossText(s) : "-", cols[4][1], y + 35, 380);
     g.font = "20px Arial";
     g.fillStyle = "#5A524A";
@@ -751,6 +781,9 @@ export async function buildPrintPack(pack, onStep = () => {}) {
         done += 1;
         const box = inkBoxOf(drawn, f.cm);
         for (const size of f.sizes) rows.push({ n, size, player: f.player || null, label: area.label, spot: box ? artworkSpot(area, size, box, f.cm) : null, file: name, area, cm: f.cm, box, drawn });
+        // a print in a free place (14 Nov 2026): where it goes, in words, on the order sheet — one line per print and
+        // place (the sizes of one file usually share it). Print areas have no such line, so older sheets stay the same.
+        if (area.spot && box) sheet.push(...spotSheetLines(n, area.label, f.sizes, (size) => artworkSpot(area, size, box, f.cm), f.player ? playerLabel(f.player) : ""));
 
         // picture sharpness at this print size
         for (const e of els.filter((x) => x.type === "image")) {
@@ -770,7 +803,7 @@ export async function buildPrintPack(pack, onStep = () => {}) {
     // a * distance: what it is measured from
     const mains = Object.fromEntries(d.areas.filter((a) => a.mainLabel).map((a) => [a.side, a.mainLabel]));
     const notesFor = (rs) =>
-      [...new Set(rs.filter((r) => r.spot && !r.spot.fromCollar).map((r) => (r.spot.sleeve ? "sleeve" : r.spot.side)))].map((side) =>
+      [...new Set(rs.filter((r) => r.spot && !r.spot.fromCollar && !r.spot.fromShoulder).map((r) => (r.spot.sleeve ? "sleeve" : r.spot.side)))].map((side) =>
         side === "sleeve"
           ? "* Sleeves: measured from the top of the sleeve print area (your usual sleeve position)."
           : side === "shorts"

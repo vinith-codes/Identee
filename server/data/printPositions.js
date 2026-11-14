@@ -315,12 +315,39 @@ export const catalogForGarment = (garment) => {
   });
 };
 
+/* ---------- free places (spots, phase 2: data/panelModel.js) ---------- */
+// The biggest print a free place can be, per size and side ({ size: { front, back, left, right: [w, h] } }): the
+// biggest box the print team already presses — their Full Front / Centre Back (35 x 52 cm, 37 x 54 at 2XL–3XL), with
+// this garment's own sizes when the admin changed them — and on a sleeve the bigger of its sleeve area and 10 x 10 cm
+// (the most Indian DTF shops press on a sleeve). So it follows the catalog when the print team gives real sizes.
+// Sent to the design room with the print areas; panelModel.js maxPrintFor has the same numbers for when it is missing.
+const MAX_PRINT_FROM = ["full-front", "centre-back"];
+const SLEEVE_MAX_CM = [10, 10];
+export const maxPrintBySize = (garment) => {
+  const sized = (keys) => keys.map((k) => sizesFor(CATALOG_BY_KEY[k], garment)).filter(Boolean).map((s) => withChartSizes(s.cmBySize, garment));
+  const body = sized(MAX_PRINT_FROM);
+  const sleeves = sized(["left-sleeve", "right-sleeve"]);
+  const chart = Array.isArray(garment?.sizeChart) ? garment.sizeChart.map((r) => r.size) : [];
+  const out = {};
+  for (const size of [...new Set([...SIZES, ...chart])]) {
+    const biggest = body.map((m) => m[size]).filter(Boolean).sort((a, b) => b[0] * b[1] - a[0] * a[1])[0] || [35, 52];
+    const sleeve = sleeves.map((m) => m[size]).filter(Boolean).reduce((a, b) => [Math.max(a[0], b[0]), Math.max(a[1], b[1])], SLEEVE_MAX_CM);
+    out[size] = { front: biggest, back: biggest, left: sleeve, right: sleeve };
+  }
+  return out;
+};
+
+// A free place in the AI's area lists keeps the words the design room sent for it ("24 x 6 cm, 40 cm below the collar
+// seam, centred"), so "make Front 1 bigger" knows what Front 1 is. Every other area keeps exactly the fields it had.
+export const spotWhereOf = (a) => (/^spot-\d+$/.test(String(a?.key || "")) && a?.where ? { where: String(a.where).slice(0, 100) } : {});
+
 // The AI's area lists (the Assistant, Improve idea, chat edits, photo plans) keep up to this many areas, so a
 // garment with every place switched on loses none of them (the catalog has 22).
 export const AI_AREAS_MAX = 40;
 
 // The area list the AI reads: each area with a few words on where it is and the names customers use for it, so
-// "put it on the nape" or "a line across the chest" finds the right key. Keys not in the catalog stay as they are.
+// "put it on the nape" or "a line across the chest" finds the right key. Keys not in the catalog stay as they are
+// (a free place keeps its own "where": spotWhereOf).
 export const aiAreas = (areas = []) =>
   areas.map((a) => {
     const c = CATALOG_BY_KEY[a?.key];

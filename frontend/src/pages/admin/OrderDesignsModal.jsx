@@ -310,7 +310,7 @@ The sharp picture keeps every detail. Print the shapes anyway?`)) return;
               />
             </a>
             <div style={{ flex: "1 1 220px", minWidth: 0, fontSize: 13 }}>
-              <b>{area?.label || el.position}</b>
+              <b>{area?.label || el.spot?.label || el.position}</b>
               <span style={{ color: THEME.textMuted }}> · {printCm ? `${printCm.toFixed(1)} cm wide` : "size unknown"}</span>
               <div style={{ color: tone, fontWeight: 600, fontVariantNumeric: "tabular-nums" }}>
                 {ready && shapes
@@ -854,7 +854,7 @@ export default function OrderDesignsModal({ orderId, onClose }) {
             <ul style={{ margin: "6px 0", padding: 0, listStyle: "none" }}>
               {lowPictures.map((p) => (
                 <li key={`${p.d._id}-${p.index}`}>
-                  {p.area?.label || p.el.position}: {p.real} DPI at {p.printCm.toFixed(1)} cm wide{p.ready ? " (already prepared — the enlarger stops at 4×)" : p.real < LOW_DPI ? " — blurry" : ""}
+                  {p.area?.label || p.el.spot?.label || p.el.position}: {p.real} DPI at {p.printCm.toFixed(1)} cm wide{p.ready ? " (already prepared — the enlarger stops at 4×)" : p.real < LOW_DPI ? " — blurry" : ""}
                 </li>
               ))}
             </ul>

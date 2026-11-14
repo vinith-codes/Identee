@@ -1,0 +1,1261 @@
+{
+ "about": "Made-up designs saved before free placement (no spots) and their print data (designPrintData) from the Phase 1 code, made with the garment of threeSpotDesign.json and these order lines. Phase 2 must give exactly the same.",
+ "lines": [
+  {
+   "size": "S",
+   "qty": 1
+  },
+  {
+   "size": "M",
+   "qty": 2
+  },
+  {
+   "size": "L",
+   "qty": 1
+  },
+  {
+   "size": "XL",
+   "qty": 1
+  },
+  {
+   "size": "2XL",
+   "qty": 1
+  },
+  {
+   "size": "3XL",
+   "qty": 1
+  }
+ ],
+ "designs": [
+  {
+   "_id": "000000000000000000000a01",
+   "garmentType": "oversized-tee",
+   "color": "black",
+   "size": "M",
+   "layoutVersion": 2,
+   "name": "Team tee",
+   "mockups": {
+    "front": "/uploads/mockups/front.jpg"
+   },
+   "players": [
+    {
+     "name": "ARJUN",
+     "number": "7",
+     "size": "S"
+    },
+    {
+     "name": "MEERA",
+     "number": "10",
+     "size": "M"
+    },
+    {
+     "name": "KABIR",
+     "number": "23",
+     "size": "2XL"
+    }
+   ],
+   "elements": [
+    {
+     "position": "left-chest",
+     "side": "front",
+     "x": 10,
+     "y": 12,
+     "width": 60,
+     "height": 40,
+     "rotation": 0,
+     "zIndex": 1,
+     "type": "image",
+     "src": "/uploads/designs/1792737681289-15cb34c0.png"
+    },
+    {
+     "position": "full-back",
+     "side": "back",
+     "x": 10,
+     "y": 12,
+     "width": 60,
+     "height": 40,
+     "rotation": 0,
+     "zIndex": 1,
+     "type": "text",
+     "text": "NAME",
+     "fontFamily": "Anton",
+     "fontSizePct": 20,
+     "color": "#FFFFFF",
+     "bold": false,
+     "italic": false,
+     "underline": false,
+     "align": "center",
+     "effect": "straight",
+     "letterSpacingPct": 0,
+     "lineHeight": 1.05,
+     "strokeWidthPct": 0,
+     "role": "name"
+    },
+    {
+     "position": "full-back",
+     "side": "back",
+     "x": 10,
+     "y": 50,
+     "width": 60,
+     "height": 40,
+     "rotation": 0,
+     "zIndex": 1,
+     "type": "text",
+     "text": "00",
+     "fontFamily": "Anton",
+     "fontSizePct": 40,
+     "color": "#FFFFFF",
+     "bold": false,
+     "italic": false,
+     "underline": false,
+     "align": "center",
+     "effect": "straight",
+     "letterSpacingPct": 0,
+     "lineHeight": 1.05,
+     "strokeWidthPct": 0,
+     "role": "number"
+    }
+   ]
+  },
+  {
+   "_id": "000000000000000000000a02",
+   "garmentType": "oversized-tee",
+   "color": "white",
+   "size": "L",
+   "layoutVersion": 2,
+   "name": "Sleeves and back",
+   "mockups": {},
+   "players": [],
+   "elements": [
+    {
+     "position": "centre-front",
+     "side": "front",
+     "x": 10,
+     "y": 12,
+     "width": 60,
+     "height": 40,
+     "rotation": 0,
+     "zIndex": 1,
+     "type": "image",
+     "src": "/uploads/designs/1792737681289-15cb34c0.png"
+    },
+    {
+     "position": "left-sleeve",
+     "side": "left",
+     "x": 10,
+     "y": 12,
+     "width": 60,
+     "height": 40,
+     "rotation": 0,
+     "zIndex": 1,
+     "type": "text",
+     "text": "EST",
+     "fontFamily": "Anton",
+     "fontSizePct": 30,
+     "color": "#FFFFFF",
+     "bold": false,
+     "italic": false,
+     "underline": false,
+     "align": "center",
+     "effect": "straight",
+     "letterSpacingPct": 0,
+     "lineHeight": 1.05,
+     "strokeWidthPct": 0
+    },
+    {
+     "position": "right-sleeve",
+     "side": "right",
+     "x": 10,
+     "y": 12,
+     "width": 60,
+     "height": 40,
+     "rotation": 0,
+     "zIndex": 1,
+     "type": "text",
+     "text": "2026",
+     "fontFamily": "Anton",
+     "fontSizePct": 30,
+     "color": "#FFFFFF",
+     "bold": false,
+     "italic": false,
+     "underline": false,
+     "align": "center",
+     "effect": "straight",
+     "letterSpacingPct": 0,
+     "lineHeight": 1.05,
+     "strokeWidthPct": 0
+    },
+    {
+     "position": "top-back",
+     "side": "back",
+     "x": 10,
+     "y": 12,
+     "width": 60,
+     "height": 40,
+     "rotation": 0,
+     "zIndex": 1,
+     "type": "text",
+     "text": "CREW",
+     "fontFamily": "Anton",
+     "fontSizePct": 60,
+     "color": "#FFFFFF",
+     "bold": false,
+     "italic": false,
+     "underline": false,
+     "align": "center",
+     "effect": "straight",
+     "letterSpacingPct": 0,
+     "lineHeight": 1.05,
+     "strokeWidthPct": 0
+    },
+    {
+     "position": "lower-back",
+     "side": "back",
+     "x": 10,
+     "y": 12,
+     "width": 60,
+     "height": 40,
+     "rotation": 0,
+     "zIndex": 1,
+     "type": "text",
+     "text": "MADE IN INDIA",
+     "fontFamily": "Anton",
+     "fontSizePct": 40,
+     "color": "#FFFFFF",
+     "bold": false,
+     "italic": false,
+     "underline": false,
+     "align": "center",
+     "effect": "straight",
+     "letterSpacingPct": 0,
+     "lineHeight": 1.05,
+     "strokeWidthPct": 0
+    }
+   ]
+  },
+  {
+   "_id": "000000000000000000000a03",
+   "garmentType": "oversized-tee",
+   "color": "black",
+   "size": "XL",
+   "layoutVersion": 2,
+   "name": "Verticals",
+   "mockups": {},
+   "players": [],
+   "elements": [
+    {
+     "position": "front-right-vertical",
+     "side": "front",
+     "x": 10,
+     "y": 12,
+     "width": 60,
+     "height": 40,
+     "rotation": 0,
+     "zIndex": 1,
+     "type": "text",
+     "text": "SUMMER",
+     "fontFamily": "Anton",
+     "fontSizePct": 20,
+     "color": "#FFFFFF",
+     "bold": false,
+     "italic": false,
+     "underline": false,
+     "align": "center",
+     "effect": "straight",
+     "letterSpacingPct": 0,
+     "lineHeight": 1.05,
+     "strokeWidthPct": 0
+    },
+    {
+     "position": "mid-back",
+     "side": "back",
+     "x": 10,
+     "y": 12,
+     "width": 60,
+     "height": 40,
+     "rotation": 0,
+     "zIndex": 1,
+     "type": "image",
+     "src": "/uploads/designs/1792737681289-15cb34c0.png"
+    },
+    {
+     "position": "nape",
+     "side": "back",
+     "x": 10,
+     "y": 12,
+     "width": 60,
+     "height": 40,
+     "rotation": 0,
+     "zIndex": 1,
+     "type": "text",
+     "text": "ID",
+     "fontFamily": "Anton",
+     "fontSizePct": 50,
+     "color": "#FFFFFF",
+     "bold": false,
+     "italic": false,
+     "underline": false,
+     "align": "center",
+     "effect": "straight",
+     "letterSpacingPct": 0,
+     "lineHeight": 1.05,
+     "strokeWidthPct": 0
+    }
+   ]
+  },
+  {
+   "_id": "000000000000000000000a04",
+   "garmentType": "oversized-tee",
+   "color": "black",
+   "size": null,
+   "layoutVersion": 1,
+   "name": "Layout v1",
+   "mockups": {},
+   "players": [],
+   "elements": [
+    {
+     "type": "text",
+     "text": "OLD",
+     "x": 20,
+     "y": 20,
+     "width": 40,
+     "height": 10,
+     "side": "front"
+    }
+   ]
+  }
+ ],
+ "printData": [
+  {
+   "_id": "000000000000000000000a01",
+   "name": "Team tee",
+   "layoutVersion": 2,
+   "garment": {
+    "key": "oversized-tee",
+    "label": "Oversized Tee"
+   },
+   "colour": {
+    "slug": "black",
+    "name": "Black",
+    "hex": "#1C1C1D"
+   },
+   "mockups": {
+    "front": "/uploads/mockups/front.jpg"
+   },
+   "elements": [
+    {
+     "position": "left-chest",
+     "side": "front",
+     "x": 10,
+     "y": 12,
+     "width": 60,
+     "height": 40,
+     "rotation": 0,
+     "zIndex": 1,
+     "type": "image",
+     "src": "/uploads/designs/1792737681289-15cb34c0.png"
+    },
+    {
+     "position": "full-back",
+     "side": "back",
+     "x": 10,
+     "y": 12,
+     "width": 60,
+     "height": 40,
+     "rotation": 0,
+     "zIndex": 1,
+     "type": "text",
+     "text": "NAME",
+     "fontFamily": "Anton",
+     "fontSizePct": 20,
+     "color": "#FFFFFF",
+     "bold": false,
+     "italic": false,
+     "underline": false,
+     "align": "center",
+     "effect": "straight",
+     "letterSpacingPct": 0,
+     "lineHeight": 1.05,
+     "strokeWidthPct": 0,
+     "role": "name"
+    },
+    {
+     "position": "full-back",
+     "side": "back",
+     "x": 10,
+     "y": 50,
+     "width": 60,
+     "height": 40,
+     "rotation": 0,
+     "zIndex": 1,
+     "type": "text",
+     "text": "00",
+     "fontFamily": "Anton",
+     "fontSizePct": 40,
+     "color": "#FFFFFF",
+     "bold": false,
+     "italic": false,
+     "underline": false,
+     "align": "center",
+     "effect": "straight",
+     "letterSpacingPct": 0,
+     "lineHeight": 1.05,
+     "strokeWidthPct": 0,
+     "role": "number"
+    }
+   ],
+   "lines": [
+    {
+     "size": "S",
+     "qty": 1
+    },
+    {
+     "size": "M",
+     "qty": 2
+    },
+    {
+     "size": "L",
+     "qty": 1
+    },
+    {
+     "size": "XL",
+     "qty": 1
+    },
+    {
+     "size": "2XL",
+     "qty": 1
+    },
+    {
+     "size": "3XL",
+     "qty": 1
+    }
+   ],
+   "players": [
+    {
+     "n": 1,
+     "name": "ARJUN",
+     "number": "7",
+     "size": "S"
+    },
+    {
+     "n": 2,
+     "name": "MEERA",
+     "number": "10",
+     "size": "M"
+    },
+    {
+     "n": 3,
+     "name": "KABIR",
+     "number": "23",
+     "size": "2XL"
+    }
+   ],
+   "playersMatch": false,
+   "areas": [
+    {
+     "key": "left-chest",
+     "label": "Left Chest",
+     "side": "front",
+     "files": [
+      {
+       "group": "8x9",
+       "sizes": [
+        "S"
+       ],
+       "cm": [
+        8,
+        9
+       ]
+      },
+      {
+       "group": "12x13",
+       "sizes": [
+        "M",
+        "L",
+        "XL"
+       ],
+       "cm": [
+        12,
+        13
+       ]
+      },
+      {
+       "group": "16x17",
+       "sizes": [
+        "2XL",
+        "3XL"
+       ],
+       "cm": [
+        16,
+        17
+       ]
+      }
+     ],
+     "main": false,
+     "place": {
+      "align": "wearer-left",
+      "gapCm": 4,
+      "topCm": 0
+     },
+     "collarCm": null,
+     "mainLabel": "Centre Front"
+    },
+    {
+     "key": "full-back",
+     "label": "Full Back",
+     "side": "back",
+     "files": [
+      {
+       "group": "player-1",
+       "sizes": [
+        "S"
+       ],
+       "cm": [
+        34,
+        38
+       ],
+       "player": {
+        "n": 1,
+        "name": "ARJUN",
+        "number": "7",
+        "size": "S"
+       }
+      },
+      {
+       "group": "player-2",
+       "sizes": [
+        "M"
+       ],
+       "cm": [
+        38,
+        42
+       ],
+       "player": {
+        "n": 2,
+        "name": "MEERA",
+        "number": "10",
+        "size": "M"
+       }
+      },
+      {
+       "group": "player-3",
+       "sizes": [
+        "2XL"
+       ],
+       "cm": [
+        42,
+        46
+       ],
+       "player": {
+        "n": 3,
+        "name": "KABIR",
+        "number": "23",
+        "size": "2XL"
+       }
+      }
+     ],
+     "perPlayer": true,
+     "main": true,
+     "place": {
+      "align": "centre",
+      "topCm": 0
+     },
+     "collarCm": null,
+     "mainLabel": "Full Back"
+    }
+   ]
+  },
+  {
+   "_id": "000000000000000000000a02",
+   "name": "Sleeves and back",
+   "layoutVersion": 2,
+   "garment": {
+    "key": "oversized-tee",
+    "label": "Oversized Tee"
+   },
+   "colour": {
+    "slug": "white",
+    "name": "White",
+    "hex": "#F4F3EF"
+   },
+   "mockups": {},
+   "elements": [
+    {
+     "position": "centre-front",
+     "side": "front",
+     "x": 10,
+     "y": 12,
+     "width": 60,
+     "height": 40,
+     "rotation": 0,
+     "zIndex": 1,
+     "type": "image",
+     "src": "/uploads/designs/1792737681289-15cb34c0.png"
+    },
+    {
+     "position": "left-sleeve",
+     "side": "left",
+     "x": 10,
+     "y": 12,
+     "width": 60,
+     "height": 40,
+     "rotation": 0,
+     "zIndex": 1,
+     "type": "text",
+     "text": "EST",
+     "fontFamily": "Anton",
+     "fontSizePct": 30,
+     "color": "#FFFFFF",
+     "bold": false,
+     "italic": false,
+     "underline": false,
+     "align": "center",
+     "effect": "straight",
+     "letterSpacingPct": 0,
+     "lineHeight": 1.05,
+     "strokeWidthPct": 0
+    },
+    {
+     "position": "right-sleeve",
+     "side": "right",
+     "x": 10,
+     "y": 12,
+     "width": 60,
+     "height": 40,
+     "rotation": 0,
+     "zIndex": 1,
+     "type": "text",
+     "text": "2026",
+     "fontFamily": "Anton",
+     "fontSizePct": 30,
+     "color": "#FFFFFF",
+     "bold": false,
+     "italic": false,
+     "underline": false,
+     "align": "center",
+     "effect": "straight",
+     "letterSpacingPct": 0,
+     "lineHeight": 1.05,
+     "strokeWidthPct": 0
+    },
+    {
+     "position": "top-back",
+     "side": "back",
+     "x": 10,
+     "y": 12,
+     "width": 60,
+     "height": 40,
+     "rotation": 0,
+     "zIndex": 1,
+     "type": "text",
+     "text": "CREW",
+     "fontFamily": "Anton",
+     "fontSizePct": 60,
+     "color": "#FFFFFF",
+     "bold": false,
+     "italic": false,
+     "underline": false,
+     "align": "center",
+     "effect": "straight",
+     "letterSpacingPct": 0,
+     "lineHeight": 1.05,
+     "strokeWidthPct": 0
+    },
+    {
+     "position": "lower-back",
+     "side": "back",
+     "x": 10,
+     "y": 12,
+     "width": 60,
+     "height": 40,
+     "rotation": 0,
+     "zIndex": 1,
+     "type": "text",
+     "text": "MADE IN INDIA",
+     "fontFamily": "Anton",
+     "fontSizePct": 40,
+     "color": "#FFFFFF",
+     "bold": false,
+     "italic": false,
+     "underline": false,
+     "align": "center",
+     "effect": "straight",
+     "letterSpacingPct": 0,
+     "lineHeight": 1.05,
+     "strokeWidthPct": 0
+    }
+   ],
+   "lines": [
+    {
+     "size": "S",
+     "qty": 1
+    },
+    {
+     "size": "M",
+     "qty": 2
+    },
+    {
+     "size": "L",
+     "qty": 1
+    },
+    {
+     "size": "XL",
+     "qty": 1
+    },
+    {
+     "size": "2XL",
+     "qty": 1
+    },
+    {
+     "size": "3XL",
+     "qty": 1
+    }
+   ],
+   "players": [],
+   "playersMatch": true,
+   "areas": [
+    {
+     "key": "centre-front",
+     "label": "Centre Front",
+     "side": "front",
+     "files": [
+      {
+       "group": "24x28",
+       "sizes": [
+        "S"
+       ],
+       "cm": [
+        24,
+        28
+       ]
+      },
+      {
+       "group": "28x32",
+       "sizes": [
+        "M",
+        "L",
+        "XL"
+       ],
+       "cm": [
+        28,
+        32
+       ]
+      },
+      {
+       "group": "32x36",
+       "sizes": [
+        "2XL",
+        "3XL"
+       ],
+       "cm": [
+        32,
+        36
+       ]
+      }
+     ],
+     "main": true,
+     "place": {
+      "align": "centre",
+      "topCm": 0
+     },
+     "collarCm": null,
+     "mainLabel": "Centre Front"
+    },
+    {
+     "key": "left-sleeve",
+     "label": "Left Sleeve",
+     "side": "left",
+     "files": [
+      {
+       "group": "5x6",
+       "sizes": [
+        "S"
+       ],
+       "cm": [
+        5,
+        6
+       ]
+      },
+      {
+       "group": "9x10",
+       "sizes": [
+        "M",
+        "L",
+        "XL"
+       ],
+       "cm": [
+        9,
+        10
+       ]
+      },
+      {
+       "group": "13x14",
+       "sizes": [
+        "2XL",
+        "3XL"
+       ],
+       "cm": [
+        13,
+        14
+       ]
+      }
+     ],
+     "main": true,
+     "place": {
+      "align": "centre",
+      "topCm": 0
+     },
+     "collarCm": null,
+     "mainLabel": "Left Sleeve"
+    },
+    {
+     "key": "right-sleeve",
+     "label": "Right Sleeve",
+     "side": "right",
+     "files": [
+      {
+       "group": "5x6",
+       "sizes": [
+        "S"
+       ],
+       "cm": [
+        5,
+        6
+       ]
+      },
+      {
+       "group": "9x10",
+       "sizes": [
+        "M",
+        "L",
+        "XL"
+       ],
+       "cm": [
+        9,
+        10
+       ]
+      },
+      {
+       "group": "13x14",
+       "sizes": [
+        "2XL",
+        "3XL"
+       ],
+       "cm": [
+        13,
+        14
+       ]
+      }
+     ],
+     "main": true,
+     "place": {
+      "align": "centre",
+      "topCm": 0
+     },
+     "collarCm": null,
+     "mainLabel": "Right Sleeve"
+    },
+    {
+     "key": "top-back",
+     "label": "Top Back",
+     "side": "back",
+     "files": [
+      {
+       "group": "35x10",
+       "sizes": [
+        "S",
+        "M",
+        "L",
+        "XL"
+       ],
+       "cm": [
+        35,
+        10
+       ]
+      },
+      {
+       "group": "37x10",
+       "sizes": [
+        "2XL",
+        "3XL"
+       ],
+       "cm": [
+        37,
+        10
+       ]
+      }
+     ],
+     "main": false,
+     "place": {
+      "align": "centre",
+      "topCm": 1
+     },
+     "collarCm": {
+      "XS": 8,
+      "S": 8,
+      "M": 8,
+      "L": 10,
+      "XL": 10,
+      "2XL": 12,
+      "3XL": 12
+     },
+     "mainLabel": "Full Back"
+    },
+    {
+     "key": "lower-back",
+     "label": "Lower Back",
+     "side": "back",
+     "files": [
+      {
+       "group": "26x9",
+       "sizes": [
+        "S"
+       ],
+       "cm": [
+        26,
+        9
+       ]
+      },
+      {
+       "group": "30x10",
+       "sizes": [
+        "M",
+        "L",
+        "XL"
+       ],
+       "cm": [
+        30,
+        10
+       ]
+      },
+      {
+       "group": "34x11",
+       "sizes": [
+        "2XL",
+        "3XL"
+       ],
+       "cm": [
+        34,
+        11
+       ]
+      }
+     ],
+     "main": false,
+     "place": {
+      "align": "centre",
+      "topCm": 48
+     },
+     "collarCm": {
+      "XS": 51.5,
+      "S": 54,
+      "M": 55,
+      "L": 57.5,
+      "XL": 60,
+      "2XL": 61.5,
+      "3XL": 64
+     },
+     "mainLabel": "Full Back"
+    }
+   ]
+  },
+  {
+   "_id": "000000000000000000000a03",
+   "name": "Verticals",
+   "layoutVersion": 2,
+   "garment": {
+    "key": "oversized-tee",
+    "label": "Oversized Tee"
+   },
+   "colour": {
+    "slug": "black",
+    "name": "Black",
+    "hex": "#1C1C1D"
+   },
+   "mockups": {},
+   "elements": [
+    {
+     "position": "front-right-vertical",
+     "side": "front",
+     "x": 10,
+     "y": 12,
+     "width": 60,
+     "height": 40,
+     "rotation": 0,
+     "zIndex": 1,
+     "type": "text",
+     "text": "SUMMER",
+     "fontFamily": "Anton",
+     "fontSizePct": 20,
+     "color": "#FFFFFF",
+     "bold": false,
+     "italic": false,
+     "underline": false,
+     "align": "center",
+     "effect": "straight",
+     "letterSpacingPct": 0,
+     "lineHeight": 1.05,
+     "strokeWidthPct": 0
+    },
+    {
+     "position": "mid-back",
+     "side": "back",
+     "x": 10,
+     "y": 12,
+     "width": 60,
+     "height": 40,
+     "rotation": 0,
+     "zIndex": 1,
+     "type": "image",
+     "src": "/uploads/designs/1792737681289-15cb34c0.png"
+    },
+    {
+     "position": "nape",
+     "side": "back",
+     "x": 10,
+     "y": 12,
+     "width": 60,
+     "height": 40,
+     "rotation": 0,
+     "zIndex": 1,
+     "type": "text",
+     "text": "ID",
+     "fontFamily": "Anton",
+     "fontSizePct": 50,
+     "color": "#FFFFFF",
+     "bold": false,
+     "italic": false,
+     "underline": false,
+     "align": "center",
+     "effect": "straight",
+     "letterSpacingPct": 0,
+     "lineHeight": 1.05,
+     "strokeWidthPct": 0
+    }
+   ],
+   "lines": [
+    {
+     "size": "S",
+     "qty": 1
+    },
+    {
+     "size": "M",
+     "qty": 2
+    },
+    {
+     "size": "L",
+     "qty": 1
+    },
+    {
+     "size": "XL",
+     "qty": 1
+    },
+    {
+     "size": "2XL",
+     "qty": 1
+    },
+    {
+     "size": "3XL",
+     "qty": 1
+    }
+   ],
+   "players": [],
+   "playersMatch": true,
+   "areas": [
+    {
+     "key": "front-right-vertical",
+     "label": "Front Right Vertical",
+     "side": "front",
+     "files": [
+      {
+       "group": "10x52",
+       "sizes": [
+        "S",
+        "M",
+        "L",
+        "XL"
+       ],
+       "cm": [
+        10,
+        52
+       ]
+      },
+      {
+       "group": "10x54",
+       "sizes": [
+        "2XL",
+        "3XL"
+       ],
+       "cm": [
+        10,
+        54
+       ]
+      }
+     ],
+     "main": false,
+     "place": {
+      "align": "wearer-right",
+      "gapCm": 8,
+      "topCm": -2
+     },
+     "collarCm": {
+      "XS": 6,
+      "S": 6,
+      "M": 6,
+      "L": 7,
+      "XL": 7,
+      "2XL": 8,
+      "3XL": 8
+     },
+     "mainLabel": "Centre Front"
+    },
+    {
+     "key": "mid-back",
+     "label": "Mid Back",
+     "side": "back",
+     "files": [
+      {
+       "group": "26x18",
+       "sizes": [
+        "S"
+       ],
+       "cm": [
+        26,
+        18
+       ]
+      },
+      {
+       "group": "30x20",
+       "sizes": [
+        "M",
+        "L",
+        "XL"
+       ],
+       "cm": [
+        30,
+        20
+       ]
+      },
+      {
+       "group": "34x22",
+       "sizes": [
+        "2XL",
+        "3XL"
+       ],
+       "cm": [
+        34,
+        22
+       ]
+      }
+     ],
+     "main": false,
+     "place": {
+      "align": "centre",
+      "topCm": 14
+     },
+     "collarCm": {
+      "XS": 19,
+      "S": 19,
+      "M": 21,
+      "L": 21,
+      "XL": 21,
+      "2XL": 23,
+      "3XL": 23
+     },
+     "mainLabel": "Full Back"
+    },
+    {
+     "key": "nape",
+     "label": "Back Neck",
+     "side": "back",
+     "files": [
+      {
+       "group": "7x4",
+       "sizes": [
+        "S",
+        "M",
+        "L",
+        "XL",
+        "2XL",
+        "3XL"
+       ],
+       "cm": [
+        7,
+        4
+       ]
+      }
+     ],
+     "main": false,
+     "place": {
+      "align": "centre",
+      "topCm": -4.5
+     },
+     "collarCm": {
+      "XS": 2.5,
+      "S": 2.5,
+      "M": 2.5,
+      "L": 2.5,
+      "XL": 2.5,
+      "2XL": 2.5,
+      "3XL": 2.5
+     },
+     "mainLabel": "Full Back"
+    }
+   ]
+  },
+  {
+   "_id": "000000000000000000000a04",
+   "name": "Layout v1",
+   "layoutVersion": 1,
+   "garment": {
+    "key": "oversized-tee",
+    "label": "Oversized Tee"
+   },
+   "colour": {
+    "slug": "black",
+    "name": "Black",
+    "hex": "#1C1C1D"
+   },
+   "mockups": {},
+   "elements": [
+    {
+     "type": "text",
+     "text": "OLD",
+     "x": 20,
+     "y": 20,
+     "width": 40,
+     "height": 10,
+     "side": "front"
+    }
+   ],
+   "lines": [
+    {
+     "size": "S",
+     "qty": 1
+    },
+    {
+     "size": "M",
+     "qty": 2
+    },
+    {
+     "size": "L",
+     "qty": 1
+    },
+    {
+     "size": "XL",
+     "qty": 1
+    },
+    {
+     "size": "2XL",
+     "qty": 1
+    },
+    {
+     "size": "3XL",
+     "qty": 1
+    }
+   ],
+   "players": [],
+   "playersMatch": true,
+   "areas": []
+  }
+ ]
+}
