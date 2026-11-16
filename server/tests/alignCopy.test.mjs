@@ -61,3 +61,16 @@ test("a copy of the sheet's own shape (Google) is left exactly as it is", async 
   assert.equal(fit.changed, false);
   assert.equal(fit.buffer, copy);
 });
+
+test("both places that ask Grok for a print copy put it back in shape before cutting it (orders and the Studio)", async () => {
+  const fs = await import("fs/promises");
+  for (const file of ["../controllers/aiController.js", "../services/studioService.js"]) {
+    const src = await fs.readFile(new URL(file, import.meta.url), "utf8");
+    const fit = src.indexOf("await fitCopyToSheet({ sent: small, copy: out.buffer })");
+    assert.ok(fit > 0, `${file}: fitCopyToSheet is called on the AI's copy`);
+    // the copy is measured and cut from the fitted buffer, not from Grok's raw picture
+    const after = src.slice(fit, fit + 900);
+    assert.match(after, /sharp\(copyBuffer\)\.metadata\(\)/, `${file}: measured after fitting`);
+    assert.match(after, /sharp\(copyBuffer\)\s*\.extract\(/, `${file}: cut after fitting`);
+  }
+});

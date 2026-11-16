@@ -22,6 +22,7 @@ import AiUsage from "../models/aiUsageModel.js";
 import { AI_STYLES, aiImageConfigured, aiImageModel, generateImage, nearestRatio } from "./aiImageService.js";
 import { xaiConfigured, xaiEditImage, xaiModel, xaiNewImage } from "./xaiImageService.js";
 import { cutOutPlainBackground, KEY_BACKGROUND } from "./cutoutService.js";
+import { fitCopyToSheet } from "./alignCopy.js";
 import { uploadFile, localFilePath } from "../utils/imageStorage.js";
 import AiChatUsage from "../models/aiChatUsageModel.js";
 import { positionsForGarment } from "../data/printPositions.js";
@@ -365,10 +366,13 @@ export async function enlargeStudioPicture({ userId, src, teeIsDark, note = "" }
       throw fail(err2?.message || "The picture could not be enlarged.", err2?.status || 502);
     }
   }
-  const big = await sharp(out.buffer).metadata();
+  // (16 Nov 2026) Grok picks its own picture shape and may zoom: its copy is put back in the sheet's exact shape first,
+  // or the shop tee's print came out stretched (as the VF-2026-0079/0080 order prints did). Google's copy is left as it is.
+  const copyBuffer = (await fitCopyToSheet({ sent: small, copy: out.buffer })).buffer;
+  const big = await sharp(copyBuffer).metadata();
   const keepW = Math.min(big.width, Math.round((big.width * meta.width) / sheetW));
   const keepH = Math.min(big.height, Math.round((big.height * meta.height) / sheetH));
-  let picture = await sharp(out.buffer).extract({ left: Math.floor((big.width - keepW) / 2), top: Math.floor((big.height - keepH) / 2), width: keepW, height: keepH }).png().toBuffer();
+  let picture = await sharp(copyBuffer).extract({ left: Math.floor((big.width - keepW) / 2), top: Math.floor((big.height - keepH) / 2), width: keepW, height: keepH }).png().toBuffer();
   if (aiCut) picture = (await cutOutPlainBackground(picture)).buffer;
   else if (hasAlpha) {
     const alpha = await sharp(raw).rotate().ensureAlpha().extractChannel("alpha").resize(keepW, keepH, { kernel: "lanczos3" }).toBuffer();
