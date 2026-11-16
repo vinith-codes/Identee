@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
-import { useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { fetchUserById, clearSelectedUser } from "../../redux/slices/Usermanagementslice";
 
 const AdminUserDetailsPage = () => {
@@ -14,7 +14,10 @@ const AdminUserDetailsPage = () => {
     return () => dispatch(clearSelectedUser());
   }, [dispatch, id]);
 
-  const close = () => navigate("/admin/users");
+  const location = useLocation();
+  // opened from the customers list: closing goes back to it (so the browser's Back doesn't open this window again);
+  // opened from a saved link: the list takes this window's place (16 Nov 2026)
+  const close = () => (location.state?.fromList ? navigate(-1) : navigate("/admin/users", { replace: true }));
 
   if (loading || !selectedUser) {
     return (

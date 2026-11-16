@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
+import { useBackClose } from "../utils/backClose";
 import {
   fetchNotifications,
   fetchUnreadCount,
@@ -85,6 +86,9 @@ export default function NotificationBell() {
   useEffect(() => {
     if (isOpen) dispatch(fetchNotifications());
   }, [isOpen, dispatch]);
+
+  // the browser's Back closes the list (16 Nov 2026)
+  useBackClose(isOpen, () => dispatch(closeNotificationPanel()));
 
   // Close on outside click.
   useEffect(() => {

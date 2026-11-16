@@ -15,6 +15,7 @@ import OfferStrip from "./OfferStrip";
 import NotifyStrip from "./NotifyStrip";
 import TestModeBand from "./TestModeBand";
 import { imageUrl } from "../utils/imageUrl";
+import { useBackClose } from "../utils/backClose";
 
 
 const slugify = (s) => s.toLowerCase().replace(/\s+/g, "-");
@@ -56,6 +57,7 @@ const getInitial = (user) => {
 // ── Main Navbar ──────────────────────────────────────────────────
 export default function Navbar() {
   const [mobileOpen, setMobileOpen] = useState(false);
+  useBackClose(mobileOpen, () => setMobileOpen(false)); // on a phone, Back folds the menu (16 Nov 2026)
   const [mobileProductsOpen, setMobileProductsOpen] = useState(false);
   const [mobileItemOpen, setMobileItemOpen] = useState(null); // which sub-item's subcategories are expanded (mobile)
   const [user, setUser] = useState(getUserInfo());

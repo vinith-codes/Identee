@@ -11,6 +11,7 @@ import printFileService from "../../services/printFileService";
 import { imageUrl } from "../../utils/imageUrl";
 import { THEME, labelStyle } from "../../theme/theme";
 import { adminEnlarger } from "../../studio/enlargerNote";
+import { useBackClose } from "../../utils/backClose";
 
 const SIDES = ["front", "back", "left", "right"];
 const GOOD_DPI = 250; // close enough to 300 that enlarging adds nothing worth paying for
@@ -33,6 +34,7 @@ function ComparePictures({ original, enlarged, tee, onClose }) {
   const [view, setView] = useState({ z: 1, x: 0, y: 0 }); // zoom, and how far the picture is moved (% of the pane)
   const [px, setPx] = useState({}); // which -> pixel width of the file
   const drag = useRef(null);
+  useBackClose(true, onClose); // the browser's Back closes this window, not the order window under it
   useEffect(() => {
     const onKey = (e) => {
       if (e.key !== "Escape") return;
@@ -443,6 +445,16 @@ export default function OrderDesignsModal({ orderId, onClose }) {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose, progress, allPrep]);
+  // the browser's Back closes the window and stays on the orders list (16 Nov 2026); while print files are being
+  // made it does what Escape does: Prepare all keeps going, a ZIP being made is stopped, and the window stays
+  useBackClose(true, () => {
+    if (allPrep) return false;
+    if (progress) {
+      cancel();
+      return false;
+    }
+    onClose();
+  });
 
   const designs = pack?.designs.filter((d) => !d.missing) || [];
   const fileCount = designs.reduce((n, d) => n + d.areas.reduce((m, a) => m + a.files.length, 0), 0);

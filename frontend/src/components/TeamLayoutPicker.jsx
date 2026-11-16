@@ -5,6 +5,7 @@
 import { useEffect, useRef, useState } from "react";
 import { imageUrl } from "../utils/imageUrl";
 import { useLockBodyScroll } from "../utils/lockScroll";
+import { useBackClose } from "../utils/backClose";
 
 const YEAR = String(new Date().getFullYear());
 // where each line sits, in % of the print area on the photo (ax, ay = its middle), s = letter size in % of the area's
@@ -122,6 +123,7 @@ const css = `
  */
 export default function TeamLayoutPicker({ garment, photos, onChoose, onClose }) {
   useLockBodyScroll(); // the page behind stays still while this is open
+  useBackClose(true, onClose); // the browser's Back closes the picker (16 Nov 2026)
   const [pick, setPick] = useState(null);
   const first = useRef(null);
   useEffect(() => {

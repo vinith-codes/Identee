@@ -8,6 +8,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { imageUrl } from "../utils/imageUrl";
+import { useBackClose } from "../utils/backClose";
 import orderService from "../services/orderService";
 import groupService from "../services/groupService";
 import { groupLink, ORDER_WORDS, orderNo, ownDesignId, findOrder, sizeAnswers, spotWords, spotName, voteFromSheet, voteLeader, SIZE_LIMITS } from "./assistantExtras";
@@ -391,6 +392,7 @@ export function GroupCard({ group = {}, sheet, ctx, live, onPatch, onSay, onMess
 // A tap puts a marker on the picture (it never draws); "Change this part" hands the spot back in words.
 export function SpotPicker({ url, fabric, onUse, onClose }) {
   const [spot, setSpot] = useState(null); // { x, y } from 0 to 1
+  useBackClose(true, onClose); // the browser's Back = Cancel (16 Nov 2026)
   const pic = useRef(null);
   const mark = (e) => {
     const box = pic.current?.getBoundingClientRect();

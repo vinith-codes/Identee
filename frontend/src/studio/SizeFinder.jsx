@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { FEELS, SHAPES, WHO, cmToFtIn, fitNote, isKidSize, kgToLb, matchWord, rankSizes } from "./sizeMatch";
 import "./sizeMatch.css";
+import { useBackClose } from "../utils/backClose";
 
 const SAVE_KEY = "identee.sizeFinder.v1";
 const readSaved = () => {
@@ -304,6 +305,7 @@ export default function SizeFinder({ garment, collection = "", teeHex, onPick, o
     set({ who, ...defaultsFor(who) });
   };
 
+  useBackClose(true, onClose); // the browser's Back closes "Find my size" (16 Nov 2026)
   useEffect(() => {
     panel.current?.focus();
     const onKey = (e) => e.key === "Escape" && onClose();

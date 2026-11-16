@@ -18,6 +18,7 @@ import { fetchCart } from "../redux/slices/cartWishlistSlice";
 import { imageUrl } from "../utils/imageUrl";
 import { colourHex, isLight } from "../utils/colours";
 import { useShopOpen } from "../utils/shopOpen";
+import { useBackClose } from "../utils/backClose";
 import ShopComingSoon from "../components/ShopComingSoon";
 
 const BACKEND_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
@@ -498,6 +499,7 @@ function Gallery({ images, index, setIndex, name, onOpen }) {
 
 function Viewer({ images, index, setIndex, onClose, name }) {
   const [zoom, setZoom] = useState(false);
+  useBackClose(true, onClose); // on a phone, Back closes the big photos and stays on the tee (16 Nov 2026)
   useEffect(() => {
     const key = (e) => {
       if (e.key === "Escape") onClose();

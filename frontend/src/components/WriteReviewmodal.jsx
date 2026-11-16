@@ -18,6 +18,7 @@ import { THEME } from "../theme/theme";
 import reviewService from "../services/reviewServices";
 import { imageUrl } from "../utils/imageUrl";
 import { SCREEN_H, useLockBodyScroll } from "../utils/lockScroll";
+import { useBackClose } from "../utils/backClose";
 
 
 function getImageUrl(path) {
@@ -72,6 +73,19 @@ export default function WriteReviewModal({
   const hasWork = !success && (rating > 0 || comment.trim().length > 0 || images.length > 0);
   const tryClose = () => (hasWork ? setAskClose(true) : onClose());
   useLockBodyScroll(open); // the page behind stays still while this is open
+  // the browser's Back works like Cancel: with something written it asks first (a second Back = keep writing)
+  useBackClose(open, () => {
+    if (submitting) return false;
+    if (askClose) {
+      setAskClose(false);
+      return false;
+    }
+    if (hasWork) {
+      setAskClose(true);
+      return false;
+    }
+    onClose();
+  });
   useEffect(() => {
     if (!open) return;
     const onKey = (e) => e.key === "Escape" && tryClose();

@@ -4,6 +4,7 @@ import { Outlet } from "react-router-dom";
 import AdminSidebar from "../components/AdminSidebar";
 import AdminTopbar from "../components/AdminTopbar";
 import UnsavedChangesProvider from "./UnsavedChangesProvider";
+import { useBackClose } from "../utils/backClose";
 
 // The admin area knows when the open page has unsaved changes (utils/unsavedChanges.js): the sidebar, the
 // settings tabs and Back links ask before leaving, and so does a reload.
@@ -38,6 +39,8 @@ function AdminLayoutInner() {
     return () => mq.removeEventListener("change", change);
   }, []);
   const open = !collapsed;
+  // on a phone the open menu covers the page: the browser's Back folds it (16 Nov 2026)
+  useBackClose(phone && open, () => setCollapsed(true));
 
   return (
     <div style={{ minHeight: "100vh", background: "#141110" }}>

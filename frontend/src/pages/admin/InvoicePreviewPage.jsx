@@ -6,6 +6,7 @@ import html2pdf from "html2pdf.js";
 import InvoiceDocument from "../admin/InvoiceDocument";
 import invoiceService from "../../services/invoiceService";
 import { THEME } from "../../theme/theme";
+import { useBackClose } from "../../utils/backClose";
 
 export default function InvoicePreviewPage() {
   const { orderId } = useParams();
@@ -15,6 +16,8 @@ export default function InvoicePreviewPage() {
   const [error, setError] = useState("");
   const [emailing, setEmailing] = useState(false);
   const [showEmailConfirm, setShowEmailConfirm] = useState(false);
+  // the browser's Back closes the "Email the invoice?" box (not while it is sending)
+  useBackClose(showEmailConfirm, () => (emailing ? false : setShowEmailConfirm(false)));
   const printRef = useRef(null);
   // Back goes to the list the invoice was opened from (the client's wish, 21 Oct 2026): opened from Orders →
   // "Back to Orders" (with the filters set there: the browser's own back step keeps them), else → "Back to

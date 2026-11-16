@@ -4,11 +4,13 @@
 import { useState } from "react";
 import { createPortal } from "react-dom";
 import { imageUrl } from "../utils/imageUrl";
+import { useBackClose } from "../utils/backClose";
 import { FEEDBACK } from "./assistantExtras";
 
 // last + onSay (round 8): the newest sheet also gets one-tap feedback ("Too busy", "Other colours" ...)
 export default function SheetCard({ sheet, live = true, last = false, onPick, onMore, onSay }) {
   const [open, setOpen] = useState(false); // the large view
+  useBackClose(open, () => setOpen(false)); // the browser's Back closes the large view (16 Nov 2026)
   const [copied, setCopied] = useState(false); // Share (round 5): the link went to the clipboard
   // the phone's share sheet with the sheet's link (WhatsApp …); else the link is copied
   const share = async () => {

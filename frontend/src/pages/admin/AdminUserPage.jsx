@@ -297,7 +297,7 @@ const AdminUsersPage = () => {
                         <td style={{ color: "#6B6559", whiteSpace: "nowrap" }}>{joined(user.createdAt)}</td>
                         <td>
                           <div className="cu-acts">
-                            <button type="button" className="cu-act" onClick={() => navigate(`/admin/users/${user._id}`)}>View</button>
+                            <button type="button" className="cu-act" onClick={() => navigate(`/admin/users/${user._id}`, { state: { fromList: true } })}>View</button>
                             <button type="button" className="cu-act" onClick={() => navigate(`/admin/users/${user._id}/edit`)}>Edit access</button>
                             <button
                               type="button"

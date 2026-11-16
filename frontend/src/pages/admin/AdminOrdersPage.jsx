@@ -10,6 +10,7 @@ import {
 import { THEME, labelStyle } from "../../theme/theme";
 import orderService from "../../services/orderService";
 import OrderDesignsModal from "./OrderDesignsModal";
+import { useBackClose } from "../../utils/backClose";
 import CancelInfo from "./CancelInfo";
 
 const STATUS_COLORS = {
@@ -232,6 +233,7 @@ function DeleteOrdersDialog({ orders, allInvoicedPicked, onCancel, onDone }) {
   const [typed, setTyped] = useState("");
   const [restart, setRestart] = useState(false);
   const [busy, setBusy] = useState(false);
+  useBackClose(true, () => (busy ? false : onCancel())); // Back = Cancel (not while deleting)
   const invoiced = orders.filter((o) => o.invoiceDetails).length;
   const label = (o) => o.invoiceNumber || o._id.slice(-8);
   const shown = orders.slice(0, 8).map(label).join(", ") + (orders.length > 8 ? ` and ${orders.length - 8} more` : "");

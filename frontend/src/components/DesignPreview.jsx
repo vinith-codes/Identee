@@ -9,6 +9,7 @@ import { Link } from "react-router-dom";
 import customizationService from "../services/customizationService";
 import { THEME } from "../theme/theme";
 import { useLockBodyScroll } from "../utils/lockScroll";
+import { useBackClose } from "../utils/backClose";
 import { imageUrl } from "../utils/imageUrl";
 
 const SIDES = [
@@ -31,6 +32,7 @@ const AREA_NAMES = {
  */
 export default function DesignPreview({ designId, onClose, extra }) {
   useLockBodyScroll(); // the page behind stays still while this is open
+  useBackClose(true, onClose); // the browser's Back closes the preview (16 Nov 2026)
   const [design, setDesign] = useState(null);
   const [error, setError] = useState("");
   const [side, setSide] = useState("front");

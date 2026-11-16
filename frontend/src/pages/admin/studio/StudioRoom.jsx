@@ -21,6 +21,7 @@ import { shopHref } from "../../../utils/siteUrls";
 import { imageUrl } from "../../../utils/imageUrl";
 import { AddTabs, AiPicturesTab, ArtPicker, Controls, LayersPanel, TextTab, UploadTab } from "./StudioControls";
 import PlacePicker from "./PlacePicker";
+import { useBackClose } from "../../../utils/backClose";
 import { ICON_ADD, ICON_AI, ICON_AREAS, isNarrow, writeDraft } from "./studioBits";
 import PictureAssistant from "./PictureAssistant";
 import { DTF_RULES, dtfFixes, dtfIssues, softPictures } from "./studioCheck";
@@ -656,6 +657,16 @@ export default function StudioRoom({ setup, garment, colourSlug: firstColour, de
     setShots(null);
     setCamRequest({ view: "front", n: nextReq() });
   };
+  // the browser's Back from Review goes back to the design, like "← Edit design" (17 Nov 2026); declared before the
+  // windows below, so a window opened in Review closes first
+  useBackClose(step === "review", () => backToDesign());
+  // the browser's Back closes what is open on top of the Studio, like its × (16 Nov 2026): the colour & size menu,
+  // the earlier saves — and on a phone the sheets that cover the tee (where to print, the editor, the assistant)
+  useBackClose(pickOpen, () => setPickOpen(false));
+  useBackClose(versionsOpen, () => setVersionsOpen(false));
+  useBackClose(narrow && step === "design" && areasOpen, () => setAreasOpen(false));
+  useBackClose(narrow && step === "design" && Boolean(activePos), () => activePos && goView(activePos.side));
+  useBackClose(narrow && step === "design" && assist, () => setAssist(false));
   const showSide = (view) => {
     setSpin(false);
     setSideShown(view);

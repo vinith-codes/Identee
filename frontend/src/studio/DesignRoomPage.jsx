@@ -16,6 +16,7 @@ import customizationService from "../services/customizationService";
 import artDesignService from "../services/artDesignService";
 import { fetchCart } from "../redux/slices/cartWishlistSlice";
 import { createPortal } from "react-dom";
+import { useBackClose } from "../utils/backClose";
 import { imageUrl } from "../utils/imageUrl";
 import Room3D from "./Room3D";
 import AreaEditor from "./AreaEditor";
@@ -2835,6 +2836,22 @@ export default function DesignRoomPage() {
     setStep("fit");
     setCamRequest(narrow ? { position: [0, 1.5, 8], ms: 900, n: nextReq() } : { ...SHOWCASE, ms: 900, n: nextReq() });
   };
+  // the browser's Back walks the room's own steps, like its ← button (17 Nov 2026: Back in the room went straight
+  // to the garment list): Review → the design → colour & size. (Before the windows below: a window opened inside a
+  // step sits on top of it, so Back closes the window first.)
+  useBackClose(step !== "fit", () => stepBack());
+  useBackClose(step === "review", () => backToDesign());
+  // the browser's Back closes what is open on top of the room, like its × (16 Nov 2026): the colour & size menu,
+  // the save box, the earlier chats, the photo of it worn — and on a phone the sheets that cover the tee
+  // (where to print, the editor, the Assistant); on a laptop those are side panels and Back leaves them alone
+  useBackClose(pickOpen, () => setPickOpen(false));
+  useBackClose(saveOpen, () => setSaveOpen(false));
+  useBackClose(chatsOpen, () => setChatsOpen(false));
+  useBackClose(Boolean(worn?.url), () => setWorn(null));
+  useBackClose(narrow && step === "design" && areasOpen, () => setAreasOpen(false));
+  useBackClose(narrow && step === "design" && Boolean(activePos) && !assist, () => activePos && goView(activePos.side));
+  useBackClose(narrow && step === "design" && assist, () => setAssist(false));
+
   const chosen = teamMode
     ? sizeCounts(teamPlayers)
     : Object.entries(qtys)
@@ -3955,6 +3972,7 @@ function Fitting({ garment, colours, colour, onColour, sizes, size, onSize, onFi
   const onEnter = guard(enter);
   const onAssistant = guard(assistant);
   const onPhoto = guard(photo);
+  useBackClose(Boolean(earlier && asking), () => setAsking(null)); // Back = "Keep it" (16 Nov 2026)
   return (
     <div className="dr-overlay fit">
       <div className="dr-fit">

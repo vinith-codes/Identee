@@ -4,6 +4,7 @@
 // group; the area being edited is suggested. Centred on a laptop, a sheet from the bottom on a phone (dr-ask).
 import { useState } from "react";
 import { imageUrl } from "../utils/imageUrl";
+import { useBackClose } from "../utils/backClose";
 import { pictureLabel } from "./pictureHelpers";
 
 /**
@@ -17,6 +18,13 @@ export default function PlaceSheet({ picture, groups, suggest, onPlace, onForget
   const [asking, setAsking] = useState(null); // the area with a design: add next to it, or replace it?
   const [why, setWhy] = useState(""); // a covered area was tapped
   const [forget, setForget] = useState(false);
+  // the browser's Back: first takes back an open question ("add next to it, or replace?" / "forget it?"), then closes
+  useBackClose(true, () => {
+    if (!asking && !forget) return onClose();
+    setAsking(null);
+    setForget(false);
+    return false;
+  });
   const tap = (a) => {
     setWhy("");
     if (a.state === "blocked") return setWhy(`${a.label} overlaps ${a.blockers.join(" and ")}, which already has a print. Pick a free area, or remove that print first.`);

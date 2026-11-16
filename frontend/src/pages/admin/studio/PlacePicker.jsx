@@ -3,6 +3,7 @@
 // at the top, in the middle, at the bottom, or small. Looks like the customer room's PlaceSheet (same classes).
 import { useState } from "react";
 import { imageUrl } from "../../../utils/imageUrl";
+import { useBackClose } from "../../../utils/backClose";
 
 const HOW = [
   ["fill", "Fill the area", "edge to edge"],
@@ -24,6 +25,12 @@ export default function PlacePicker({ picture, groups, suggest, onPlace, onClose
   const [how, setHow] = useState(DEFAULT_HOW[picture.kind] || "big");
   const [asking, setAsking] = useState(null);
   const [why, setWhy] = useState("");
+  // the browser's Back: first takes back the "add next to it, or replace?" question, then closes (16 Nov 2026)
+  useBackClose(true, () => {
+    if (!asking) return onClose();
+    setAsking(null);
+    return false;
+  });
   const tap = (a) => {
     setWhy("");
     if (a.state === "blocked") return setWhy(`${a.label} overlaps ${a.blockers.join(" and ")}, which already has a print. Pick a free area, or remove that print first.`);

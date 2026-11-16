@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useSelector } from "react-redux";
 import { THEME } from "../../theme/theme";
 import { imageUrl } from "../../utils/imageUrl";
+import { useBackClose } from "../../utils/backClose";
 import reviewService from "../../services/reviewServices"; // ✅ FIXED — was "reviewServices" (typo, no such file)
 
 const REJECTION_REASONS = [
@@ -23,6 +24,7 @@ export default function ReviewDetailModal({ review, onClose, onChanged }) {
     review.adminResponse?.text || "",
   );
   const [busy, setBusy] = useState(false);
+  useBackClose(true, onClose); // the browser's Back closes this window and stays on the reviews list
 
   const run = async (action) => {
     setBusy(true);
