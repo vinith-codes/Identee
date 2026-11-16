@@ -2949,6 +2949,16 @@ export default function DesignRoomPage() {
       }
       wasKeyboard = keyboard;
     };
+    // a box was tapped (the keyboard is opening): measure again a few times while it slides up.
+    // (17 Nov 2026, the owner's iPhone: the FIRST time the Assistant's box was tapped the keyboard covered it,
+    // later taps were fine — the first keyboard of a visit comes up slower and the phone's screen size settles
+    // after the one size change the page was told about, so the room was fitted to a stale size)
+    let refits = [];
+    const onFocusIn = (e) => {
+      if (!phone.matches || !/^(INPUT|TEXTAREA)$/.test(e.target?.tagName || "")) return;
+      refits.forEach(clearTimeout);
+      refits = [0, 100, 250, 450, 700, 1000, 1500].map((ms) => setTimeout(fit, ms));
+    };
     // a box lost the focus (the keyboard is closing): once it has gone, the page goes back to the top
     const onFocusOut = () => setTimeout(() => {
       const t = document.activeElement;
@@ -2958,11 +2968,16 @@ export default function DesignRoomPage() {
     backToTop();
     vv.addEventListener("resize", fit);
     vv.addEventListener("scroll", fit);
+    window.addEventListener("resize", fit); // (the browser's own bars folding away when the keyboard comes up)
+    document.addEventListener("focusin", onFocusIn);
     document.addEventListener("focusout", onFocusOut);
     window.addEventListener("orientationchange", backToTop);
     return () => {
+      refits.forEach(clearTimeout);
       vv.removeEventListener("resize", fit);
       vv.removeEventListener("scroll", fit);
+      window.removeEventListener("resize", fit);
+      document.removeEventListener("focusin", onFocusIn);
       document.removeEventListener("focusout", onFocusOut);
       window.removeEventListener("orientationchange", backToTop);
       delete el.dataset.kb;
