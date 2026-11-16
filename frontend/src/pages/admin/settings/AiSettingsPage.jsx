@@ -11,7 +11,7 @@ import { imageUrl } from "../../../utils/imageUrl";
 import { useReportUnsaved } from "../../../utils/unsavedChanges";
 
 const FIELDS = [
-  ["dailyPerUser", "Requests per customer per day", "How many times one customer can ask for designs in a day.", 1, 50, 1],
+  ["dailyPerUser", "Pictures per customer per day", "How many pictures one customer can make in a day. A concept sheet is one picture; each piece of a developed concept (front, back, sleeve) is one. Redraws the AI makes by itself to fix spelling are free.", 1, 50, 1],
   ["imagesPerRequest", "Pictures per request", "How many options the customer sees each time (each one is paid for).", 1, 4, 1],
   ["monthlyCapInr", "Google: monthly spending cap (₹)", "When this month's Google spend reaches it, the feature pauses until next month. Keep it a little below the spend cap set in Google AI Studio. 0 = no cap.", 0, 1000000, 50],
   ["pricePerImageInr", "Cost of one Google picture (₹)", "Used only for the spending figures here. Include GST: Google’s spend page shows about ₹3.50 a picture.", 0, 100, 0.1],
@@ -114,7 +114,8 @@ export default function AiSettingsPage() {
   const perRequest = Number(form.imagesPerRequest || 0) * designPrice;
   const perChange = designPrice;
   const requestsInCap = perRequest > 0 && Number(form.monthlyCapInr) > 0 ? Math.floor(Number(form.monthlyCapInr) / perRequest) : null;
-  const worstDay = Number(form.dailyPerUser || 0) * perRequest;
+  // (16 Nov 2026: the limit counts pictures, and no picture costs more than a 4K design)
+  const worstDay = Number(form.dailyPerUser || 0) * designPrice;
   const requests = [...data.recent, ...older];
 
   return (
@@ -401,8 +402,8 @@ export default function AiSettingsPage() {
           <span>One “change it” request: <b>{rupees(perChange)}</b> (1 picture)</span>
           <span>One celebrity photo redrawn by Grok: <b>{rupees(form.grokPricePerImageInr)}</b> (1 picture)</span>
           <span>One print picture enlarged by Topaz: <b>{rupees(form.topazPricePerUnitInr)}</b> (1 unit, up to 24 megapixels)</span>
-          <span>One customer using all {form.dailyPerUser} requests in a day: up to <b>{rupees(worstDay)}</b></span>
-          {requestsInCap !== null && <span>Google's monthly cap covers about <b>{requestsInCap}</b> new design requests</span>}
+          <span>One customer making all {form.dailyPerUser} pictures in a day: up to <b>{rupees(worstDay)}</b></span>
+          {requestsInCap !== null && <span>Google's monthly cap covers about <b>{requestsInCap}</b> new designs</span>}
           {grokInCap !== null && <span>Grok's monthly cap covers about <b>{grokInCap}</b> Grok pictures</span>}
         </div>
         <div style={{ display: "flex", gap: 12, alignItems: "center" }}>

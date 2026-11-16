@@ -371,7 +371,7 @@ export function replyTo(text, ctx, st, { tapped = false } = {}) {
   if (st.photo && t === PHOTO_ART) {
     // art needs the AI (there are no free looks any more): without it, the free choices for the photo itself
     if (!(ctx.ai.available && ctx.ai.loggedIn && ctx.ai.left !== 0)) {
-      return done([bot(!ctx.ai.loggedIn ? "Log in to turn your photo into art." : ctx.ai.left === 0 ? "You’ve used today’s AI requests, so art has to wait until tomorrow. You can still put your photo on, free:" : "Turning photos into art isn’t available right now. You can still put your photo on, free:"), chips([...(ctx.ai.loggedIn ? [PHOTO_CUT, PHOTO_AS_IS] : ["Log in"]), BACK])], { backTo: "photoChoice" });
+      return done([bot(!ctx.ai.loggedIn ? "Log in to turn your photo into art." : ctx.ai.left === 0 ? "You’ve made today’s pictures, so art has to wait until tomorrow. You can still put your photo on, free:" : "Turning photos into art isn’t available right now. You can still put your photo on, free:"), chips([...(ctx.ai.loggedIn ? [PHOTO_CUT, PHOTO_AS_IS] : ["Log in"]), BACK])], { backTo: "photoChoice" });
     }
     return done([bot("Which style? Each one uses 1 request."), chips([...(ctx.ai.photoStyles || []), BACK])], { photoUrl: st.photo.url, wait: "photoStyle", backTo: "photoChoice" });
   }
@@ -386,7 +386,7 @@ export function replyTo(text, ctx, st, { tapped = false } = {}) {
     const ai = ctx.ai;
     if (!ai.available) return done([bot("Turning photos into art is not available right now. You can still upload your photo as it is."), chips(["Upload a picture", "Something else"])]);
     if (!ai.loggedIn) return done([bot("I can redraw your photo as a cartoon, a sketch or a sticker. Log in first so it is kept for you."), chips(["Log in", "Something else"])]);
-    if (ai.left === 0) return done([bot("You’ve used today’s design requests. They reset tomorrow. Until then you can put your photo on the tee as it is."), chips(["Upload a picture", "Something else"])]);
+    if (ai.left === 0) return done([bot("You’ve made today’s pictures. They come back tomorrow. Until then you can put your photo on the tee as it is."), chips(["Upload a picture", "Something else"])]);
     return done([bot("Send me a photo of a person, a pet or anything you like, and I’ll redraw it as art for your tee."), orOut(["Upload a photo", ...(ctx.photoOnTee ? ["Use the picture on my tee"] : [])])]);
   }
 
@@ -399,7 +399,7 @@ export function replyTo(text, ctx, st, { tapped = false } = {}) {
     const ai = ctx.ai;
     if (!ai.available) return done([bot("Drawing words as art is not available right now. You can add them as text and style them: tap “Add text”, then ask me to “Style it for me”."), chips(["Something else"])]);
     if (!ai.loggedIn) return done([bot("I can draw those words as lettering art. Log in first so your designs are kept for you."), chips(["Log in", "Something else"])]);
-    if (ai.left === 0) return done([bot("You’ve used today’s design requests. They reset tomorrow. Until then you can add the words as text and style them."), chips([MORE_STYLE, "Slogan ideas", "Something else"])]);
+    if (ai.left === 0) return done([bot("You’ve made today’s pictures. They come back tomorrow. Until then you can add the words as text and style them."), chips([MORE_STYLE, "Slogan ideas", "Something else"])]);
     // the words: what is in quotation marks, else the sentence without the asking part
     const quoted = /[“"‘']([^”"’']{2,160})[”"’']/.exec(t);
     // a print area named in the message ("… in vertical front"): the design is made for that area, and the
@@ -526,7 +526,7 @@ export function replyTo(text, ctx, st, { tapped = false } = {}) {
       return done([bot(`${why} For now, pick from our art library, upload your own picture, or start from a template.`), orOut(["Open the art library", "Upload a picture", "Start from a template"])]);
     }
     if (!ai.loggedIn) return done([bot("I can draw a design from your description. Log in first so your designs are kept for you."), chips(["Log in", "Something else"])]);
-    if (ai.left === 0) return done([bot("You’ve used today’s design requests. They reset tomorrow. Until then, try the art library or upload a picture."), orOut(["Open the art library", "Upload a picture"])]);
+    if (ai.left === 0) return done([bot("You’ve made today’s pictures. They come back tomorrow. Until then, try the art library or upload a picture."), orOut(["Open the art library", "Upload a picture"])]);
     // what was typed ("draw a lion holding a bat on the back") becomes the plan card; nothing typed yet: ask
     const said = t !== "Make a design" && t.split(/\s+/).length >= 3 ? subjectAndArea(t.replace(/^(please )?(can you |could you )?(draw|design|make|create|generate)( me)?( an?| the| some)?\s+/i, ""), ctx.areas) : { subject: "", areaKey: null };
     if (!said.subject) {

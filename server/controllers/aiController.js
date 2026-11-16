@@ -43,7 +43,7 @@ import { AI_STYLES, PHOTO_STYLES, aiImageConfigured, aiImageModel, changeDesignP
 const CATEGORY = "ai";
 const DEFAULTS = {
   "ai.enabled": { value: true, type: "boolean", description: "Customers can make designs with AI" },
-  "ai.dailyPerUser": { value: 20, type: "number", description: "Picture requests one customer may make per day (drawings, concept sheets and developed concepts each count as one)" },
+  "ai.dailyPerUser": { value: 20, type: "number", description: "Pictures one customer may make per day (a concept sheet counts as one, each piece of a developed concept as one; automatic redraws are free)" },
   "ai.imagesPerRequest": { value: 1, type: "number", description: "Pictures shown for each new design request" },
   // (the key keeps its old name: before 18 Oct 2026 it was one cap for both services)
   "ai.monthlyCapInr": { value: 2000, type: "number", description: "Monthly spending cap for Google, in rupees" },
@@ -202,7 +202,21 @@ export async function whyOff(settings) {
   if (googleCapped(settings, await monthSpend())) return "cap";
   return null;
 }
-export const usedToday = (userId) => AiUsage.countDocuments({ user: userId, createdAt: { $gte: startOfDay() } });
+// (16 Nov 2026, the owner: "10 pictures a day", not 10 requests) the PICTURES a customer made today: each row counts
+// its pictures; a developed concept's automatic redraws (spelling put right) are free, so its row says what is
+// counted. Rows from before have no `counted`: their pictures (at least 1) count.
+export const usedToday = async (userId) => {
+  const [row] = await AiUsage.aggregate([
+    { $match: { user: mongoose.isValidObjectId(userId) ? new mongoose.Types.ObjectId(String(userId)) : userId, createdAt: { $gte: startOfDay() } } },
+    { $group: { _id: null, n: { $sum: { $ifNull: ["$counted", { $max: ["$images", 1] }] } } } },
+  ]);
+  return row?.n || 0;
+};
+// the words when today's pictures are used up (or too few are left for what was asked)
+export const noPicturesLeft = (all, left, need = 1) =>
+  left <= 0
+    ? `You’ve made today’s ${all} pictures. They come back tomorrow.`
+    : `You have ${left} picture${left === 1 ? "" : "s"} left today, and this needs ${need}. Ask for fewer, or come back tomorrow.`;
 
 // GET /api/ai/status  (login optional)
 export const getAiStatus = asyncHandler(async (req, res) => {
@@ -323,9 +337,10 @@ export const makeAiDesign = asyncHandler(async (req, res) => {
     throw new Error(reason === "cap" ? "The design maker is taking a break until next month. You can still use the art library or upload your own picture." : "The design maker is not available right now.");
   }
   const used = await usedToday(req.user._id);
-  if (used >= settings.dailyPerUser) {
+  const left = settings.dailyPerUser - used;
+  if (left <= 0) {
     res.status(429);
-    throw new Error(`You’ve used today’s ${settings.dailyPerUser} design requests. They reset tomorrow.`);
+    throw new Error(noPicturesLeft(settings.dailyPerUser, left));
   }
 
   // a photo sent in the chat: its print copied, or used as a reference for a new design
@@ -414,7 +429,8 @@ export const makeAiDesign = asyncHandler(async (req, res) => {
     const teeColour = teeName;
     // count: fewer options than usual (used when one message asks for pictures on several areas)
     const wanted = Number(req.body.count) > 0 ? Math.min(Number(req.body.count), settings.imagesPerRequest) : settings.imagesPerRequest;
-    const of = Math.min(4, Math.max(1, wanted));
+    // (never more than the pictures left today)
+    const of = Math.min(4, Math.max(1, wanted), left);
     // lettering for a tall, thin area: one long line on the widest picture (21:9; 16:9 if the model won't do 21:9)
     banner = Boolean(req.body.banner) && style === "Hand lettering";
     const ask = { subject: text, style, teeColour, teeIsDark: Boolean(req.body.teeIsDark), oneLine: banner };
@@ -509,7 +525,7 @@ export const makeAiDesign = asyncHandler(async (req, res) => {
           ? [await wasAbout(req.body.baseUrl), text].filter(Boolean).join(", ")
           : text;
   await rememberPictures(req.user._id, stored.map((s, i) => ({ url: s.url, kind: "ai", about, style: fromPhoto ? req.body.artStyle : AI_STYLES[req.body.style] ? req.body.style : "", width: cut[i].width, height: cut[i].height })));
-  res.status(201).json({ images: stored.map((s, i) => ({ url: s.url, width: cut[i].width, height: cut[i].height })), left: Math.max(0, settings.dailyPerUser - used - 1) });
+  res.status(201).json({ images: stored.map((s, i) => ({ url: s.url, width: cut[i].width, height: cut[i].height })), left: Math.max(0, settings.dailyPerUser - used - made.length) });
 });
 
 // POST /api/ai/slogans  (no login needed; limited per address in the route)

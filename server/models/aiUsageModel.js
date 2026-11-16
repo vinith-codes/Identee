@@ -10,6 +10,9 @@ const aiUsageSchema = mongoose.Schema(
     prompt: { type: String, maxlength: 2200 }, // what the customer asked for (not the full instruction sent to the AI)
     style: { type: String, maxlength: 60 },
     images: { type: Number, default: 0 },
+    // what counts toward the customer's daily pictures when it differs from images (a developed concept: its
+    // automatic redraws are free, 16 Nov 2026); unset = images
+    counted: { type: Number },
     costInr: { type: Number, default: 0 }, // images × the price per picture set by the admin
     model: { type: String, maxlength: 80 },
     // a concept sheet's picture and concepts (kind "sheet", round 7, 8 Nov 2026) — so the admin can feature it in Browse ideas

@@ -133,7 +133,7 @@ export default function PhotoPlanCard({ plan, areas, styles, photoStyles, ai, li
           </button>
           <p className="pc-note">
             {short
-              ? !ai.available ? "The AI isn’t available right now — the free choices below still work." : ai.left === 0 ? "You’ve used today’s AI requests. The free choices below still work." : "Log in to use this."
+              ? !ai.available ? "The AI isn’t available right now — the free choices below still work." : ai.left === 0 ? "You’ve made today’s pictures. The free choices below still work." : "Log in to use this."
               : `${!free && ai.left != null ? `${ai.left} request${ai.left === 1 ? "" : "s"} left today. ` : ""}Nothing is made until you tap Make it.`}
           </p>
           <div className="pc-more">

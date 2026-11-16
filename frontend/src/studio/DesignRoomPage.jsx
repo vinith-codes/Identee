@@ -1336,7 +1336,7 @@ export default function DesignRoomPage() {
     if (d?.tool === "draw") {
       if (!ai.available) out.push(botSays("Pictures can’t be drawn right now. You can pick from the free designs or upload your own."), chipRow(["Open the art library", "Upload a picture"]));
       else if (!isLoggedIn()) out.push(botSays("Log in and I’ll draw it for you. Your design stays here."), chipRow(["Log in", "Something else"]));
-      else if (ai.left === 0) out.push(botSays("You’ve used today’s picture requests. They reset tomorrow."));
+      else if (ai.left === 0) out.push(botSays("You’ve made today’s pictures. They come back tomorrow."));
       else out.push(...smartPlan(c, d.pictures, d.style));
     }
     if (d?.tool === "slogans") {
@@ -1468,7 +1468,7 @@ export default function DesignRoomPage() {
   // a concept sheet: one picture, three numbered tees (counts as one picture request)
   const makeSheet = async (step, progress, photoUrl = null) => {
     if (!ai.available) return [botSays("Pictures can’t be made right now. You can pick from the art library or upload your own."), chipRow(["Open the art library", "Upload a picture"])];
-    if (ai.left === 0) return [botSays("You’ve used today’s picture requests. They reset tomorrow — I can still help with words and layout.")];
+    if (ai.left === 0) return [botSays("You’ve made today’s pictures. They come back tomorrow — I can still help with words and layout.")];
     const numberFrom = nextConceptNumber(sheetsFromChat(chat));
     // the names show at once, while the picture is drawn (the wait feels shorter)
     const names = step.concepts.map((c, i) => `${numberFrom + i} ${c.title}`).join(" · ");
@@ -1496,6 +1496,8 @@ export default function DesignRoomPage() {
     let focus = null;
     let first = true;
     const placed = {};
+    // the pictures left today, kept up to date between concepts (each piece is one picture; 16 Nov 2026)
+    let leftNow = ai.left == null ? null : Number(ai.left);
     for (const n of picks) {
       if (run?.stopped) break;
       const found = findConcept(sheets, n);
@@ -1503,8 +1505,8 @@ export default function DesignRoomPage() {
         out.push(botSays(`I don’t have a concept ${n} yet. Tap a number on the sheet, or ask for designs first.`));
         continue;
       }
-      if (ai.left === 0) {
-        out.push(botSays(`You’ve used today’s picture requests, so I couldn’t make concept ${n}. They reset tomorrow.`));
+      if (leftNow === 0) {
+        out.push(botSays(`You’ve made today’s pictures, so I couldn’t make concept ${n}. They come back tomorrow.`));
         break;
       }
       const { sheet, concept } = found;
@@ -1514,6 +1516,10 @@ export default function DesignRoomPage() {
         const has = piecesOf(concept);
         out.push(botSays(`Concept ${n} “${concept.title}” has no ${andList(step.pieces || [])} print — it has ${has.length ? `only the ${andList(has)}` : "nothing to print"}. Say “the ${has[0] || "front"} of ${n}”, or pick another concept.`));
         continue;
+      }
+      if (leftNow != null && leftNow < pieces.length) {
+        out.push(botSays(`Concept ${n} has ${pieces.length} pieces (${andList(pieces)}) — that’s ${pieces.length} pictures, and you have ${leftNow} left today. Ask for just ${leftNow === 1 ? "one piece" : `${leftNow} of them`}, like “the ${pieces[0]} of ${n}”, or come back tomorrow.`));
+        break;
       }
       const areasFor = {};
       const ratios = {};
@@ -1535,7 +1541,10 @@ export default function DesignRoomPage() {
         out.push(botSays(err.response?.data?.message || `Concept ${n} couldn’t be made just now.`));
         continue;
       }
-      if (res.left != null) setAi((cur) => ({ ...cur, left: res.left }));
+      if (res.left != null) {
+        leftNow = res.left;
+        setAi((cur) => ({ ...cur, left: res.left }));
+      }
       res.pieces.forEach((pc) => {
         aiCuts.current.set(pc.url, { path: pc.url, w: pc.width, h: pc.height });
         loadImage(pc.url).catch(() => {});
@@ -1584,7 +1593,7 @@ export default function DesignRoomPage() {
   // A companion piece drawn from the picture already on the tee (round 5, 8 Nov 2026): "make a matching back".
   const matchPiece = async (step, progress, run) => {
     if (!ai.available) return [botSays("Pictures can’t be made right now."), chipRow(["Open the art library", "Upload a picture"])];
-    if (ai.left === 0) return [botSays("You’ve used today’s picture requests. They reset tomorrow — I can still help with words and layout.")];
+    if (ai.left === 0) return [botSays("You’ve made today’s pictures. They come back tomorrow — I can still help with words and layout.")];
     const from = aiPictureOnTee(elements, positions);
     if (!from) return [botSays("Put a picture on the tee first — then I can draw a matching piece from it. Or tell me the idea and I’ll show three concepts."), chipRow(["Show me 3 options"])];
     const used = [...new Set(elements.map((e) => e.position))].filter((k) => !aiPlaced[k]);
@@ -1977,7 +1986,7 @@ export default function DesignRoomPage() {
       jobs.push({ item, pos: areaFor(want, positions, taken) });
     }
     for (const j of jobs.filter((x) => !x.pos)) out.push(botSays(`There’s no free print area left for ${j.item.subject.slice(0, 80)}. Remove a print, or pick another area.`));
-    // (drawn together, so only as many as the requests left today — the rest is said, never dropped quietly)
+    // (drawn together, so only as many as the pictures left today — the rest is said, never dropped quietly)
     const drawable = jobs.filter((j) => j.pos);
     const drawNow = ai.left == null ? drawable : drawable.slice(0, Math.max(0, ai.left));
     const later = drawable.slice(drawNow.length);
@@ -2031,7 +2040,7 @@ export default function DesignRoomPage() {
       failed = true;
       out.push(botSays(missed.length < drawNow.length ? `${why} The other picture${drawNow.length - missed.length === 1 ? " is" : "s are"} on your tee.` : why), { retry: { type: "drawPlan", items: missed, style } });
     }
-    if (later.length) out.push(botSays(`You’ve used today’s requests, so I didn’t draw ${andList(later.map((j) => j.pos.label))}. They reset tomorrow.`));
+    if (later.length) out.push(botSays(`You’ve made today’s pictures, so I didn’t draw ${andList(later.map((j) => j.pos.label))}. They come back tomorrow.`));
     if (run?.stopped) return [];
     if (els !== elements) commit((now) => (now === elements ? els : mergeAiChanges(now, elements, els)));
     if (Object.keys(placed).length) setAiPlaced((cur) => ({ ...cur, ...placed }));
@@ -2486,7 +2495,7 @@ export default function DesignRoomPage() {
       // (the photo itself, cut out: a 503 means the background remover can't run — say that, and offer it as it is)
       if (status === 503 && a.job === "photo" && why) return [botSays(why), chipRow([PHOTO_AS_IS, "Something else"])];
       if (status === 503) return [botSays("The design assistant is resting right now. You can still put your photo on as it is or without its background (free), add text, or pick from the art library."), chipRow(freeChoices)];
-      if (status === 429) return [botSays(why || "You’ve used today’s AI requests. They reset tomorrow."), chipRow(freeChoices)];
+      if (status === 429) return [botSays(why || "You’ve made today’s pictures. They come back tomorrow."), chipRow(freeChoices)];
       if (status === 422) return [botSays(why || "The picture service refused this one."), chipRow(freeChoices)];
       return [botSays(why || err?.message || "That didn’t work just now."), { failed: true }];
     }

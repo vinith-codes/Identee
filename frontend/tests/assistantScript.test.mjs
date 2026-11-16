@@ -162,7 +162,7 @@ test("drawing when the picture AI is off, logged out, or out of requests", () =>
   assert.match(botText(say("Draw a lion", makeCtx({ ai: { available: false } })).out), /coming soon/);
   assert.match(botText(say("Draw a lion", makeCtx({ ai: { available: false, reason: "cap" } })).out), /break until next month/);
   assert.ok(chipsOf(say("Draw a lion", makeCtx({ ai: { loggedIn: false } })).out).includes("Log in"));
-  assert.match(botText(say("Draw a lion", makeCtx({ ai: { left: 0 } })).out), /used today’s design requests/);
+  assert.match(botText(say("Draw a lion", makeCtx({ ai: { left: 0 } })).out), /made today’s pictures/);
 });
 
 test("Not now on the plan card draws nothing", () => {

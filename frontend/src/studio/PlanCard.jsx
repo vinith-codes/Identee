@@ -31,7 +31,7 @@ function What({ text }) {
  * @param plan      { items: [{ subject, areaKey, label? }], style, improvable }   label: what the customer sees, if not the subject
  * @param areas     [{ key, label, free }]  the garment's print areas (free: nothing overlapping is on the tee)
  * @param styles    the style names the server offers
- * @param left      the customer's picture requests left today (null = not counted)
+ * @param left      the customer's pictures left today (null = not counted)
  * @param live      the card can still be changed and drawn (the newest plan, nothing running)
  * @param onChange  (plan) => void        a print area, the style, or a picture removed
  * @param onDraw    (plan) => void

@@ -22,7 +22,7 @@ import { brainConfigured, brainReply, CONCEPTS_PER_SHEET, PIECES } from "../serv
 import { chatModel, MEMORY_MAX } from "../services/aiChatService.js";
 import { developPrompt, matchPrompt, mockSheet, piecesOf, SHEET_COST_FACTOR, SHEET_RATIO, SHEET_SIZE, sheetPrompt, tryOnPrompt, wornPrompt } from "../services/conceptSheets.js";
 import User from "../models/userModel.js";
-import { DESIGN_SIZE, designPictureCost, googleCapped, grokCapped, isOurUpload, readSettings, usedToday, whyOff } from "./aiController.js";
+import { DESIGN_SIZE, designPictureCost, googleCapped, grokCapped, isOurUpload, noPicturesLeft, readSettings, usedToday, whyOff } from "./aiController.js";
 import { expectedWords, missingWords, readWords, wordCheckReady } from "../services/wordCheck.js";
 
 const PROMPT_MAX = 2000;
@@ -168,7 +168,7 @@ async function mayDraw(req, res) {
   const used = await usedToday(req.user._id);
   if (used >= s.dailyPerUser) {
     res.status(429);
-    throw new Error(`You’ve used today’s ${s.dailyPerUser} picture requests. They reset tomorrow.`);
+    throw new Error(noPicturesLeft(s.dailyPerUser, s.dailyPerUser - used));
   }
   return { s, used };
 }
@@ -255,6 +255,11 @@ export const makeDevelop = asyncHandler(async (req, res) => {
     res.status(400);
     throw new Error("That concept has nothing to print.");
   }
+  // (16 Nov 2026) each piece is a picture of the day's limit: all of them must fit
+  if (s.dailyPerUser - used < pieces.length) {
+    res.status(429);
+    throw new Error(noPicturesLeft(s.dailyPerUser, s.dailyPerUser - used, pieces.length));
+  }
   const teeIsDark = Boolean(req.body?.teeIsDark);
   const ratios = req.body?.ratios && typeof req.body.ratios === "object" ? req.body.ratios : {};
   const change = text(req.body?.change, 300); // "with the text in gold" — asked together with the pick
@@ -322,6 +327,7 @@ export const makeDevelop = asyncHandler(async (req, res) => {
     prompt: `Concept ${n}: ${concept.title}${change ? ` — ${change}` : ""}${checks ? ` (words checked${redraws ? `, ${redraws} redrawn` : ""})` : ""}`.slice(0, PROMPT_MAX),
     style: concept.style || undefined,
     images: made.length + redraws,
+    counted: made.length, // the day's limit counts the pieces made; the automatic redraws are free (16 Nov 2026)
     costInr: Math.round((made.reduce((sum, m) => sum + (m.byGrok ? s.grokPricePerImageInr : designPictureCost(s)) * (m.redrawn ? 2 : 1), 0) + checks * (s.chatPricePerMessageInr || 0)) * 100) / 100,
     model: byGrok ? xaiModel() : aiImageModel(),
   });
@@ -332,7 +338,7 @@ export const makeDevelop = asyncHandler(async (req, res) => {
   res.status(201).json({
     pieces: stored.map((st, i) => ({ piece: made[i].piece, url: st.url, width: cut[i].width, height: cut[i].height, byGrok: made[i].byGrok, ...(made[i].redrawn ? { redrawn: made[i].redrawn } : {}) })),
     failed: results.filter((r) => r.status === "rejected").map((r, i) => pieces.filter((p) => !made.some((m) => m.piece === p))[i]).filter(Boolean),
-    left: Math.max(0, s.dailyPerUser - used - 1),
+    left: Math.max(0, s.dailyPerUser - used - made.length),
   });
 });
 
