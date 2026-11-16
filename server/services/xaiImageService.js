@@ -41,17 +41,21 @@ export async function xaiEditImage({ prompt, image, resolution, ratio }) {
   return askGrok(ENDPOINT, "image edit", { ...body, ...extra }).catch((err) => (err?.badRequest ? askGrok(ENDPOINT, "image edit", body) : Promise.reject(err)));
 }
 
+// (16 Nov 2026, the owner) Grok's best size: every customer picture Grok draws (the Assistant, the design maker) is
+// asked for it, like the print copies; a picture Grok drew at it goes straight to Topaz at Prepare for print
+export const GROK_BEST = "2k";
+
 /**
  * A new drawing from the customer's words (no photo).
- * @param {{ prompt: string, ratio?: string }} args  ratio like "1:1", "3:4"
+ * @param {{ prompt: string, ratio?: string, resolution?: string }} args  ratio like "1:1", "3:4"; resolution "2k"
  * @returns {Promise<{ buffer: Buffer, mime: string }>}
  */
-export async function xaiNewImage({ prompt, ratio }) {
+export async function xaiNewImage({ prompt, ratio, resolution }) {
   const body = { model: xaiModel(), prompt, n: 1 };
-  const shape = grokRatio(ratio);
-  if (!shape) return askGrok(NEW_ENDPOINT, "new image", body);
-  // a shape Grok doesn't take is not a refusal: then ask again without it
-  return askGrok(NEW_ENDPOINT, "new image", { ...body, aspect_ratio: shape }).catch((err) =>
+  const extra = { ...(resolution ? { resolution } : {}), ...(grokRatio(ratio) ? { aspect_ratio: grokRatio(ratio) } : {}) };
+  if (!Object.keys(extra).length) return askGrok(NEW_ENDPOINT, "new image", body);
+  // a size or shape Grok doesn't take is not a refusal: then ask again without them
+  return askGrok(NEW_ENDPOINT, "new image", { ...body, ...extra }).catch((err) =>
     err?.badRequest ? askGrok(NEW_ENDPOINT, "new image", body) : Promise.reject(err),
   );
 }

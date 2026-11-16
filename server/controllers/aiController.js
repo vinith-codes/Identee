@@ -36,7 +36,7 @@ import MyPicture from "../models/myPictureModel.js";
 import { rememberPictures } from "./myPictureController.js";
 import sharp from "sharp";
 import { artFilters, FILTER_STYLE } from "../services/artFilterService.js";
-import { xaiConfigured, xaiEditImage, xaiModel, xaiNewImage } from "../services/xaiImageService.js";
+import { GROK_BEST, xaiConfigured, xaiEditImage, xaiModel, xaiNewImage } from "../services/xaiImageService.js";
 import { replicateConfigured, replicateModel, topazModel } from "../services/replicateService.js";
 import { AI_STYLES, PHOTO_STYLES, aiImageConfigured, aiImageModel, changeDesignPrompt, copyDesignPrompt, inspiredDesignPrompt, generateImage, nearestRatio, newDesignPrompt, photoArtPrompt, FIX_KINDS, fixPrompt, printPrompt, RATIO_VALUES } from "../services/aiImageService.js";
 
@@ -456,8 +456,8 @@ export const makeAiDesign = asyncHandler(async (req, res) => {
     try {
       made = [
         photoJob
-          ? await xaiEditImage({ prompt: photoJob.promptFor(0).replace(/ This is option \d+ of \d+:[^.]*\./, ""), image: photoJob.image })
-          : await xaiNewImage(drawJob),
+          ? await xaiEditImage({ prompt: photoJob.promptFor(0).replace(/ This is option \d+ of \d+:[^.]*\./, ""), image: photoJob.image, resolution: GROK_BEST })
+          : await xaiNewImage({ ...drawJob, resolution: GROK_BEST }),
       ];
       byGrok = true;
     } catch (err) {
@@ -511,6 +511,7 @@ export const makeAiDesign = asyncHandler(async (req, res) => {
     // (Google's 4K pictures at the 4K price, 15 Nov 2026; the one-line banner lettering is still drawn at 1K)
     costInr: Math.round(made.length * (byGrok ? settings.grokPricePerImageInr : banner ? settings.pricePerImageInr : designPictureCost(settings)) * 100) / 100,
     model: byGrok ? xaiModel() : aiImageModel(),
+    ...(byGrok ? { grokUrls: stored.map((s) => s.url) } : {}),
   });
   // My pictures: what the picture shows, in the customer's words — a changed or fixed picture keeps the words of
   // the one it was made from ("a lion with a crown, make it blue")
@@ -779,10 +780,11 @@ async function seeThroughShare(buffer) {
  * @param {*} a.user        who asked (for the AI-use line)
  * @param {object} a.req    for fetching our own stored picture ({ protocol, get(host) })
  * @param {object} a.settings  readSettings()
- * @param {boolean} [a.allowGrok]  Grok when Google refuses (it redraws more; Prepare for print never uses it)
+ * @param {boolean} [a.allowGrok]  Grok when Google refuses (Prepare for print: only for a picture under 2K, 16 Nov 2026)
+ * @param {string} [a.noGrokWhy]  why Grok is not asked (said to the admin)
  * @returns {Promise<{ url, width, height, costInr, byGrok }>}  throws with .status (422: the AI said no)
  */
-export async function makeAiPrintCopy({ designId, index, user, req, settings, allowGrok = true }) {
+export async function makeAiPrintCopy({ designId, index, user, req, settings, allowGrok = true, noGrokWhy = "" }) {
   const fail = (status, message) => Object.assign(new Error(message), { status });
   if (!aiImageConfigured()) throw fail(503, "The picture service is not set up.");
   // the copy is made by Google, so Google's cap applies
@@ -831,7 +833,7 @@ export async function makeAiPrintCopy({ designId, index, user, req, settings, al
     out = await generateImage({ prompt, image: { data: small, mime: "image/jpeg" }, ratio, size: "4K" });
   } catch (err) {
     if (!(err?.status === 422 || err?.noImage)) throw err;
-    if (!allowGrok) throw fail(422, `Google won't make a 4K copy of this picture. ${original}`);
+    if (!allowGrok) throw fail(422, `Google won't make a 4K copy of this picture${noGrokWhy ? ` (${noGrokWhy})` : ""}. ${original}`);
     // Google said no (5 Nov 2026, the client's Spider-Man tee). Then Grok, at its largest size, "2k": about 2,000 px, so
     // less than Google's 4,000 px, and it redraws more, so the admin is told to compare it with the original.
     if (!xaiConfigured()) throw fail(422, `Google won't enlarge this picture and Grok is not set up on this server. ${original}`);

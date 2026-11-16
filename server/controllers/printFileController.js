@@ -205,12 +205,14 @@ export const startPrintPicture = asyncHandler(async (req, res) => {
       }
     }
     if (srcUrl === el.src) {
-      const plan = aiCopyPlan({ on: settings.printAiCopy, off: el.aiCopyOff, width: meta.width, height: meta.height });
+      const underFourK = Math.max(meta.width, meta.height) < FOUR_K;
+      const grok = underFourK && Boolean(await AiUsage.exists({ grokUrls: el.src }).catch(() => null));
+      const plan = aiCopyPlan({ on: settings.printAiCopy, off: el.aiCopyOff, width: meta.width, height: meta.height, grok });
       if (plan.copy) {
         log(`Not 4K (${meta.width}×${meta.height}): making a 4K copy with AI first (the same picture, nothing changed) — about a minute…`);
         try {
           // (16 Nov 2026, the owner's rule) Google first; when Google refuses, Grok makes the copy (about 2K), then Topaz
-          const made = await makeAiPrintCopy({ designId, index, user, req: ourReq, settings, allowGrok: true });
+          const made = await makeAiPrintCopy({ designId, index, user, req: ourReq, settings, allowGrok: plan.grokOk, noGrokWhy: plan.noGrokWhy });
           srcUrl = made.url;
           aiCost = made.costInr;
           stored = await fetchOurImage(srcUrl, ourReq);
@@ -411,11 +413,18 @@ const ENLARGER_WORDS = { topaz: "Topaz", "real-esrgan": "Replicate", "real-esrga
 // Topaz enlarges the copy. 4K = its longest side is at least 3,840 px (4K UHD; the AI's own 4K pictures are 4,096+).
 // on: the admin's setting; off: the admin dropped this picture's copy; width/height: the picture's pixels.
 export const FOUR_K = 3840;
-export function aiCopyPlan({ on, off, width, height }) {
+// (16 Nov 2026, the owner) Grok's best is 2K: when Google refuses, Grok copies only a picture smaller than that
+export const TWO_K = 2048;
+export function aiCopyPlan({ on, off, width, height, grok = false }) {
   if (on === false) return { copy: false, why: "" };
   if (off) return { copy: false, why: "The admin chose the uploaded picture: no 4K copy" };
   if (!(Math.max(width, height) < FOUR_K)) return { copy: false, why: Number.isFinite(Math.max(width, height)) ? `Already 4K (${width}×${height}): no AI copy` : "" };
-  return { copy: true, why: "" };
+  // (16 Nov 2026, the owner) Grok drew it at its best size for the customer (Google had refused it): another AI copy
+  // would not be sharper and could change details — Topaz enlarges it as it is
+  if (grok) return { copy: false, why: `Drawn by Grok at its best size (${width}×${height}): no AI copy, Topaz enlarges it` };
+  // Google first; when Google refuses, Grok (2K) only for a picture under 2K — a Grok copy of a bigger one is no sharper
+  const grokOk = Math.max(width, height) < TWO_K;
+  return { copy: true, why: "", grokOk, noGrokWhy: grokOk ? "" : `it is already 2K or more, ${width}×${height}, so Grok is not asked — Topaz enlarges it as it is` };
 }
 
 // Photo or art? (15 Nov 2026) Topaz is told which: a photo gets its faces kept sharp, a drawing the "CGI" model. Main

@@ -13,6 +13,9 @@ const aiUsageSchema = mongoose.Schema(
     // what counts toward the customer's daily pictures when it differs from images (a developed concept: its
     // automatic redraws are free, 16 Nov 2026); unset = images
     counted: { type: Number },
+    // (16 Nov 2026) the pictures Grok drew at its best size (2k) for the customer: Prepare for print enlarges them
+    // with Topaz straight away (no AI copy first — another copy would not be sharper)
+    grokUrls: { type: [String], default: undefined, index: true },
     costInr: { type: Number, default: 0 }, // images × the price per picture set by the admin
     model: { type: String, maxlength: 80 },
     // a concept sheet's picture and concepts (kind "sheet", round 7, 8 Nov 2026) — so the admin can feature it in Browse ideas

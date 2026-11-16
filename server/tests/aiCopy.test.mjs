@@ -11,7 +11,7 @@ import { printPrompt } from "../services/aiImageService.js";
 test("4K copy: any picture that is not 4K gets one (logo or photo); a 4K one, the setting off or the admin's 'no' do not", () => {
   assert.equal(FOUR_K, 3840);
   // the user's two logos (117 x 122 and 360 x 187) and a 1199 x 1101 photo
-  assert.deepEqual(aiCopyPlan({ on: true, off: false, width: 117, height: 122 }), { copy: true, why: "" });
+  assert.deepEqual(aiCopyPlan({ on: true, off: false, width: 117, height: 122 }), { copy: true, why: "", grokOk: true, noGrokWhy: "" }); // (16 Nov 2026: Grok allowed when Google refuses — it is under 2K)
   assert.equal(aiCopyPlan({ on: true, off: false, width: 360, height: 187 }).copy, true);
   assert.equal(aiCopyPlan({ on: true, off: false, width: 1199, height: 1101 }).copy, true);
   assert.equal(aiCopyPlan({ on: true, off: false, width: 3839, height: 2000 }).copy, true);
