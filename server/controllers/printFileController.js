@@ -26,6 +26,7 @@ import { isAiDesignUrl } from "../utils/aiPricing.js";
 import { aiTextConfigured, askJsonWithImage } from "../services/aiTextService.js";
 import { PRINT_DPI, bleedEdges, runRecipe, unPaeth } from "../services/printRecipe.js";
 import { cleanCutEdge } from "../services/cutoutService.js";
+import { fitStoredCopy } from "../services/alignCopy.js";
 import { fromAddress, isEmail, mailer } from "../utils/mailer.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -186,6 +187,23 @@ export const startPrintPicture = asyncHandler(async (req, res) => {
     let kind = null;
     const kindOf = async () => (kind ??= await askPictureKind({ src: el.src, artLibrary: Boolean(el.artDesignId), data: stored.data }));
     let aiCost = 0;
+    // (16 Nov 2026) a print copy made before the shape fix (the Studio's tees, older orders) may be in Grok's own
+    // picture shape: it is put back in the original's shape here, free, before Topaz (else it prints stretched)
+    let fitted = null;
+    if (srcUrl !== el.src) {
+      try {
+        const original = await fetchOurImage(el.src, ourReq);
+        const fit = await fitStoredCopy({ original: original.data, copy: stored.data });
+        if (fit.changed) {
+          fitted = fit;
+          stored = { ...stored, data: fit.buffer };
+          meta = await sharp(stored.data, { limitInputPixels: false }).rotate().metadata();
+          log(`The print copy was ${(fit.offBy * 100).toFixed(1)}% out of the picture's shape: put back in its shape (${meta.width}×${meta.height})`);
+        } else if (fit.offBy >= 0.01) log(`The print copy is ${(fit.offBy * 100).toFixed(1)}% out of the picture's shape and could not be matched to it — compare it with the original`);
+      } catch (err) {
+        log(`Could not check the print copy's shape (${err.message}) — used as it is`);
+      }
+    }
     if (srcUrl === el.src) {
       const plan = aiCopyPlan({ on: settings.printAiCopy, off: el.aiCopyOff, width: meta.width, height: meta.height });
       if (plan.copy) {
@@ -242,7 +260,8 @@ export const startPrintPicture = asyncHandler(async (req, res) => {
     log("Cleaning the edge and drawing the vector edge…");
     const dpi = Math.round(W / (printCm / 2.54));
     const made = await runRecipe({ rgb, alpha, W, H, tee, knockout, dropSpecks, dpi, scale: keep, log });
-    const key = keyOf(srcUrl, `${tee}${knockout ? "-ko" : ""}${dropSpecks ? "-sp" : ""}`, keep);
+    // (a copy put back in shape gets its own key: an older order's files made from the stretched copy are left alone)
+    const key = keyOf(fitted ? `${srcUrl}|fit` : srcUrl, `${tee}${knockout ? "-ko" : ""}${dropSpecks ? "-sp" : ""}`, keep);
     const dir = path.join(WORK, key);
     await fsp.mkdir(dir, { recursive: true });
     // made again under the same key: the old sheet PNGs are of the old picture
@@ -250,7 +269,7 @@ export const startPrintPicture = asyncHandler(async (req, res) => {
     await fsp.writeFile(path.join(dir, "picture.flate"), made.flate);
     const preview = await sharp(made.picture, { raw: { width: W, height: H, channels: 3 }, limitInputPixels: false }).resize(1600, 1600, { fit: "inside", withoutEnlargement: true }).webp({ quality: 82 }).toBuffer();
     await fsp.writeFile(path.join(dir, "preview.webp"), preview);
-    const info = { key, width: W, height: H, keep, cm: printCm, tee, src: srcUrl, ...(srcUrl !== el.src ? { aiCopy: true } : {}), dpi: PRINT_DPI, realDpi: dpi, ...(enlarger ? { enlarger } : {}), clip: made.clip, shapes: made.shapes, steps: made.steps, bytes: made.flate.length, stats: made.stats, madeAt: new Date().toISOString() };
+    const info = { key, width: W, height: H, keep, cm: printCm, tee, src: srcUrl, ...(srcUrl !== el.src ? { aiCopy: true } : {}), ...(fitted ? { shapeFixed: { offBy: fitted.offBy, box: fitted.box, filled: fitted.filled } } : {}), dpi: PRINT_DPI, realDpi: dpi, ...(enlarger ? { enlarger } : {}), clip: made.clip, shapes: made.shapes, steps: made.steps, bytes: made.flate.length, stats: made.stats, madeAt: new Date().toISOString() };
     await fsp.writeFile(path.join(dir, "meta.json"), JSON.stringify(info));
     // the design remembers it (read again: the admin may have changed something meanwhile)
     const fresh = await Customization.findById(designId);

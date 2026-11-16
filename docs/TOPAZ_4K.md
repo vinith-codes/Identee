@@ -132,3 +132,16 @@ Grok picks its own picture shape and may zoom, so its copy used to be stretched 
 Checked on the two real orders (laptop, re-fitted from the existing Topaz files, no new cost): front now 28.2 cm wide (customer 28.3), back within 0.3%. The sharper print edge also needs `scale: keep` passed to runRecipe (printFileController.js), so the edge rule works on the enlarged size.
 
 **The Studio too (16 Nov 2026):** the Studio's "sharpen for print" (shop tees, `enlargeStudioPicture` in services/studioService.js) asked Grok the same way, so it now calls `fitCopyToSheet` as well. A read-only check of the live Studio tees found 111 pictures with a print copy: 105 within 1% of the original's shape (Google), 2 pictures off: "SCENE · The One Stands Alone" (1.6%, 3 tees) and "SCENE · The Real Scene Begins Now" (4.1%, 3 tees). Their print copies were made before this fix; they need making again after the release.
+
+## Older print copies put back in shape at Prepare (16 Nov 2026, after release az)
+
+Print copies made before the shape fix (two SCENE shop pictures: "The Real Scene Begins Now" front 4.1% off,
+"The One Stands Alone" 1.6% off; also any older order's Grok copy) are not made again. Instead, Prepare for print
+checks the stored copy (`el.printSrc`) against the original (`el.src`) with `fitStoredCopy` (services/alignCopy.js)
+before Topaz. When the shape is 1% or more off, the original is found inside the copy (matched on black, so see-through
+parts compare alike) and the copy is cut to that frame, keeping its own see-through; any part the AI left out comes from the
+original. Free (no AI), about 4 s. The work gets its own key (`…|fit`), so an older order's files are left alone, and
+`meta.json` records `shapeFixed`. Checked on the live front picture (laptop copy): shape 0.7243 vs 0.7242, difference
+from the original 19.3 → 12.6, the words no longer doubled in the outline overlay
+(E:/AI CUSTOMIZATION/print-check-13nov/SCENE-shape-check/).
+Not covered: the Studio's own "Print files" button (drawn in the browser) still draws the stored copy as it is.

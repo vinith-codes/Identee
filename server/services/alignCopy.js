@@ -98,3 +98,36 @@ export async function fitCopyToSheet({ sent, copy }) {
   const filled = 1 - ((x1 - x0) * (y1 - y0)) / (box.width * box.height);
   return { buffer, changed: true, box, score: box.score, filled };
 }
+
+/**
+ * A print copy made BEFORE the shape fix (the Studio's SCENE tees, older orders) put back in the original picture's
+ * shape when Prepare for print uses it (16 Nov 2026). Unlike fitCopyToSheet, both pictures may be see-through (the
+ * copy's background was taken out): the two are compared on the same plain grey, and the copy keeps its own
+ * see-through inside the frame; only where the AI left part out does the original (with its own see-through) show.
+ * @returns {Promise<{ buffer, changed, offBy, box?, score?, filled? }>} offBy = how far the shape was off (0.041 = 4.1%)
+ */
+export async function fitStoredCopy({ original, copy }) {
+  const [om, cm] = await Promise.all([sharp(original, { limitInputPixels: false }).rotate().metadata(), sharp(copy, { limitInputPixels: false }).metadata()]);
+  // (rotate(): a phone photo's turn is applied, as everywhere else the original is drawn)
+  const turned = (om.orientation || 1) >= 5;
+  const ow = turned ? om.height : om.width, oh = turned ? om.width : om.height;
+  const offBy = Math.abs(Math.exp(Math.abs(Math.log((cm.width / cm.height) / (ow / oh)))) - 1);
+  if (offBy < 0.01) return { buffer: copy, changed: false, offBy };
+  const BG = { r: 0, g: 0, b: 0 }; // black: every colour is lighter than it in both pictures, even in a darker redraw
+  const [sentFlat, copyFlat] = await Promise.all([
+    sharp(original, { limitInputPixels: false }).rotate().flatten({ background: BG }).png().toBuffer(),
+    sharp(copy, { limitInputPixels: false }).flatten({ background: BG }).png().toBuffer(),
+  ]);
+  const box = await findSheetInCopy({ sent: sentFlat, copy: copyFlat });
+  if (box.score < 0.5) return { buffer: copy, changed: false, offBy, box, score: box.score };
+  const x0 = Math.max(0, box.left), y0 = Math.max(0, box.top);
+  const x1 = Math.min(cm.width, box.left + box.width), y1 = Math.min(cm.height, box.top + box.height);
+  const inside = await sharp(copy, { limitInputPixels: false }).ensureAlpha().extract({ left: x0, top: y0, width: x1 - x0, height: y1 - y0 }).png().toBuffer();
+  const under = await sharp(original, { limitInputPixels: false }).rotate().ensureAlpha().resize(box.width, box.height, { fit: "fill", kernel: "lanczos3" }).png().toBuffer();
+  // a hole is cut where the copy goes, so the copy's own see-through stays see-through (not the original showing through)
+  const hole = await sharp({ create: { width: x1 - x0, height: y1 - y0, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 1 } } }).png().toBuffer();
+  const holed = await sharp(under, { limitInputPixels: false }).composite([{ input: hole, left: x0 - box.left, top: y0 - box.top, blend: "dest-out" }]).png().toBuffer();
+  const buffer = await sharp(holed, { limitInputPixels: false }).composite([{ input: inside, left: x0 - box.left, top: y0 - box.top }]).png().toBuffer();
+  const filled = 1 - ((x1 - x0) * (y1 - y0)) / (box.width * box.height);
+  return { buffer, changed: true, offBy, box, score: box.score, filled };
+}
