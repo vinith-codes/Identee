@@ -1,8 +1,8 @@
 // controllers/printFileController.js — print-ready pictures and "Send to print team" (6 Nov 2026).
 //
 // After an order, the admin opens Orders → Designs & print files:
-//   1. "Prepare for print" on a picture: the server enlarges it on Replicate (Real-ESRGAN, the model that made the
-//      files the print team approved), then runs the approved recipe (services/printRecipe.js): no see-through, a
+//   1. "Prepare for print" on a picture: the server enlarges it on Replicate (Topaz since 15 Nov 2026; Real-ESRGAN —
+//      the model that made the files the print team approved — as the admin's other choice and Topaz's backup), then runs the approved recipe (services/printRecipe.js): no see-through, a
 //      vector edge where solid ink meets the tee, 600 DPI. The result stays on this server (print-work/<key>/) and the
 //      design's element remembers it (el.printFile); the admin's browser draws it into the print PDF (.ai).
 //   2. "Send to print team": the browser uploads the ZIP it made (in parts, so no upload limit is hit); the server
@@ -20,8 +20,10 @@ import Customization from "../models/customizationModel.js";
 import GarmentType from "../models/garmentTypeModel.js";
 import Order from "../models/orderModel.js";
 import AiUsage from "../models/aiUsageModel.js";
-import { fetchOurImage, isDarkHex, isOurUpload, readSettings } from "./aiController.js";
-import { enlargeWithReplicate, replicateConfigured, replicateMock, replicateModel } from "../services/replicateService.js";
+import { fetchOurImage, isDarkHex, isOurUpload, makeAiPrintCopy, readSettings } from "./aiController.js";
+import { ENLARGER_MAX_PIXELS, enlargeWithReplicate, enlargeWithTopaz, replicateConfigured, replicateMock, replicateModel, topazModel } from "../services/replicateService.js";
+import { isAiDesignUrl } from "../utils/aiPricing.js";
+import { aiTextConfigured, askJsonWithImage } from "../services/aiTextService.js";
 import { PRINT_DPI, bleedEdges, runRecipe, unPaeth } from "../services/printRecipe.js";
 import { cleanCutEdge } from "../services/cutoutService.js";
 import { fromAddress, isEmail, mailer } from "../utils/mailer.js";
@@ -129,7 +131,8 @@ setInterval(() => sweepOld().catch((e) => console.error("[print-files] sweep:", 
 // GET /api/print-files/status   (admin or seller)
 export const getPrintFileStatus = asyncHandler(async (req, res) => {
   const settings = await readSettings();
-  res.json({ enlarger: { configured: replicateConfigured(), mock: replicateMock(), model: replicateModel(), priceInr: replicateMock() ? 0 : settings.replicatePricePerImageInr }, teamEmail: printTeamEmail(), keepDays: KEEP_DAYS, dpi: PRINT_DPI, options: { knockout: Boolean(settings.printKnockout), dropSpecks: settings.printDropSpecks !== false } });
+  // enlarger.choice: "topaz" | "real-esrgan" (Settings → AI designs, 15 Nov 2026); topazPricePerUnitInr: ₹ per Topaz unit
+  res.json({ enlarger: { configured: replicateConfigured(), mock: replicateMock(), model: settings.printEnlarger === "real-esrgan" ? replicateModel() : topazModel(), choice: settings.printEnlarger, priceInr: replicateMock() ? 0 : settings.printEnlarger === "real-esrgan" ? settings.replicatePricePerImageInr : settings.topazPricePerUnitInr, /* (16 Nov 2026: the Prepare button showed Real-ESRGAN's ₹1 while Topaz is used — one Topaz unit, up to 24 MP) */ topazPricePerUnitInr: replicateMock() ? 0 : settings.topazPricePerUnitInr }, teamEmail: printTeamEmail(), keepDays: KEEP_DAYS, dpi: PRINT_DPI, options: { knockout: Boolean(settings.printKnockout), dropSpecks: settings.printDropSpecks !== false }, /* (16 Nov 2026) a picture under 4K is copied at 4K by AI first */ aiCopy: { on: settings.printAiCopy !== false, fourK: FOUR_K, priceInr: replicateMock() ? 0 : settings.price4kPerImageInr } });
 });
 
 // POST /api/print-files/picture  { designId, index, printCm }  -> { jobId }   (admin only)
@@ -159,6 +162,8 @@ export const startPrintPicture = asyncHandler(async (req, res) => {
   // tee really is that colour (a navy tee is "dark" too, but black ink on it is not the shirt showing through)
   const knockout = Boolean(settings.printKnockout) && teeIs(teeHex, tee);
   const dropSpecks = settings.printDropSpecks !== false;
+  // the enlarger the admin chose (Settings → AI designs, 15 Nov 2026): Topaz, with Real-ESRGAN as its backup
+  const useTopaz = settings.printEnlarger !== "real-esrgan";
   const user = req.user._id;
   const designId = String(design._id);
   const index = Number(req.body.index);
@@ -171,12 +176,38 @@ export const startPrintPicture = asyncHandler(async (req, res) => {
     job.log.push(`${new Date().toISOString().slice(11, 19)} ${t}`);
   };
   job.work = async () => {
+    const ourReq = { protocol: base.split(":")[0], get: () => base.replace(/^https?:\/\//, "") };
     log("Fetching the picture…");
-    const stored = await fetchOurImage(el.src, { protocol: base.split(":")[0], get: () => base.replace(/^https?:\/\//, "") });
-    const meta = await sharp(stored.data, { limitInputPixels: false }).rotate().metadata();
+    // (16 Nov 2026) the AI's 4K copy of the picture, when there is one, is what gets enlarged
+    let srcUrl = el.printSrc && isOurUpload(el.printSrc) ? el.printSrc : el.src;
+    let stored = await fetchOurImage(srcUrl, ourReq);
+    let meta = await sharp(stored.data, { limitInputPixels: false }).rotate().metadata();
+    // photo or art: judged once, on the picture fetched first (the uploaded one, unless a 4K copy was already made)
+    let kind = null;
+    const kindOf = async () => (kind ??= await askPictureKind({ src: el.src, artLibrary: Boolean(el.artDesignId), data: stored.data }));
+    let aiCost = 0;
+    if (srcUrl === el.src) {
+      const plan = aiCopyPlan({ on: settings.printAiCopy, off: el.aiCopyOff, width: meta.width, height: meta.height });
+      if (plan.copy) {
+        log(`Not 4K (${meta.width}×${meta.height}): making a 4K copy with AI first (the same picture, nothing changed) — about a minute…`);
+        try {
+          // (16 Nov 2026, the owner's rule) Google first; when Google refuses, Grok makes the copy (about 2K), then Topaz
+          const made = await makeAiPrintCopy({ designId, index, user, req: ourReq, settings, allowGrok: true });
+          srcUrl = made.url;
+          aiCost = made.costInr;
+          stored = await fetchOurImage(srcUrl, ourReq);
+          meta = await sharp(stored.data, { limitInputPixels: false }).rotate().metadata();
+          log(made.byGrok ? `Google refused, so Grok made the copy (${meta.width}×${meta.height}) — compare it with the original; Topaz enlarges that` : `4K copy made (${meta.width}×${meta.height}), Topaz enlarges that`);
+        } catch (err) {
+          // the AI said no, or its budget is used up: the original is enlarged, as before
+          log(`No 4K copy (${err.message}) — enlarging the uploaded picture instead`);
+        }
+      } else if (plan.why) log(plan.why);
+    }
     const W0 = meta.width, H0 = meta.height;
-    // how many times bigger: enough for 600 DPI at its print width, at most 4x, and never a picture too big to hold
-    let keep = Math.min(4, Math.max(1, (PRINT_DPI * printCm) / 2.54 / W0));
+    // how many times bigger: enough for 600 DPI at its print width, at most 4x (6x with Topaz, 15 Nov 2026: it has no
+    // input limit and draws real detail), and never a picture too big to hold
+    let keep = Math.min(useTopaz ? 6 : 4, Math.max(1, (PRINT_DPI * printCm) / 2.54 / W0));
     keep = Math.min(keep, Math.sqrt(MAX_PIXELS / (W0 * H0)));
     keep = Math.max(1, Math.round(keep * 4) / 4);
     const W = Math.round(W0 * keep), H = Math.round(H0 * keep);
@@ -192,10 +223,16 @@ export const startPrintPicture = asyncHandler(async (req, res) => {
     // already big enough for its print size: no enlarging, no Replicate run, no cost (12 Nov 2026)
     const enlarge = keep > 1;
     let rgb;
+    // which enlarger made it (15 Nov 2026, shown to the admin): "topaz", "real-esrgan" (the admin's choice) or
+    // "real-esrgan-backup" (Topaz failed); none when the picture was not enlarged
+    let enlarger = null;
+    let units = 0; // Topaz's billing units
     if (enlarge) {
-      log(`Enlarging ${keep}× on the graphics-card service (${W0}×${H0} → ${W}×${H})…`);
-      const big = await enlargeWithReplicate(rgbPng, keep, log);
-      rgb = await sharp(big, { limitInputPixels: false }).removeAlpha().resize(W, H, { kernel: "lanczos3" }).raw().toBuffer();
+      const made = await enlargeForPrint({ rgbPng, keep, useTopaz, kindOf, log, sizes: `${W0}×${H0} → ${W}×${H}` });
+      enlarger = made.enlarger;
+      units = made.units;
+      // (Topaz gives 2×, 4× or 6×, and Real-ESRGAN may give less than asked: always resized to the exact size)
+      rgb = await sharp(made.big, { limitInputPixels: false }).removeAlpha().resize(W, H, { kernel: "lanczos3" }).raw().toBuffer();
     } else {
       log(`Already big enough (${W0}×${H0}): not enlarged`);
       rgb = await sharp(rgbPng, { limitInputPixels: false }).removeAlpha().raw().toBuffer();
@@ -204,8 +241,8 @@ export const startPrintPicture = asyncHandler(async (req, res) => {
     const alpha = await sharp(alphaSmall, { raw: { width: W0, height: H0, channels: 1 }, limitInputPixels: false }).resize(W, H, { kernel: "lanczos3" }).extractChannel(0).raw().toBuffer(); // (one channel: sharp gives 3 otherwise)
     log("Cleaning the edge and drawing the vector edge…");
     const dpi = Math.round(W / (printCm / 2.54));
-    const made = await runRecipe({ rgb, alpha, W, H, tee, knockout, dropSpecks, dpi, log });
-    const key = keyOf(el.src, `${tee}${knockout ? "-ko" : ""}${dropSpecks ? "-sp" : ""}`, keep);
+    const made = await runRecipe({ rgb, alpha, W, H, tee, knockout, dropSpecks, dpi, scale: keep, log });
+    const key = keyOf(srcUrl, `${tee}${knockout ? "-ko" : ""}${dropSpecks ? "-sp" : ""}`, keep);
     const dir = path.join(WORK, key);
     await fsp.mkdir(dir, { recursive: true });
     // made again under the same key: the old sheet PNGs are of the old picture
@@ -213,19 +250,19 @@ export const startPrintPicture = asyncHandler(async (req, res) => {
     await fsp.writeFile(path.join(dir, "picture.flate"), made.flate);
     const preview = await sharp(made.picture, { raw: { width: W, height: H, channels: 3 }, limitInputPixels: false }).resize(1600, 1600, { fit: "inside", withoutEnlargement: true }).webp({ quality: 82 }).toBuffer();
     await fsp.writeFile(path.join(dir, "preview.webp"), preview);
-    const info = { key, width: W, height: H, keep, cm: printCm, tee, src: el.src, dpi: PRINT_DPI, realDpi: dpi, clip: made.clip, shapes: made.shapes, steps: made.steps, bytes: made.flate.length, stats: made.stats, madeAt: new Date().toISOString() };
+    const info = { key, width: W, height: H, keep, cm: printCm, tee, src: srcUrl, ...(srcUrl !== el.src ? { aiCopy: true } : {}), dpi: PRINT_DPI, realDpi: dpi, ...(enlarger ? { enlarger } : {}), clip: made.clip, shapes: made.shapes, steps: made.steps, bytes: made.flate.length, stats: made.stats, madeAt: new Date().toISOString() };
     await fsp.writeFile(path.join(dir, "meta.json"), JSON.stringify(info));
     // the design remembers it (read again: the admin may have changed something meanwhile)
     const fresh = await Customization.findById(designId);
     const target = fresh?.elements?.[index];
     if (!fresh || !target) throw new Error("The design changed while the picture was being prepared. Try again.");
     const st = made.stats || {};
-    target.printFile = { key, width: W, height: H, keep, cm: printCm, madeAt: new Date(), realDpi: dpi, specks: st.specks || 0, specksDropped: st.specksDropped || 0, thinPct: st.thinPct || 0, knockout: Boolean(st.knockout) };
+    target.printFile = { key, width: W, height: H, keep, cm: printCm, madeAt: new Date(), realDpi: dpi, ...(enlarger ? { enlarger } : {}), specks: st.specks || 0, specksDropped: st.specksDropped || 0, thinPct: st.thinPct || 0, knockout: Boolean(st.knockout), ...(srcUrl !== el.src ? { aiCopy: true } : {}) };
     await fresh.save();
-    const costInr = !enlarge || replicateMock() ? 0 : Math.round((settings.replicatePricePerImageInr || 0) * 100) / 100;
-    if (enlarge) await AiUsage.create({ user, kind: "print", prompt: `Print-ready picture (design ${designId}, picture ${index + 1}) · ${keep}× · Replicate`, images: 1, costInr, model: replicateModel() });
+    const costInr = printCost({ enlarge, enlarger, units, settings, mock: replicateMock() });
+    if (enlarge) await AiUsage.create({ user, kind: "print", prompt: `Print-ready picture (design ${designId}, picture ${index + 1}) · ${keep}× · ${ENLARGER_WORDS[enlarger] || "Replicate"}`, images: 1, costInr, model: enlarger === "topaz" ? topazModel() : replicateModel() });
     log("Done.");
-    return { printFile: target.printFile, costInr };
+    return { printFile: target.printFile, costInr: Math.round((costInr + aiCost) * 100) / 100 };
   };
   jobs.set(id, job);
   waiting.push(job);
@@ -311,6 +348,121 @@ export async function sheetPng(rgb, w, h, meta) {
   const mask = await sharp(Buffer.from(svg), { limitInputPixels: false }).ensureAlpha().extractChannel(3).raw().toBuffer({ resolveWithObject: true });
   if (mask.info.width !== w || mask.info.height !== h) throw new Error(`edge drawn at ${mask.info.width}×${mask.info.height}, not ${w}×${h}`);
   return sharp(rgb, { raw: { width: w, height: h, channels: 3 }, limitInputPixels: false }).joinChannel(mask.data, { raw: { width: w, height: h, channels: 1 } }).png({ compressionLevel: 6 }).toBuffer();
+}
+
+// Enlarge one picture for print (15 Nov 2026): Topaz first when chosen, Real-ESRGAN when the admin chose it or when
+// Topaz fails in any way (refused, failed, over its time limit). topaz / esrgan: the enlargers (tests pass stand-ins).
+// -> { big: PNG, enlarger: "topaz" | "real-esrgan" | "real-esrgan-backup", units: Topaz's billing units (0 otherwise) }
+export async function enlargeForPrint({ rgbPng, keep, useTopaz, kindOf, log = () => {}, sizes = "", topaz = enlargeWithTopaz, esrgan = enlargeWithReplicate }) {
+  if (useTopaz) {
+    try {
+      const kind = await Promise.resolve().then(kindOf).catch(() => "art"); // (unsure: art, Topaz's plain model)
+      log(`Enlarging ${keep}× with Topaz (${kind === "photo" ? "a photo" : "art"}${sizes ? `, ${sizes}` : ""})…`);
+      const t = await topaz(rgbPng, keep, { kind, log });
+      return { big: t.png, enlarger: "topaz", units: t.units || 0 };
+    } catch (err) {
+      // (16 Nov 2026, the user: no picture may be made smaller) the backup's graphics card takes at most about
+      // 2 MP, so a bigger picture would be shrunk before enlarging: then nothing is made and the admin tries again
+      const m = await sharp(rgbPng, { limitInputPixels: false }).metadata();
+      if (m.width * m.height > ENLARGER_MAX_PIXELS) {
+        console.error("[print-files] Topaz failed, the picture is too big for the backup:", err?.message || err);
+        throw new Error(`Topaz did not work (${err?.message || "no answer"}). The backup enlarger would have to make this ${m.width} × ${m.height} picture smaller first, so nothing was made — press Prepare for print again in a few minutes.`);
+      }
+      console.error("[print-files] Topaz failed, Real-ESRGAN instead:", err?.message || err);
+      log(`Topaz did not work (${err?.message || "no answer"}): Real-ESRGAN instead (the picture is small enough, nothing is shrunk)`);
+    }
+  }
+  log(`Enlarging ${keep}× with Real-ESRGAN on the graphics-card service${sizes ? ` (${sizes})` : ""}…`);
+  const big = await esrgan(rgbPng, keep, log);
+  return { big, enlarger: useTopaz ? "real-esrgan-backup" : "real-esrgan", units: 0 };
+}
+
+// What enlarging one picture cost (15 Nov 2026): Topaz = its billing units × ₹ per unit; Real-ESRGAN (chosen, or as
+// Topaz's backup) = its price per picture; nothing when not enlarged or on the laptop's stand-in.
+export function printCost({ enlarge, enlarger, units = 0, settings, mock = false }) {
+  if (!enlarge || mock) return 0;
+  const inr = enlarger === "topaz" ? units * (settings.topazPricePerUnitInr || 0) : settings.replicatePricePerImageInr || 0;
+  return Math.round(inr * 100) / 100;
+}
+// the end of the admin's AI-use line ("Print-ready picture (…) · 2× · Topaz")
+const ENLARGER_WORDS = { topaz: "Topaz", "real-esrgan": "Replicate", "real-esrgan-backup": "Replicate (Topaz failed)" };
+
+// Make the AI's 4K copy before Topaz? (16 Nov 2026, the logo tests: a 4K copy enlarged by Topaz printed cleanest.)
+// The user's rule: when the admin presses Prepare for print and the picture is not 4K, it is copied at 4K first, then
+// Topaz enlarges the copy. 4K = its longest side is at least 3,840 px (4K UHD; the AI's own 4K pictures are 4,096+).
+// on: the admin's setting; off: the admin dropped this picture's copy; width/height: the picture's pixels.
+export const FOUR_K = 3840;
+export function aiCopyPlan({ on, off, width, height }) {
+  if (on === false) return { copy: false, why: "" };
+  if (off) return { copy: false, why: "The admin chose the uploaded picture: no 4K copy" };
+  if (!(Math.max(width, height) < FOUR_K)) return { copy: false, why: Number.isFinite(Math.max(width, height)) ? `Already 4K (${width}×${height}): no AI copy` : "" };
+  return { copy: true, why: "" };
+}
+
+// Photo or art? (15 Nov 2026) Topaz is told which: a photo gets its faces kept sharp, a drawing the "CGI" model. Main
+// had no such decision, so: a picture the design maker made (ai-designs) or one from the art library is art, unless it
+// has no see-through at all and its pixels look like a photograph (Photo Studio's enhanced photo is kept uncut); any
+// other picture (the customer's upload: a photo or a logo) is judged by its pixels.
+export async function pictureKind({ src, artLibrary = false, data }) {
+  const { data: px, info } = await sharp(data, { limitInputPixels: false }).rotate().ensureAlpha().resize(256, 256, { fit: "inside", withoutEnlargement: true }).raw().toBuffer({ resolveWithObject: true });
+  let opaque = true;
+  for (let i = 3; i < px.length; i += 4) {
+    if (px[i] < 250) {
+      opaque = false;
+      break;
+    }
+  }
+  const made = artLibrary || isAiDesignUrl(src) || /\/ai-designs\//.test(String(src || ""));
+  if (made && !opaque) return "art";
+  return looksLikePhoto(px, info.width, info.height) ? "photo" : "art";
+}
+// Photo or art, asked of the text AI (16 Nov 2026). The pixel rule below is fooled by small JPEG pictures: the user's
+// 117 px globe logo looked like a photo (JPEG noise = many colours), and a 1199 px photo of a person looked like art.
+// The AI sees what is in it, for a fraction of a paisa. A design-maker or art-library cut-out is art without asking;
+// when the AI is not set up or doesn't answer, the pixel rule decides as before.
+export async function askPictureKind({ src, artLibrary = false, data }) {
+  const made = artLibrary || isAiDesignUrl(src) || /\/ai-designs\//.test(String(src || ""));
+  if (made) {
+    const { isOpaque } = await sharp(data, { limitInputPixels: false }).stats();
+    if (!isOpaque) return "art";
+  }
+  if (aiTextConfigured()) {
+    try {
+      const small = await sharp(data, { limitInputPixels: false }).rotate().flatten({ background: "#ffffff" }).resize(512, 512, { fit: "inside", withoutEnlargement: true }).jpeg({ quality: 85 }).toBuffer();
+      const out = await askJsonWithImage(
+        'Is this picture a PHOTOGRAPH (taken with a camera: real people, faces, animals, places or things) or ARTWORK (a logo, emblem, badge, lettering, drawing, illustration, painting, cartoon or other digital graphic)? A logo with 3D shading or gradients is still ARTWORK. Answer only {"kind":"photo"} or {"kind":"art"}.',
+        { data: small, mime: "image/jpeg" },
+        0,
+        undefined,
+        { timeoutMs: 15_000 },
+      );
+      if (out?.kind === "photo" || out?.kind === "art") return out.kind;
+    } catch {
+      /* the pixel rule decides */
+    }
+  }
+  return pictureKind({ src, artLibrary, data });
+}
+
+// A photograph has thousands of colours and few neighbouring pixels exactly alike; a logo or a flat drawing has a few
+// colours and large flat areas. rgba: a small copy (about 256 px), raw RGBA; only its solid pixels count.
+export function looksLikePhoto(rgba, w, h) {
+  let solid = 0, pairs = 0, flat = 0;
+  const colours = new Set();
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const i = (y * w + x) * 4;
+      if (rgba[i + 3] < 128) continue;
+      solid++;
+      colours.add(((rgba[i] >> 3) << 10) | ((rgba[i + 1] >> 3) << 5) | (rgba[i + 2] >> 3));
+      if (x + 1 < w && rgba[i + 7] >= 128) {
+        pairs++;
+        if (Math.max(Math.abs(rgba[i] - rgba[i + 4]), Math.abs(rgba[i + 1] - rgba[i + 5]), Math.abs(rgba[i + 2] - rgba[i + 6])) <= 2) flat++;
+      }
+    }
+  }
+  if (solid < 400) return false;
+  return colours.size >= 1200 && flat / Math.max(1, pairs) < 0.6;
 }
 
 // is the tee really black (or white), so leaving that colour out shows the same colour? (not navy, not cream)

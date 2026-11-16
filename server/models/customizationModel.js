@@ -23,6 +23,8 @@ const elementSchema = new mongoose.Schema(
     // A large copy of the picture for printing (about 4,000 px), made by the admin from an order's
     // print-files window ("Enlarge for print"). The print files use it in place of src.
     printSrc: { type: String },
+    // (16 Nov 2026) the admin dropped the AI's 4K copy: Prepare for print enlarges the original and won't copy it again
+    aiCopyOff: { type: Boolean },
     // the picture made print-ready the approved way (6 Nov 2026: enlarged on Replicate, vector edge, 600 DPI), kept on
     // this server under print-work/<key>/; the print files draw it in place of src / printSrc
     printFile: {
@@ -39,6 +41,11 @@ const elementSchema = new mongoose.Schema(
       specksDropped: { type: Number },
       thinPct: { type: Number },
       knockout: { type: Boolean },
+      // which enlarger made it (15 Nov 2026): "topaz", "real-esrgan" (the admin chose it) or "real-esrgan-backup"
+      // (Topaz failed, Real-ESRGAN stood in); not set when the picture was big enough and was not enlarged
+      enlarger: { type: String, enum: ["topaz", "real-esrgan", "real-esrgan-backup"] },
+      // (16 Nov 2026) made from the AI's 4K copy (printSrc), not from the uploaded picture
+      aiCopy: { type: Boolean },
     },
     artDesignId: { type: mongoose.Schema.Types.ObjectId, ref: "ArtDesign" },
 

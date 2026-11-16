@@ -17,6 +17,7 @@ import { alphaBox, insideFrame } from "./inkBox";
 import { fontsReady } from "./fonts";
 import printFileService from "../services/printFileService";
 import { imageUrl } from "../utils/imageUrl";
+import { readyLine, sheetEnlargers } from "./enlargerNote";
 
 export const PRINT_DPI = 300;
 export const cmToPx = (cm, dpi = PRINT_DPI) => Math.round((cm / 2.54) * dpi);
@@ -636,6 +637,7 @@ export async function buildPrintPack(pack, onStep = () => {}) {
     const folder = root.folder(`${String(i + 1).padStart(2, "0")}-${safe(title)}`);
     const pieces = d.lines.reduce((n, l) => n + l.qty, 0);
     const checks = []; // problems to see before printing
+    const enlarged = new Map(); // print number -> which enlarger made its picture, for the job card (15 Nov 2026)
     const rows = []; // { n, size, player?, label, spot, file, area, cm, box, drawn }
     const colour = `${d.colour.name}${d.colour.hex ? ` (${d.colour.hex})` : ""}`;
     sheet.push(`DESIGN ${i + 1}: ${title} · ${d.garment.label} · ${colour} · ${pieces} tee${pieces === 1 ? "" : "s"} (${d.lines.map((l) => `${l.size} × ${l.qty}`).join(", ")})`);
@@ -704,7 +706,10 @@ export async function buildPrintPack(pack, onStep = () => {}) {
           else if (pictures.size) {
             // the real DPI of each print-ready picture at its print width (the enlarger stops at 4×: not always 600)
             const dpis = drawn.filter((e) => pictures.has(String(e.id))).map((e) => Math.round(pictures.get(String(e.id)).width / ((((e.width || 0) / 100) * w) / 2.54))).filter((x) => x > 0 && Number.isFinite(x));
-            sheet.push(`  ${n} ${area.label} (${f.sizes.join(", ")}): PRINT-READY picture${pictures.size === 1 ? "" : "s"} (${dpis.length ? `${dpis.join(" / ")} DPI` : "enlarged"}, vector edge).`);
+            // which enlarger made them (15 Nov 2026): Topaz, or the backup when Topaz failed; nothing for older files
+            const madeBy = sheetEnlargers(drawn.filter((e) => pictures.has(String(e.id))).map((e) => e.printFile?.enlarger));
+            sheet.push(readyLine(`${n} ${area.label} (${f.sizes.join(", ")})`, pictures.size, dpis, madeBy));
+            if (madeBy) enlarged.set(n, `Print ${n} (${area.label}): picture ${madeBy}.`);
           }
           // what the print team should know about the fine detail in each print-ready picture (counted when it was made)
           for (const pic of new Set(pictures.values())) {
@@ -786,7 +791,7 @@ export async function buildPrintPack(pack, onStep = () => {}) {
             rows: bRows,
             tee: d.colour.hex,
             checks,
-            notes: [...notesFor(bRows), fonts].filter(Boolean),
+            notes: [...notesFor(bRows), fonts, ...[...new Set(bRows.map((r) => r.n))].map((k) => enlarged.get(k))].filter(Boolean),
             banner: test ? "TEST ORDER — DO NOT PRINT" : "",
             note,
           }),

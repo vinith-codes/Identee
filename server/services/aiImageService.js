@@ -14,6 +14,9 @@ import zlib from "zlib";
 
 const ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/interactions";
 const TIMEOUT_MS = 90_000;
+// a 4K picture takes about 36–45 s alone and longer when several are drawn at once (customers' designs are 4K since
+// 15 Nov 2026): it gets more time before it is given up
+const TIMEOUT_4K_MS = 180_000;
 
 const mock = () => process.env.AI_IMAGE_PROVIDER?.trim() === "mock";
 // The shop's own key name comes first. (A computer may already have a
@@ -127,6 +130,8 @@ export const printPrompt = ({ dark, plain, key = false }) =>
     "Enhance only: increase resolution and sharpness so fine details and edges are crisp with no pixelation; remove only compression blocks and jagged pixel edges.",
     key ? `The background must stay flat, solid, pure magenta (${KEY_BACKGROUND}) and nothing else.` : plain ? `The background must stay flat pure ${dark ? "black" : "white"} and nothing else.` : "",
     "Strict negatives: no style change, no colour change, no re-lighting, no new objects, no change to faces or subjects, no redrawn or changed text, no cropping, no watermark, no frame, no t-shirt.",
+    // (16 Nov 2026) the logo test: a looser wording gave the G logo raised 3D edges, extra islands and new shine
+    "Do not redraw or redesign it and do not invent detail: no added bevels, 3D edges, highlights, shine, patterns, map or texture details that are not in the input; nothing removed, simplified, moved or resized. It must look like a higher-resolution scan of the very same artwork.",
   ]
     .filter(Boolean)
     .join(" ");
@@ -232,7 +237,7 @@ export async function generateImage({ prompt, image, images = [], ratio = "1:1",
   for (const im of [image, ...images].filter(Boolean)) input.push({ type: "image", mime_type: im.mime || "image/png", data: im.data.toString("base64") });
 
   const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
+  const timer = setTimeout(() => ctrl.abort(), size === "4K" ? TIMEOUT_4K_MS : TIMEOUT_MS);
   let res;
   try {
     res = await fetch(ENDPOINT, {

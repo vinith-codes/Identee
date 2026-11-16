@@ -10,6 +10,7 @@ import aiService from "../../services/aiService";
 import printFileService from "../../services/printFileService";
 import { imageUrl } from "../../utils/imageUrl";
 import { THEME, labelStyle } from "../../theme/theme";
+import { adminEnlarger } from "../../studio/enlargerNote";
 
 const SIDES = ["front", "back", "left", "right"];
 const GOOD_DPI = 250; // close enough to 300 that enlarging adds nothing worth paying for
@@ -153,7 +154,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // "Prepare for print" button (the approved way: enlarged on a graphics card, vector edge, 600 DPI) and, as the old way,
 // a redraw by Google's AI. One row per picture.
-function PrintPictures({ design, price, sizes, pf, onChanged, onReady, locked = false, allPrep = null }) {
+function PrintPictures({ design, price, sizes, longs = {}, pf, onChanged, onReady, locked = false, allPrep = null }) {
   const [busy, setBusy] = useState(null); // index being redrawn by Google
   const [preparing, setPreparing] = useState(null); // { index, jobId, step }
   const [compare, setCompare] = useState(null); // { index, url } — the picture being compared with its original
@@ -193,9 +194,11 @@ function PrintPictures({ design, price, sizes, pf, onChanged, onReady, locked = 
     };
   }, [preparing?.jobId, preparing?.index, onReady]);
 
-  const prepare = async (index, printCm) => {
+  const prepare = async (index, printCm, copyFirst = 0) => {
     if (!enlarger?.configured) return setError("The enlarger is not set up on this server yet (REPLICATE_API_TOKEN in the server's .env).");
-    if (!window.confirm(`Prepare this picture for print?${prepPrice ? ` It costs ${prepPrice}` : ""}: it is enlarged on the graphics-card service and given its vector edge (about 1–3 minutes). You can compare it with the original afterwards.`)) return;
+    // (16 Nov 2026) copyFirst = the picture's longest side when it is not 4K: the AI copies it at 4K, Topaz enlarges the copy
+    const copyNote = copyFirst ? `\n\nIt is not 4K (${copyFirst} px), so the AI first makes a 4K copy of it (the same picture, nothing changed${pf?.aiCopy?.priceInr ? `, about ₹${pf.aiCopy.priceInr} more` : ""}) and Topaz enlarges that copy. If Google refuses (famous people, film characters), Grok makes the copy instead (about ₹6, about 2K, it redraws more: compare it with the original).` : "";
+    if (!window.confirm(`Prepare this picture for print?${prepPrice ? ` It costs ${prepPrice}` : ""}: it is enlarged on the graphics-card service and given its vector edge (about 1–3 minutes).${copyNote}\n\nYou can compare it with the original afterwards.`)) return;
     setError("");
     try {
       const { jobId } = await printFileService.prepare({ designId: design._id, index, printCm: Math.max(1, Math.round(printCm * 10) / 10) });
@@ -214,6 +217,18 @@ function PrintPictures({ design, price, sizes, pf, onChanged, onReady, locked = 
       setError(err.response?.data?.message || "Could not switch back to the plain picture.");
     }
   };
+  const useUploaded = async (index) => {
+    if (!window.confirm("Use the uploaded picture instead of the AI's 4K copy?\n\nThe print-ready picture and the 4K copy are both dropped. Then press Prepare for print again: Topaz enlarges the uploaded picture alone (another run).")) return;
+    setError("");
+    try {
+      await printFileService.drop({ designId: design._id, index });
+      onReady(index, null);
+      await aiService.dropPrintPicture({ designId: design._id, index });
+      onChanged(index, null);
+    } catch (err) {
+      setError(err.response?.data?.message || "Could not switch back to the uploaded picture.");
+    }
+  };
   const openCompare = async (index, el) => {
     try {
       setCompare({ index, url: el.printFile?.key ? await printFileService.previewBlobUrl(el.printFile.key) : full(el.printSrc) });
@@ -224,7 +239,7 @@ function PrintPictures({ design, price, sizes, pf, onChanged, onReady, locked = 
 
   const enlarge = async (index) => {
     // a paid AI request: ask first
-    if (!window.confirm(`Redraw this picture bigger with Google's AI?${price ? ` It costs about ₹${price}` : ""} (one AI request). The AI redraws it, so compare it with the original afterwards; you can go back to the original if it isn't right.`)) return;
+    if (!window.confirm(`Make a 4K copy of this picture with Google's AI?${price ? ` It costs about ₹${price}` : ""} (one AI request). It is told to keep everything the same, but an AI can still change small things, so compare it with the original afterwards; you can go back to the uploaded picture if it isn't right.`)) return;
     setError("");
     setBusy(index);
     try {
@@ -238,7 +253,7 @@ function PrintPictures({ design, price, sizes, pf, onChanged, onReady, locked = 
     }
   };
   const printOriginal = async (index) => {
-    if (!window.confirm("Print the original instead?\n\nThe enlarged copy (already paid for) will be deleted. Enlarging again later costs another request.")) return;
+    if (!window.confirm("Use the uploaded picture instead of the AI's 4K copy?\n\nThe 4K copy (already paid for) is deleted, and Prepare for print will enlarge the uploaded picture with Topaz alone. Making a copy again later costs another request.")) return;
     setError("");
     try {
       await aiService.dropPrintPicture({ designId: design._id, index });
@@ -260,6 +275,11 @@ function PrintPictures({ design, price, sizes, pf, onChanged, onReady, locked = 
         const prep = preparing?.index === index ? preparing : allPrep?.designId === design._id && allPrep.index === index ? allPrep : null;
         const rDpi = ready ? readyDpi(el.printFile, printCm) : null;
         const detail = ready ? detailNote(el.printFile) : "";
+        // which enlarger made it (15 Nov 2026): Topaz, Real-ESRGAN, or the backup because Topaz failed (a warning)
+        const madeBy = ready ? adminEnlarger(el.printFile.enlarger, el.printFile.aiCopy) : null;
+        // (16 Nov 2026) the picture is not 4K: Prepare for print makes the AI's 4K copy first, then Topaz enlarges it
+        const long = longs[el.src];
+        const copyFirst = Boolean(pf?.aiCopy?.on) && !el.printSrc && !el.aiCopyOff && long != null && long < (pf.aiCopy.fourK || 3840);
         const tone = ready ? (rDpi && rDpi < GOOD_DPI ? "#7A5B12" : "#24522F") : dpi == null ? THEME.textMuted : dpi >= GOOD_DPI ? "#24522F" : dpi >= LOW_DPI ? "#7A5B12" : THEME.danger;
         const word = dpi == null ? "measuring…" : dpi >= GOOD_DPI ? "sharp" : dpi >= LOW_DPI ? "acceptable" : "low, may print soft";
         return (
@@ -277,8 +297,9 @@ function PrintPictures({ design, price, sizes, pf, onChanged, onReady, locked = 
               <span style={{ color: THEME.textMuted }}> · {printCm ? `${printCm.toFixed(1)} cm wide` : "size unknown"}</span>
               <div style={{ color: tone, fontWeight: 600, fontVariantNumeric: "tabular-nums" }}>
                 {ready ? `✓ Print-ready · ${el.printFile.keep}× bigger · ${rDpi ? `${rDpi} DPI${rDpi < GOOD_DPI ? " (a little soft)" : ""}` : "enlarged"} · vector edge` : dpi != null ? `${dpi} DPI — ${word}` : word}
-                {!ready && el.printSrc && <span style={{ color: "#24522F" }}> · redrawn bigger by Google ✓</span>}
+                {!ready && el.printSrc && <span style={{ color: "#24522F" }}> · 4K copy by AI ✓</span>}
               </div>
+              {madeBy && <div style={{ fontSize: 12, fontWeight: madeBy.warn ? 700 : 400, color: madeBy.warn ? "#9A4A00" : THEME.textMuted }}>{madeBy.text}</div>}
               {detail && <div style={{ fontSize: 12, color: THEME.textMuted }}>{detail}</div>}
               {(ready || el.printSrc) && (
                 <button type="button" onClick={() => openCompare(index, el)} style={{ marginTop: 4, background: THEME.goldBg, border: `1px solid ${THEME.goldBorder}`, borderRadius: 8, padding: "5px 11px", fontSize: 12.5, fontWeight: 700, color: THEME.goldDeep, cursor: "pointer" }}>
@@ -289,25 +310,36 @@ function PrintPictures({ design, price, sizes, pf, onChanged, onReady, locked = 
             {prep ? (
               <span style={{ fontSize: 13, color: THEME.textMuted, flex: "1 1 200px" }} aria-live="polite">Preparing… {prep.step}</span>
             ) : ready ? (
-              <button type="button" onClick={() => printPlain(index)} disabled={busy != null || locked} style={smallBtn}>
-                Print the plain picture instead
-              </button>
+              <div style={{ display: "grid", gap: 4, justifyItems: "end" }}>
+                <button type="button" onClick={() => printPlain(index)} disabled={busy != null || locked} style={smallBtn}>
+                  Print the plain picture instead
+                </button>
+                {el.printFile.aiCopy && (
+                  <button type="button" onClick={() => useUploaded(index)} disabled={busy != null || locked} style={{ ...smallBtn, padding: "4px 8px", fontSize: 11.5 }}>
+                    Use the uploaded picture, not the AI copy
+                  </button>
+                )}
+              </div>
             ) : busy === index ? (
               <span style={{ fontSize: 13, color: THEME.textMuted }}>Redrawing… about half a minute</span>
             ) : (
               <div style={{ display: "grid", gap: 4, justifyItems: "end" }}>
-                <button type="button" onClick={() => prepare(index, printCm)} disabled={busy != null || !!preparing || !printCm || locked} title={enlarger?.configured ? "" : "The enlarger (Replicate) is not set up on this server"} style={{ background: THEME.ink, color: "#fff", border: "none", borderRadius: 9, padding: "8px 14px", minHeight: 40, fontSize: 12.5, fontWeight: 700, cursor: busy != null || preparing || locked ? "not-allowed" : "pointer", opacity: busy != null || preparing || !printCm || locked ? 0.5 : 1 }}>
-                  Prepare for print{prepPrice ? ` · ${prepPrice}` : ""}
+                <button type="button" onClick={() => prepare(index, printCm, copyFirst ? long : 0)} disabled={busy != null || !!preparing || !printCm || locked} title={enlarger?.configured ? "" : "The enlarger (Replicate) is not set up on this server"} style={{ background: THEME.ink, color: "#fff", border: "none", borderRadius: 9, padding: "8px 14px", minHeight: 40, fontSize: 12.5, fontWeight: 700, cursor: busy != null || preparing || locked ? "not-allowed" : "pointer", opacity: busy != null || preparing || !printCm || locked ? 0.5 : 1 }}>
+                  Prepare for print{prepPrice ? ` · ${prepPrice}` : ""}{copyFirst && pf?.aiCopy?.priceInr ? ` + 4K copy ₹${pf.aiCopy.priceInr}` : ""}
                 </button>
                 {el.printSrc ? (
                   <button type="button" onClick={() => printOriginal(index)} disabled={busy != null || !!preparing} style={{ ...smallBtn, padding: "4px 8px", fontSize: 11.5 }}>
-                    Drop Google's redraw
+                    Use the uploaded picture (drop the AI copy)
                   </button>
                 ) : (
                   dpi != null &&
-                  dpi < GOOD_DPI && (
+                  dpi < GOOD_DPI &&
+                  !copyFirst &&
+                  // (16 Nov 2026) a 4K or bigger picture is never copied: the AI's copy would be smaller
+                  long != null &&
+                  long < (pf?.aiCopy?.fourK || 3840) && (
                     <button type="button" onClick={() => enlarge(index)} disabled={busy != null || !!preparing} style={{ background: "none", border: "none", padding: 0, fontSize: 11.5, color: THEME.textMuted, cursor: "pointer", textDecoration: "underline" }}>
-                      or redraw bigger with Google's AI{price ? ` (about ₹${price})` : ""}
+                      or make a 4K copy with AI first{price ? ` (about ₹${price})` : ""}
                     </button>
                   )
                 )}
@@ -326,7 +358,7 @@ function PrintPictures({ design, price, sizes, pf, onChanged, onReady, locked = 
         <ComparePictures original={full(design.elements[compare.index].src)} enlarged={compare.url} tee={design.colour.hex} onClose={() => setCompare(null)} />
       )}
       <p style={{ margin: "6px 0 0", fontSize: 12, color: THEME.textMuted }}>
-        <b>Prepare for print</b> is the way the print team approved: the picture is enlarged on a graphics-card service (the same enlarger that made the approved samples), its edge is cleaned and drawn as a vector, and it goes into the .ai file at up to 600 DPI (the enlarger makes a picture at most 4× bigger, so a small customer picture comes to about 300 DPI — still sharp; the row shows the real number). It keeps the picture as it is. Google's redraw is the older way: it can change details, so compare it before printing.
+        <b>Prepare for print</b> is the way the print team approved: the picture is enlarged on a graphics-card service (the same enlarger that made the approved samples), its edge is cleaned and drawn as a vector, and it goes into the .ai file at up to 600 DPI (the enlarger makes a picture at most 4× bigger, so a small customer picture comes to about 300 DPI — still sharp; the row shows the real number). {pf?.aiCopy?.on ? "A picture that is not 4K is first copied at 4K by the AI (told to keep everything the same), and that copy is enlarged: compare it with the original before printing — one click goes back to the uploaded picture." : "It keeps the picture as it is. Google's 4K copy is the other way: it can change small details, so compare it before printing."}
       </p>
     </div>
   );
@@ -363,7 +395,7 @@ export default function OrderDesignsModal({ orderId, onClose }) {
     let alive = true;
     aiService
       .getAdmin()
-      .then((a) => alive && a?.configured && setPrintPrice(Math.round((a.settings?.pricePerImageInr || 0) * 3) || null))
+      .then((a) => alive && a?.configured && setPrintPrice(Math.round((a.settings?.price4kPerImageInr || (a.settings?.pricePerImageInr || 0) * 3) * 10) / 10 || null))
       .catch(() => {});
     return () => {
       alive = false;
@@ -373,7 +405,7 @@ export default function OrderDesignsModal({ orderId, onClose }) {
   const pictureChanged = (designId, index, printSrc) =>
     setPack((p) => ({
       ...p,
-      designs: p.designs.map((d) => (d._id === designId ? { ...d, elements: d.elements.map((e, n) => (n === index ? { ...e, printSrc: printSrc || undefined } : e)) } : d)),
+      designs: p.designs.map((d) => (d._id === designId ? { ...d, elements: d.elements.map((e, n) => (n === index ? { ...e, printSrc: printSrc || undefined, aiCopyOff: printSrc ? undefined : true } : e)) } : d)),
     }));
   // a picture was made print-ready (or set back to plain): the next download draws it that way
   // (a ZIP already made has the old picture in it: the next Send makes it again)
@@ -417,12 +449,16 @@ export default function OrderDesignsModal({ orderId, onClose }) {
 
   // every picture's file width, measured here so a picture further down the page counts too
   const [pictureSizes, setPictureSizes] = useState({}); // src -> pixel width of the file
+  const [pictureLongs, setPictureLongs] = useState({}); // src -> its longest side (16 Nov 2026: under 4K = copied at 4K first)
   useEffect(() => {
     const srcs = new Set();
     for (const d of pack?.designs || []) for (const el of d.elements || []) if (el.type === "image" && el.src) srcs.add(el.printSrc || el.src);
     for (const src of srcs) {
       const img = new Image();
-      img.onload = () => setPictureSizes((s) => (s[src] ? s : { ...s, [src]: img.naturalWidth }));
+      img.onload = () => {
+        setPictureSizes((s) => (s[src] ? s : { ...s, [src]: img.naturalWidth }));
+        setPictureLongs((s) => (s[src] ? s : { ...s, [src]: Math.max(img.naturalWidth, img.naturalHeight) }));
+      };
       img.src = full(src);
     }
   }, [pack]);
@@ -464,7 +500,8 @@ export default function OrderDesignsModal({ orderId, onClose }) {
       return false;
     }
     const cost = prepPrice ? ` It costs about ₹${Math.round(prepPrice * todo.length * 100) / 100} (₹${prepPrice} each).` : pf.enlarger.mock ? " Free (test enlarger)." : "";
-    if (ask && !window.confirm(`Prepare ${todo.length === 1 ? "1 picture" : `all ${todo.length} pictures`} for print?${cost}\n\nEach is enlarged on the graphics-card service and given its vector edge — about 1–3 minutes each. Compare them with the originals afterwards.`)) return false;
+    const copyNote = pf?.aiCopy?.on ? `\n\nA picture that is not 4K is first copied at 4K by the AI (the same picture, nothing changed${pf.aiCopy.priceInr ? `, about ₹${pf.aiCopy.priceInr} more each` : ""}) and Topaz enlarges that copy. If Google refuses (famous people, film characters), Grok makes the copy instead (about ₹6, about 2K, it redraws more: compare it with the original).` : "";
+    if (ask && !window.confirm(`Prepare ${todo.length === 1 ? "1 picture" : `all ${todo.length} pictures`} for print?${cost}\n\nEach is enlarged on the graphics-card service and given its vector edge — about 1–3 minutes each.${copyNote}\n\nCompare them with the originals afterwards.`)) return false;
     setError("");
     let cur = packRef.current;
     const failed = {};
@@ -710,7 +747,7 @@ export default function OrderDesignsModal({ orderId, onClose }) {
               </div>
             )}
             {d.layoutVersion === 2 && (
-              <PrintPictures design={d} price={printPrice} sizes={pictureSizes} pf={pf} locked={!!allPrep} allPrep={allPrep} onChanged={(index, src) => pictureChanged(d._id, index, src)} onReady={(index, printFile) => pictureReady(d._id, index, printFile)} />
+              <PrintPictures design={d} price={printPrice} sizes={pictureSizes} longs={pictureLongs} pf={pf} locked={!!allPrep} allPrep={allPrep} onChanged={(index, src) => pictureChanged(d._id, index, src)} onReady={(index, printFile) => pictureReady(d._id, index, printFile)} />
             )}
           </section>
         ))}

@@ -41,7 +41,7 @@ import { applyAiOps, areaFor, describeDesign } from "./aiOps";
 import WaitCard from "./WaitCard";
 import PriceTag from "../components/PriceTag";
 import { shippingNote, useShippingRule, useSiteOffer } from "../utils/sitePricing";
-import { MIN_DPI, checkDesign, inksFor, printSharpness } from "./designCheck";
+import { MIN_DPI, SMALL_PHOTO, SOFT_OWN_DPI, checkDesign, inksFor, printSharpness } from "./designCheck";
 import { cropMockup } from "./mockupCrop";
 import { PhotoError, shrinkPhoto } from "./shrinkPhoto";
 import { TEMPLATES } from "./designTemplates";
@@ -243,6 +243,7 @@ export default function DesignRoomPage() {
     };
   }, []);
   const ackIssues = useRef(""); // design-check findings the customer has already been shown before Review
+  const keptSmall = useRef(new Map()); // "Keep this size" on a small-photo note: elId -> the width it was kept at (15 Nov 2026)
   const [areasOpen, setAreasOpen] = useState(false); // phones: the "where to print" sheet
   const [pickOpen, setPickOpen] = useState(false); // colour & size menu in the top bar
   const [finder, setFinder] = useState(null); // "Find my size" open from: "fit" | "pick" | "review"
@@ -1212,7 +1213,11 @@ export default function DesignRoomPage() {
     setTwirlKey((k) => k + 1);
   };
   /* ---------- the design assistant ---------- */
-  const designIssues = () => checkDesign(elements, positions, { fabricHex, inkDefault, cmOf: (pos) => areaPx(pos), canEnlarge: ai.available });
+  const designIssues = () => checkDesign(elements, positions, { fabricHex, inkDefault, cmOf: (pos) => areaPx(pos), canEnlarge: ai.available, kept: keptSmall.current });
+  // "Keep this size" (15 Nov 2026): the customer keeps a small photo as big as it is; asked again only if made bigger
+  const keepIssue = (issue) => {
+    if (issue?.elId != null) keptSmall.current.set(issue.elId, issue.keepWidth || 0);
+  };
   // what the assistant knows about the tee right now
   const assistantCtx = () => ({
     areaLabel: activePos?.label || "the tee",
@@ -1751,9 +1756,14 @@ export default function DesignRoomPage() {
         const { wCm, hCm } = areaPx(pos);
         if (el.type === "image") {
           const printCm = ((el.width || 0) / 100) * wCm;
-          const dpi = el.pxW ? printSharpness(el.pxW, printCm, ai.available).printed : null;
-          const how = dpi == null ? "" : dpi >= 150 ? " — sharp" : dpi >= 100 ? " — prints fine" : " — a little soft";
-          return `${pos.label}: picture ${printCm.toFixed(0)} cm wide${how}${dpi != null ? ` (${Math.round(dpi)} dpi)` : ""}`;
+          const sharp = el.pxW ? printSharpness(el.pxW, printCm, ai.available) : null;
+          const dpi = sharp ? sharp.printed : null;
+          // (15 Nov 2026: "soft" follows the same rule as the design check — see designCheck.js)
+          const how = dpi == null ? "" : sharp.soft ? " — may look soft" : dpi >= 150 ? " — sharp" : " — prints fine";
+          // a soft photo shows its OWN dpi (as the editor's label does): "may look soft (242 dpi)" — the dpi after the
+          // 4× enlarging — read as a contradiction (15 Nov 2026 browser check)
+          const shown = sharp?.soft ? sharp.now : dpi;
+          return `${pos.label}: picture ${printCm.toFixed(0)} cm wide${how}${shown != null ? ` (${Math.round(shown)} dpi)` : ""}`;
         }
         if (el.type === "text") {
           const mm = Math.round((((el.fontSizePct || 0) / 100) * hCm) * 10);
@@ -2494,11 +2504,12 @@ export default function DesignRoomPage() {
   const printsBlurry = (pos, w, h) => {
     const { wCm, hCm } = areaPx(pos);
     const widthCm = w / h > wCm / hCm ? 0.92 * wCm : 0.92 * hCm * (w / h);
-    return widthCm > 0 && printSharpness(w, widthCm, ai.available).printed < MIN_DPI;
+    return widthCm > 0 && printSharpness(w, widthCm, ai.available).soft;
   };
-  const BLURRY_LINE = "It’s a very small photo for this area, so it would print blurry at this size. Tap “Check my design” and I’ll make it a size that prints sharp, or send a bigger photo.";
+  // (15 Nov 2026: the same words and rule as the design check's small-photo note)
+  const BLURRY_LINE = `${SMALL_PHOTO} Tap “Check my design” to make it smaller, or send a bigger photo.`;
   const qualityLine = (dpi) =>
-    dpi >= 150 ? "It’s sharp, so it will print well." : dpi >= 100 ? "It will print fine; a bigger photo would be even sharper." : "It’s a small photo, so it may print a bit soft. A bigger one will look sharper.";
+    dpi >= 150 ? "It’s sharp, so it will print well." : dpi >= (ai.available ? SOFT_OWN_DPI : MIN_DPI) ? "It will print fine; a bigger photo would be even sharper." : "It’s a small photo, so it may print a bit soft. A bigger one will look sharper.";
   // "Put it on my tee as it is" / "Remove the background first" (both free; a photo is cut out on our server)
   const chatPhotoPlace = async (a, progress) => {
     const photo = chatState.photo;
@@ -3366,7 +3377,7 @@ export default function DesignRoomPage() {
                   locked={aiWorking || Boolean(busy)}
                 />
               )}
-              <Assistant key={chatId} messages={chat} setMessages={setChat} state={chatState} setState={setChatState} ctx={assistantCtx} onAct={assistantAct} onFix={applyFix} placed={aiOn} fabric={fabricHex} autoSay={chatAuto} onAutoSaid={() => setChatAuto("")} onWorking={setAiWorking} photoNudge={photoNudge} />
+              <Assistant key={chatId} messages={chat} setMessages={setChat} state={chatState} setState={setChatState} ctx={assistantCtx} onAct={assistantAct} onFix={applyFix} onKeep={keepIssue} placed={aiOn} fabric={fabricHex} autoSay={chatAuto} onAutoSaid={() => setChatAuto("")} onWorking={setAiWorking} photoNudge={photoNudge} />
               {elements.length > 0 && (
                 <button type="button" className="dr-handoff" onClick={editByHand}>
                   Not quite right? Edit it by hand →
@@ -4042,12 +4053,13 @@ function Controls({ sel, areaCmW, areaRatio, onPatch, onDelete, onDuplicate, onL
     const sharp = printSharpness(sel.pxW, printCm, canEnlarge);
     const dpi = Math.round(sharp.printed);
     const enlarged = sharp.printed > sharp.now * 1.05 && sharp.now < 150;
-    const cls = dpi >= 150 ? "good" : dpi >= 100 ? "ok" : "low";
-    const word = { good: "Good", ok: "OK", low: "Low — may print blurry" }[cls];
+    // (15 Nov 2026: "low" is the design check's rule — with the enlarger, the photo's own pixels under 75 DPI)
+    const cls = sharp.soft ? "low" : dpi >= 150 ? "good" : "ok";
+    const word = { good: "Good", ok: "OK", low: "Low — may look soft" }[cls];
     return (
       <div className="dr-quality">
         Print quality: <b className={cls}>{word}</b> · {printCm.toFixed(1)} cm wide
-        {enlarged && cls !== "low" ? " · we sharpen it before printing" : ` · ${dpi} DPI`}
+        {enlarged && cls !== "low" ? " · we sharpen it before printing" : ` · ${cls === "low" ? Math.round(sharp.now) : dpi} DPI`}
       </div>
     );
   };

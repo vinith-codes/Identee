@@ -195,7 +195,7 @@ export function paethFilter(rgb, W, H) {
  *          (raw); stats = { specks, specksDropped, thinPct, knockout }: bits under 0.1 mm² left in (and taken out), the
  *          share of the ink thinner than 0.3 mm, and whether the tee's colour was left out
  */
-export async function runRecipe({ rgb, alpha: a8, W, H, tee, knockout = false, dropSpecks = false, dpi = PRINT_DPI, log = () => {} }) {
+export async function runRecipe({ rgb, alpha: a8, W, H, tee, knockout = false, dropSpecks = false, dpi = PRINT_DPI, scale = 1, log = () => {} }) {
   const t0 = Date.now();
   const N = W * H;
   const teeV = tee === "white" ? 255 : 0;
@@ -222,8 +222,11 @@ export async function runRecipe({ rgb, alpha: a8, W, H, tee, knockout = false, d
     empty[i] = (a8[i] <= 40 && vd < 10) || bare ? 1 : 0;
     S[i] = a8[i] >= 128 && !bare ? 1 : 0;
   }
-  // the hard-edge zone: solid ink right next to bare tee
-  const hiMax = maxFilter(high, W, H, 5), emMax = maxFilter(empty, W, H, 5);
+  // the hard-edge zone: solid ink right next to bare tee. How near: 5 px, as approved — but a picture enlarged many
+  // times has its 1–2 px soft outline stretched as much (16 Nov 2026, VF-2026-0079: a 4.75× Grok copy's letters kept
+  // a 5–7 px dark rim, half tee and half ink, because solid and bare were more than 5 px apart): 2.5 px per time
+  const R = Math.max(5, Math.round(2.5 * scale));
+  const hiMax = maxFilter(high, W, H, R), emMax = maxFilter(empty, W, H, R);
   const hard = new Uint8Array(N);
   for (let i = 0; i < N; i++) if (hiMax[i] && emMax[i]) hard[i] = 1;
   const hz = await blurThreshold(hard, W, H, 2.0, 0.25);
@@ -232,11 +235,17 @@ export async function runRecipe({ rgb, alpha: a8, W, H, tee, knockout = false, d
 
   // colours: solid ink as seen; the rim of the hard edge takes the nearest solid colour; no-ink pixels are the tee
   const col = Buffer.from(V);
+  // an enlarged picture (16 Nov 2026): along a hard edge the ink keeps its own colour right up to the vector edge —
+  // the colours under the outline were filled in before enlarging (bleedEdges), so rgb there is the ink itself; the
+  // nearest "solid" pixel is still 80–90% see-through-blended after a big enlargement and left a darker line
+  const ownInk = scale > 1;
   for (let i = 0; i < N; i++) {
-    if (hz[i] && !high[i]) {
+    if (ownInk && hz[i] && a8[i] > 0) {
+      col[i * 3] = rgb[i * 3]; col[i * 3 + 1] = rgb[i * 3 + 1]; col[i * 3 + 2] = rgb[i * 3 + 2];
+    } else if (hz[i] && !high[i]) {
       const x = i % W, y = (i - x) / W;
       let found = -1;
-      for (let r = 1; r <= 24 && found < 0; r++) {
+      for (let r = 1; r <= Math.max(24, 2 * R) && found < 0; r++) {
         for (let dy = -r; dy <= r && found < 0; dy++) {
           const yy = y + dy;
           if (yy < 0 || yy >= H) continue;

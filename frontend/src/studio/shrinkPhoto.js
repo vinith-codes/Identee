@@ -1,17 +1,19 @@
-// studio/shrinkPhoto.js — a photo from the phone made ready to upload: phones give 4–12 MB photos (the server takes
-// at most 10 MB, and mobile data is slow), so a big one is resized on the phone first — at most 3000 px on its long
-// side (still sharp enough to print 30+ cm wide), as a JPEG. A small PNG is kept as it is (it may be transparent).
-// Returns { file, w, h } — the size is also what the print-quality check uses.
+// studio/shrinkPhoto.js — a photo from the phone made ready to upload. Returns { file, w, h } — the size is also
+// what the print-quality check uses.
+//
+// 15 Nov 2026: photos keep their full size now (print files were blurry where small pictures had to be enlarged).
+// A photo the server can take (up to 25 MB) and no longer than 8000 px is sent as it is; only one over either
+// limit is made smaller here (at most 8000 px on its long side, then 6000, 4000, 3000 until it fits), as a JPEG.
+// (Before: everything over 4 MB was made 3000 px — the server took only 10 MB.)
 //
 // 12 Nov 2026: every picture is opened here before it is sent. One that can't be opened (a damaged file, or a
 // format the browser doesn't know) is refused with a plain message — it used to go on the tee as an invisible
 // picture that Review called "sharp". Used by the Assistant's 📎, the Upload button and Photo to art, so all three
 // take the same photos (a 19 MB phone photo too).
 //   keepClear: a see-through picture (a logo as PNG or WebP) that has to be made smaller stays see-through (PNG).
-const MAX_SIDE = 3000;
-const MAX_BYTES = 10 * 1024 * 1024; // what the server takes
-const KEEP_PNG = 8 * 1024 * 1024;
-const KEEP_JPEG = 4 * 1024 * 1024;
+export const MAX_SIDE = 8000;
+export const MAX_BYTES = 25 * 1024 * 1024; // what the server takes
+const STEPS = [MAX_SIDE, 6000, 4000, 3000]; // made smaller in these steps until the server can take it
 
 export class PhotoError extends Error {}
 
@@ -66,15 +68,13 @@ export async function shrinkPhoto(file, { keepClear = false } = {}) {
     bmp.close?.();
     throw new PhotoError(cantOpenMessage(file.type));
   }
-  const scale = Math.min(1, MAX_SIDE / Math.max(w, h));
-  const small = scale === 1;
-  if (small && file.type === "image/png" && file.size <= KEEP_PNG) return close(bmp, { file, w, h });
-  if (small && /^image\/(jpe?g|webp)$/.test(file.type) && file.size <= KEEP_JPEG) return close(bmp, { file, w, h });
+  // within both limits: sent as it is, at full size (a JPG, PNG or WebP the server takes)
+  if (fitsAsIs(file, w, h)) return close(bmp, { file, w, h });
   const base = (file.name || "photo").replace(/\.[^.]+$/, "");
 
   // a see-through logo stays see-through: a PNG, made smaller until the server can take it
   if (keepClear && /^image\/(png|webp|gif|avif)$/.test(file.type) && isClear(bmp)) {
-    for (const side of [MAX_SIDE, 2400, 1800, 1200]) {
+    for (const side of [...STEPS, 2400, 1800, 1200]) {
       const k = Math.min(1, side / Math.max(w, h));
       const W = Math.round(w * k);
       const H = Math.round(h * k);
@@ -84,14 +84,28 @@ export async function shrinkPhoto(file, { keepClear = false } = {}) {
     // (still too big as a PNG: it goes on as a JPEG below, on white)
   }
 
-  const W = Math.round(w * scale);
-  const H = Math.round(h * scale);
-  const canvas = draw(bmp, W, H, true);
+  // a JPEG, as big as the server takes: 8000 px first, smaller only while it is still over 25 MB. (A phone that
+  // can't draw that big — an iPhone stops at about 16 million pixels — gives nothing back: the next step is tried.)
+  let tried = 0;
+  let last = null;
+  for (const side of STEPS) {
+    const k = Math.min(1, side / Math.max(w, h));
+    const W = Math.round(w * k);
+    const H = Math.round(h * k);
+    if (tried && W >= tried) continue; // (the same size again would not help)
+    tried = W;
+    const blob = await toBlob(draw(bmp, W, H, true), "image/jpeg", 0.9);
+    if (!blob) continue;
+    last = { file: new File([blob], `${base}.jpg`, { type: "image/jpeg" }), w: W, h: H };
+    if (blob.size <= MAX_BYTES) break;
+  }
   bmp.close?.();
-  const blob = await toBlob(canvas, "image/jpeg", 0.9);
-  if (!blob) throw new PhotoError("The photo couldn’t be prepared. Try another one.");
-  return { file: new File([blob], `${base}.jpg`, { type: "image/jpeg" }), w: W, h: H };
+  if (!last) throw new PhotoError("The photo couldn’t be prepared. Try another one.");
+  return last; // (still over 25 MB after every step: the server says so, in its own words)
 }
+
+// a photo sent as it is: a kind the server takes, within 25 MB and 8000 px (15 Nov 2026)
+export const fitsAsIs = (file, w, h) => /^image\/(png|jpe?g|webp)$/.test(file?.type || "") && (file?.size || 0) <= MAX_BYTES && Math.max(w, h) <= MAX_SIDE;
 
 const close = (bmp, out) => {
   bmp.close?.();

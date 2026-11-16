@@ -115,3 +115,22 @@ test("shipByOf skips Sundays and counts in India's time", () => {
   assert.equal(shipByOf("2026-11-12T05:00:00Z", 4), "2026-11-17"); // Thu -> Fri Sat (Sun) Mon Tue
   assert.equal(shipByOf("bad", 4), null);
 });
+
+test("an enlarged picture's soft outline prints in the ink's own colour, not as a dark rim (16 Nov 2026)", async () => {
+  // a red bar on a black tee whose edge fades over 10 px (a 2 px soft edge enlarged about 5x)
+  const W = 80, H = 40, rgb = Buffer.alloc(W * H * 3), alpha = Buffer.alloc(W * H);
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const i = y * W + x;
+    rgb[i * 3] = 200; rgb[i * 3 + 1] = 60; rgb[i * 3 + 2] = 60;
+    alpha[i] = Math.round(255 * Math.max(0, Math.min(1, (x - 30) / 10)));
+  }
+  const colourAt = (pic, x) => pic[(20 * W + x) * 3]; // red channel, middle row
+  const old = await runRecipe({ rgb, alpha, W, H, tee: "black" });
+  const now = await runRecipe({ rgb, alpha, W, H, tee: "black", scale: 5 });
+  // x = 37: 70% ink — before, a 70%-dark blend (about 140); now the ink's own red
+  assert.ok(colourAt(old.picture, 37) < 160, `old ${colourAt(old.picture, 37)}`);
+  assert.equal(colourAt(now.picture, 37), 200);
+  // nothing changes for a picture that was not enlarged (scale 1 = as approved)
+  const same = await runRecipe({ rgb, alpha, W, H, tee: "black", scale: 1 });
+  assert.ok(same.picture.equals(old.picture));
+});

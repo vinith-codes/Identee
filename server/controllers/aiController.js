@@ -28,7 +28,8 @@ import Order from "../models/orderModel.js";
 import Customization from "../models/customizationModel.js";
 import GarmentType from "../models/garmentTypeModel.js";
 import { uploadFile, deleteStoredFile } from "../utils/imageStorage.js";
-import { cutOutPlainBackground, KEY_BACKGROUND, onPlainBackground } from "../services/cutoutService.js";
+import { clearKeyColour, cutOutPlainBackground, KEY_BACKGROUND, onPlainBackground } from "../services/cutoutService.js";
+import { fitCopyToSheet } from "../services/alignCopy.js";
 import { aiTextConfigured, improveIdea, planEdit, readPhotoRequest, writeSlogans } from "../services/aiTextService.js";
 import { removePhotoBackground } from "../services/backgroundService.js";
 import MyPicture from "../models/myPictureModel.js";
@@ -36,7 +37,7 @@ import { rememberPictures } from "./myPictureController.js";
 import sharp from "sharp";
 import { artFilters, FILTER_STYLE } from "../services/artFilterService.js";
 import { xaiConfigured, xaiEditImage, xaiModel, xaiNewImage } from "../services/xaiImageService.js";
-import { replicateConfigured, replicateModel } from "../services/replicateService.js";
+import { replicateConfigured, replicateModel, topazModel } from "../services/replicateService.js";
 import { AI_STYLES, PHOTO_STYLES, aiImageConfigured, aiImageModel, changeDesignPrompt, copyDesignPrompt, inspiredDesignPrompt, generateImage, nearestRatio, newDesignPrompt, photoArtPrompt, FIX_KINDS, fixPrompt, printPrompt, RATIO_VALUES } from "../services/aiImageService.js";
 
 const CATEGORY = "ai";
@@ -52,6 +53,12 @@ const DEFAULTS = {
   "ai.grokPricePerImageInr": { value: 6, type: "number", description: "What one Grok picture costs, in rupees (for the spending figures)" },
   // the enlarger for print files (Real-ESRGAN on Replicate, 6 Nov 2026): about ₹0.20–₹1 a picture
   "ai.replicatePricePerImageInr": { value: 1, type: "number", description: "What one enlarged print picture costs on Replicate, in rupees (for the spending figures)" },
+  // (15 Nov 2026) the print enlarger: Topaz draws real detail and keeps faces; Real-ESRGAN smooths small pictures.
+  // Topaz is billed in units of $0.05 (one unit up to 24 MP of result) ≈ ₹4.5; Real-ESRGAN stays Topaz's backup
+  "ai.printEnlarger": { value: "topaz", type: "string", description: "Print files: the enlarger (topaz or real-esrgan)" },
+  "ai.topazPricePerUnitInr": { value: 4.5, type: "number", description: "What one Topaz unit costs on Replicate, in rupees (for the spending figures)" },
+  // (15 Nov 2026) customers' AI designs are drawn at 4K (about 3,600 × 4,800), about 3× a 1K picture
+  "ai.price4kPerImageInr": { value: 8.7, type: "number", description: "What one 4K picture costs, in rupees (for the spending figures)" },
   // what the CUSTOMER pays extra per tee with a picture — AI-made, art library or upload (utils/aiPricing.js)
   [AI_ADDON_KEY]: { value: AI_ADDON_DEFAULT, type: "number", description: "Extra price per tee with a picture (₹)" },
   // the smart Assistant (23 Oct 2026): Google reads every typed message; off = the fixed replies, as before
@@ -65,12 +72,23 @@ const DEFAULTS = {
   // print files (8 Nov 2026, the print team's needs): both apply when a picture is prepared for print
   "print.knockout": { value: false, type: "boolean", description: "Print files: leave out black on black tees and white on white tees (the shirt shows through)" },
   "print.dropSpecks": { value: true, type: "boolean", description: "Print files: leave out bits of ink under 0.1 mm² (about 0.3 × 0.3 mm), too small for DTF film" },
+  // (16 Nov 2026) a picture under 4K is first copied at 4K by the AI (same picture, nothing changed), then Topaz
+  // enlarges that copy — the cleanest print in the logo tests
+  "print.aiCopy": { value: true, type: "boolean", description: "Print files: copy a picture under 4K with AI at 4K before Topaz enlarges it" },
 };
 // how much a customer may type for the AI (a long, detailed idea is fine; 2,000 characters ≈ 300 words — the
 // cut-off only stops something pasted by mistake, like a whole page, from being sent to the AI)
 const PROMPT_MAX = 2000;
-const LIMITS = { "ai.makingDays": [1, 30], "ai.teamMakingDays": [1, 45], "ai.shippingDays": [1, 30], "ai.dailyPerUser": [1, 50], "ai.imagesPerRequest": [1, 4], "ai.monthlyCapInr": [0, 1000000], "ai.grokMonthlyCapInr": [0, 1000000], "ai.pricePerImageInr": [0, 100], "ai.grokPricePerImageInr": [0, 100], "ai.replicatePricePerImageInr": [0, 100], [AI_ADDON_KEY]: [0, 5000], "ai.chatPricePerMessageInr": [0, 10] };
-const BOOLEAN_KEYS = ["ai.enabled", "ai.smartChat", "ai.assistantV2", "print.knockout", "print.dropSpecks"];
+const LIMITS = { "ai.makingDays": [1, 30], "ai.teamMakingDays": [1, 45], "ai.shippingDays": [1, 30], "ai.dailyPerUser": [1, 50], "ai.imagesPerRequest": [1, 4], "ai.monthlyCapInr": [0, 1000000], "ai.grokMonthlyCapInr": [0, 1000000], "ai.pricePerImageInr": [0, 100], "ai.grokPricePerImageInr": [0, 100], "ai.replicatePricePerImageInr": [0, 100], "ai.topazPricePerUnitInr": [0, 100], "ai.price4kPerImageInr": [0, 100], [AI_ADDON_KEY]: [0, 5000], "ai.chatPricePerMessageInr": [0, 10] };
+const BOOLEAN_KEYS = ["ai.enabled", "ai.smartChat", "ai.assistantV2", "print.knockout", "print.dropSpecks", "print.aiCopy"];
+// settings that are one of a few words (15 Nov 2026)
+export const CHOICES = { "ai.printEnlarger": ["topaz", "real-esrgan"] };
+// The size customers' AI designs are drawn at (15 Nov 2026, the owner's choice: "customer designs only"): a 1K picture
+// enlarged for print came out soft; drawn at 4K and then enlarged by Topaz it is the sharpest. Concept sheets, the
+// one-line banner lettering, the admin's Studio and the Collection maker keep their own sizes.
+export const DESIGN_SIZE = "4K";
+// what one Google picture of the customer's design costs (for the spending figures)
+export const designPictureCost = (s) => (DESIGN_SIZE === "4K" ? s.price4kPerImageInr : s.pricePerImageInr);
 
 
 const startOfDay = () => {
@@ -97,6 +115,9 @@ export async function readSettings() {
     pricePerImageInr: Number(get("ai.pricePerImageInr")),
     grokPricePerImageInr: Number(get("ai.grokPricePerImageInr")),
     replicatePricePerImageInr: Number(get("ai.replicatePricePerImageInr")),
+    printEnlarger: get("ai.printEnlarger") === "real-esrgan" ? "real-esrgan" : "topaz",
+    topazPricePerUnitInr: Number(get("ai.topazPricePerUnitInr")),
+    price4kPerImageInr: Number(get("ai.price4kPerImageInr")),
     designAddOnInr: Number(get(AI_ADDON_KEY)),
     smartChat: get("ai.smartChat") !== false,
     assistantV2: get("ai.assistantV2") !== false,
@@ -106,6 +127,7 @@ export async function readSettings() {
     shippingDays: Number(get("ai.shippingDays")),
     printKnockout: get("print.knockout") === true,
     printDropSpecks: get("print.dropSpecks") !== false,
+    printAiCopy: get("print.aiCopy") !== false,
   };
 }
 // a Grok row's model starts with "grok"
@@ -289,6 +311,8 @@ async function sendFilterArt(req, res, { refused = false, left = null } = {}) {
 // Copy the print from a photo sent in the chat: { copyUrl, change?, teeColour, teeIsDark, ratio }   (Google only)
 // A new design with a photo as the reference: { refUrl, subject, style, teeColour, teeIsDark, ratio }   (Google only)
 // -> { images: [{ url, width, height }], left }   (each picture already cut out of its background)
+// Since 15 Nov 2026 Google draws these at 4K (DESIGN_SIZE: about 3,600 × 4,800 for 3:4), so the print is sharp; the
+// one-line banner lettering stays 1K and Grok's stand-in keeps its own size. The page shows a smaller copy (?w=).
 export const makeAiDesign = asyncHandler(async (req, res) => {
   // the free filters work whether the AI is on or not
   if (req.body.photoUrl && !req.body.baseUrl && req.body.artStyle === FILTER_STYLE) return sendFilterArt(req, res);
@@ -347,7 +371,7 @@ export const makeAiDesign = asyncHandler(async (req, res) => {
         })
       : inspiredDesignPrompt({ subject: text, style: AI_STYLES[req.body.style] ? req.body.style : "Bold mascot", teeColour: teeName, teeIsDark: dark, variation: 1, of: 1 });
     // (Google only: no Grok stand-in for these — photoJob / drawJob stay empty)
-    jobs = [generateImage({ prompt, image: { data: small, mime: "image/jpeg" }, ratio: nearestRatio(req.body.ratio) })];
+    jobs = [generateImage({ prompt, image: { data: small, mime: "image/jpeg" }, ratio: nearestRatio(req.body.ratio), size: DESIGN_SIZE })];
   } else if (fixing) {
     if (!isOurUpload(req.body.fixUrl)) {
       res.status(400);
@@ -359,7 +383,7 @@ export const makeAiDesign = asyncHandler(async (req, res) => {
     const flat = await sharp(stored.data).rotate().resize(1536, 1536, { fit: "inside", withoutEnlargement: true }).flatten({ background: req.body.fixKind === "photo" ? "#ffffff" : KEY_BACKGROUND }).jpeg({ quality: 92 }).toBuffer();
     const prompt = fixPrompt({ kind: req.body.fixKind, teeColour: teeName, teeIsDark: dark });
     photoJob = { promptFor: () => prompt, image: { data: flat, mime: "image/jpeg" } }; // Grok does it if Google refuses
-    jobs = [generateImage({ prompt, image: photoJob.image, ratio: nearestRatio(req.body.ratio) })];
+    jobs = [generateImage({ prompt, image: photoJob.image, ratio: nearestRatio(req.body.ratio), size: DESIGN_SIZE })];
   } else if (fromPhoto) {
     // a customer's own photo, redrawn as art (two options)
     if (!isOurUpload(req.body.photoUrl)) {
@@ -372,7 +396,7 @@ export const makeAiDesign = asyncHandler(async (req, res) => {
     const of = Math.min(2, Math.max(1, settings.imagesPerRequest));
     const promptFor = (i) => photoArtPrompt({ style, teeColour: teeName, teeIsDark: Boolean(req.body.teeIsDark), variation: i + 1, of });
     photoJob = { of, promptFor, image: { data: small, mime: "image/jpeg" } };
-    jobs = Array.from({ length: of }, (_, i) => generateImage({ prompt: promptFor(i), image: photoJob.image, ratio: nearestRatio(req.body.ratio) }));
+    jobs = Array.from({ length: of }, (_, i) => generateImage({ prompt: promptFor(i), image: photoJob.image, ratio: nearestRatio(req.body.ratio), size: DESIGN_SIZE }));
   } else if (changing) {
     if (!isAiDesign(req.body.baseUrl)) {
       res.status(400);
@@ -380,9 +404,11 @@ export const makeAiDesign = asyncHandler(async (req, res) => {
     }
     // the stored design is a cut-out: put it back on its plain background for the AI
     const stored = await fetchOurImage(req.body.baseUrl, req);
-    const image = { data: await onPlainBackground(stored.data), mime: "image/jpeg" };
+    // (a 4K design goes to the AI at most 2,048 px wide, 15 Nov 2026: plenty to change it from, a quarter of the upload)
+    const fitted = await sharp(stored.data).resize(2048, 2048, { fit: "inside", withoutEnlargement: true }).png().toBuffer();
+    const image = { data: await onPlainBackground(fitted), mime: "image/jpeg" };
     photoJob = { promptFor: () => changeDesignPrompt(text), image }; // Grok edits it if Google refuses
-    jobs = [generateImage({ prompt: changeDesignPrompt(text), image, ratio: nearestRatio(req.body.ratio) })];
+    jobs = [generateImage({ prompt: changeDesignPrompt(text), image, ratio: nearestRatio(req.body.ratio), size: DESIGN_SIZE })];
   } else {
     const style = AI_STYLES[req.body.style] ? req.body.style : "Bold mascot";
     const teeColour = teeName;
@@ -395,7 +421,7 @@ export const makeAiDesign = asyncHandler(async (req, res) => {
     drawJob = { prompt: newDesignPrompt({ ...ask, variation: 1, of: 1 }), ratio: banner ? "16:9" : nearestRatio(req.body.ratio) };
     jobs = Array.from({ length: of }, (_, i) => {
       const prompt = newDesignPrompt({ subject: text, style, teeColour, teeIsDark: Boolean(req.body.teeIsDark), variation: i + 1, of, oneLine: banner });
-      if (!banner) return generateImage({ prompt, ratio: nearestRatio(req.body.ratio) });
+      if (!banner) return generateImage({ prompt, ratio: nearestRatio(req.body.ratio), size: DESIGN_SIZE });
       return generateImage({ prompt, ratio: "21:9" }).catch((err) => (err?.status === 400 ? generateImage({ prompt, ratio: "16:9" }) : Promise.reject(err)));
     });
   }
@@ -466,7 +492,8 @@ export const makeAiDesign = asyncHandler(async (req, res) => {
     prompt: text.slice(0, PROMPT_MAX),
     style: fromPhoto ? req.body.artStyle : changing || copying ? undefined : req.body.style,
     images: made.length,
-    costInr: Math.round(made.length * (byGrok ? settings.grokPricePerImageInr : settings.pricePerImageInr) * 100) / 100,
+    // (Google's 4K pictures at the 4K price, 15 Nov 2026; the one-line banner lettering is still drawn at 1K)
+    costInr: Math.round(made.length * (byGrok ? settings.grokPricePerImageInr : banner ? settings.pricePerImageInr : designPictureCost(settings)) * 100) / 100,
     model: byGrok ? xaiModel() : aiImageModel(),
   });
   // My pictures: what the picture shows, in the customer's words — a changed or fixed picture keeps the words of
@@ -608,7 +635,8 @@ export const getAiAdmin = asyncHandler(async (req, res) => {
     // the second picture service, for photos Google refuses
     grok: { configured: xaiConfigured(), model: xaiModel(), capped: grokCapped(settings, month) },
     // the enlarger for print files (6 Nov 2026)
-    replicate: { configured: replicateConfigured(), model: replicateModel() },
+    // (15 Nov 2026: and Topaz, the first choice — settings.printEnlarger says which is used)
+    replicate: { configured: replicateConfigured(), model: replicateModel(), topazModel: topazModel() },
     reason: await whyOff(settings),
     settings,
     month,
@@ -629,7 +657,8 @@ export const getAiRequests = asyncHandler(async (req, res) => {
   res.json(rows.map(requestRow));
 });
 
-// PUT /api/ai/admin  (admin only): { enabled, dailyPerUser, imagesPerRequest, monthlyCapInr, grokMonthlyCapInr, pricePerImageInr, grokPricePerImageInr }
+// PUT /api/ai/admin  (admin only): { enabled, dailyPerUser, imagesPerRequest, monthlyCapInr, grokMonthlyCapInr, pricePerImageInr, grokPricePerImageInr,
+//   printEnlarger ("topaz" | "real-esrgan"), replicatePricePerImageInr, topazPricePerUnitInr, price4kPerImageInr, … }
 export const saveAiAdmin = asyncHandler(async (req, res) => {
   const incoming = {
     "ai.enabled": req.body.enabled,
@@ -648,12 +677,24 @@ export const saveAiAdmin = asyncHandler(async (req, res) => {
     "ai.shippingDays": req.body.shippingDays,
     "print.knockout": req.body.printKnockout,
     "print.dropSpecks": req.body.printDropSpecks,
+    "print.aiCopy": req.body.printAiCopy,
+    // (15 Nov 2026) the print enlarger and the prices of Topaz and of 4K pictures (and Real-ESRGAN's, which had a
+    // limit but could not be saved)
+    "ai.printEnlarger": req.body.printEnlarger,
+    "ai.replicatePricePerImageInr": req.body.replicatePricePerImageInr,
+    "ai.topazPricePerUnitInr": req.body.topazPricePerUnitInr,
+    "ai.price4kPerImageInr": req.body.price4kPerImageInr,
   };
   for (const [key, raw] of Object.entries(incoming)) {
     if (raw === undefined) continue;
     let value = raw;
     if (BOOLEAN_KEYS.includes(key)) value = Boolean(raw);
-    else {
+    else if (CHOICES[key]) {
+      if (!CHOICES[key].includes(raw)) {
+        res.status(400);
+        throw new Error(`${DEFAULTS[key].description}: choose ${CHOICES[key].join(" or ")}.`);
+      }
+    } else {
       value = Number(raw);
       const [min, max] = LIMITS[key];
       if (!Number.isFinite(value) || value < min || value > max) {
@@ -675,7 +716,6 @@ export const saveAiAdmin = asyncHandler(async (req, res) => {
 // after the order the admin can have a picture enlarged to about 4,000 px. It costs about 3× a normal
 // picture, and only for tees that were sold. The admin compares it with the original before printing,
 // because an image AI redraws what it enlarges.
-const PRINT_COST_FACTOR = 3;
 export const isDarkHex = (hex) => {
   const m = /^#?([0-9a-f]{6})$/i.exec(String(hex || ""));
   if (!m) return false;
@@ -691,39 +731,66 @@ async function orderedPicture(req) {
   return { design, el };
 }
 
-// POST /api/ai/admin/print-picture  { designId, index }  ->  { printSrc, width, height, costInr }
-export const makePrintPicture = asyncHandler(async (req, res) => {
-  const settings = await readSettings();
-  if (!aiImageConfigured()) {
-    res.status(503);
-    throw new Error("The picture service is not set up.");
+// A customer's own picture with near-magenta in it: the magenta "green screen" can't be used for it (its pink would
+// be cut away with the background). rgba: a small copy, raw RGBA; only its solid pixels count.
+export function hasKeyColour(rgba) {
+  let solid = 0, key = 0;
+  for (let i = 0; i < rgba.length; i += 4) {
+    if (rgba[i + 3] < 128) continue;
+    solid++;
+    if (rgba[i] > 170 && rgba[i + 2] > 170 && rgba[i + 1] < 110) key++;
   }
-  // enlarging starts with Google, so Google's cap applies
-  if (googleCapped(settings, await monthSpend())) {
-    res.status(503);
-    throw new Error("This month's Google AI budget is used up. Raise it in Settings → AI designs to enlarge more pictures.");
-  }
-  let found;
-  try {
-    found = await orderedPicture(req);
-  } catch (err) {
-    res.status(err.status || 500);
-    throw err;
-  }
-  const { design, el } = found;
-  if (!isOurUpload(el.src)) {
-    res.status(400);
-    throw new Error("This picture is not stored with us, so it can't be enlarged.");
-  }
+  return key > Math.max(4, solid * 0.002);
+}
+
+// How much of a picture is see-through (0..1), on a small copy.
+async function seeThroughShare(buffer) {
+  const a = await sharp(buffer).rotate().ensureAlpha().resize(256, 256, { fit: "inside" }).extractChannel("alpha").raw().toBuffer();
+  let n = 0;
+  for (const v of a) if (v <= 8) n++;
+  return n / a.length;
+}
+
+/**
+ * The AI's 4K copy of one picture of a design, for printing: the same picture with more pixels, nothing changed (the
+ * prompt is all about that). Saved as the element's printSrc. Made by the admin's button, and (16 Nov 2026) by Prepare
+ * for print itself before Topaz enlarges a picture that is not 4K.
+ * A see-through picture is copied on the magenta "green screen" and cut out again at 4K (clean edges, its own white
+ * parts kept), unless it has magenta of its own: then it keeps its own outline, enlarged.
+ * @param {object} a
+ * @param {string} a.designId
+ * @param {number} a.index
+ * @param {*} a.user        who asked (for the AI-use line)
+ * @param {object} a.req    for fetching our own stored picture ({ protocol, get(host) })
+ * @param {object} a.settings  readSettings()
+ * @param {boolean} [a.allowGrok]  Grok when Google refuses (it redraws more; Prepare for print never uses it)
+ * @returns {Promise<{ url, width, height, costInr, byGrok }>}  throws with .status (422: the AI said no)
+ */
+export async function makeAiPrintCopy({ designId, index, user, req, settings, allowGrok = true }) {
+  const fail = (status, message) => Object.assign(new Error(message), { status });
+  if (!aiImageConfigured()) throw fail(503, "The picture service is not set up.");
+  // the copy is made by Google, so Google's cap applies
+  if (googleCapped(settings, await monthSpend())) throw fail(503, "This month's Google AI budget is used up. Raise it in Settings → AI designs to enlarge more pictures.");
+  const { design, el } = await orderedPicture({ body: { designId, index } });
+  if (!isOurUpload(el.src)) throw fail(400, "This picture is not stored with us, so it can't be enlarged.");
   const garment = await GarmentType.findOne({ key: design.garmentType }).lean();
   const dark = isDarkHex(garment?.colors?.find((c) => c.slug === design.color)?.hex);
   const stored = await fetchOurImage(el.src, req);
   const meta = await sharp(stored.data).rotate().metadata();
+  // (16 Nov 2026, "no photo will get shrinked") the AI gives about 4,096 px: a picture already 4K or bigger would come
+  // back SMALLER, so it is never copied (Prepare for print only copies under 3,840 px; this guards the admin's button)
+  if (Math.max(meta.width, meta.height) >= 3840) throw fail(400, `This picture is already 4K (${meta.width} × ${meta.height} px): an AI copy would be smaller, so it prints from the picture itself.`);
   const hasAlpha = Boolean(meta.hasAlpha) && !(await sharp(stored.data).stats()).isOpaque;
   const aiCut = /\/ai-designs\//.test(el.src); // made by the design maker: it was cut out of a plain background
   // (an AI cut-out goes back on the magenta it was drawn on, 8 Nov 2026 — on white or black, its white or black parts
-  // would be cleared again after enlarging)
-  const bg = aiCut ? KEY_BACKGROUND : dark ? "#000000" : "#ffffff";
+  // would be cleared again after enlarging; 16 Nov 2026: a customer's cut-out logo too, so its edge is cut again at
+  // 4K instead of the small picture's rough edge being blown up)
+  let key = aiCut;
+  if (!aiCut && hasAlpha) {
+    const { data } = await sharp(stored.data).rotate().ensureAlpha().resize(512, 512, { fit: "inside", withoutEnlargement: true }).raw().toBuffer({ resolveWithObject: true });
+    key = !hasKeyColour(data);
+  }
+  const bg = key ? KEY_BACKGROUND : dark ? "#000000" : "#ffffff";
 
   // The AI only makes a few picture shapes. The picture is put on a sheet of the nearest shape (never
   // squeezed), enlarged, and the same part is cut back out — so it keeps its own shape exactly.
@@ -735,69 +802,99 @@ export const makePrintPicture = asyncHandler(async (req, res) => {
     .rotate()
     .flatten({ background: bg })
     .resize(sheetW, sheetH, { fit: "contain", background: bg })
-    .resize(1536, 1536, { fit: "inside", withoutEnlargement: true })
+    // (16 Nov 2026: was 1,536 px — a 3,000 px picture lost detail before it was copied; the user: "dont shrink")
+    .resize(4096, 4096, { fit: "inside", withoutEnlargement: true })
     .jpeg({ quality: 95 })
     .toBuffer();
 
   let out;
   let byGrok = false;
   const original = `Nothing was charged. It prints from the original picture (${meta.width} × ${meta.height} px).`;
+  const prompt = printPrompt({ dark, plain: hasAlpha, key });
   try {
-    out = await generateImage({ prompt: printPrompt({ dark, plain: hasAlpha, key: aiCut }), image: { data: small, mime: "image/jpeg" }, ratio, size: "4K" });
+    out = await generateImage({ prompt, image: { data: small, mime: "image/jpeg" }, ratio, size: "4K" });
   } catch (err) {
     if (!(err?.status === 422 || err?.noImage)) throw err;
+    if (!allowGrok) throw fail(422, `Google won't make a 4K copy of this picture. ${original}`);
     // Google said no (5 Nov 2026, the client's Spider-Man tee). Then Grok, at its largest size, "2k": about 2,000 px, so
     // less than Google's 4,000 px, and it redraws more, so the admin is told to compare it with the original.
-    if (!xaiConfigured()) {
-      res.status(422);
-      throw new Error(`Google won't enlarge this picture and Grok is not set up on this server. ${original}`);
-    }
-    if (grokCapped(settings, await monthSpend())) {
-      res.status(429);
-      throw new Error(`Google won't enlarge this picture and this month's Grok spending limit is reached. ${original}`);
-    }
+    if (!xaiConfigured()) throw fail(422, `Google won't enlarge this picture and Grok is not set up on this server. ${original}`);
+    if (grokCapped(settings, await monthSpend())) throw fail(429, `Google won't enlarge this picture and this month's Grok spending limit is reached. ${original}`);
     try {
       out = await xaiEditImage({
-        prompt: `${printPrompt({ dark, plain: hasAlpha, key: aiCut })} Keep the same person, face, pose, colours and composition exactly; only add fine detail and sharpness.`,
+        prompt: `${prompt} Keep the same person, face, pose, colours and composition exactly; only add fine detail and sharpness.`,
         image: { data: small, mime: "image/jpeg" },
         resolution: "2k",
       });
       byGrok = true;
     } catch (err2) {
       if (err2?.status !== 422) throw err2;
-      res.status(422);
-      throw new Error(`Neither Google nor Grok would enlarge this picture. ${original}`);
+      throw fail(422, `Neither Google nor Grok would enlarge this picture. ${original}`);
     }
   }
-  const big = await sharp(out.buffer).metadata();
+  // (16 Nov 2026) Grok picks its own picture shape and may zoom: its copy is put back in the sheet's exact shape (the
+  // VF-2026-0079 front printed 13% too wide before). A copy already of the sheet's shape (Google) is left as it is.
+  const fitted = await fitCopyToSheet({ sent: small, copy: out.buffer });
+  const copyBuffer = fitted.buffer;
+  const big = await sharp(copyBuffer).metadata();
   const keepW = Math.min(big.width, Math.round((big.width * meta.width) / sheetW));
   const keepH = Math.min(big.height, Math.round((big.height * meta.height) / sheetH));
-  let picture = await sharp(out.buffer)
+  let picture = await sharp(copyBuffer)
     .extract({ left: Math.floor((big.width - keepW) / 2), top: Math.floor((big.height - keepH) / 2), width: keepW, height: keepH })
     .png()
     .toBuffer();
 
-  if (aiCut) {
-    // same as when the design was first made: clear the plain background it was drawn on
-    picture = (await cutOutPlainBackground(picture)).buffer;
-  } else if (hasAlpha) {
-    // the customer's own see-through picture: keep exactly its own outline (enlarged), so nothing inside it is cleared
+  // the picture's own outline, enlarged (exactly its shape, so nothing inside it is cleared)
+  const ownOutline = async (pic) => {
     const alpha = await sharp(stored.data).rotate().ensureAlpha().extractChannel("alpha").resize(keepW, keepH, { kernel: "lanczos3" }).toBuffer();
     // (in two steps: asked for together, the old alpha is dropped AFTER the new one is joined, losing both)
-    const colour = await sharp(picture).removeAlpha().png().toBuffer();
-    picture = await sharp(colour).joinChannel(alpha).png().toBuffer();
+    const colour = await sharp(pic).removeAlpha().png().toBuffer();
+    return sharp(colour).joinChannel(alpha).png().toBuffer();
+  };
+  if (key) {
+    // clear the magenta it was copied on, as when a design is first made
+    const cut = await cutOutPlainBackground(picture);
+    // then every magenta pixel left anywhere (16 Nov 2026: a figure running off the picture's edge leaves no plain
+    // edge to cut from, and closed-in gaps can stay pink) — the original has no magenta, or it was not put on the key
+    const keyed = await clearKeyColour(cut.cut ? cut.buffer : picture, { onlyIfLeft: cut.cut });
+    // the AI kept (most of) the magenta background: that is the cut-out. If it drew something else there instead,
+    // the original's own outline is the only guide left
+    const clearBefore = hasAlpha ? await seeThroughShare(stored.data) : 0;
+    if (cut.cut || keyed.cleared >= clearBefore * 0.5) picture = keyed.buffer;
+    else if (hasAlpha) picture = await ownOutline(picture); // the AI did not keep the background flat
+  } else if (hasAlpha) {
+    picture = await ownOutline(picture);
   }
   // near-lossless WebP: a 4,000 px PNG can be larger than the picture store accepts
   const webp = await sharp(picture).webp({ quality: 96, alphaQuality: 100, effort: 4 }).toBuffer();
   const { url } = await uploadFile(webp, "image/webp", "print-pictures", "print.webp");
 
-  const old = el.printSrc;
-  el.printSrc = url;
-  await design.save();
+  // saved on a fresh copy of the design (a print job may be saving the same design)
+  const fresh = await Customization.findById(design._id);
+  const target = fresh?.elements?.[Number(index)];
+  if (!target || target.src !== el.src) {
+    await deleteStoredFile(url).catch(() => {});
+    throw fail(409, "The design changed while the 4K copy was being made. Try again.");
+  }
+  const old = target.printSrc;
+  target.printSrc = url;
+  target.aiCopyOff = undefined;
+  await fresh.save();
   if (old && old !== url) await deleteStoredFile(old).catch(() => {});
-  const costInr = Math.round((byGrok ? settings.grokPricePerImageInr || 0 : settings.pricePerImageInr * PRINT_COST_FACTOR) * 100) / 100;
-  await AiUsage.create({ user: req.user._id, kind: "print", prompt: `Enlarge for print (design ${design._id}, picture ${Number(req.body.index) + 1})${byGrok ? " (Grok)" : ""}`, images: 1, costInr, model: byGrok ? xaiModel() : aiImageModel() });
-  res.status(201).json({ printSrc: url, width: keepW, height: keepH, costInr, byGrok });
+  const costInr = Math.round((byGrok ? settings.grokPricePerImageInr || 0 : settings.price4kPerImageInr) * 100) / 100;
+  await AiUsage.create({ user, kind: "print", prompt: `4K copy for print (design ${design._id}, picture ${Number(index) + 1})${byGrok ? " (Grok)" : ""}`, images: 1, costInr, model: byGrok ? xaiModel() : aiImageModel() });
+  return { url, width: keepW, height: keepH, costInr, byGrok };
+}
+
+// POST /api/ai/admin/print-picture  { designId, index }  ->  { printSrc, width, height, costInr, byGrok }
+export const makePrintPicture = asyncHandler(async (req, res) => {
+  try {
+    const made = await makeAiPrintCopy({ designId: req.body.designId, index: req.body.index, user: req.user._id, req, settings: await readSettings() });
+    res.status(201).json({ printSrc: made.url, width: made.width, height: made.height, costInr: made.costInr, byGrok: made.byGrok });
+  } catch (err) {
+    res.status(err.status || 500);
+    throw err;
+  }
 });
 
 // DELETE /api/ai/admin/print-picture  { designId, index }  — print the original again
@@ -812,6 +909,8 @@ export const dropPrintPicture = asyncHandler(async (req, res) => {
   const { design, el } = found;
   const old = el.printSrc;
   el.printSrc = undefined;
+  // (16 Nov 2026) the admin chose the original: Prepare for print won't make a 4K copy of it again
+  el.aiCopyOff = true;
   await design.save();
   if (old) await deleteStoredFile(old).catch(() => {});
   res.json({ printSrc: null });

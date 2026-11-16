@@ -18,7 +18,9 @@ const MODEL_URL = "https://huggingface.co/onnx-community/ormbg-ONNX/resolve/main
 const CACHE = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", ".cache");
 const MODEL_PATH = path.join(CACHE, "ormbg-quantized.onnx");
 const SIZE = 1024; // the model looks at a 1024 × 1024 picture (preprocessor_config.json: resize, ÷255, no normalise)
-const MAX_SIDE = 2000; // the cut-out is at most this big (keeps the PNG well under the 10 MB upload limit)
+// 15 Nov 2026: the cut-out keeps the photo's full size, up to 8000 px like an upload (it was 2000 px, so print files
+// had to enlarge it). The model still looks at 1024 × 1024; its outline is drawn back up to the photo's size.
+const MAX_SIDE = 8000;
 
 // the model file on disk (downloaded once; shared, so a download already under way is not started twice)
 let fetching = null;
@@ -109,6 +111,6 @@ export async function removePhotoBackground(buffer) {
   }
   // (extractChannel: resizing turns a one-channel picture into three, which put the mask in the wrong places)
   const alpha = await sharp(mask, { raw: { width: SIZE, height: SIZE, channels: 1 } }).resize(width, height, { fit: "fill" }).extractChannel(0).raw().toBuffer();
-  const png = await sharp(base.data, { raw: { width, height, channels: 3 } }).joinChannel(alpha, { raw: { width, height, channels: 1 } }).png({ compressionLevel: 9 }).toBuffer();
+  const png = await sharp(base.data, { raw: { width, height, channels: 3 } }).joinChannel(alpha, { raw: { width, height, channels: 1 } }).png({ compressionLevel: 6 }).toBuffer();
   return { buffer: png, width, height };
 }

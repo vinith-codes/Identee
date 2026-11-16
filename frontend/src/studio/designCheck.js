@@ -3,7 +3,8 @@
 // The "design check": looks over a design before review and lists things
 // that would print badly, each with a one-tap fix. Plain rules, no AI.
 //
-//   blurry   an uploaded picture stretched beyond what its pixels allow
+//   blurry   an uploaded picture stretched beyond what its pixels allow (15 Nov 2026: with the shop's
+//            enlarger on, a "small photo" note with "Make it smaller" / "Keep this size")
 //   small    letters too small to read on fabric
 //   contrast ink colour too close to the tee colour
 //   outside  part of an item hangs over the print area's edge (it gets cut)
@@ -37,28 +38,60 @@ export const contrast = (a, b) => {
  *          patch is what the fix changes on the element; measure = re-measure the text after it
  */
 // How sharp a picture will print: dots per inch now, and after the shop has it enlarged for printing.
-// (Before printing, the admin can have a low picture redrawn about 4× larger, up to about 4,000 px —
-// see "Enlarge for print" in the order's print files. So a picture is only called blurry when it would
-// still be low AFTER that; otherwise customers swap a perfectly good design for no reason.)
+// (Before printing, the admin can have a low picture redrawn about 4× larger — see "Prepare for print" in the
+// order's print files. So a picture is only called blurry when it would still be low AFTER that; otherwise
+// customers swap a perfectly good design for no reason.)
+// 15 Nov 2026: the enlarger is now Topaz (Real-ESRGAN only as its backup). It enlarges up to 4× well and has no
+// 4,000 px ceiling any more, so with the enlarger on the rule looks at the picture's OWN pixels: under 75 DPI at
+// its print size it may look soft even after 4× (the customer is told, and may keep it); "Make it smaller" makes
+// it the biggest size that still has 100 DPI of its own. Without the enlarger (the admin Studio) nothing changed.
 const ENLARGE_BY = 4;
-const ENLARGE_MAX_PX = 4096;
+export const SOFT_OWN_DPI = 75; // with the enlarger on: below this (own pixels) a photo may look soft
+export const SMALLER_DPI = 100; // "Make it smaller" goes down to this (own pixels)
+export const SMALL_PHOTO = "This photo is small, so it may look soft printed this big.";
 export function printSharpness(pxW, printCm, canEnlarge = true) {
   const inches = printCm / 2.54;
   const now = pxW / inches;
-  const printed = canEnlarge ? Math.max(pxW, Math.min(pxW * ENLARGE_BY, ENLARGE_MAX_PX)) / inches : now;
-  return { now, printed };
+  const printed = canEnlarge ? (pxW * ENLARGE_BY) / inches : now;
+  // soft: what the customer is warned about (with the enlarger: own pixels under 75 DPI; without: under 100 DPI)
+  const soft = canEnlarge ? now < SOFT_OWN_DPI : now < MIN_DPI;
+  return { now, printed, soft };
 }
 
-export function checkDesign(elements, positions, { fabricHex, inkDefault, cmOf, canEnlarge = true }) {
+//   kept   Map elId -> width (%) at which the customer chose "Keep this size": no small-photo note for it again
+//          unless the picture is made bigger than that (15 Nov 2026)
+export function checkDesign(elements, positions, { fabricHex, inkDefault, cmOf, canEnlarge = true, kept = null }) {
   const issues = [];
   for (const el of elements) {
     const pos = positions.find((p) => p.key === el.position);
     if (!pos) continue;
     const { wCm, hCm } = cmOf(pos);
     const name = el.type === "text" ? `“${String(el.text || "").replace(/\s+/g, " ").trim().slice(0, 24)}”` : "The picture";
-    const add = (kind, text, fixLabel, patch, measure = false) => issues.push({ id: `${el.id}:${kind}`, elId: el.id, position: pos.key, area: pos.label, kind, text, fixLabel, patch, measure });
+    const add = (kind, text, fixLabel, patch, measure = false, more = {}) => issues.push({ id: `${el.id}:${kind}`, elId: el.id, position: pos.key, area: pos.label, kind, text, fixLabel, patch, measure, ...more });
 
-    if (el.type === "image" && el.pxW) {
+    // with the shop's enlarger (Topaz): a photo whose own pixels give under 75 DPI at its print size (15 Nov 2026).
+    // Only a note: the customer may keep it. "Make it smaller" keeps its centre and gives it 100 DPI of its own.
+    if (canEnlarge && el.type === "image" && el.pxW) {
+      const printCm = ((el.width || 0) / 100) * wCm;
+      const now = printSharpness(el.pxW, printCm, true).now;
+      const keptAt = kept?.get?.(el.id);
+      if (printCm > 0 && now < SOFT_OWN_DPI && !(keptAt != null && (el.width || 0) <= keptAt + 0.01)) {
+        const k = now / SMALLER_DPI;
+        const width = (el.width || 0) * k;
+        const height = (el.height || 0) * k;
+        add(
+          "blurry",
+          `${pos.label}: ${SMALL_PHOTO}`,
+          "Make it smaller",
+          { width, height, x: (el.x || 0) + ((el.width || 0) - width) / 2, y: (el.y || 0) + ((el.height || 0) - height) / 2 },
+          false,
+          { keepLabel: "Keep this size", keepWidth: el.width || 0 },
+        );
+      }
+    }
+
+    // without the enlarger (the admin Studio): as before
+    if (!canEnlarge && el.type === "image" && el.pxW) {
       const printCm = ((el.width || 0) / 100) * wCm;
       const dpi = printSharpness(el.pxW, printCm, canEnlarge).printed; // as it will be printed
       if (dpi < MIN_DPI) {

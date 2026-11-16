@@ -261,6 +261,57 @@ export function cleanCutEdge(rgba, w, h) {
   return { key: K, pixels };
 }
 
+/**
+ * Clears every magenta ("green screen") pixel of an AI copy, wherever it is, not only what touches the picture's edge
+ * (16 Nov 2026, VF-2026-0079: a poster whose figure runs off the bottom edge has no plain edge, so the usual cut-out
+ * gave up, and the original's outline laid over Grok's slightly shifted copy left hot-pink gaps between the letter
+ * bars). Only for a copy of a picture that has no magenta of its own (hasKeyColour said so before it was put on the key),
+ * so any magenta in it is background. The edge is softened and cleaned as in cutOutPlainBackground. Existing
+ * see-through stays.
+ * @returns {Promise<{ buffer: Buffer, cleared: number }>}  cleared: share of the picture now see-through (0..1)
+ */
+export async function clearKeyColour(buffer, { onlyIfLeft = false } = {}) {
+  const { data, info } = await sharp(buffer).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  const { width: w, height: h } = info;
+  const K = [255, 0, 255];
+  if (onlyIfLeft) {
+    // after a good cut-out: only when solid magenta is still left in it (more than a few stray pixels)
+    let left = 0;
+    for (let i = 0; i < data.length; i += 4) if (data[i + 3] > 128 && Math.min(data[i], data[i + 2]) > 110 && data[i + 1] < 0.35 * Math.min(data[i], data[i + 2])) left++;
+    if (left <= Math.max(50, (w * h) / 10000)) {
+      let clear = 0;
+      for (let i = 3; i < data.length; i += 4) if (data[i] <= 8) clear++;
+      return { buffer, cleared: clear / (w * h), unchanged: true };
+    }
+  }
+  const gone = new Uint8Array(w * h);
+  let n = 0;
+  for (let p = 0; p < w * h; p++) {
+    const i = p * 4;
+    const r = data[i], g = data[i + 1], b = data[i + 2];
+    // magenta: strong red and blue with little green (JPEG and the AI's own shading move it about). A pale pink is
+    // not: that is a white edge blended with the key (it keeps part of its see-through below, by edgeCoverage);
+    // clearing it left a dark ring inside white letters (16 Nov 2026, the Spider-Man logo)
+    if (data[i + 3] <= 8 || dist(data, i, K) < NEAR || (Math.min(r, b) > 110 && g < 0.35 * Math.min(r, b))) { gone[p] = 1; n++; }
+  }
+  for (let p = 0; p < w * h; p++) {
+    const i = p * 4;
+    if (gone[p]) { data[i + 3] = 0; continue; }
+    const x = p % w;
+    const touches = (x > 0 && gone[p - 1]) || (x < w - 1 && gone[p + 1]) || (p >= w && gone[p - w]) || (p < w * (h - 1) && gone[p + w]);
+    if (touches) {
+      const d = dist(data, i, K);
+      if (d < SOFT) data[i + 3] = Math.min(data[i + 3], Math.round((255 * (d - NEAR)) / (SOFT - NEAR)));
+    }
+  }
+  const orig = Buffer.from(data);
+  defringe(data, w, h, gone, K);
+  edgeCoverage(data, orig, w, h, gone, K);
+  padClearPixels(data, w, h);
+  const png = await sharp(data, { raw: { width: w, height: h, channels: 4 } }).png({ compressionLevel: 6 }).toBuffer();
+  return { buffer: png, cleared: n / (w * h) };
+}
+
 export async function trimClearEdges(c) {
   if (!c?.cut) return c;
   try {

@@ -65,6 +65,7 @@ const waitFor = (a) =>
  *   ctx()      what the assistant knows about the tee right now
  *   onAct(a)   the page does something: add text, apply a layout, change size, open an area / tab, go to review, recolour
  *   onFix(i)   apply a design-check fix
+ *   onKeep(i)  "Keep this size" on a small-photo note: the customer keeps it as it is (15 Nov 2026)
  *   placed     which print areas each AI-made design is on: { [url]: ["Left Chest"] }
  *   fabric     the tee's colour — AI designs are shown on it, as they will look on the tee
  *
@@ -74,7 +75,7 @@ const waitFor = (a) =>
 // autoSay: a message to send as if typed, once (the home page's "What do you want on your tee?" box); onAutoSaid clears it
 // onWorking(bool): an AI request is running (the page warns before the tab is closed meanwhile)
 // photoNudge: a counter — when it goes up (the chat was opened to send a photo), 📎 lights up for a moment
-export default function Assistant({ messages, setMessages, state, setState, ctx, onAct, onFix, placed = {}, fabric, autoSay, onAutoSaid, onWorking, photoNudge = 0 }) {
+export default function Assistant({ messages, setMessages, state, setState, ctx, onAct, onFix, onKeep, placed = {}, fabric, autoSay, onAutoSaid, onWorking, photoNudge = 0 }) {
   const [draft, setDraft] = useState("");
   // false | true (a short "Thinking…") | { label, expect, hint } for the AI: a card with a live seconds count
   const [thinking, setThinking] = useState(false);
@@ -379,6 +380,10 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
     onFix(issue);
     setMessages((m) => m.map((x, n) => (n === i ? { ...x, issues: x.issues.map((y) => (y.id === issue.id ? { ...y, fixed: true } : y)) } : x)));
   };
+  const keep = (i, issue) => {
+    onKeep?.(issue);
+    setMessages((m) => m.map((x, n) => (n === i ? { ...x, issues: x.issues.map((y) => (y.id === issue.id ? { ...y, kept: true } : y)) } : x)));
+  };
 
   // "Try another" sits under the newest pictures only
   const lastDesigns = messages.reduce((last, m, i) => (m.designs ? i : last), -1);
@@ -552,9 +557,21 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
             return (
               <div key={i} className="dr-chatcards">
                 {m.issues.map((x) => (
-                  <div key={x.id} className={`dr-issue${x.fixed ? " fixed" : ""}`}>
+                  <div key={x.id} className={`dr-issue${x.fixed || x.kept ? " is-done" : ""}`}>
                     <span>{x.text}</span>
-                    {x.fixed ? <b>Fixed ✓</b> : <button type="button" className="dr-mini" onClick={() => fix(i, x)}>{x.fixLabel}</button>}
+                    {x.fixed ? (
+                      <b>Fixed ✓</b>
+                    ) : x.kept ? (
+                      <b>Kept as it is ✓</b>
+                    ) : x.keepLabel && onKeep ? (
+                      // a small-photo note (15 Nov 2026): make it smaller, or keep it — both a full tap target
+                      <div className="dr-issue-acts">
+                        <button type="button" className="dr-mini" onClick={() => fix(i, x)}>{x.fixLabel}</button>
+                        <button type="button" className="dr-mini ghost" onClick={() => keep(i, x)}>{x.keepLabel}</button>
+                      </div>
+                    ) : (
+                      <button type="button" className="dr-mini" onClick={() => fix(i, x)}>{x.fixLabel}</button>
+                    )}
                   </div>
                 ))}
               </div>

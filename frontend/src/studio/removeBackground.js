@@ -10,14 +10,23 @@
 // Not used on purpose: @imgly/background-removal and IS-Net (AGPL licences),
 // RMBG-1.4 (non-commercial licence).
 
-const MAX_SIDE = 2000; // bigger pictures are scaled down first (keeps the PNG well under the 10 MB upload limit)
+// 15 Nov 2026: the cut-out keeps the picture's full size (it was made 2000 px, so print files had to enlarge it).
+// Limits: 8000 px on the long side (as an upload), at most about 16 million pixels (the most an iPhone can draw on
+// one canvas), and a PNG the server takes (25 MB) — a bigger one is made again at 6000, 4000, 3000, 2000 px.
+const MAX_SIDE = 8000;
+const MAX_PIXELS = 16_000_000;
+const MAX_BYTES = 25 * 1024 * 1024;
+const STEPS = [MAX_SIDE, 6000, 4000, 3000, 2000];
 
 const dist = (d, i, c) => Math.abs(d[i] - c[0]) + Math.abs(d[i + 1] - c[1]) + Math.abs(d[i + 2] - c[2]);
 
-function toCanvas(img) {
+// how much smaller the picture must be drawn to fit `side` px and the phone's pixel limit (1 = full size)
+export const fitScale = (w0, h0, side = MAX_SIDE) => Math.min(1, side / Math.max(w0, h0), Math.sqrt(MAX_PIXELS / (w0 * h0)));
+
+function toCanvas(img, side = MAX_SIDE) {
   const w0 = img.naturalWidth || img.width;
   const h0 = img.naturalHeight || img.height;
-  const k = Math.min(1, MAX_SIDE / Math.max(w0, h0));
+  const k = fitScale(w0, h0, side);
   const canvas = document.createElement("canvas");
   canvas.width = Math.max(1, Math.round(w0 * k));
   canvas.height = Math.max(1, Math.round(h0 * k));
@@ -184,18 +193,27 @@ function edgeCoverage(data, orig, w, h, bg, K, REACH = 1, LOOK = 3) {
  * @returns {Promise<{ blob: Blob, width: number, height: number, method: "colour" } | { already: true } | { needsServer: true }>}
  */
 export async function removeBackground(img, onStage, { flatOnly = false } = {}) {
-  const canvas = toCanvas(img);
-  const ctx = canvas.getContext("2d", { willReadFrequently: true });
-  const image = ctx.getImageData(0, 0, canvas.width, canvas.height);
-  const edge = readEdge(image.data, canvas.width, canvas.height);
-  if (edge.transparent) return { already: true };
+  const w0 = img.naturalWidth || img.width;
+  const h0 = img.naturalHeight || img.height;
+  let last = null;
+  for (const side of STEPS) {
+    if (last && Math.round(w0 * fitScale(w0, h0, side)) >= last.width) continue; // (the same size again would not help)
+    const canvas = toCanvas(img, side);
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    const image = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const edge = readEdge(image.data, canvas.width, canvas.height);
+    if (edge.transparent) return { already: true };
 
-  let method = "colour";
-  if (edge.flat) clearFlatColour(image, edge.colour, edge.idx);
-  else if (flatOnly) return { already: true }; // (AI-made designs: no plain background to clear, use the picture as it is)
-  else return { needsServer: true }; // a photo: the server's model does it
-  ctx.putImageData(image, 0, 0);
-  const blob = await new Promise((done) => canvas.toBlob(done, "image/png"));
-  if (!blob) throw new Error("Could not make the picture");
-  return { blob, width: canvas.width, height: canvas.height, method };
+    const method = "colour";
+    if (edge.flat) clearFlatColour(image, edge.colour, edge.idx);
+    else if (flatOnly) return { already: true }; // (AI-made designs: no plain background to clear, use the picture as it is)
+    else return { needsServer: true }; // a photo: the server's model does it
+    ctx.putImageData(image, 0, 0);
+    const blob = await new Promise((done) => canvas.toBlob(done, "image/png"));
+    if (!blob) continue; // (this phone could not make a PNG this big: a smaller one is tried)
+    last = { blob, width: canvas.width, height: canvas.height, method };
+    if (blob.size <= MAX_BYTES) return last;
+  }
+  if (!last) throw new Error("Could not make the picture");
+  return last; // (still over 25 MB: the upload says so in its own words)
 }

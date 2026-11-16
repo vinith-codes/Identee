@@ -74,6 +74,11 @@ const upload = multer({
   limits: { fileSize: 100 * 1024 * 1024 },
 });
 
+// The customer's own pictures (15 Nov 2026): kept at their full size for printing — the phone no longer shrinks them
+// below 8,000 px — so a big photo may be up to 25 MB; anything larger is refused with plain words.
+export const DESIGN_MAX_MB = 25;
+const designUpload = multer({ storage: multer.memoryStorage(), fileFilter, limits: { fileSize: DESIGN_MAX_MB * 1024 * 1024 } });
+
 /* ==========================
    STORE FILES, THEN SET file.path TO THE SAVED URL
 ========================== */
@@ -105,12 +110,12 @@ const storeFilesWith = ({ keepBuffer = false } = {}) => async (req, res, next) =
 };
 
 // Wraps a multer handler so its errors (size limit, file type) become 400s.
-const withErrors = (handler) => (req, res, next) =>
+const withErrors = (handler, tooBig = "File is too large (max 100 MB)") => (req, res, next) =>
   handler(req, res, (err) => {
     if (!err) return next();
     res.status(err.status || 400);
     next(
-      err.code === "LIMIT_FILE_SIZE" ? new Error("File is too large (max 100 MB)") : err,
+      err.code === "LIMIT_FILE_SIZE" ? new Error(tooBig) : err,
     );
   });
 
@@ -151,7 +156,7 @@ export const uploadProductFiles = pipeline(
   ]),
 );
 // Customer artwork uploaded in the customizer
-export const uploadDesignFile = [withErrors(upload.single("design")), realPictures, storeFiles];
+export const uploadDesignFile = [withErrors(designUpload.single("design"), `This picture is too large (over ${DESIGN_MAX_MB} MB). Please choose a smaller one.`), realPictures, storeFiles];
 // Settings — store logo / favicon
 export const uploadSettingsAsset = pipeline(upload.single("settingsAsset"));
 // Customizer garment photos (Admin → Garment Photos)

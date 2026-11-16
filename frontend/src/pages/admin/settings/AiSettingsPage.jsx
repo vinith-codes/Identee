@@ -17,7 +17,10 @@ const FIELDS = [
   ["pricePerImageInr", "Cost of one Google picture (₹)", "Used only for the spending figures here. Include GST: Google’s spend page shows about ₹3.50 a picture.", 0, 100, 0.1],
   ["grokMonthlyCapInr", "Grok: monthly spending cap (₹)", "When this month's Grok spend reaches it, Grok stops standing in until next month: a picture Google refuses then gets a “couldn’t make this one” message, and Google keeps working. Keep it a little below your xAI credit. 0 = no cap.", 0, 1000000, 50],
   ["grokPricePerImageInr", "Cost of one Grok picture (₹)", "Grok redraws a customer's photo only when Google refuses it (well-known people). $5 of xAI credit ≈ 71 pictures ≈ ₹6 each — check console.x.ai → Billing.", 0, 100, 0.1],
-  ["replicatePricePerImageInr", "Cost of one print-ready picture (₹)", "Orders → Designs & print files → Prepare for print: the picture is enlarged on Replicate's graphics cards (Real-ESRGAN). Replicate charges per run, about ₹0.20–₹1 — check replicate.com → Billing and put the real figure here.", 0, 100, 0.1],
+  ["replicatePricePerImageInr", "Cost of one print-ready picture with Real-ESRGAN (₹)", "Orders → Designs & print files → Prepare for print, when the old enlarger (Real-ESRGAN) is used — chosen above, or as the backup when Topaz fails. Replicate charges per run, about ₹0.20–₹1 — check replicate.com → Billing and put the real figure here.", 0, 100, 0.1],
+  // Topaz + 4K (15 Nov 2026): the sharper enlarger, and customer AI designs made at 4K
+  ["topazPricePerUnitInr", "Topaz price per unit (₹)", "One unit = a print picture up to 24 megapixels, about $0.05. A bigger picture takes more units. Used for the spending figures here — check replicate.com → Billing.", 0, 100, 0.1],
+  ["price4kPerImageInr", "4K AI picture price (₹)", "Customer designs are drawn at 4K, so they print sharp at full size. What one 4K picture costs, for the spending figures here.", 0, 100, 0.1],
   ["designAddOnInr", "Extra price per tee with a picture (₹)", "What the CUSTOMER pays on top of the garment's price for each tee whose design has an AI-made picture or their own upload. Once per tee, however many pictures. Pictures from the art library are free, and a text-only design costs just the garment's price.", 0, 5000, 10],
   ["makingDays", "Working days to make one order", "From the order to the parcel leaving us. The Assistant uses this to answer when a tee will arrive. Sundays are not counted.", 1, 30, 1],
   ["teamMakingDays", "Working days to make a team order", "The same, for team orders with names and numbers (they take longer).", 1, 45, 1],
@@ -29,6 +32,12 @@ const WHY = {
   off: "Switched off. Customers see “coming soon”.",
   cap: "Paused: this month's Google spending cap has been reached.",
 };
+// (15 Nov 2026) used until the server sends its own values, so the form never shows an empty box
+const NEW_DEFAULTS = { printEnlarger: "topaz", topazPricePerUnitInr: 4.5, price4kPerImageInr: 8.7 };
+const ENLARGERS = [
+  ["topaz", "Topaz (sharper, recommended)"],
+  ["real-esrgan", "Real-ESRGAN (old)"],
+];
 const rupees = (n) => `₹${Number(n || 0).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
 const monthName = (key) => new Date(`${key}-01T00:00:00`).toLocaleString("en-IN", { month: "long", year: "numeric" });
 
@@ -46,8 +55,9 @@ export default function AiSettingsPage() {
     aiService
       .getAdmin()
       .then((d) => {
-        setData(d);
-        setForm(d.settings);
+        const settings = { ...NEW_DEFAULTS, ...Object.fromEntries(Object.entries(d.settings || {}).filter(([, v]) => v != null)) };
+        setData({ ...d, settings });
+        setForm(settings);
         setOlder([]);
       })
       .catch((e) => setNote(e.response?.data?.message || "Could not load the AI settings."));
@@ -99,8 +109,10 @@ export default function AiSettingsPage() {
   const grokCapLeft = form.grokMonthlyCapInr > 0 ? Math.max(0, form.grokMonthlyCapInr - (data.month.grok?.cost || 0)) : null;
   const grokInCap = Number(form.grokPricePerImageInr) > 0 && Number(form.grokMonthlyCapInr) > 0 ? Math.floor(Number(form.grokMonthlyCapInr) / Number(form.grokPricePerImageInr)) : null;
   // what the numbers in the form add up to
-  const perRequest = Number(form.imagesPerRequest || 0) * Number(form.pricePerImageInr || 0);
-  const perChange = Number(form.pricePerImageInr || 0);
+  // (15 Nov 2026: customer designs are drawn at 4K, so they cost the 4K price — as the server counts them)
+  const designPrice = Number(form.price4kPerImageInr || 0);
+  const perRequest = Number(form.imagesPerRequest || 0) * designPrice;
+  const perChange = designPrice;
   const requestsInCap = perRequest > 0 && Number(form.monthlyCapInr) > 0 ? Math.floor(Number(form.monthlyCapInr) / perRequest) : null;
   const worstDay = Number(form.dailyPerUser || 0) * perRequest;
   const requests = [...data.recent, ...older];
@@ -155,7 +167,7 @@ export default function AiSettingsPage() {
         </div>
         <div style={help}>
           {data.replicate?.configured
-            ? "Orders → Designs & print files → Prepare for print: a picture is enlarged on Replicate's graphics cards (Real-ESRGAN, the enlarger that made the samples the print team approved), then given its vector edge for the .ai print file. Charged per picture by Replicate."
+            ? `Orders → Designs & print files → Prepare for print: a picture is enlarged on Replicate's graphics cards — now with ${form.printEnlarger === "real-esrgan" ? "Real-ESRGAN (the old enlarger)" : "Topaz, with Real-ESRGAN as an automatic backup if Topaz fails"} (choose under Print files below) — then given its vector edge for the .ai print file. Charged per picture by Replicate.`
             : "Not working yet: add REPLICATE_API_TOKEN to the server's settings file (token from replicate.com → API tokens; add a card or prepaid credit under Billing). Until then, Prepare for print says it is not set up."}
         </div>
       </div>
@@ -335,6 +347,28 @@ export default function AiSettingsPage() {
         {/* the print team's options (8 Nov 2026): used when a picture is prepared for print (Orders → Designs & print files) */}
         <div style={{ display: "grid", gap: 10, borderTop: `1px solid ${t.border}`, paddingTop: 14 }}>
           <span style={label}>Print files</span>
+          {/* which enlarger Prepare for print uses (15 Nov 2026): Topaz, or the old one. With Topaz, Real-ESRGAN is still the backup. */}
+          <div role="radiogroup" aria-label="Print enlarger" style={{ display: "grid", gap: 2 }}>
+            <span style={label}>Print enlarger</span>
+            <span style={help}>Makes small pictures bigger for the print file. Topaz keeps edges and faces sharper; if it fails, Real-ESRGAN is used on its own. Applies to pictures prepared after you save.</span>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+              {ENLARGERS.map(([value, words]) => (
+                <label key={value} style={{ display: "flex", gap: 8, alignItems: "center", minHeight: 44, padding: "0 14px", border: `1px solid ${form.printEnlarger === value ? t.goldBorder : t.border}`, borderRadius: 10, background: form.printEnlarger === value ? t.goldBg : "#fff", cursor: "pointer", fontSize: 13, ...(value === "topaz" ? { fontWeight: 600 } : {}) }}>
+                  <input type="radio" name="printEnlarger" value={value} checked={form.printEnlarger === value} onChange={() => setForm({ ...form, printEnlarger: value })} style={{ width: 18, height: 18, margin: 0 }} />
+                  {words}
+                </label>
+              ))}
+            </div>
+          </div>
+          <label style={{ display: "grid", gap: 2 }}>
+            <span style={{ display: "flex", gap: 10, alignItems: "center", ...label }}>
+              <input type="checkbox" checked={form.printAiCopy !== false} onChange={(e) => setForm({ ...form, printAiCopy: e.target.checked })} style={{ width: 18, height: 18 }} />
+              Copy pictures that are not 4K with AI first
+            </span>
+            <span style={{ ...help, marginLeft: 28 }}>
+              On: when a picture is not 4K (its longest side under 3,840 px), Prepare for print first has the AI make a 4K copy of it (the same picture, nothing changed — about ₹{form.price4kPerImageInr ?? 8.7}), then Topaz enlarges that copy. The cleanest print in the logo tests. The AI is told to keep faces and words exactly, but compare with the original in the order window — one click goes back to the uploaded picture. Off: Topaz enlarges the uploaded picture alone.
+            </span>
+          </label>
           <label style={{ display: "grid", gap: 2 }}>
             <span style={{ display: "flex", gap: 10, alignItems: "center", ...label }}>
               <input type="checkbox" checked={form.printDropSpecks !== false} onChange={(e) => setForm({ ...form, printDropSpecks: e.target.checked })} style={{ width: 18, height: 18 }} />
@@ -363,9 +397,10 @@ export default function AiSettingsPage() {
         ))}
         <div style={{ background: t.surface2, border: `1px solid ${t.border}`, borderRadius: 10, padding: "12px 14px", fontSize: 13, display: "grid", gap: 4 }}>
           <b>What this costs</b>
-          <span>One new design request: <b>{rupees(perRequest)}</b> ({form.imagesPerRequest} pictures × {rupees(form.pricePerImageInr)})</span>
+          <span>One new design request: <b>{rupees(perRequest)}</b> ({form.imagesPerRequest} pictures × {rupees(designPrice)}, 4K)</span>
           <span>One “change it” request: <b>{rupees(perChange)}</b> (1 picture)</span>
           <span>One celebrity photo redrawn by Grok: <b>{rupees(form.grokPricePerImageInr)}</b> (1 picture)</span>
+          <span>One print picture enlarged by Topaz: <b>{rupees(form.topazPricePerUnitInr)}</b> (1 unit, up to 24 megapixels)</span>
           <span>One customer using all {form.dailyPerUser} requests in a day: up to <b>{rupees(worstDay)}</b></span>
           {requestsInCap !== null && <span>Google's monthly cap covers about <b>{requestsInCap}</b> new design requests</span>}
           {grokInCap !== null && <span>Grok's monthly cap covers about <b>{grokInCap}</b> Grok pictures</span>}

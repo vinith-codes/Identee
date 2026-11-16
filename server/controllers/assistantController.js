@@ -22,7 +22,7 @@ import { brainConfigured, brainReply, CONCEPTS_PER_SHEET, PIECES } from "../serv
 import { chatModel, MEMORY_MAX } from "../services/aiChatService.js";
 import { developPrompt, matchPrompt, mockSheet, piecesOf, SHEET_COST_FACTOR, SHEET_RATIO, SHEET_SIZE, sheetPrompt, tryOnPrompt, wornPrompt } from "../services/conceptSheets.js";
 import User from "../models/userModel.js";
-import { googleCapped, grokCapped, isOurUpload, readSettings, usedToday, whyOff } from "./aiController.js";
+import { DESIGN_SIZE, designPictureCost, googleCapped, grokCapped, isOurUpload, readSettings, usedToday, whyOff } from "./aiController.js";
 import { expectedWords, missingWords, readWords, wordCheckReady } from "../services/wordCheck.js";
 
 const PROMPT_MAX = 2000;
@@ -266,7 +266,8 @@ export const makeDevelop = asyncHandler(async (req, res) => {
     const prompt = developPrompt({ concept, n, piece, teeIsDark, logo: Boolean(logo), change: [change, extraChange].filter(Boolean).join(". ") || null });
     return withGrok(
       s,
-      () => generateImage({ prompt, image, images: logo ? [logo] : [], ratio: ratioOf[piece] }),
+      // (the pieces go on the customer's tee: drawn at 4K since 15 Nov 2026; the sheet itself stays SHEET_SIZE)
+      () => generateImage({ prompt, image, images: logo ? [logo] : [], ratio: ratioOf[piece], size: DESIGN_SIZE }),
       () => xaiEditImage({ prompt, image, ratio: ratioOf[piece] }),
       `${piece} of concept ${n}${extraChange ? " (spelling)" : ""}`,
     );
@@ -283,7 +284,9 @@ export const makeDevelop = asyncHandler(async (req, res) => {
         const expected = expectedWords(concept[m.piece]);
         if (!expected.length) return;
         checks++;
-        const seen = await readWords(m.made.buffer, m.made.mime);
+        // (a 4K piece is read from a 1,536 px copy, 15 Nov 2026: the words read the same, the text AI's bill stays small)
+        const copy = await smallCopy({ data: m.made.buffer, mime: m.made.mime }, 1536).catch(() => ({ data: m.made.buffer, mime: m.made.mime }));
+        const seen = await readWords(copy.data, copy.mime);
         if (!seen) return;
         const missing = missingWords(expected, seen);
         if (!missing.length) return;
@@ -319,7 +322,7 @@ export const makeDevelop = asyncHandler(async (req, res) => {
     prompt: `Concept ${n}: ${concept.title}${change ? ` — ${change}` : ""}${checks ? ` (words checked${redraws ? `, ${redraws} redrawn` : ""})` : ""}`.slice(0, PROMPT_MAX),
     style: concept.style || undefined,
     images: made.length + redraws,
-    costInr: Math.round((made.reduce((sum, m) => sum + (m.byGrok ? s.grokPricePerImageInr : s.pricePerImageInr) * (m.redrawn ? 2 : 1), 0) + checks * (s.chatPricePerMessageInr || 0)) * 100) / 100,
+    costInr: Math.round((made.reduce((sum, m) => sum + (m.byGrok ? s.grokPricePerImageInr : designPictureCost(s)) * (m.redrawn ? 2 : 1), 0) + checks * (s.chatPricePerMessageInr || 0)) * 100) / 100,
     model: byGrok ? xaiModel() : aiImageModel(),
   });
   await rememberPictures(
@@ -354,13 +357,13 @@ export const makeMatch = asyncHandler(async (req, res) => {
     ? { made: await mockPiece(piece), byGrok: false }
     : await withGrok(
         s,
-        () => generateImage({ prompt, image, ratio }),
+        () => generateImage({ prompt, image, ratio, size: DESIGN_SIZE }), // (a piece for the tee: 4K, 15 Nov 2026)
         () => xaiEditImage({ prompt, image, ratio }),
         `matching ${piece}`,
       );
   const cut = await cutOutPlainBackground(made.buffer).then(trimClearEdges).catch(() => ({ buffer: made.buffer, mime: made.mime, width: 1024, height: 1024, cut: false }));
   const stored = await uploadFile(cut.buffer, cut.mime, "ai-designs");
-  await AiUsage.create({ user: req.user._id, kind: "match", prompt: `Matching ${piece}: ${brief}`.slice(0, PROMPT_MAX), images: 1, costInr: byGrok ? s.grokPricePerImageInr : s.pricePerImageInr, model: byGrok ? xaiModel() : aiImageModel() });
+  await AiUsage.create({ user: req.user._id, kind: "match", prompt: `Matching ${piece}: ${brief}`.slice(0, PROMPT_MAX), images: 1, costInr: byGrok ? s.grokPricePerImageInr : designPictureCost(s), model: byGrok ? xaiModel() : aiImageModel() });
   await rememberPictures(req.user._id, [{ url: stored.url, kind: "ai", about: `matching ${piece} — ${brief}`.slice(0, 200), width: cut.width, height: cut.height }]);
   res.status(201).json({ piece: { piece, url: stored.url, width: cut.width, height: cut.height, byGrok }, left: Math.max(0, s.dailyPerUser - used - 1) });
 });
