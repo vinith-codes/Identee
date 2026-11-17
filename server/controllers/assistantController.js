@@ -24,6 +24,7 @@ import { developPrompt, matchPrompt, mockSheet, piecesOf, SHEET_COST_FACTOR, SHE
 import User from "../models/userModel.js";
 import { DESIGN_SIZE, designPictureCost, googleCapped, grokCapped, isOurUpload, noPicturesLeft, readSettings, usedToday, whyOff } from "./aiController.js";
 import { expectedWords, missingWords, readWords, wordCheckReady } from "../services/wordCheck.js";
+import { AI_AREAS_MAX, spotWhereOf } from "../data/printPositions.js";
 
 const PROMPT_MAX = 2000;
 const mockImages = () => process.env.AI_IMAGE_PROVIDER?.trim() === "mock";
@@ -84,8 +85,8 @@ export const makeAssist = asyncHandler(async (req, res) => {
       .map((h) => ({ who: h?.who === "customer" ? "customer" : "assistant", text: String(h?.text || "").slice(0, 500) }))
       .filter((h) => h.text);
   const areas = (Array.isArray(req.body?.areas) ? req.body.areas : [])
-    .slice(0, 30)
-    .map((a) => ({ key: text(a?.key, 40), label: text(a?.label, 60), free: a?.free !== false }))
+    .slice(0, AI_AREAS_MAX) // (every place a garment can offer: none is silently left out)
+    .map((a) => ({ key: text(a?.key, 40), label: text(a?.label, 60), free: a?.free !== false, ...spotWhereOf(a) }))
     .filter((a) => a.key);
   const sheets = (Array.isArray(req.body?.sheets) ? req.body.sheets : [])
     .slice(-8)
@@ -488,9 +489,11 @@ export const makeTryOn = asyncHandler(async (req, res) => {
       if (err?.status === 422 || err?.noImage) {
         res.status(422);
         throw new Error(
-          side === "front" || own
-            ? "The picture service wouldn’t use this photo. Try a clear photo of yourself facing the camera — or use “Photo of it worn” instead."
-            : `The picture service wouldn’t make the ${SIDE_NAME[side]} view from your photo. The other photos are kept.`,
+          side === "back" && own
+            ? "The picture service wouldn’t use this photo. Try a clear photo of your back, standing straight — or use “Photo of it worn” instead."
+            : side === "front" || own
+              ? "The picture service wouldn’t use this photo. Try a clear photo of yourself facing the camera — or use “Photo of it worn” instead."
+              : `The picture service wouldn’t make the ${SIDE_NAME[side]} view from your photo. The other photos are kept.`,
         );
       }
       throw err;

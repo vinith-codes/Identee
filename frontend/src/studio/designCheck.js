@@ -8,6 +8,11 @@
 //   small    letters too small to read on fabric
 //   contrast ink colour too close to the tee colour
 //   outside  part of an item hangs over the print area's edge (it gets cut)
+// and for a print in a free place (a spot, data/panelModel.js — 14 Nov 2026), in place of "hangs over the edge":
+//   too near the collar / side seam / hem, bigger than the biggest print (on the size being looked at: the print is
+//   moved or shrunk there), two prints within 1 cm (pressed as one), an item reaching past its print's box
+// A fix that changes a whole spot is a spotFix (panelModel.js applySpotFix), plain data so it can be kept in the chat.
+import { JOIN_CM, SAFE_CM, maxPrintFor, nearPairs, spotLimits } from "./panelModel";
 
 export const MIN_DPI = 100; // below this a print looks soft
 const GOOD_DPI = 150;
@@ -33,9 +38,11 @@ export const contrast = (a, b) => {
 /**
  * @param elements   the design (layout v2: x / y / width / height in % of the print area)
  * @param positions  the garment's print areas
- * @param opts       { fabricHex, inkDefault, cmOf(position) -> { wCm, hCm } }
- * @returns [{ id, elId, position, kind, text, fixLabel, patch, measure }]
- *          patch is what the fix changes on the element; measure = re-measure the text after it
+ * @param opts       { fabricHex, inkDefault, cmOf(position) -> { wCm, hCm }, garment, size, maxPrint (for the spots),
+ *                    sizes (the tee sizes a spot is checked on; default: size) }
+ * @returns [{ id, elId, position, kind, text, fixLabel, patch, measure, spotFix? }]
+ *          patch is what the fix changes on the element; measure = re-measure the text after it;
+ *          spotFix (a spot) = what the fix changes on the whole print
  */
 // How sharp a picture will print: dots per inch now, and after the shop has it enlarged for printing.
 // (Before printing, the admin can have a low picture redrawn about 4× larger — see "Prepare for print" in the
@@ -60,7 +67,7 @@ export function printSharpness(pxW, printCm, canEnlarge = true) {
 
 //   kept   Map elId -> width (%) at which the customer chose "Keep this size": no small-photo note for it again
 //          unless the picture is made bigger than that (15 Nov 2026)
-export function checkDesign(elements, positions, { fabricHex, inkDefault, cmOf, canEnlarge = true, kept = null }) {
+export function checkDesign(elements, positions, { fabricHex, inkDefault, cmOf, canEnlarge = true, kept = null, garment = null, size = "M", sizes = null, maxPrint = null }) {
   const issues = [];
   for (const el of elements) {
     const pos = positions.find((p) => p.key === el.position);
@@ -124,7 +131,10 @@ export function checkDesign(elements, positions, { fabricHex, inkDefault, cmOf, 
     const cx = (el.x || 0) + (el.width || 0) / 2;
     const cy = (el.y || 0) + (el.height || 0) / 2;
     const over = Math.max(w / 2 - cx, cx + w / 2 - 100, h / 2 - cy, cy + h / 2 - 100);
-    if (over > 2) {
+    if (over > 2 && pos.spot) {
+      // a free place's page is its box: the box grows round the item (then the checks below see if it still fits the tee)
+      add("outside", `${name} reaches past the edge of ${pos.label}. That part would be cut off.`, "Fit the print round it", {}, false, { spotFix: { kind: "rebox", key: pos.key } });
+    } else if (over > 2) {
       const k = Math.min(1, 96 / w, 96 / h); // shrink only if it cannot fit at all
       const hw = (w * k) / 2;
       const hh = (h * k) / 2;
@@ -141,7 +151,60 @@ export function checkDesign(elements, positions, { fabricHex, inkDefault, cmOf, 
       );
     }
   }
-  return issues;
+  return [...issues, ...spotIssues(elements, positions, { garment, size, sizes, maxPrint })];
+}
+
+// The free places (spots) on every tee size the check is asked about (the room: every size the garment comes in, so
+// a print designed on M that moves on 2XL says so): moved or shrunk to keep clear of the seams, or close to another
+// print. `on` = "size M" or "sizes 2XL and 3XL"; top = how far below the collar seam a print starts on those sizes.
+const sizesInWords = (list) => (list.length === 1 ? `size ${list[0]}` : `sizes ${list.slice(0, -1).join(", ")} and ${list.at(-1)}`);
+const cmWords = (n) => String(Math.ceil(n * 10 - 1e-6) / 10);
+const SPOT_SAYS = {
+  big: (p, on, [w, h]) => [`${p.label} is bigger than the biggest print on ${on} (${w} × ${h} cm), so it prints smaller there.`, "Make it fit"],
+  collar: (p, on, mp, top) =>
+    p.side === "left" || p.side === "right"
+      ? [`${p.label} is too near the shoulder seam on ${on}. A print keeps ${SAFE_CM.shoulder} cm clear of it, so it moves down.`, "Move it down"]
+      : top > SAFE_CM.collar + 0.05
+        ? [`${p.label} is too near the collar opening on ${on}. A print starts at least ${cmWords(top)} cm below the collar seam on this top, so it moves down.`, "Move it down"]
+        : [`${p.label} is too near the collar on ${on}. A print keeps ${SAFE_CM.collar} cm clear of the collar seam, so it moves down.`, "Move it down"],
+  hem: (p, on) =>
+    p.side === "left" || p.side === "right"
+      ? [`${p.label} is too near the sleeve's hem on ${on}. A print keeps ${SAFE_CM.sleeveHem} cm clear of it, so it moves up.`, "Move it up"]
+      : [`${p.label} is too near the hem on ${on}. A print keeps ${SAFE_CM.hem} cm clear of it, so it moves up.`, "Move it up"],
+  side: (p, on) =>
+    p.side === "left" || p.side === "right"
+      ? [`${p.label} is too wide for the sleeve on ${on}, so it prints smaller there.`, "Make it fit"]
+      : [`${p.label} is too near the side seam on ${on}. A print keeps ${SAFE_CM.sideSeam} cm in from it, so it moves in.`, "Move it in"],
+};
+function spotIssues(elements, positions, { garment, size, sizes, maxPrint }) {
+  const usedKeys = [...new Set(elements.map((e) => e.position))];
+  const firstEl = (key) => elements.find((e) => e.position === key);
+  const looked = sizes?.length ? sizes : [size];
+  const out = [];
+  for (const p of positions.filter((x) => x.spot && usedKeys.includes(x.key))) {
+    // the first reason, and every size it happens on (the fix is worked out when tapped: panelModel.js applySpotFix)
+    const why = ["big", "collar", "hem", "side"].find((k) => looked.some((sz) => p.clamped?.[sz]?.includes(k)));
+    if (!why) continue;
+    const on = looked.filter((sz) => p.clamped?.[sz]?.includes(why));
+    const [text, fixLabel] = SPOT_SAYS[why](p, sizesInWords(on), maxPrintFor(maxPrint, on[0], p.side), spotLimits(garment, on[0], p.side, maxPrint).top);
+    out.push({ id: `${p.key}:spot-${why}`, elId: firstEl(p.key)?.id, position: p.key, area: p.label, kind: `spot-${why}`, text, fixLabel, patch: {}, measure: false, spotFix: { kind: "fit", key: p.key, sizes: on } });
+  }
+  for (const [a, b] of nearPairs(positions, usedKeys, size, garment)) {
+    const [one, two] = a.spot ? [a, b] : [b, a];
+    out.push({
+      id: `${one.key}+${two.key}:join`,
+      elId: firstEl(one.key)?.id,
+      position: one.key,
+      area: one.label,
+      kind: "join",
+      text: `${one.label} and ${two.label} are less than ${JOIN_CM} cm apart, so they would be pressed as one print.`,
+      fixLabel: "Join them into one print",
+      patch: {},
+      measure: false,
+      spotFix: { kind: "join", keys: [one.key, two.key] },
+    });
+  }
+  return out;
 }
 
 // Ink colours from the palette that show well on this tee, best first.

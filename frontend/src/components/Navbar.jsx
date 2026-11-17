@@ -16,6 +16,7 @@ import NotifyStrip from "./NotifyStrip";
 import TestModeBand from "./TestModeBand";
 import { imageUrl } from "../utils/imageUrl";
 import { useBackClose } from "../utils/backClose";
+import { forgetDesignRoom } from "../studio/chatStore";
 
 
 const slugify = (s) => s.toLowerCase().replace(/\s+/g, "-");
@@ -154,6 +155,7 @@ export default function Navbar() {
 
   const handleLogout = () => {
     localStorage.removeItem("userInfo");
+    forgetDesignRoom(); // (13 Nov 2026) the design room and chats left in this browser go too: the next person sees none of it
     setUser(null);
     navigate("/");
   };

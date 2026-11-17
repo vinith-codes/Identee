@@ -1,0 +1,760 @@
+{
+ "about": "Free placement phase 2 (docs/FREE_PLACEMENT.md): the Oversized tee as the admin saved it, and a design with 4 prints in free places (base size M): Front 1 = a logo 9 x 9 cm (same cm on every size), 8 cm under the collar seam, 9 cm to the wearer's left, moved from Left Chest; Front 2 = IDENTEE 24 x 6 cm (grows), 40 cm down, centred; Back 1 = a picture 30 x 38 cm (grows), 10 cm down, centred; Left sleeve 1 = words 8 x 6 cm, 4 cm below the shoulder seam.",
+ "garment": {
+  "key": "oversized-tee",
+  "label": "Oversized Tee",
+  "category": "Boys Oversized",
+  "fit": "oversized",
+  "isActive": true,
+  "sizes": [
+   "S",
+   "M",
+   "L",
+   "XL",
+   "2XL",
+   "3XL"
+  ],
+  "sizeChart": [
+   {
+    "size": "S",
+    "chest": 44,
+    "shoulder": 22,
+    "length": 29
+   },
+   {
+    "size": "M",
+    "chest": 46,
+    "shoulder": 23,
+    "length": 30
+   },
+   {
+    "size": "L",
+    "chest": 48,
+    "shoulder": 24,
+    "length": 31
+   },
+   {
+    "size": "XL",
+    "chest": 50,
+    "shoulder": 25,
+    "length": 32
+   },
+   {
+    "size": "2XL",
+    "chest": 52,
+    "shoulder": 26,
+    "length": 33
+   },
+   {
+    "size": "3XL",
+    "chest": 54,
+    "shoulder": 27,
+    "length": 34
+   }
+  ],
+  "colors": [
+   {
+    "name": "Black",
+    "slug": "black",
+    "hex": "#1C1C1D"
+   },
+   {
+    "name": "White",
+    "slug": "white",
+    "hex": "#F4F3EF"
+   }
+  ],
+  "printAreas": [
+   {
+    "key": "centre-front",
+    "offered": true,
+    "width": 28,
+    "height": 32,
+    "bySize": null
+   },
+   {
+    "key": "left-chest",
+    "offered": true,
+    "width": 12,
+    "height": 13,
+    "bySize": null
+   },
+   {
+    "key": "right-chest",
+    "offered": true,
+    "width": 12,
+    "height": 13,
+    "bySize": null
+   },
+   {
+    "key": "chest-line",
+    "offered": true,
+    "width": 26,
+    "height": 7,
+    "bySize": {
+     "XS": [
+      22,
+      6
+     ],
+     "S": [
+      22,
+      6
+     ],
+     "M": [
+      26,
+      7
+     ],
+     "L": [
+      26,
+      7
+     ],
+     "XL": [
+      26,
+      7
+     ],
+     "2XL": [
+      30,
+      8
+     ],
+     "3XL": [
+      30,
+      8
+     ]
+    }
+   },
+   {
+    "key": "mid-front",
+    "offered": true,
+    "width": 26,
+    "height": 14,
+    "bySize": {
+     "XS": [
+      22,
+      12
+     ],
+     "S": [
+      22,
+      12
+     ],
+     "M": [
+      26,
+      14
+     ],
+     "L": [
+      26,
+      14
+     ],
+     "XL": [
+      26,
+      14
+     ],
+     "2XL": [
+      30,
+      16
+     ],
+     "3XL": [
+      30,
+      16
+     ]
+    }
+   },
+   {
+    "key": "full-front",
+    "offered": true,
+    "width": 35,
+    "height": 52,
+    "bySize": {
+     "XS": [
+      35,
+      52
+     ],
+     "S": [
+      35,
+      52
+     ],
+     "M": [
+      35,
+      52
+     ],
+     "L": [
+      35,
+      52
+     ],
+     "XL": [
+      35,
+      52
+     ],
+     "2XL": [
+      37,
+      54
+     ],
+     "3XL": [
+      37,
+      54
+     ]
+    }
+   },
+   {
+    "key": "vertical-front",
+    "offered": true,
+    "width": 10,
+    "height": 52,
+    "bySize": {
+     "XS": [
+      10,
+      52
+     ],
+     "S": [
+      10,
+      52
+     ],
+     "M": [
+      10,
+      52
+     ],
+     "L": [
+      10,
+      52
+     ],
+     "XL": [
+      10,
+      52
+     ],
+     "2XL": [
+      10,
+      54
+     ],
+     "3XL": [
+      10,
+      54
+     ]
+    }
+   },
+   {
+    "key": "front-left-vertical",
+    "offered": true,
+    "width": 10,
+    "height": 52,
+    "bySize": {
+     "XS": [
+      10,
+      52
+     ],
+     "S": [
+      10,
+      52
+     ],
+     "M": [
+      10,
+      52
+     ],
+     "L": [
+      10,
+      52
+     ],
+     "XL": [
+      10,
+      52
+     ],
+     "2XL": [
+      10,
+      54
+     ],
+     "3XL": [
+      10,
+      54
+     ]
+    }
+   },
+   {
+    "key": "front-right-vertical",
+    "offered": true,
+    "width": 10,
+    "height": 52,
+    "bySize": {
+     "XS": [
+      10,
+      52
+     ],
+     "S": [
+      10,
+      52
+     ],
+     "M": [
+      10,
+      52
+     ],
+     "L": [
+      10,
+      52
+     ],
+     "XL": [
+      10,
+      52
+     ],
+     "2XL": [
+      10,
+      54
+     ],
+     "3XL": [
+      10,
+      54
+     ]
+    }
+   },
+   {
+    "key": "lower-left",
+    "offered": true,
+    "width": 10,
+    "height": 10,
+    "bySize": {
+     "XS": [
+      10,
+      10
+     ],
+     "S": [
+      10,
+      10
+     ],
+     "M": [
+      10,
+      10
+     ],
+     "L": [
+      10,
+      10
+     ],
+     "XL": [
+      10,
+      10
+     ],
+     "2XL": [
+      10,
+      10
+     ],
+     "3XL": [
+      10,
+      10
+     ]
+    }
+   },
+   {
+    "key": "lower-right",
+    "offered": true,
+    "width": 10,
+    "height": 10,
+    "bySize": {
+     "XS": [
+      10,
+      10
+     ],
+     "S": [
+      10,
+      10
+     ],
+     "M": [
+      10,
+      10
+     ],
+     "L": [
+      10,
+      10
+     ],
+     "XL": [
+      10,
+      10
+     ],
+     "2XL": [
+      10,
+      10
+     ],
+     "3XL": [
+      10,
+      10
+     ]
+    }
+   },
+   {
+    "key": "full-back",
+    "offered": true,
+    "width": 38,
+    "height": 42,
+    "bySize": null
+   },
+   {
+    "key": "nape",
+    "offered": true,
+    "width": 7,
+    "height": 4,
+    "bySize": {
+     "XS": [
+      7,
+      4
+     ],
+     "S": [
+      7,
+      4
+     ],
+     "M": [
+      7,
+      4
+     ],
+     "L": [
+      7,
+      4
+     ],
+     "XL": [
+      7,
+      4
+     ],
+     "2XL": [
+      7,
+      4
+     ],
+     "3XL": [
+      7,
+      4
+     ]
+    }
+   },
+   {
+    "key": "top-back",
+    "offered": true,
+    "width": 35,
+    "height": 10,
+    "bySize": {
+     "XS": [
+      35,
+      10
+     ],
+     "S": [
+      35,
+      10
+     ],
+     "M": [
+      35,
+      10
+     ],
+     "L": [
+      35,
+      10
+     ],
+     "XL": [
+      35,
+      10
+     ],
+     "2XL": [
+      37,
+      10
+     ],
+     "3XL": [
+      37,
+      10
+     ]
+    }
+   },
+   {
+    "key": "centre-back",
+    "offered": true,
+    "width": 35,
+    "height": 52,
+    "bySize": {
+     "XS": [
+      35,
+      52
+     ],
+     "S": [
+      35,
+      52
+     ],
+     "M": [
+      35,
+      52
+     ],
+     "L": [
+      35,
+      52
+     ],
+     "XL": [
+      35,
+      52
+     ],
+     "2XL": [
+      37,
+      54
+     ],
+     "3XL": [
+      37,
+      54
+     ]
+    }
+   },
+   {
+    "key": "mid-back",
+    "offered": true,
+    "width": 30,
+    "height": 20,
+    "bySize": {
+     "XS": [
+      26,
+      18
+     ],
+     "S": [
+      26,
+      18
+     ],
+     "M": [
+      30,
+      20
+     ],
+     "L": [
+      30,
+      20
+     ],
+     "XL": [
+      30,
+      20
+     ],
+     "2XL": [
+      34,
+      22
+     ],
+     "3XL": [
+      34,
+      22
+     ]
+    }
+   },
+   {
+    "key": "lower-back",
+    "offered": true,
+    "width": 30,
+    "height": 10,
+    "bySize": {
+     "XS": [
+      26,
+      9
+     ],
+     "S": [
+      26,
+      9
+     ],
+     "M": [
+      30,
+      10
+     ],
+     "L": [
+      30,
+      10
+     ],
+     "XL": [
+      30,
+      10
+     ],
+     "2XL": [
+      34,
+      11
+     ],
+     "3XL": [
+      34,
+      11
+     ]
+    }
+   },
+   {
+    "key": "vertical-back",
+    "offered": true,
+    "width": 10,
+    "height": 51,
+    "bySize": {
+     "XS": [
+      10,
+      51
+     ],
+     "S": [
+      10,
+      51
+     ],
+     "M": [
+      10,
+      51
+     ],
+     "L": [
+      10,
+      51
+     ],
+     "XL": [
+      10,
+      51
+     ],
+     "2XL": [
+      10,
+      54
+     ],
+     "3XL": [
+      10,
+      54
+     ]
+    }
+   },
+   {
+    "key": "left-sleeve",
+    "offered": true,
+    "width": 9,
+    "height": 10,
+    "bySize": null
+   },
+   {
+    "key": "right-sleeve",
+    "offered": true,
+    "width": 9,
+    "height": 10,
+    "bySize": null
+   },
+   {
+    "key": "left-leg",
+    "offered": false,
+    "width": 10,
+    "height": 10,
+    "bySize": null
+   },
+   {
+    "key": "right-leg",
+    "offered": false,
+    "width": 10,
+    "height": 10,
+    "bySize": null
+   }
+  ]
+ },
+ "design": {
+  "_id": "000000000000000000000f02",
+  "garmentType": "oversized-tee",
+  "color": "black",
+  "size": "M",
+  "layoutVersion": 2,
+  "name": "Three free places",
+  "mockups": {},
+  "players": [],
+  "elements": [
+   {
+    "type": "image",
+    "src": "/uploads/designs/1792737681289-15cb34c0.png",
+    "position": "spot-1",
+    "side": "front",
+    "spot": {
+     "key": "spot-1",
+     "side": "front",
+     "label": "Front 1",
+     "from": "left-chest",
+     "downCm": 8,
+     "acrossCm": 9,
+     "wCm": 9,
+     "hCm": 9,
+     "base": "M",
+     "scale": "F"
+    },
+    "x": 0,
+    "y": 0,
+    "width": 100,
+    "height": 100,
+    "rotation": 0,
+    "zIndex": 1
+   },
+   {
+    "type": "text",
+    "text": "IDENTEE",
+    "fontFamily": "Anton",
+    "fontSizePct": 85,
+    "color": "#FFFFFF",
+    "bold": false,
+    "italic": false,
+    "underline": false,
+    "align": "center",
+    "effect": "straight",
+    "letterSpacingPct": 0,
+    "lineHeight": 1.05,
+    "strokeWidthPct": 0,
+    "position": "spot-2",
+    "side": "front",
+    "spot": {
+     "key": "spot-2",
+     "side": "front",
+     "label": "Front 2",
+     "from": null,
+     "downCm": 40,
+     "acrossCm": 0,
+     "wCm": 24,
+     "hCm": 6,
+     "base": "M",
+     "scale": "G"
+    },
+    "x": 2,
+    "y": 5,
+    "width": 96,
+    "height": 90,
+    "rotation": 0,
+    "zIndex": 2
+   },
+   {
+    "type": "image",
+    "src": "/uploads/designs/1792737681289-15cb34c0.png",
+    "position": "spot-3",
+    "side": "back",
+    "spot": {
+     "key": "spot-3",
+     "side": "back",
+     "label": "Back 1",
+     "from": null,
+     "downCm": 10,
+     "acrossCm": 0,
+     "wCm": 30,
+     "hCm": 38,
+     "base": "M",
+     "scale": "G"
+    },
+    "x": 0,
+    "y": 0,
+    "width": 100,
+    "height": 100,
+    "rotation": 0,
+    "zIndex": 3
+   },
+   {
+    "type": "text",
+    "text": "26",
+    "fontFamily": "Anton",
+    "fontSizePct": 80,
+    "color": "#FFFFFF",
+    "bold": false,
+    "italic": false,
+    "underline": false,
+    "align": "center",
+    "effect": "straight",
+    "letterSpacingPct": 0,
+    "lineHeight": 1.05,
+    "strokeWidthPct": 0,
+    "position": "spot-4",
+    "side": "left",
+    "spot": {
+     "key": "spot-4",
+     "side": "left",
+     "label": "Left sleeve 1",
+     "from": null,
+     "downCm": 4,
+     "acrossCm": 0,
+     "wCm": 8,
+     "hCm": 6,
+     "base": "M",
+     "scale": "F"
+    },
+    "x": 5,
+    "y": 5,
+    "width": 90,
+    "height": 90,
+    "rotation": 0,
+    "zIndex": 4
+   }
+  ]
+ }
+}

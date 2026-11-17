@@ -33,6 +33,7 @@ import artCategoryRoutes from "./routes/artCategoryRoutes.js";
 import artDesignRoutes from "./routes/artDesignRoutes.js";
 import settingRoutes from "./routes/settingRoutes.js";
 import { checkMaintenanceMode } from "./middleware/maintenanceMiddleware.js";
+import { waitForDatabase } from "./utils/dbReady.js";
 import cors from "cors";
 import "./utils/subscriptionCron.js";
 import "./utils/razorpayInstance.js";
@@ -89,6 +90,8 @@ app.use("/api", (req, res, next) => {
   res.set("Cache-Control", "no-store");
   next();
 });
+// every API request waits for the database while the backend is starting (utils/dbReady.js, 13 Nov 2026)
+app.use("/api", waitForDatabase);
 
 // Razorpay webhook needs the exact raw body for its signature, so it is
 // mounted before express.json.

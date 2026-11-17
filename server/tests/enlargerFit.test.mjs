@@ -28,7 +28,7 @@ test("a shrunk picture asks for more enlarging, at most 4× (the rest is a plain
 });
 
 // Replicate's "throttled" answer (under $5 credit: 6 new runs a minute): wait as told, then try again
-import { createPrediction, waitSeconds } from "../services/replicateService.js";
+import { createPrediction, waitSeconds, CREATE_GAP_MS, THROTTLE_TRIES } from "../services/replicateService.js";
 
 test("the wait is read from Replicate's answer", () => {
   assert.equal(waitSeconds(null, "Request was throttled. ... Your rate limit resets in ~5s."), 6);
@@ -36,7 +36,7 @@ test("the wait is read from Replicate's answer", () => {
   assert.equal(waitSeconds(null, "no number here"), 10);
 });
 
-test("a throttled run waits and is tried again; it gives up with plain words after 8 tries", async () => {
+test("a throttled run waits and is tried again; it gives up with plain words only after about 10 minutes of tries", async () => {
   const realFetch = globalThis.fetch;
   process.env.REPLICATE_API_TOKEN = "test-token-not-real";
   const throttled = () => new Response(JSON.stringify({ detail: "Request was throttled. Your rate limit resets in ~1s." }), { status: 429 });
@@ -51,8 +51,30 @@ test("a throttled run waits and is tried again; it gives up with plain words aft
 
     calls = 0;
     globalThis.fetch = async () => (++calls, throttled());
-    await assert.rejects(createPrediction({}, () => {}, async () => {}), /Wait a minute and press Prepare again/);
-    assert.equal(calls, 8);
+    await assert.rejects(createPrediction({}, () => {}, async () => {}), /Wait a few minutes and press Prepare again/);
+    assert.equal(calls, THROTTLE_TRIES);
+    assert.ok(THROTTLE_TRIES * 10 >= 600, "keeps trying for about 10 minutes");
+  } finally {
+    globalThis.fetch = realFetch;
+    delete process.env.REPLICATE_API_TOKEN;
+  }
+});
+
+test("new runs are spaced so Replicate's one-run-every-10-s limit is never reached (Prepare all)", async () => {
+  const realFetch = globalThis.fetch;
+  process.env.REPLICATE_API_TOKEN = "test-token-not-real";
+  try {
+    let calls = 0;
+    globalThis.fetch = async () => (++calls, new Response(JSON.stringify({ id: "p" + calls, status: "starting" }), { status: 201 }));
+    const waits = [];
+    const sleep = async (ms) => waits.push(ms);
+    // two pictures asked for at the same moment: the second waits for its turn, about 10 s
+    const [a, b] = await Promise.all([createPrediction({}, () => {}, sleep), createPrediction({}, () => {}, sleep)]);
+    assert.equal(calls, 2);
+    assert.notEqual(a.id, b.id);
+    assert.ok(waits.length >= 1, "the second run waited");
+    const last = waits[waits.length - 1];
+    assert.ok(last > CREATE_GAP_MS - 1000 && last <= CREATE_GAP_MS, `waited ${last} ms`);
   } finally {
     globalThis.fetch = realFetch;
     delete process.env.REPLICATE_API_TOKEN;

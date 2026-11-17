@@ -127,7 +127,7 @@ test("Try it on me, the back from the customer's own back photo: dressed like th
   const r = await ask(makeTryOn, { image: await dataUrl("#000000"), side: "back", backPhoto: await dataUrl("#c08060"), ref: "/uploads/ai-worn/1-me.jpg" });
   assert.equal(r.google.length, 1, r.message);
   assert.match(textOf(r.google[0]), /photo of a person seen from behind/);
-  assert.match(textOf(r.google[0]), /keep their face, hair, body, pose/);
+  assert.match(textOf(r.google[0]), /keep their hair, head, body, pose, hands/);
   assert.equal(r.ours.length, 0, "their own back photo is used, not the front try-on");
 });
 

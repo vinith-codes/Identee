@@ -11,18 +11,25 @@ import { THEME } from "../theme/theme";
 import { useLockBodyScroll } from "../utils/lockScroll";
 import { useBackClose } from "../utils/backClose";
 import { imageUrl } from "../utils/imageUrl";
+import { spotNameIn } from "../studio/panelModel";
 
 const SIDES = [
   ["front", "Front"],
   ["back", "Back"],
   ["left", "Left sleeve"],
   ["right", "Right sleeve"],
+  // the IDENTEE woven label sewn inside the back neck, close up (13–14 Nov 2026; designs saved before have none)
+  ["label", "Label"],
 ];
+const NARROW = "(max-width: 560px)";
 const AREA_NAMES = {
   "centre-front": "Centre Front", "left-chest": "Left Chest", "right-chest": "Right Chest", "full-back": "Full Back",
   "left-sleeve": "Left Sleeve", "right-sleeve": "Right Sleeve", "full-front": "Full Front", "vertical-front": "Vertical Front",
   "front-right-vertical": "Front Right Vertical", "lower-left": "Lower Left", "lower-right": "Lower Right", "top-back": "Top Back",
   "centre-back": "Centre Back", "lower-back": "Lower Back", "vertical-back": "Vertical Back",
+  // free placement phase 1 (14 Nov 2026) — the same names as server/data/printPositions.js
+  "chest-line": "Chest Line", "mid-front": "Mid Front", "front-left-vertical": "Front Left Vertical", "mid-back": "Mid Back",
+  nape: "Back Neck", "left-leg": "Shorts – Left Leg", "right-leg": "Shorts – Right Leg",
 };
 
 /**
@@ -36,6 +43,16 @@ export default function DesignPreview({ designId, onClose, extra }) {
   const [design, setDesign] = useState(null);
   const [error, setError] = useState("");
   const [side, setSide] = useState("front");
+  // a phone: the picture on top at full width, the details under it (side by side, the picture was ~150 px wide and
+  // its five small pictures — with the neck label's — too narrow for their names)
+  const [narrow, setNarrow] = useState(() => !!window.matchMedia?.(NARROW).matches);
+  useEffect(() => {
+    const mq = window.matchMedia?.(NARROW);
+    if (!mq) return undefined;
+    const on = () => setNarrow(mq.matches);
+    mq.addEventListener?.("change", on);
+    return () => mq.removeEventListener?.("change", on);
+  }, []);
 
   useEffect(() => {
     let alive = true;
@@ -58,6 +75,8 @@ export default function DesignPreview({ designId, onClose, extra }) {
   const available = SIDES.filter(([k]) => mockups[k]);
   const current = mockups[side] ? side : available[0]?.[0];
   const areas = design ? [...new Set(design.elements.map((e) => e.position))] : [];
+  // a free place (free placement phase 2) is named by its own label ("Front 1"), kept on its elements — never "spot-1"
+  const areaName = (a) => AREA_NAMES[a] || spotNameIn(design?.elements, a) || a;
 
   return (
     <div role="dialog" aria-modal="true" aria-label="Design preview" onClick={onClose} style={sx.backdrop}>
@@ -74,7 +93,7 @@ export default function DesignPreview({ designId, onClose, extra }) {
         {!design && !error && <p style={{ color: THEME.textMuted }}>Loading…</p>}
 
         {design && (
-          <div style={sx.body}>
+          <div style={narrow ? sx.bodyNarrow : sx.body}>
             <div style={{ minWidth: 0 }}>
               {current ? (
                 <img src={imageUrl(mockups[current], 1200)} alt={`${design.name || "Design"} — ${current}`} style={sx.big} />
@@ -84,9 +103,9 @@ export default function DesignPreview({ designId, onClose, extra }) {
                 </div>
               )}
               {available.length > 1 && (
-                <div style={sx.thumbs}>
+                <div style={{ ...sx.thumbs, gridTemplateColumns: `repeat(${Math.max(4, available.length)}, minmax(0, 1fr))` }}>
                   {available.map(([k, label]) => (
-                    <button key={k} type="button" onClick={() => setSide(k)} style={{ ...sx.thumb, borderColor: k === current ? THEME.ink : THEME.border }} aria-label={`Show ${label}`}>
+                    <button key={k} type="button" onClick={() => setSide(k)} style={{ ...sx.thumb, borderColor: k === current ? THEME.ink : THEME.border }} aria-label={k === "label" ? "Show the neck label" : `Show ${label}`}>
                       <img src={imageUrl(mockups[k], 240)} alt="" style={{ width: "100%", aspectRatio: "4 / 5", objectFit: "cover", display: "block" }} />
                       <span style={{ fontSize: 11, fontWeight: 600 }}>{label}</span>
                     </button>
@@ -99,7 +118,8 @@ export default function DesignPreview({ designId, onClose, extra }) {
               <Fact label="Colour" value={design.color.replace(/-/g, " ")} />
               <Fact label="Size" value={extra?.size || design.size || "—"} />
               {extra?.qty ? <Fact label="Quantity" value={extra.qty} /> : null}
-              <Fact label="Print areas" value={areas.map((a) => AREA_NAMES[a] || a).join(", ") || "—"} />
+              <Fact label="Print areas" value={areas.map(areaName).join(", ") || "—"} />
+              {mockups.label && <Fact label="Neck label" value="IDENTEE woven label with the size, sewn inside the back neck" />}
               <Fact label="Elements" value={`${design.elements.length} (${design.elements.filter((e) => e.type === "text").length} text, ${design.elements.filter((e) => e.type === "image").length} image)`} />
               {design.orderedAt && <Fact label="Status" value="Ordered — locked" />}
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
@@ -132,6 +152,7 @@ const sx = {
   title: { margin: "4px 0 0", fontSize: 22, fontWeight: 800, color: THEME.text },
   close: { border: 0, background: "#E2D8C3", width: 34, height: 34, borderRadius: "50%", fontSize: 16, cursor: "pointer", flexShrink: 0 },
   body: { display: "grid", gridTemplateColumns: "minmax(0, 1.2fr) minmax(0, 1fr)", gap: 20, alignItems: "start" },
+  bodyNarrow: { display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: 16, alignItems: "start" },
   big: { width: "100%", aspectRatio: "4 / 5", objectFit: "cover", borderRadius: 14, background: "#EFE7D7", display: "block" },
   thumbs: { display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 8, marginTop: 8 },
   thumb: { padding: 0, border: "2px solid", borderRadius: 10, overflow: "hidden", background: "#fff", cursor: "pointer", display: "grid", gap: 2, paddingBottom: 4 },

@@ -4,12 +4,14 @@
 // corner handles to resize (keeps proportions), top handle to rotate,
 // two fingers to pinch / rotate on phones, arrows to nudge. Snaps to the
 // centre line. Changes are committed when a gesture ends; while dragging,
-// onLive keeps the 3D tee in sync.
+// onLive keeps the 3D tee in sync. onEdge (free placement phase 3): a drag held
+// against the area's edge for a moment — the page offers "Move anywhere".
 import { useEffect, useRef } from "react";
 import Konva from "konva";
 import { buildNodes, cachedImage, loadImage, imageSrcs } from "./konvaRender";
 
 const SNAP_PX = 10; // in print-area pixels
+const EDGE_MS = 400; // held against the edge this long: onEdge
 
 // Group (centre-based) → stored box in % (top-left, unrotated)
 function boxFromGroup(g, W, H) {
@@ -18,10 +20,10 @@ function boxFromGroup(g, W, H) {
   return { x: ((g.x() - w / 2) / W) * 100, y: ((g.y() - h / 2) / H) * 100, width: (w / W) * 100, height: (h / H) * 100 };
 }
 
-export default function AreaEditor({ elements, W, H, fabric, selectedId, onSelect, onCommit, onLive, displayWidth = 300 }) {
+export default function AreaEditor({ elements, W, H, fabric, selectedId, onSelect, onCommit, onLive, onEdge, displayWidth = 300 }) {
   const holder = useRef(null);
   const st = useRef({}); // konva objects + latest props for handlers
-  st.current.props = { elements, W, H, onSelect, onCommit, onLive, selectedId };
+  st.current.props = { elements, W, H, onSelect, onCommit, onLive, onEdge, selectedId };
 
   // create the stage once
   useEffect(() => {
@@ -136,8 +138,19 @@ export default function AreaEditor({ elements, W, H, fabric, selectedId, onSelec
         g.on("pointerdown", () => st.current.props.onSelect(g.id()));
         g.on("dragmove", () => {
           // keep the centre inside the print area; snap to the centre line
+          // (pushed past the edge and held there, even without moving: onEdge once. A mouse sends each move twice, and
+          // Konva leaves the second one where we put it, so only a real move says whether it is still pushed out)
+          const held = st.current.kept;
+          if (!held || held.x !== g.x() || held.y !== g.y()) {
+            const out = g.x() < 0 || g.x() > W || g.y() < 0 || g.y() > H;
+            if (!out) {
+              clearTimeout(st.current.edge);
+              st.current.edge = null;
+            } else if (!st.current.edge) st.current.edge = setTimeout(() => st.current.props.onEdge?.(), EDGE_MS);
+          }
           g.x(Math.max(0, Math.min(W, g.x())));
           g.y(Math.max(0, Math.min(H, g.y())));
+          st.current.kept = { x: g.x(), y: g.y() };
           const snapped = Math.abs(g.x() - W / 2) < SNAP_PX;
           if (snapped) g.x(W / 2);
           guide.points([W / 2, 0, W / 2, H]);
@@ -146,6 +159,9 @@ export default function AreaEditor({ elements, W, H, fabric, selectedId, onSelec
         });
         g.on("dragend", () => {
           guide.visible(false);
+          clearTimeout(st.current.edge);
+          st.current.edge = null;
+          st.current.kept = null;
           commitFrom(g);
         });
         g.on("transform", () => liveFrom(g));

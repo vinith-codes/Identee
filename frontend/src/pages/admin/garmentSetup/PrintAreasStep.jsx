@@ -1,4 +1,5 @@
-// Wizard step 5: all 15 print areas from the print guide.
+// Wizard step 5: every print area (the print guide's 15, and since 14 Nov 2026 the new places of free placement
+// phase 1 — their sizes are our estimates until the print team measures them, marked "estimate").
 // Click an area to see it on the garment photo; turn on the ones customers
 // can use. Areas without a size need a size (cm) first. An area has either
 // one size (M–XL, with the guide's ±4 cm rule for smaller/larger sizes) or
@@ -221,7 +222,8 @@ export default function PrintAreasStep({ garment, catalog, images, save, saving,
     <div>
       <h2 style={AW.h2}>5. Print areas</h2>
       <p style={AW.lead}>
-        All 15 places from your print guide. Click an area to see it on the garment; turn on the ones customers can use.{" "}
+        All {catalog.filter((a) => VIEW_GROUPS.some(([side]) => side === a.side)).length} places. Click an area to see it on the garment; turn on the ones customers can use. Places marked
+        estimate have our own sizes until the print team measures them.{" "}
         <b>{offeredCount} offered.</b>
       </p>
 
@@ -255,7 +257,10 @@ export default function PrintAreasStep({ garment, catalog, images, save, saving,
                       <button key={a.key} type="button" className={`aw-area${selected === a.key ? " sel" : ""}`} onClick={() => setSelected(a.key)}>
                         <span>
                           {a.label}
-                          <span style={{ display: "block", fontSize: 11.5, color: "#6B6559", fontWeight: 500 }}>{cmText(d)}</span>
+                          <span style={{ display: "block", fontSize: 11.5, color: "#6B6559", fontWeight: 500 }}>
+                            {cmText(d)}
+                            {a.estimate && <em style={{ fontStyle: "normal", color: "#9A5B12", fontWeight: 700 }}> · estimate</em>}
+                          </span>
                         </span>
                         <span className={`state ${state}`}>{state === "on" ? "Offered" : state === "off" ? "Off" : "Needs size"}</span>
                       </button>
@@ -382,12 +387,15 @@ export default function PrintAreasStep({ garment, catalog, images, save, saving,
               <span>
                 <b style={{ fontSize: 15 }}>{sel.label}</b>
                 <span style={{ display: "block", fontSize: 12.5, color: "#6B6559" }}>
-                  {sel.guideBySize
-                    ? "Sizes from the print team's measurement sheet"
-                    : sel.guideCm
-                      ? `Print guide: ${sel.guideCm[0]} × ${sel.guideCm[1]} cm (M–XL)`
-                      : "No size from the print team yet"}
+                  {sel.estimate
+                    ? `Estimate: ${sel.guideCm[0]} × ${sel.guideCm[1]} cm at M–XL, until the print team measures this place`
+                    : sel.guideBySize
+                      ? "Sizes from the print team's measurement sheet"
+                      : sel.guideCm
+                        ? `Print guide: ${sel.guideCm[0]} × ${sel.guideCm[1]} cm (M–XL)`
+                        : "No size from the print team yet"}
                 </span>
+                {sel.hint && <span style={{ display: "block", fontSize: 12.5, color: "#141110" }}>Customers see: “{sel.hint}”</span>}
               </span>
               <button
                 type="button"

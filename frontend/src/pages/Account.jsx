@@ -7,6 +7,7 @@ import { validateAddress } from "../utils/address";
 import usePincodeAutofill from "../utils/usePincodeAutofill";
 import { UseLocationButton } from "../components/AddressAutofill";
 import { imageUrl } from "../utils/imageUrl";
+import { forgetDesignRoom } from "../studio/chatStore";
 
 const FieldError = ({ msg }) =>
   msg ? (
@@ -332,6 +333,7 @@ export default function Account() {
 
   const handleLogout = () => {
     localStorage.removeItem("userInfo");
+    forgetDesignRoom(); // (13 Nov 2026) the design room and chats left in this browser go too
     window.dispatchEvent(new Event("storage"));
     navigate("/");
   };

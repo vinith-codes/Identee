@@ -2,6 +2,9 @@
 // Every print area of the tee, grouped Front / Back / Sleeves, each marked Free, Has a design (then "Add next to
 // it" or "Replace it") or Covered by another print (can't be picked, and says why). Free areas come first in each
 // group; the area being edited is suggested. Centred on a laptop, a sheet from the bottom on a phone (dr-ask).
+// Each row: the size for the chosen tee size and a few words on where it is ("26 × 7 cm · One line of words across
+// the chest"); the rows come in list order (areaGroups.js: main spot, big prints, chest and strips, small hits).
+// Last row (free placement phase 3, 15 Nov 2026): "Anywhere on the tee" — the picture waits for a tap on the tee.
 import { useState } from "react";
 import { imageUrl } from "../utils/imageUrl";
 import { useBackClose } from "../utils/backClose";
@@ -9,12 +12,14 @@ import { pictureLabel } from "./pictureHelpers";
 
 /**
  *   picture   { url, kind, about, style }
- *   groups    [[groupLabel, [{ key, label, cm: [w, h], state: "free" | "used" | "blocked", has, blockers, hint }]]]
+ *   groups    [[groupLabel, [{ key, label, where, cm: [w, h], state: "free" | "used" | "blocked", has, blockers, hint }]]]
  *   suggest   the print area to suggest (the one open now, when free)
  *   onPlace(key, replace)   put it there — replace: take off what that area has first
  *   onForget()   take the picture off My pictures
+ *   anywhere   { used, max } prints in free places on the tee (null: this tee has no free places)
+ *   onAnywhere()   "Anywhere on the tee": the picture goes where the tee is tapped next
  */
-export default function PlaceSheet({ picture, groups, suggest, onPlace, onForget, onClose }) {
+export default function PlaceSheet({ picture, groups, suggest, onPlace, onForget, onClose, anywhere = null, onAnywhere }) {
   const [asking, setAsking] = useState(null); // the area with a design: add next to it, or replace it?
   const [why, setWhy] = useState(""); // a covered area was tapped
   const [forget, setForget] = useState(false);
@@ -79,14 +84,32 @@ export default function PlaceSheet({ picture, groups, suggest, onPlace, onForget
                         </b>
                         <small>
                           {a.cm[0]} × {a.cm[1]} cm
+                          {a.where ? ` · ${a.where}` : ""}
                         </small>
                       </span>
-                      <span className={`dr-place-pill ${a.state}`}>{a.state === "free" ? (a.hint ? `Free · ${a.hint}` : "Free") : a.state === "used" ? `Has ${a.has}` : `Covered by ${a.blockers[0]}`}</span>
+                      <span className={`dr-place-pill ${a.state}`}>{a.state === "free" ? (a.hint ? `Free · ${a.hint}` : "Free") : a.state === "used" ? `Has ${a.has}` : `Covered by ${a.blockers[0]}${a.blockers.length > 1 ? ` +${a.blockers.length - 1}` : ""}`}</span>
                     </button>
                   ),
                 )}
             </div>
           ))}
+          {anywhere && (
+            <div className="dr-place-group">
+              <div className="dr-place-gh">Anywhere</div>
+              <button
+                type="button"
+                className={`dr-place-row ${anywhere.used >= anywhere.max ? "blocked" : "free"}`}
+                aria-disabled={anywhere.used >= anywhere.max ? "true" : undefined}
+                onClick={() => (anywhere.used >= anywhere.max ? setWhy(`This tee already has ${anywhere.max} prints in free places. Put it on a print above, or delete one of them first.`) : onAnywhere?.())}
+              >
+                <span className="dr-place-name">
+                  <b>Anywhere on the tee</b>
+                  <small>Tap the tee where you want it</small>
+                </span>
+                <span className={`dr-place-pill ${anywhere.used >= anywhere.max ? "blocked" : "free"}`}>{anywhere.used >= anywhere.max ? `${anywhere.used} of ${anywhere.max} used` : "Your choice"}</span>
+              </button>
+            </div>
+          )}
         </div>
         {why && <p className="dr-place-why">{why}</p>}
         <div className="dr-place-foot">

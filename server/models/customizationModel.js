@@ -8,6 +8,25 @@ import mongoose from "mongoose";
 // therefore size-independent — the physical size comes from the position
 // and the garment size chosen at order time.
 // Layout v1 (older saves): % of the whole editor canvas, no position.
+//
+// A free place ("spot", 14 Nov 2026, data/panelModel.js): position "spot-1" and the spot's box in cm on the element
+// itself, so every copy of a design keeps it. No defaults inside and `default: undefined`, so an element without a
+// spot (every older design) is stored and read back exactly as before (a default would add it to every element).
+const spotSchema = new mongoose.Schema(
+  {
+    key: { type: String },
+    side: { type: String, enum: ["front", "back", "left", "right"] },
+    label: { type: String },
+    from: { type: String }, // the print area it started from, or null
+    downCm: { type: Number }, // top edge below the collar seam (sleeves: below the sleeve's top seam)
+    acrossCm: { type: Number }, // centre from the centre line, + = the wearer's left
+    wCm: { type: Number },
+    hCm: { type: Number },
+    base: { type: String }, // the tee size it was measured on
+    scale: { type: String, enum: ["G", "F"] }, // G grows with the tee size, F keeps the same cm
+  },
+  { _id: false },
+);
 const elementSchema = new mongoose.Schema(
   {
     type: { type: String, enum: ["image", "text"], required: true },
@@ -79,6 +98,7 @@ const elementSchema = new mongoose.Schema(
     link: { type: String, enum: ["team", "solo"] }, // solo = was linked, now changed on its own (can be switched back)
 
     // placement
+    spot: { type: spotSchema, default: undefined }, // only on an element in a free place
     x: { type: Number, required: true },
     y: { type: Number, required: true },
     width: { type: Number, required: true },
@@ -103,6 +123,8 @@ const customizationSchema = new mongoose.Schema(
       back: { type: String, default: null },
       left: { type: String, default: null },
       right: { type: String, default: null },
+      // the IDENTEE neck label printed inside the back neck, close up (13 Nov 2026) — cart and order pages only
+      label: { type: String, default: null },
     },
     // Team order: one tee per player, each with their own name and number (in place of
     // the texts marked role "name" / "number"). Empty = every tee is printed the same.

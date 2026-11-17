@@ -161,6 +161,26 @@ test("round 6: the brain may open the team's help as a helper", () => {
   assert.deepEqual(clean({ reply: "x", steps: [{ type: "menu", item: "Ask the team" }] }).steps, [{ type: "menu", item: "Ask the team" }]);
 });
 
+test("round 9: 💡 Suggest gets words and 3 chips, no steps; each stand-in chip leads to a working answer", async () => {
+  process.env.AI_CHAT_PROVIDER = "mock";
+  // (the words the Suggest button sends: frontend/src/studio/assistantExtras.js SUGGEST.say)
+  const said = "Give me 3 suggestions for my tee (don't change it yet)";
+  const r = await brainReply({ message: said, history: [], areas, styles, sheets, facts: { teeColour: "Black", teeColours: ["Black", "Maroon"] } });
+  assert.deepEqual(r.steps, []);
+  assert.equal(r.chips.length, 3);
+  assert.ok(r.chips.every((c) => c.length <= 40));
+  assert.match(r.reply, /\S/);
+  // what clean keeps of a real answer: the chips, no steps
+  assert.deepEqual(clean({ reply: "Three ideas", steps: [], chips: r.chips }), { reply: "Three ideas", steps: [], chips: r.chips });
+  // tapping a chip is sent as if typed: the name is asked, the print is changed, the tee colour is changed
+  const kinds = [];
+  for (const chip of r.chips) kinds.push((await brainReply({ message: chip, history: [], areas, styles, sheets: [], facts: {} })).steps[0]?.type);
+  assert.deepEqual(kinds, ["ask", "edit", "edit"]);
+  // other messages with the word "suggest" in them still get their own answers
+  assert.equal((await brainReply({ message: "suggest a slogan for my mother", history: [], areas, styles, sheets: [], facts: {} })).steps[0].type, "slogans");
+  delete process.env.AI_CHAT_PROVIDER;
+});
+
 test("round 7: a team step keeps names as written, numbers as digits, areas valid; the stand-in reads a list and a budget", async () => {
   const t = clean({ reply: "x", steps: [{ type: "team", players: [{ name: "Arun", number: 7 }, { name: "Priya" }, { number: "x10" }, {}], namesOn: "back", numbersOn: "nose" }] }).steps[0];
   assert.deepEqual(t, { type: "team", players: [{ name: "Arun", number: "7" }, { name: "Priya", number: null }, { name: "", number: "10" }], namesOn: "back", numbersOn: "back" });

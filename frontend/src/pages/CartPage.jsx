@@ -201,6 +201,15 @@ export default function CartPage() {
               <p style={{ margin: "2px 0 8px", fontSize: 12.5, color: C.muted, textTransform: "capitalize" }}>
                 Your design · {g.design.garmentType?.replace(/-/g, " ")} · {g.design.color?.replace(/-/g, " ")}
               </p>
+              {/* the IDENTEE woven label sewn inside the back neck, close up (13–14 Nov 2026; older designs have none) */}
+              {g.design.mockups?.label && (
+                <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "0 0 8px" }}>
+                  <div style={{ width: 88, height: 48, borderRadius: 8, overflow: "hidden", background: "#F3F1EC", flex: "none" }}>
+                    <img src={imageUrl(g.design.mockups.label, 240)} alt="The IDENTEE label sewn inside the neck" style={{ width: "100%", height: "100%", objectFit: "cover", transform: "scale(1.5)", display: "block" }} />
+                  </div>
+                  <span style={{ fontSize: 12.5, color: C.muted, lineHeight: 1.35 }}>IDENTEE woven neck label inside, with each tee’s size</span>
+                </div>
+              )}
               {/* a team order: one tee per player, so sizes change in the design, not here */}
               {g.design.players?.length > 0 && (
                 <div style={{ padding: "2px 0 4px" }}>

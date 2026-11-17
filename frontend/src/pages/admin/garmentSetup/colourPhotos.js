@@ -104,6 +104,48 @@ export function place(cut, marks, chart, widthPct = 100, keepWidth = false) {
   return c;
 }
 
+// Above the shirt's first wide row (`first`) is the hanger. A grey or metal hanger looks like fabric, so everything
+// up there keeps its own colours — as before. A wooden hanger is mostly coloured, and the shirt shows above that row:
+// the inside back under the hanger and the shoulder tops (13 Nov 2026, the Round Neck hanger photo — they stayed white
+// on every colour). Then only the fabric joined to the shirt below is recoloured; loose grey bits (the hook) are not.
+function keepHangerColours(d, fabric, first) {
+  let seen = 0;
+  let coloured = 0;
+  for (let i = 0; i < first * CW; i++) {
+    if (d[i * 4 + 3] > 127) {
+      seen++;
+      if (!fabric[i]) coloured++;
+    }
+  }
+  if (!seen || coloured <= seen * 0.5) {
+    fabric.fill(0, 0, first * CW);
+    return;
+  }
+  // fabric joined (side by side, not corner to corner) to the shirt from the first wide row down
+  const joined = new Uint8Array(CW * CH);
+  const queue = new Int32Array(CW * CH);
+  let head = 0;
+  let tail = 0;
+  for (let i = first * CW; i < CW * CH; i++) {
+    if (fabric[i]) {
+      joined[i] = 1;
+      queue[tail++] = i;
+    }
+  }
+  while (head < tail) {
+    const i = queue[head++];
+    const x = i % CW;
+    const next = [x > 0 ? i - 1 : -1, x < CW - 1 ? i + 1 : -1, i - CW, i + CW];
+    for (const j of next) {
+      if (j >= 0 && j < CW * CH && fabric[j] && !joined[j]) {
+        joined[j] = 1;
+        queue[tail++] = j;
+      }
+    }
+  }
+  for (let i = 0; i < first * CW; i++) if (!joined[i]) fabric[i] = 0;
+}
+
 // The parts recolouring needs, worked out once per view: which pixels are fabric, and their light / shadow.
 export function analyse(placed, { hanger = false } = {}) {
   const img = placed.getContext("2d", { willReadFrequently: true }).getImageData(0, 0, CW, CH);
@@ -130,7 +172,7 @@ export function analyse(placed, { hanger = false } = {}) {
   // a hanger above the shirt keeps its own colours (only rows wide enough to be the shirt are fabric)
   if (hanger) {
     const first = rowCount.findIndex((c) => c > CW * 0.12);
-    if (first > 0) fabric.fill(0, 0, first * CW);
+    if (first > 0) keepHangerColours(d, fabric, first);
   }
   for (let i = 0; i < n; i++) if (fabric[i]) hist[Math.min(255, (lum[i] * 255) | 0)]++;
   const total = hist.reduce((a, b) => a + b, 0);

@@ -102,3 +102,36 @@ test("round 7: the try-on instruction keeps the person and the print", async () 
   assert.match(p, /keep their face, hair, body, pose/);
   assert.match(p, /exactly as in the second image/);
 });
+
+test("13 Nov (feedback 7): a photo of the back gets the back of the tee; the worn photo can be taken from behind; the front stays as before", async () => {
+  const { teeSide, tryOnPrompt, wornPrompt } = await import("../services/conceptSheets.js");
+  // the side: only "back" is the back — an older page sends none, which is the front
+  assert.equal(teeSide("back"), "back");
+  for (const v of [undefined, null, "", "front", "BACK", "left", { side: "back" }]) assert.equal(teeSide(v), "front");
+  // try it on me, back photo: the back of the tee, the person still seen from behind, the words not mirrored
+  const b = tryOnPrompt({ garment: "oversized tee", teeColour: "black", side: "back" });
+  assert.match(b, /seen from behind/);
+  assert.match(b, /shows the BACK/);
+  assert.match(b, /do not turn them round/);
+  assert.match(b, /exactly as in the second image/);
+  assert.match(b, /not mirrored/);
+  assert.match(b, /plain, keep it plain/);
+  assert.doesNotMatch(b, /do not add a face|keep their face/); // a head turned over the shoulder stays as it is
+  // the front: as before, word for word
+  const f = tryOnPrompt({ garment: "oversized tee", teeColour: "black" });
+  assert.equal(tryOnPrompt({ garment: "oversized tee", teeColour: "black", side: "front" }), f);
+  assert.equal(tryOnPrompt({ garment: "oversized tee", teeColour: "black", side: "sideways" }), f);
+  assert.doesNotMatch(f, /seen from behind|BACK/);
+  assert.match(f, /keep their face, hair, body, pose/);
+  // the photo of it worn, from behind: the back mock-up, back to the camera
+  const w = wornPrompt({ garment: "oversized tee", teeColour: "black", side: "back" });
+  assert.match(w, /shows the BACK of the tee/);
+  assert.match(w, /back to the camera/);
+  assert.match(w, /back print is fully visible/);
+  assert.match(w, /EXACTLY as in the attached image/);
+  assert.doesNotMatch(w, /facing the camera/);
+  const wf = wornPrompt({ garment: "oversized tee", teeColour: "black" });
+  assert.equal(wornPrompt({ garment: "oversized tee", teeColour: "black", side: "front" }), wf);
+  assert.match(wf, /facing the camera so the front print is fully visible/);
+  assert.doesNotMatch(wf, /BACK|back to the camera/);
+});

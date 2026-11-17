@@ -122,6 +122,16 @@
 .dr-shot:hover { border-color: var(--gold); }
 .dr-shot img, .dr-shot .ph { width: 100%; aspect-ratio: 4 / 5; object-fit: cover; display: block; background: var(--wall); }
 .dr-shot span { font-size: 12px; font-weight: 700; padding: 6px 10px; }
+/* Review: the IDENTEE neck label close up (13 Nov 2026) — a wide strip under the side pictures; the picture is
+   zoomed to its middle, where the label is */
+.dr-labelshot { flex: none; margin: 0; padding: 0; width: 100%; display: flex; align-items: center; gap: 12px; background: #fff; border: 1px solid var(--line); border-radius: 14px; overflow: hidden; text-align: left; cursor: pointer; font: inherit; color: inherit; transition: border-color .2s, box-shadow .2s; }
+.dr-labelshot:hover { border-color: var(--gold); }
+.dr-labelshot.on { border-color: var(--gold); box-shadow: 0 0 0 2px var(--gold-soft); }
+.dr-labelshot .pic { flex: none; width: 128px; height: 72px; overflow: hidden; background: var(--wall); display: block; }
+.dr-labelshot .pic img { width: 100%; height: 100%; object-fit: cover; transform: scale(1.45); display: block; }
+.dr-labelshot .ph { display: block; width: 100%; height: 100%; }
+.dr-labelshot .words { font-size: 12px; line-height: 1.35; color: var(--muted); padding: 8px 12px 8px 0; min-width: 0; }
+.dr-labelshot .words b { display: block; font-size: 12.5px; color: var(--ink); margin-bottom: 2px; }
 .dr-summary { display: flex; justify-content: space-between; align-items: center; gap: 12px; border-top: 1px solid var(--line); padding-top: 12px; margin-top: auto; }
 .dr-summary p { margin: 2px 0 0; }
 .dr-summary .muted { color: var(--muted); font-size: 12.5px; }
@@ -445,6 +455,8 @@
 .dr-area.used::after { content: ""; display: block; position: absolute; right: 7px; top: 7px; width: 7px; height: 7px; margin: 0; border-radius: 50%; background: var(--gold); }
 .dr-area.on, .dr-area.used.on { border-color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); }
 .dr-thumb .tee { fill: #F5F1E8; stroke: #9A8F7D; }
+/* front cards: the inside of the tee shows through the lower front neckline (AreaThumb.jsx; 13 Nov 2026, feedback 1) */
+.dr-thumb .neck { fill: rgba(0, 0, 0, .2); stroke: #9A8F7D; stroke-width: 3; stroke-linejoin: round; }
 
 /* the view */
 .dr-view { background: radial-gradient(110% 85% at 50% 38%, #FDFBF7 0%, #F1EBDF 62%, #E6DDCB 100%); }
@@ -665,7 +677,7 @@
 @media (prefers-reduced-motion: reduce) { .dr-editor.dr-assist { transition: none; } }
 /* phones: the assistant fills the room under the top bar (the chat and its pictures get room); "Show the tee"
    makes it half height so the tee shows above it. While the keyboard is open the room fits above it (dr-app[data-kb],
-   set in DesignRoomPage) so the chat box stays in sight. */
+   set by DesignRoomPage's keyboard fit) so the chat box stays in sight. */
 /* while the design room is open the page behind it can't scroll or bounce (DesignRoomPage: html.dr-open) */
 html.dr-open, html.dr-open body { overflow: hidden; height: 100%; overscroll-behavior: none; }
 .dr-tall { display: none; }
@@ -685,6 +697,10 @@ html.dr-open, html.dr-open body { overflow: hidden; height: 100%; overscroll-beh
   .dr-app[data-kb] { top: var(--vv-top, 0px); bottom: auto; height: var(--vv-h, 100%); }
   /* keyboard open: the full-height chat */
   .dr-app[data-kb] .dr-editor.dr-assist { height: calc(100% - 6px); }
+  /* keyboard open (13 Nov 2026, feedback 4): the box and the newest messages get the little room left — the hand-edit
+     link, the pictures-left line and the busy note come back when it closes (the wait card in the chat still has Stop) */
+  .dr-app[data-kb] .dr-assist :is(.dr-handoff, .dr-leftline, .dr-busynote) { display: none; }
+  .dr-app[data-kb] .dr-assist > header { padding-block: 8px 6px; }
   .dr-assist > header .sub { display: none; } /* (the first chat message says the same) */
 }
 @media (max-width: 760px) and (prefers-reduced-motion: reduce) { .dr-editor.dr-assist { transition: none; } }
@@ -953,6 +969,7 @@ button.dr-back { padding: 0; font: inherit; font-weight: 700; cursor: pointer; }
 /* the small tees on the "Where to print" cards are in the colour of the tee being designed */
 .dr-thumb .tee { transition: fill .35s ease; }
 .dr-thumb.on-dark .tee { stroke: #3A332A; }
+.dr-thumb.on-dark .neck { fill: rgba(0, 0, 0, .4); stroke: rgba(255, 240, 210, .6); } /* a light line keeps the neckline seen on black and maroon */
 .dr-thumb.on-dark .box { fill: rgba(255, 226, 150, .22); stroke: #F2D48A; }
 .dr-area.used .dr-thumb.on-dark .box { fill: var(--gold); stroke: #F6E3B0; }
 .dr-area.hot .dr-thumb.on-dark .box { stroke: #FFF1C9; }
@@ -1472,7 +1489,22 @@ p.pc-area { margin: 0; font-size: 13px; color: var(--muted); }
 .dr-chatsbtn svg { width: 14px; height: 14px; }
 .dr-chatsbtn:hover { border-color: var(--ink); color: var(--ink); }
 .dr-chatsbtn[aria-pressed="true"] { background: var(--gold-soft); border-color: var(--gold); color: var(--gold-deep); }
-.dr-chats { position: absolute; inset: 0; z-index: 5; display: flex; flex-direction: column; gap: 10px; padding: 12px 14px 14px; background: var(--paper); }
+/* (13 Nov 2026) a list that slides in from the left, like ChatGPT's: the chat shows dimmed beside it — a tap there
+   closes the list. 86% of the panel at most, so a 360 px phone keeps about 50 px of chat to tap. */
+.dr-chats { position: absolute; inset: 0 auto 0 0; width: min(320px, 86%); z-index: 5; display: flex; flex-direction: column; gap: 10px; padding: 12px 14px 14px; background: var(--paper);
+  border-right: 1px solid var(--line); box-shadow: 18px 0 40px -24px rgba(20, 17, 16, .45); }
+.dr-chats-shade { position: absolute; inset: 0; z-index: 4; display: block; width: 100%; margin: 0; padding: 0; border: 0; border-radius: 0; background: rgba(20, 17, 16, .28); cursor: pointer; }
+@media (prefers-reduced-motion: no-preference) {
+  .dr-chats { animation: dr-chatsin .22s cubic-bezier(.2, .7, .2, 1) both; }
+  .dr-chats-shade { animation: dr-shadein .22s ease-out both; }
+  @keyframes dr-chatsin { from { opacity: 0; transform: translateX(-28px); } }
+  @keyframes dr-shadein { from { opacity: 0; } }
+}
+.dr-chats-keep { margin: 4px 2px 0; font-size: 12px; line-height: 1.45; color: var(--muted); text-align: center; }
+/* phones: the list gets the whole height, also when the Assistant is half height ("Show the tee") */
+@media (max-width: 760px) {
+  .dr-editor.dr-assist[data-chats] { height: calc(100% - 6px); }
+}
 .dr-chats-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .dr-chats-head b { font-family: var(--display); font-size: 17px; }
 .dr-chats-x { flex: none; width: 36px; height: 36px; border: 0; border-radius: 50%; background: var(--line); color: var(--ink); font-size: 14px; cursor: pointer; }
@@ -1690,6 +1722,9 @@ a.dr-share { display: inline-flex; align-items: center; min-height: 40px; text-d
 .dr-version img { width: 64px; height: 64px; object-fit: cover; border-radius: 8px; background: #F1ECE1; }
 .dr-version-label { font-size: 12.5px; font-weight: 700; color: var(--ink); }
 .dr-version .dr-designhint { margin: 2px 0 0; }
+/* an old version of a long chat (13 Nov 2026): no picture kept, so the words take its place */
+.dr-version.nopic { grid-template-columns: minmax(0, 1fr) auto; }
+.dr-oldcard { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
 
 /* Round 8 (11 Nov 2026): feedback chips, "Change a part", tips while waiting, pictures left, the mic's language,
    and the chat's cards (size, orders, the same tee again, the group link) */
@@ -1702,6 +1737,36 @@ a.dr-share { display: inline-flex; align-items: center; min-height: 40px; text-d
 .dr-composer.dr-cbox .dr-miclang { flex: none; min-width: 34px; height: 28px; padding: 0 8px; margin-left: -4px; border: 1px solid var(--line); border-radius: 999px; background: #fff; color: var(--ink-soft); font: 700 11px/1 var(--body); cursor: pointer; }
 .dr-composer.dr-cbox .dr-miclang:hover:not(:disabled) { border-color: var(--ink); color: var(--ink); }
 .dr-composer.dr-cbox .dr-miclang:disabled { opacity: .5; cursor: default; }
+
+/* Round 9 (13 Nov 2026): talking with the Assistant and 💡 Suggest.
+   The box's buttons never push Send out of the box: when the row is too full (the old chat's ✨ Improve, தமிழ், a
+   future button) Send goes to a second line, on the right; when it fits, the row looks as before. The count near the
+   limit sits on its own line under the row. */
+.dr-cbar { flex-wrap: wrap; row-gap: 4px; }
+.dr-composer.dr-cbox .dr-send { margin-left: auto; }
+.dr-composer.dr-cbox .dr-count { white-space: nowrap; }
+/* 🔊 reading answers aloud, on or off (quieter when off) */
+.dr-composer.dr-cbox .dr-speak { flex: none; width: 32px; height: 32px; margin-left: -2px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--muted); display: grid; place-items: center; cursor: pointer; }
+.dr-composer.dr-cbox .dr-speak.on { color: var(--ink-soft); }
+.dr-composer.dr-cbox .dr-speak:hover { background: #F3EFE6; color: var(--ink); }
+.dr-composer.dr-cbox .dr-speak svg { width: 19px; height: 19px; }
+.dr-composer.dr-cbox .dr-suggest span { font-size: 13px; line-height: 1; }
+/* the bar over the box: "Sending what I heard… Wait", "Reading my answer… Stop / Turn off", or a short note */
+.dr-voicebar { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; margin: 6px 14px 0; padding: 4px 6px 4px 12px; border-radius: 16px;
+  background: var(--gold-soft); color: var(--ink-soft); font-size: 12.5px; font-weight: 600; line-height: 1.4; }
+.dr-voicebar > span { flex: 1 1 140px; min-width: 0; padding-block: 4px; }
+.dr-voicebar .dr-chip { min-height: 32px; padding: 4px 12px; }
+.dr-voicebar.note { font-weight: 500; }
+.dr-voicebar-x { flex: none; width: 32px; height: 32px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--ink-soft); font-size: 13px; cursor: pointer; }
+.dr-voicebar-x:hover { background: rgba(255, 255, 255, .7); color: var(--ink); }
+@media (max-width: 760px) { .dr-voicebar { margin-inline: 10px; } }
+/* small phones (360–380 px): the row 📎 🎤 EN 🔊 💡 Suggest ➤ stays on one line, also with தமிழ் */
+@media (max-width: 380px) {
+  .dr-cbar { gap: 4px; }
+  .dr-cbar-gap { display: none; } /* (Send keeps to the right by itself: margin-left auto) */
+  .dr-composer.dr-cbox :is(.dr-attach, .dr-mic) { width: 36px; height: 36px; }
+  .dr-composer.dr-cbox .dr-improve { padding-inline: 10px; }
+}
 
 .dr-card { display: grid; gap: 8px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 14px; background: #fff; font-size: 13px; color: var(--ink-soft); min-width: 0; }
 .dr-card.done { opacity: .7; }
@@ -1766,3 +1831,84 @@ a.dr-share { display: inline-flex; align-items: center; min-height: 40px; text-d
 .dr-spot-go:disabled { opacity: .45; cursor: default; }
 .dr-spot-no { border: 1.5px solid rgba(255, 255, 255, .7); background: transparent; color: #fff; }
 .dr-tamilnote { display: block; margin-top: -4px; font-size: 12px; line-height: 1.45; color: var(--ink-soft); }
+
+/* "Where to print" (free placement phase 1, 14 Nov 2026): a card that can't be used now says why ("Not with Centre
+   Front") in words that stay readable; its little tee and name fade as before. Only cards that say why (says-why:
+   the customer's room) — the admin Studio shares these cards without the reason and keeps the whole card faded */
+.dr-side .dr-cards .dr-area.blocked.says-why { opacity: 1; }
+.dr-side .dr-cards .dr-area.blocked.says-why .dr-thumb, .dr-side .dr-cards .dr-area.blocked.says-why b { opacity: .45; }
+.dr-side .dr-cards .dr-area span.why { color: #8A4A12; font-weight: 600; line-height: 1.2; text-wrap: balance; }
+/* phones: the Front / Back / Sleeves tabs over the cards are a full finger tall (44 px), like the cards under them */
+@media (max-width: 760px) {
+  .dr-areatabs button { min-height: 44px; }
+}
+
+/* ================= free placement phase 3 (15 Nov 2026): the panel editor and "Anywhere on the tee" =================
+   PanelEditor.jsx draws a whole side of the tee; it takes the print area editor's place (laptops: in the column, the
+   controls under it; phones: a full-height sheet with its own top and bottom bars). Its canvas size is fixed when it
+   opens (DesignRoomPage openPanel), so the keyboard never makes it jump. */
+.dr-headbtns { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.dr-editor:not(.dr-assist) > header > div:first-child { min-width: 0; }
+.dr-wholebtn { min-height: 44px; padding: 0 13px; border: 1px solid var(--line); border-radius: 999px; background: #fff; color: var(--ink); font-size: 12.5px; font-weight: 700; white-space: nowrap; cursor: pointer; }
+.dr-wholebtn:hover { border-color: var(--gold); background: var(--gold-soft); }
+.dr-panelwrap { display: flex; justify-content: center; padding: 4px 20px 6px; flex-shrink: 0; }
+.dr-panel { position: relative; flex-shrink: 0; }
+.dr-panelcanvas { touch-action: none; border-radius: 10px; background: radial-gradient(120% 90% at 50% 40%, #FDFBF7 0%, #F1EBDF 100%); }
+.dr-panelchip { position: absolute; z-index: 2; top: 8px; left: 50%; transform: translateX(-50%); max-width: calc(100% - 16px); padding: 5px 11px; border-radius: 999px;
+  background: rgba(21, 19, 15, .84); color: #F6DFA0; font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; font-variant-numeric: tabular-nums; }
+.dr-panelcorner { position: absolute; z-index: 2; bottom: 6px; padding: 2px 6px; border-radius: 6px; background: rgba(255, 255, 255, .86); color: var(--ink-soft); font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; pointer-events: none; }
+.dr-panelcorner.l { left: 6px; }
+.dr-panelcorner.r { right: 6px; }
+.dr-newhere { position: absolute; z-index: 3; min-height: 44px; padding: 0 16px; border: 0; border-radius: 999px; background: var(--ink); color: #fff; font-size: 13px; font-weight: 700; white-space: nowrap; box-shadow: 0 10px 22px -10px rgba(20, 17, 16, .7); cursor: pointer; }
+/* laptops: the four sides on one line (Front · Back · Left sleeve · Right sleeve) */
+.dr-panelsides { display: flex; flex-wrap: wrap; gap: 4px; padding: 0 16px 6px; flex-shrink: 0; }
+.dr-panelsides button { min-height: 44px; padding: 0 9px; border: 1px solid var(--line); border-radius: 999px; background: #fff; color: var(--ink-soft); font-size: 12px; font-weight: 700; cursor: pointer; }
+.dr-panelsides button.on { background: var(--ink); border-color: var(--ink); color: #fff; }
+.dr-panelzoom { position: absolute; z-index: 3; bottom: 6px; left: 50%; transform: translateX(-50%); min-height: 44px; padding: 0 16px; border: 1px solid var(--line); border-radius: 999px;
+  background: #fff; color: var(--ink); font-size: 12.5px; font-weight: 700; white-space: nowrap; box-shadow: 0 8px 18px -10px rgba(20, 17, 16, .55); cursor: pointer; }
+.dr-panelzoom:hover { border-color: var(--gold); background: var(--gold-soft); }
+.dr-panelempty { padding: 6px 20px 14px; }
+@media (min-width: 761px) {
+  /* laptops: the panel is tall, so the column scrolls as one (the controls stay under it) */
+  .dr-editor[data-panel] { overflow-y: auto; }
+  .dr-editor[data-panel] .dr-controls { overflow: visible; }
+}
+@media (max-width: 760px) {
+  .dr-editor[data-panel], .dr-app[data-kb] .dr-editor[data-panel] { height: calc(100% - 6px); }
+  .dr-editor > header.dr-panelhead { display: flex; align-items: center; gap: 4px; height: 52px; padding: 4px 8px; border-bottom: 1px solid var(--line); box-sizing: border-box; flex-shrink: 0; }
+  .dr-panelicon { width: 44px; height: 44px; flex-shrink: 0; border: 0; border-radius: 12px; background: none; color: var(--ink); font-size: 20px; line-height: 1; }
+  .dr-panelicon:disabled { opacity: .35; }
+  .dr-paneltitle { flex: 1; min-width: 0; text-align: center; font-size: 14px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .dr-panelwhole { flex: 1; min-width: 0; min-height: 44px; border: 1px solid var(--line); border-radius: 999px; background: #fff; color: var(--ink); font-size: 13px; font-weight: 700; white-space: nowrap; }
+  .dr-paneldone { min-height: 44px; flex-shrink: 0; padding: 0 16px; border: 0; border-radius: 999px; background: var(--ink); color: #fff; font-size: 14px; font-weight: 700; white-space: nowrap; }
+  /* the canvas gets what is left between the two bars (on a phone with a home bar the hem may need a pan) */
+  .dr-editor[data-panel] .dr-panelwrap { flex: 1 1 auto; min-height: 0; overflow: hidden; align-items: flex-start; padding: 0; }
+  .dr-panelcanvas { border-radius: 0; }
+  .dr-panelbar { display: flex; gap: 4px; margin-top: auto; padding: 8px 8px calc(8px + env(safe-area-inset-bottom, 0px)); border-top: 1px solid var(--line); background: #fff; flex-shrink: 0; }
+  .dr-panelbar button { flex: 1 1 0; min-width: 0; min-height: 44px; padding: 0 2px; border: 1px solid var(--line); border-radius: 12px; background: #fff; color: var(--ink); font-size: 11.5px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .dr-panelbar button.on { background: var(--ink); border-color: var(--ink); color: #fff; }
+  .dr-panelbar button.del { color: #B3261E; }
+  /* the area editor's header keeps room for "Whole front" beside ✕ */
+  .dr-editor > header .dr-wholebtn { padding: 0 11px; font-size: 12px; }
+  /* with the panel open a message sits just above its bottom bar, not over the top of the tee being dragged on */
+  .dr-app[data-panel] .dr-toast { top: auto; bottom: calc(72px + env(safe-area-inset-bottom, 0px)); }
+}
+@media (min-width: 761px) {
+  /* laptops: the panel's header stays one line high (a long print name is cut short, not wrapped), so the canvas
+     size measured when it opens still fits */
+  .dr-editor[data-panel] > header .sub { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .dr-editor[data-panel] > header .dr-wholebtn { max-width: 160px; overflow: hidden; text-overflow: ellipsis; }
+}
+/* "Anywhere on the tee": the card, and the banner while the tee waits for the tap */
+.dr-area.dr-anycard { border-style: dashed; }
+.dr-area.dr-anycard.blocked b { text-decoration: none; }
+.dr-anythumb .ring { fill: rgba(201, 162, 75, .18); stroke: #8A6A1E; stroke-width: 3; stroke-dasharray: 7 5; }
+.dr-anythumb .plus { fill: none; stroke: #8A6A1E; stroke-width: 6; stroke-linecap: round; }
+.dr-anybar { position: absolute; z-index: 6; top: 14px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; width: max-content; max-width: calc(100% - 24px);
+  padding: 6px 6px 6px 16px; border-radius: 999px; background: var(--ink); color: #fff; font-size: 13px; line-height: 1.3; box-shadow: 0 14px 30px -16px rgba(20, 17, 16, .7); }
+.dr-anybar b { color: #F6DFA0; }
+.dr-anybar button { min-height: 44px; flex-shrink: 0; padding: 0 16px; border: 0; border-radius: 999px; background: #fff; color: var(--ink); font-weight: 700; cursor: pointer; }
+.dr-room[data-anywhere] canvas, .dr-room[data-anywhere] canvas:active { cursor: crosshair; }
+@media (max-width: 760px) {
+  .dr-anybar { top: 58px; left: 10px; right: 10px; transform: none; width: auto; max-width: none; border-radius: 16px; }
+}
