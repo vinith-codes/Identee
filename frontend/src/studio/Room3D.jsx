@@ -1267,7 +1267,7 @@ function Tee({ model, colour, areas, onPickArea, interactive, still, spotsRef, t
 
 /* ---------- camera ---------- */
 function CameraRig({ request, getSpot, apiRef, wakeKey, room, dark, setNearest }) {
-  const { camera, controls, gl, scene, size, invalidate } = useThree();
+  const { camera, controls, gl, scene, size, invalidate, get } = useThree();
   const anim = useRef(null);
   // the room shown right now, for snapshot() to put back afterwards. (The page may hold on to an older copy of the
   // helper below while it waits for the tee; with the room it had then, a picture taken after stepping into
@@ -1483,8 +1483,26 @@ function CameraRig({ request, getSpot, apiRef, wakeKey, room, dark, setNearest }
         camera.lookAt(0, 0.1, 0);
       }
       const shoot = view !== "label" || !!label;
+      // The pictures are cut 4:5 from the middle of this drawing (mockupCrop.js). When the view is narrower than that
+      // — a phone right after a reload into Review, before the view has taken Review's wide shape — the cut ran past
+      // the edges and the picture got black corners. Then draw it on a wider canvas of the same height (same tee
+      // size and framing) and put the view back straight away, before the screen shows anything (17 Nov 2026).
+      const drawn = gl.getSize(new THREE.Vector2());
+      const narrow = shoot && drawn.y > 0 && drawn.x < drawn.y * 0.8;
+      const cam = get().camera; // (the same camera, taken from the view's state so it can be changed for a moment)
+      const aspectWas = cam.aspect;
+      if (narrow) {
+        gl.setSize(Math.ceil(drawn.y * 0.8), drawn.y, false);
+        cam.aspect = Math.ceil(drawn.y * 0.8) / drawn.y;
+        cam.updateProjectionMatrix();
+      }
       if (shoot) gl.render(scene, camera);
       const url = shoot ? gl.domElement.toDataURL("image/jpeg", 0.85) : null;
+      if (narrow) {
+        gl.setSize(drawn.x, drawn.y, false);
+        cam.aspect = aspectWas;
+        cam.updateProjectionMatrix();
+      }
       if (studio) studio.visible = was.studio;
       if (boutique) boutique.visible = was.boutique;
       if (tee) {
