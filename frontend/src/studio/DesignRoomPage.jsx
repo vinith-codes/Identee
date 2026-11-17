@@ -3675,6 +3675,9 @@ export default function DesignRoomPage() {
     for (let tries = 0; tries < 12 && !roomApi.current; tries++) await wait(300);
     const api = roomApi.current;
     if (!api) return null;
+    // the tee itself may still be on its way (a reload straight into Review): wait for it, up to 20 s, so the
+    // pictures are not of an empty stand (17 Nov 2026)
+    for (let tries = 0; tries < 66 && api.ready && !api.ready(); tries++) await wait(300);
     // Paint every print area again without its dashed border right now. (Waiting for the page to redraw
     // after closing the area was a race: with a big picture the border was still there and got saved in
     // the My designs picture.) The page draws its usual pictures again afterwards.

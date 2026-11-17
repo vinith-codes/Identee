@@ -1415,6 +1415,15 @@ function CameraRig({ request, getSpot, apiRef, wakeKey, room, dark, setNearest }
   // Handed to the page at commit time, with no clean-up, so it is there as
   // soon as the 3D view exists (the Review pictures need it straight away).
   const api = {
+    // The tee is in the room and shown (17 Nov 2026). The 3D view starts before the tee's model has arrived
+    // (it loads behind a Suspense; only the Oversized model is fetched ahead of time), so pictures taken
+    // straight after a reload on Review showed the stand with no tee. Pictures wait for this.
+    ready() {
+      const tee = scene.getObjectByName("tee");
+      if (!tee) return false;
+      for (let o = tee; o; o = o.parent) if (!o.visible) return false;
+      return true;
+    },
     // an area's picture was repainted in place (dragging): show it again
     touch(areaKey) {
       scene.traverse((o) => {
