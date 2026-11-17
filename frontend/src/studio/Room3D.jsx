@@ -1199,7 +1199,7 @@ function Tee({ model, colour, areas, onPickArea, interactive, still, spotsRef, t
   });
 
   return (
-    <group ref={group} name="tee" scale={baseScale} position-y={TEE_Y} userData={{ baseScale }}>
+    <group ref={group} name="tee" scale={baseScale} position-y={TEE_Y} userData={{ baseScale, hasLabel: !!neckLabel }}>
       <group position-y={model.outfit?.lift || 0}>
       <mesh
         ref={mesh}
@@ -1269,6 +1269,13 @@ function Tee({ model, colour, areas, onPickArea, interactive, still, spotsRef, t
 function CameraRig({ request, getSpot, apiRef, wakeKey, room, dark, setNearest }) {
   const { camera, controls, gl, scene, size, invalidate } = useThree();
   const anim = useRef(null);
+  // the room shown right now, for snapshot() to put back afterwards. (The page may hold on to an older copy of the
+  // helper below while it waits for the tee; with the room it had then, a picture taken after stepping into
+  // Review put the bright studio's colours back in the dark dressing room — 17 Nov 2026.)
+  const shown = useRef({ room, dark });
+  useLayoutEffect(() => {
+    shown.current = { room, dark };
+  });
 
   const pending = useRef(null); // area request waiting for its decal to exist
   // the neck label close-up: the dressing room's lean (which follows the pointer) waits, so the view stays put
@@ -1422,6 +1429,8 @@ function CameraRig({ request, getSpot, apiRef, wakeKey, room, dark, setNearest }
       const tee = scene.getObjectByName("tee");
       if (!tee) return false;
       for (let o = tee; o; o = o.parent) if (!o.visible) return false;
+      // its neck label comes a moment later (its picture is drawn first): wait for that too, or the label picture is empty
+      if (tee.userData.hasLabel && !scene.getObjectByName("neck-label")) return false;
       return true;
     },
     // an area's picture was repainted in place (dragging): show it again
@@ -1488,7 +1497,7 @@ function CameraRig({ request, getSpot, apiRef, wakeKey, room, dark, setNearest }
       hidden.forEach((o) => (o.visible = true));
       if (tee && scaleWas) tee.scale.setScalar(scaleWas);
       [FOLD.left.value, FOLD.right.value, FOLD.bottom.value] = was.fold;
-      paintBackdrop(scene, room, dark);
+      paintBackdrop(scene, shown.current.room, shown.current.dark);
       camera.position.copy(keepP);
       if (controls) {
         controls.target.copy(keepT);
