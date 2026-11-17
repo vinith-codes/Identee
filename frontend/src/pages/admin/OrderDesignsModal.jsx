@@ -156,12 +156,17 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // "Prepare for print" button (the approved way: enlarged on a graphics card, vector edge, 600 DPI) and, as the old way,
 // a redraw by Google's AI. One row per picture.
-function PrintPictures({ design, price, sizes, longs = {}, pf, onChanged, onReady, locked = false, allPrep = null }) {
+function PrintPictures({ design, price, sizes, longs = {}, pf, onChanged, onReady, onLost, locked = false, allPrep = null }) {
   const [busy, setBusy] = useState(null); // index being redrawn by Google
   const [preparing, setPreparing] = useState(null); // { index, jobId, step }
   const [compare, setCompare] = useState(null); // { index, url } — the picture being compared with its original
   const [error, setError] = useState("");
   const [grokDone, setGrokDone] = useState(null); // the picture Grok just enlarged, because Google refused
+  const missed = useRef(0); // "how is it going?" answers missed in a row (kept when the window redraws)
+  const lostRef = useRef(onLost);
+  useEffect(() => {
+    lostRef.current = onLost;
+  });
   const rows = design.elements.map((el, index) => ({ el, index })).filter(({ el }) => el.type === "image" && el.src);
   const enlarger = pf?.enlarger;
   const prepPrice = enlarger?.priceInr ? `about ₹${enlarger.priceInr}` : enlarger?.mock ? "free (test)" : "";
@@ -174,6 +179,7 @@ function PrintPictures({ design, price, sizes, longs = {}, pf, onChanged, onRead
       try {
         const j = await printFileService.job(preparing.jobId);
         if (!alive) return;
+        missed.current = 0;
         if (j.status === "done") {
           clearInterval(timer);
           setPreparing(null);
@@ -185,9 +191,21 @@ function PrintPictures({ design, price, sizes, longs = {}, pf, onChanged, onRead
         } else setPreparing((p) => (p ? { ...p, step: j.step } : p));
       } catch (err) {
         if (!alive) return;
+        // (17 Nov 2026, VF-2026-0082: "Lost track …" while the server went on and finished both pictures) one missed
+        // answer is not the end — a very big picture keeps the server busy, a phone's network blinks. Keep asking for
+        // about half a minute; only when the server has forgotten the job (it restarted) or never answers, look at
+        // the order again: the picture is often finished by then.
+        const forgotten = err.response?.status === 404;
+        missed.current += 1;
+        if (!forgotten && missed.current < 10) return;
+        missed.current = 0;
         clearInterval(timer);
+        const index = preparing.index;
+        const printFile = await Promise.resolve(lostRef.current?.(index)).catch(() => null);
+        if (!alive) return;
         setPreparing(null);
-        setError(err.response?.data?.message || "Lost track of the picture being prepared. Try again.");
+        if (printFile) onReady(index, printFile);
+        else setError(forgotten ? err.response?.data?.message || "That job is not known any more. Press Prepare for print again." : "No answer from the server about this picture. Close this window and open it again in a minute — it may be finished by then.");
       }
     }, 3000);
     return () => {
@@ -414,6 +432,11 @@ export default function OrderDesignsModal({ orderId, onClose }) {
   const pictureReady = (designId, index, printFile) => {
     setPack((p) => withPrintFile(p, designId, index, printFile));
     setResult(null);
+  };
+  // (17 Nov 2026) a picture whose progress was lost: the order is read again — the server has often finished it
+  const pictureLost = async (designId, index) => {
+    const fresh = await customizationService.getOrderPrintPack(orderId);
+    return fresh?.designs?.find((d) => d._id === designId)?.elements?.[index]?.printFile || null;
   };
 
   useEffect(() => {
@@ -759,7 +782,7 @@ export default function OrderDesignsModal({ orderId, onClose }) {
               </div>
             )}
             {d.layoutVersion === 2 && (
-              <PrintPictures design={d} price={printPrice} sizes={pictureSizes} longs={pictureLongs} pf={pf} locked={!!allPrep} allPrep={allPrep} onChanged={(index, src) => pictureChanged(d._id, index, src)} onReady={(index, printFile) => pictureReady(d._id, index, printFile)} />
+              <PrintPictures design={d} price={printPrice} sizes={pictureSizes} longs={pictureLongs} pf={pf} locked={!!allPrep} allPrep={allPrep} onChanged={(index, src) => pictureChanged(d._id, index, src)} onReady={(index, printFile) => pictureReady(d._id, index, printFile)} onLost={(index) => pictureLost(d._id, index)} />
             )}
           </section>
         ))}

@@ -17,10 +17,10 @@ import { uploadFile } from "../utils/imageStorage.js";
 import { cutOutPlainBackground, trimClearEdges } from "../services/cutoutService.js";
 import { rememberPictures } from "./myPictureController.js";
 import { GROK_BEST, xaiConfigured, xaiEditImage, xaiModel, xaiNewImage } from "../services/xaiImageService.js";
-import { AI_STYLES, aiImageModel, generateImage, nearestRatio } from "../services/aiImageService.js";
-import { brainConfigured, brainReply, CONCEPTS_PER_SHEET, PIECES } from "../services/assistantBrain.js";
+import { AI_STYLES, PHOTO_STYLES, aiImageModel, generateImage, nearestRatio } from "../services/aiImageService.js";
+import { brainConfigured, brainReply, CONCEPTS_PER_SHEET, MAX_PHOTOS, PIECES } from "../services/assistantBrain.js";
 import { chatModel, MEMORY_MAX } from "../services/aiChatService.js";
-import { developPrompt, matchPrompt, mockSheet, piecesOf, SHEET_COST_FACTOR, SHEET_RATIO, SHEET_SIZE, sheetPrompt, tryOnPrompt, wornPrompt } from "../services/conceptSheets.js";
+import { developPrompt, matchPrompt, mockSheet, piecesOf, SHEET_COST_FACTOR, SHEET_RATIO, SHEET_SIZE, sheetPrompt, tryOnPrompt, tryOnSidePrompt, WORN_SIDES, wornPrompt } from "../services/conceptSheets.js";
 import User from "../models/userModel.js";
 import { DESIGN_SIZE, designPictureCost, googleCapped, grokCapped, isOurUpload, noPicturesLeft, readSettings, usedToday, whyOff } from "./aiController.js";
 import { expectedWords, missingWords, readWords, wordCheckReady } from "../services/wordCheck.js";
@@ -48,6 +48,8 @@ const fetchOurImage = async (url, req) => {
 };
 
 const text = (v, n) => String(v ?? "").replace(/\s+/g, " ").trim().slice(0, n);
+// (17 Nov 2026) a list of the customer's own uploads (several pictures mixed into one design): at most 6, no repeats
+const ourUrls = (list) => [...new Set((Array.isArray(list) ? list : []).map(String).filter(isOurUpload))].slice(0, MAX_PHOTOS);
 // a picture made small enough for the AI, on a white background
 const smallCopy = async (pic, px) => ({ data: await sharp(pic.data).rotate().resize(px, px, { fit: "inside", withoutEnlargement: true }).flatten({ background: "#ffffff" }).jpeg({ quality: 92 }).toBuffer(), mime: "image/jpeg" });
 const conceptIn = (c) => ({
@@ -102,6 +104,18 @@ export const makeAssist = asyncHandler(async (req, res) => {
   // a picture sent with this message, and the logo on file in this chat (only our own uploads)
   const attached = req.body?.photo?.url && isOurUpload(String(req.body.photo.url)) ? { url: String(req.body.photo.url), about: text(req.body.photo.about, 200) } : null;
   const logo = req.body?.logoUrl && isOurUpload(String(req.body.logoUrl)) ? String(req.body.logoUrl) : null;
+  // (17 Nov 2026) several pictures with this message (or still waiting from the last one: photosEarlier) — only our own
+  // uploads, at most 6. The real brain is shown small copies of them all, so it can look at them together.
+  const photos = (Array.isArray(req.body?.photos) ? req.body.photos : [])
+    .filter((p) => p?.url && isOurUpload(String(p.url)))
+    .slice(0, MAX_PHOTOS)
+    .map((p) => ({ url: String(p.url), about: text(p.about, 200) }));
+  if (photos.length > 1 && process.env.AI_CHAT_PROVIDER?.trim() !== "mock") {
+    const small = await Promise.all(photos.map((p) => fetchOurImage(p.url, req).then((pic) => smallCopy(pic, 768)).catch(() => null)));
+    small.forEach((im, i) => {
+      if (im) photos[i].image = im;
+    });
+  }
   // what we know about this customer from earlier visits (round 5, 8 Nov 2026) — kept on their account
   const profile = String((await User.findById(req.user._id).select("aiProfile").lean().catch(() => null))?.aiProfile || "").slice(0, 400);
   // round 8 (11 Nov 2026): the delivery dates, worked out here, and the customer's own last orders
@@ -120,8 +134,12 @@ export const makeAssist = asyncHandler(async (req, res) => {
       areas,
       styles: Object.keys(AI_STYLES),
       sheets,
-      attached,
+      // (one picture goes as `attached`, exactly as before; two or more as `photos`)
+      attached: attached || (photos.length === 1 && !req.body?.photosEarlier ? photos[0] : null),
       logo,
+      photos: photos.length > 1 ? photos : [],
+      photosEarlier: Boolean(req.body?.photosEarlier),
+      photoStyles: Object.keys(PHOTO_STYLES),
     });
   } catch (err) {
     console.error("💥 ERROR: Assistant v2 failed:", err?.message || err);
@@ -206,16 +224,19 @@ export const makeConcepts = asyncHandler(async (req, res) => {
   const teeIsDark = Boolean(req.body?.teeIsDark);
   const numberFrom = Math.max(1, Math.min(97, Number(req.body?.numberFrom) || 1));
   // the customer's own logo / artwork (one of our uploads): sent with the instruction, printed exactly as it is
-  const logoUrl = req.body?.logoUrl && isOurUpload(String(req.body.logoUrl)) ? String(req.body.logoUrl) : null;
+  // (17 Nov 2026) logoUrls: several of the customer's pictures mixed into one design — all sent, numbered in order
+  const logoUrls = ourUrls(req.body?.logoUrls);
+  const logoUrl = logoUrls.length > 1 ? null : logoUrls[0] || (req.body?.logoUrl && isOurUpload(String(req.body.logoUrl)) ? String(req.body.logoUrl) : null);
   // colourways / variations (round 5): the picture already on the tee goes as the reference instead
-  const basisUrl = !logoUrl && req.body?.basisUrl && isOurUpload(String(req.body.basisUrl)) ? String(req.body.basisUrl) : null;
-  const logo = logoUrl ? await smallCopy(await fetchOurImage(logoUrl, req), 1024) : basisUrl ? await smallCopy(await fetchOurImage(basisUrl, req), 1024) : null;
-  const prompt = sheetPrompt({ concepts, garment, teeColour, teeIsDark, numberFrom, logo: Boolean(logoUrl), basis: Boolean(basisUrl) });
+  const basisUrl = !logoUrl && logoUrls.length < 2 && req.body?.basisUrl && isOurUpload(String(req.body.basisUrl)) ? String(req.body.basisUrl) : null;
+  const logos = logoUrls.length > 1 ? await Promise.all(logoUrls.map(async (u) => smallCopy(await fetchOurImage(u, req), 1024))) : [];
+  const logo = logos[0] || (logoUrl ? await smallCopy(await fetchOurImage(logoUrl, req), 1024) : basisUrl ? await smallCopy(await fetchOurImage(basisUrl, req), 1024) : null);
+  const prompt = sheetPrompt({ concepts, garment, teeColour, teeIsDark, numberFrom, logo: Boolean(logoUrl), basis: Boolean(basisUrl), pictures: logos.length });
   const { made, byGrok } = mockImages()
     ? { made: await mockSheet(concepts, { teeColour, numberFrom }), byGrok: false }
     : await withGrok(
         s,
-        () => generateImage({ prompt, images: logo ? [logo] : [], ratio: SHEET_RATIO, size: SHEET_SIZE }),
+        () => generateImage({ prompt, images: logos.length ? logos : logo ? [logo] : [], ratio: SHEET_RATIO, size: SHEET_SIZE }),
         () => (logo ? xaiEditImage({ prompt, image: logo, resolution: GROK_BEST }) : xaiNewImage({ prompt, ratio: SHEET_RATIO, resolution: GROK_BEST })),
         "concept sheet",
       );
@@ -229,10 +250,10 @@ export const makeConcepts = asyncHandler(async (req, res) => {
     costInr: Math.round((byGrok ? s.grokPricePerImageInr : s.pricePerImageInr * SHEET_COST_FACTOR) * 100) / 100,
     model: byGrok ? xaiModel() : aiImageModel(),
     // the sheet itself, so the admin can feature it in Browse ideas (round 7)
-    sheet: { url: stored.url, width: meta.width || 1536, height: meta.height || 864, brief: text(req.body?.brief, 400), concepts, teeColour, teeIsDark, logo: Boolean(logoUrl || basisUrl) },
+    sheet: { url: stored.url, width: meta.width || 1536, height: meta.height || 864, brief: text(req.body?.brief, 400), concepts, teeColour, teeIsDark, logo: Boolean(logoUrl || basisUrl || logos.length) },
   });
   res.status(201).json({
-    sheet: { url: stored.url, width: meta.width || 1536, height: meta.height || 864, numberFrom, concepts: concepts.map((c, i) => ({ n: numberFrom + i, ...c })), byGrok, logoUrl: logoUrl || null },
+    sheet: { url: stored.url, width: meta.width || 1536, height: meta.height || 864, numberFrom, concepts: concepts.map((c, i) => ({ n: numberFrom + i, ...c })), byGrok, logoUrl: logoUrl || null, ...(logos.length ? { logoUrls } : {}) },
     left: Math.max(0, s.dailyPerUser - used - 1),
   });
 });
@@ -264,15 +285,18 @@ export const makeDevelop = asyncHandler(async (req, res) => {
   const ratios = req.body?.ratios && typeof req.body.ratios === "object" ? req.body.ratios : {};
   const change = text(req.body?.change, 300); // "with the text in gold" — asked together with the pick
   const image = await smallCopy(await fetchOurImage(sheetUrl, req), 2048);
-  const logoUrl = req.body?.logoUrl && isOurUpload(String(req.body.logoUrl)) ? String(req.body.logoUrl) : null;
-  const logo = logoUrl ? await smallCopy(await fetchOurImage(logoUrl, req), 1024) : null;
+  // (17 Nov 2026) a sheet that mixed several of the customer's pictures: all of them go along again, in order
+  const logoUrls = ourUrls(req.body?.logoUrls);
+  const logoUrl = logoUrls.length ? null : req.body?.logoUrl && isOurUpload(String(req.body.logoUrl)) ? String(req.body.logoUrl) : null;
+  const logos = logoUrls.length ? await Promise.all(logoUrls.map(async (u) => smallCopy(await fetchOurImage(u, req), 1024))) : [];
+  const logo = logos[0] || (logoUrl ? await smallCopy(await fetchOurImage(logoUrl, req), 1024) : null);
   const ratioOf = Object.fromEntries(pieces.map((piece) => [piece, nearestRatio(Number(ratios[piece]) || (piece === "sleeve" ? 0.75 : 1))]));
   const drawPiece = (piece, extraChange = null) => {
-    const prompt = developPrompt({ concept, n, piece, teeIsDark, logo: Boolean(logo), change: [change, extraChange].filter(Boolean).join(". ") || null });
+    const prompt = developPrompt({ concept, n, piece, teeIsDark, logo: Boolean(logo) && logos.length < 2, pictures: logos.length > 1 ? logos.length : 0, change: [change, extraChange].filter(Boolean).join(". ") || null });
     return withGrok(
       s,
       // (the pieces go on the customer's tee: drawn at 4K since 15 Nov 2026; the sheet itself stays SHEET_SIZE)
-      () => generateImage({ prompt, image, images: logo ? [logo] : [], ratio: ratioOf[piece], size: DESIGN_SIZE }),
+      () => generateImage({ prompt, image, images: logos.length ? logos : logo ? [logo] : [], ratio: ratioOf[piece], size: DESIGN_SIZE }),
       () => xaiEditImage({ prompt, image, ratio: ratioOf[piece], resolution: GROK_BEST }),
       `${piece} of concept ${n}${extraChange ? " (spelling)" : ""}`,
     );
@@ -375,29 +399,55 @@ export const makeMatch = asyncHandler(async (req, res) => {
   res.status(201).json({ piece: { piece, url: stored.url, width: cut.width, height: cut.height, byGrok }, left: Math.max(0, s.dailyPerUser - used - 1) });
 });
 
+// Photo of it worn / Try it on me on every printed side (17 Nov 2026, the owner: "it must show all sides where the
+// prints are available"). The Review step asks once per printed side — the first side first, so the customer sees
+// it at once — and sends the first photo made back as `ref` with the other sides: the AI then keeps the same person,
+// place and light. Each side is one picture of the day's 10 and one AiUsage row, as before.
+const wornSideOf = (v) => (WORN_SIDES.includes(v) ? v : "front");
+const SIDE_NAME = { front: "front", back: "back", left: "left side", right: "right side" };
+const pictureIn = (v) => {
+  const m = String(v || "").match(/^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/);
+  return m && m[2].length <= 8_000_000 ? { data: Buffer.from(m[2], "base64"), mime: m[1] } : null;
+};
+// the first photo of this set (one of our uploads), small, for the AI to keep the same person; none → null
+async function firstPhotoOf(req, res) {
+  const url = String(req.body?.ref || "");
+  if (!url) return null;
+  if (!isOurUpload(url)) {
+    res.status(400);
+    throw new Error("The first photo couldn’t be found. Close the photo and try again.");
+  }
+  return smallCopy(await fetchOurImage(url, req), 1024);
+}
+
 // POST /api/ai/worn  (round 5, 8 Nov 2026): a lifestyle photo of the finished tee on a person, for sharing
-// { image: data URL of the tee's front mock-up (from Review), garment, teeColour, setting? } -> { url, width, height, left }
+// { image: data URL of the tee's mock-up from that side (from Review), side?: "front"|"back"|"left"|"right",
+//   ref?: the url of the first photo of this set (17 Nov 2026), garment, teeColour, setting? } -> { url, width, height, side, left }
 export const makeWorn = asyncHandler(async (req, res) => {
   const { s, used } = await mayDraw(req, res);
-  const m = String(req.body?.image || "").match(/^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/);
-  if (!m || m[2].length > 8_000_000) {
+  const tee = pictureIn(req.body?.image);
+  if (!tee) {
     res.status(400);
     throw new Error("The picture of the tee is missing. Open Review and try again.");
   }
-  const image = await smallCopy({ data: Buffer.from(m[2], "base64"), mime: m[1] }, 1536);
-  const prompt = wornPrompt({ garment: text(req.body?.garment, 40) || "t-shirt", teeColour: text(req.body?.teeColour, 30).replace(/[^\w \-]/g, "") || "white", setting: text(req.body?.setting, 80) });
+  const side = wornSideOf(req.body?.side);
+  const image = await smallCopy(tee, 1536);
+  const ref = await firstPhotoOf(req, res);
+  const words = { garment: text(req.body?.garment, 40) || "t-shirt", teeColour: text(req.body?.teeColour, 30).replace(/[^\w \-]/g, "") || "white", setting: text(req.body?.setting, 80), side };
+  const prompt = wornPrompt({ ...words, sameAs: Boolean(ref) });
   const { made, byGrok } = mockImages()
-    ? { made: { buffer: image.data, mime: image.mime }, byGrok: false }
+    ? { made: { buffer: image.data, mime: image.mime }, byGrok: false } // (the stand-in: the tee's own picture of that side)
     : await withGrok(
         s,
-        () => generateImage({ prompt, image, ratio: "3:4" }),
-        () => xaiEditImage({ prompt, image, ratio: "3:4", resolution: GROK_BEST }),
-        "worn photo",
+        () => generateImage({ prompt, image, images: ref ? [ref] : [], ratio: "3:4" }),
+        // (Grok takes one picture only: the tee's side, without the first photo — its person may differ)
+        () => xaiEditImage({ prompt: ref ? wornPrompt(words) : prompt, image, ratio: "3:4", resolution: GROK_BEST }),
+        `worn photo (${side})`,
       );
   const meta = await sharp(made.buffer).metadata();
   const stored = await uploadFile(made.buffer, made.mime, "ai-worn");
-  await AiUsage.create({ user: req.user._id, kind: "worn", prompt: "Photo of the tee worn (Review)", images: 1, costInr: byGrok ? s.grokPricePerImageInr : s.pricePerImageInr, model: byGrok ? xaiModel() : aiImageModel() });
-  res.status(201).json({ url: stored.url, width: meta.width || 0, height: meta.height || 0, byGrok, left: Math.max(0, s.dailyPerUser - used - 1) });
+  await AiUsage.create({ user: req.user._id, kind: "worn", prompt: `Photo of the tee worn — ${SIDE_NAME[side]} (Review)`, images: 1, costInr: byGrok ? s.grokPricePerImageInr : s.pricePerImageInr, model: byGrok ? xaiModel() : aiImageModel() });
+  res.status(201).json({ url: stored.url, width: meta.width || 0, height: meta.height || 0, byGrok, side, left: Math.max(0, s.dailyPerUser - used - 1) });
 });
 
 // AI_IMAGE_PROVIDER=mock: a stand-in piece (a coloured ring with the piece's name) on the magenta "green screen"
@@ -407,21 +457,29 @@ async function mockPiece(piece) {
 }
 
 // POST /api/ai/tryon  (round 7, 8 Nov 2026): the customer's own photo wearing the finished tee
-// { photo: data URL (their photo), image: data URL (the tee's front mock-up), garment, teeColour } -> { url, width, height, left }
+// { photo: data URL (their photo), image: data URL (the tee's mock-up from that side), garment, teeColour,
+//   side? (17 Nov 2026), ref?: the url of their front try-on photo, backPhoto?: data URL of a photo of their back }
+// -> { url, width, height, side, from: "photo" | "ai", left }
+//   front: their photo, dressed. back + backPhoto: their back photo, dressed. Any other side: the SAME person turned
+//   round, MADE by the AI from their front try-on photo (ref) or else their own photo — `from: "ai"`, and the caption says so.
 export const makeTryOn = asyncHandler(async (req, res) => {
   const { s, used } = await mayDraw(req, res);
-  const dataUrl = (v) => String(v || "").match(/^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/);
-  const p = dataUrl(req.body?.photo);
-  const t = dataUrl(req.body?.image);
-  if (!p || !t || p[2].length > 8_000_000 || t[2].length > 8_000_000) {
+  const side = wornSideOf(req.body?.side);
+  const t = pictureIn(req.body?.image);
+  const own = side === "front" ? pictureIn(req.body?.photo) : side === "back" ? pictureIn(req.body?.backPhoto) : null;
+  const ref = side === "front" || own ? null : await firstPhotoOf(req, res);
+  const person = own || ref || (side === "front" ? null : pictureIn(req.body?.photo));
+  if (!t || !person) {
     res.status(400);
     throw new Error("Choose a photo of yourself first.");
   }
-  const photo = await smallCopy({ data: Buffer.from(p[2], "base64"), mime: p[1] }, 1536);
-  const tee = await smallCopy({ data: Buffer.from(t[2], "base64"), mime: t[1] }, 1024);
-  const prompt = tryOnPrompt({ garment: text(req.body?.garment, 40) || "t-shirt", teeColour: text(req.body?.teeColour, 30).replace(/[^\w \-]/g, "") || "white" });
+  const photo = own || !ref ? await smallCopy(person, 1536) : person;
+  const tee = await smallCopy(t, 1024);
+  const words = { garment: text(req.body?.garment, 40) || "t-shirt", teeColour: text(req.body?.teeColour, 30).replace(/[^\w \-]/g, "") || "white", side };
+  const fromPhoto = side === "front" || Boolean(own);
+  const prompt = fromPhoto ? tryOnPrompt(words) : tryOnSidePrompt(words);
   let made;
-  if (mockImages()) made = { buffer: photo.data, mime: photo.mime };
+  if (mockImages()) made = fromPhoto ? { buffer: photo.data, mime: photo.mime } : { buffer: tee.data, mime: tee.mime }; // (stand-ins: their photo, or the tee's side)
   else {
     try {
       made = await generateImage({ prompt, image: photo, images: [tee], ratio: "3:4" });
@@ -429,15 +487,19 @@ export const makeTryOn = asyncHandler(async (req, res) => {
       // (Grok takes one picture only, so it can't carry the tee: no second try here)
       if (err?.status === 422 || err?.noImage) {
         res.status(422);
-        throw new Error("The picture service wouldn’t use this photo. Try a clear photo of yourself facing the camera — or use “Photo of it worn” instead.");
+        throw new Error(
+          side === "front" || own
+            ? "The picture service wouldn’t use this photo. Try a clear photo of yourself facing the camera — or use “Photo of it worn” instead."
+            : `The picture service wouldn’t make the ${SIDE_NAME[side]} view from your photo. The other photos are kept.`,
+        );
       }
       throw err;
     }
   }
   const meta = await sharp(made.buffer).metadata();
   const stored = await uploadFile(made.buffer, made.mime, "ai-worn");
-  await AiUsage.create({ user: req.user._id, kind: "worn", prompt: "Try it on me (the customer's own photo, Review)", images: 1, costInr: s.pricePerImageInr, model: aiImageModel() });
-  res.status(201).json({ url: stored.url, width: meta.width || 0, height: meta.height || 0, left: Math.max(0, s.dailyPerUser - used - 1) });
+  await AiUsage.create({ user: req.user._id, kind: "worn", prompt: `Try it on me — ${SIDE_NAME[side]}${fromPhoto ? "" : " made by the AI"} (the customer's own photo, Review)`, images: 1, costInr: s.pricePerImageInr, model: aiImageModel() });
+  res.status(201).json({ url: stored.url, width: meta.width || 0, height: meta.height || 0, side, from: fromPhoto ? "photo" : "ai", left: Math.max(0, s.dailyPerUser - used - 1) });
 });
 
 // GET /api/ai/ideas  (public): the concept sheets the admin chose for "Browse ideas" (round 7)

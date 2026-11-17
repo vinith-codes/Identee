@@ -39,6 +39,7 @@ import "./utils/razorpayInstance.js";
 import notificationRoutes from "./routes/notificationRoutes.js";
 import aiRoutes from "./routes/aiRoutes.js";
 import groupPollRoutes from "./routes/groupPollRoutes.js";
+import shareRoutes from "./routes/shareRoutes.js";
 import { prepareBackgroundRemoval } from "./services/backgroundService.js";
 import categoryRoutes from "./routes/categoryRoutes.js";
 import shopRoutes from "./routes/shopRoutes.js";
@@ -146,6 +147,7 @@ app.use("/api/art-designs", artDesignRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/ai", aiRoutes);
 app.use("/api/groups", groupPollRoutes); // one link for a team: friends vote and fill in name + size
+app.use("/api/share", shareRoutes); // "Share my tee" → a WhatsApp link with the tee as its preview (17 Nov 2026)
 app.get("/api/config/paypal", (req, res) =>
   res.send(process.env.PAYPAL_CLIENT_ID),
 );

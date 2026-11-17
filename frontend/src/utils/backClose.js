@@ -14,6 +14,10 @@ const MARK = "__popupDepth"; // how many windows were open on this history step 
 const open = []; // the open windows, oldest first: { close }
 let syncQueued = false;
 let installed = false;
+// (17 Nov 2026) set while our own history.go(-n) is on its way: the browser moves back a moment later, and that move is
+// not a Back press. Without this a window that opened in that moment was closed by it (Try it on me: "Go on without
+// it" closed its question and the photo window opened just after — the photos were made but never shown).
+let goingBack = false;
 let realPush = null;
 
 const depthOf = (state) => (state && Number.isInteger(state[MARK]) ? state[MARK] : 0);
@@ -42,6 +46,12 @@ function install() {
 // Back (or Forward) moved to another step: close every window above that step's count, top one first.
 // A window busy with work may answer false (= stay open, like its Escape key): its step is put back.
 function onPop(e) {
+  if (goingBack) {
+    // our own step removal arrived: nothing to close; a window opened meanwhile gets its step now
+    goingBack = false;
+    queueSync();
+    return;
+  }
   const d = depthOf(e.state);
   while (open.length > d) {
     const w = open.pop();
@@ -59,7 +69,19 @@ function onPop(e) {
   }
   // a step whose window is already gone (left behind when a page was opened from a window inside a window):
   // step over it, so Back is never pressed for nothing
-  if (d > open.length) window.history.back();
+  if (d > open.length) goBack(-1);
+}
+
+// our own move back in the history (marked, so onPop doesn't take it for the customer's Back press). If the browser
+// never reports it (it can't go back that far), the mark is dropped after a second.
+function goBack(n) {
+  goingBack = true;
+  window.history.go(n);
+  setTimeout(() => {
+    if (!goingBack) return;
+    goingBack = false;
+    queueSync();
+  }, 1000);
 }
 
 // make the history match the open windows — once, after React has finished opening/closing them
@@ -67,9 +89,10 @@ function onPop(e) {
 // then cost one history change, not two that race each other)
 function sync() {
   syncQueued = false;
+  if (goingBack) return; // (the move back is still on its way: onPop syncs again when it arrives)
   const have = depthOf(window.history.state);
   const want = open.length;
-  if (have > want) window.history.go(want - have);
+  if (have > want) goBack(want - have);
   else for (let d = have + 1; d <= want; d++) realPush({ ...(window.history.state || {}), [MARK]: d }, "");
 }
 

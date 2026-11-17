@@ -1635,6 +1635,7 @@ p.pc-area { margin: 0; font-size: 13px; color: var(--muted); }
 @keyframes dr-mic-pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(192, 57, 43, .45); } 50% { box-shadow: 0 0 0 8px rgba(192, 57, 43, 0); } }
 .dr-share { justify-self: start; border: 1.5px solid var(--ink); background: #fff; color: var(--ink); border-radius: 999px; padding: 8px 16px; font-weight: 700; font-size: 13px; cursor: pointer; margin-bottom: 8px; }
 .dr-share:disabled { opacity: .55; cursor: wait; }
+a.dr-share { display: inline-flex; align-items: center; min-height: 40px; text-decoration: none; } /* "Open WhatsApp" (17 Nov 2026) */
 .dr-share.alt { border-color: var(--gold); color: var(--ink); background: var(--gold-soft); margin-left: 8px; }
 /* Photo of it worn (round 5, 8 Nov 2026) */
 .dr-worn { position: fixed; inset: 0; z-index: 1200; display: grid; place-items: center; padding: 16px; background: rgba(20, 17, 16, .72); }
@@ -1643,6 +1644,27 @@ p.pc-area { margin: 0; font-size: 13px; color: var(--muted); }
 .dr-worn-acts { display: flex; gap: 8px; flex-wrap: wrap; }
 .dr-worn-acts button { margin: 0; border: 1.5px solid var(--ink, #141110); background: #fff; color: var(--ink, #141110); border-radius: 999px; padding: 9px 16px; font-weight: 700; font-size: 13px; cursor: pointer; }
 .dr-worn-acts button:first-child { background: var(--ink, #141110); color: #fff; }
+/* 17 Nov 2026: one photo per printed side — the side chips, the waiting card, the cost line; 40 px taps, 12 px words */
+.dr-share.dr-worn-btn { min-height: 40px; }
+.dr-worn-cost { margin: -2px 0 8px; font-size: 12.5px; }
+.dr-worn-card { box-sizing: border-box; width: min(92vw, 520px); overflow-y: auto; }
+.dr-worn-card > * { min-width: 0; }
+.dr-worn-acts button { min-height: 40px; }
+.dr-worn-acts button:disabled { opacity: .5; cursor: default; }
+.dr-worn-tabs { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; }
+.dr-worn-tabs button { flex: none; min-height: 40px; padding: 0 14px; border: 1.5px solid var(--line, #E4DED2); border-radius: 999px; background: #fff; color: var(--ink, #141110); font-weight: 700; font-size: 13px; cursor: pointer; }
+.dr-worn-tabs button.on { border-color: var(--ink, #141110); background: var(--ink, #141110); color: #fff; }
+.dr-worn-pic { touch-action: pan-y; }
+.dr-worn-pic img { display: block; }
+.dr-worn-wait { display: grid; place-items: center; aspect-ratio: 3 / 4; max-height: 66vh; margin: 0 auto; width: 100%; padding: 16px; box-sizing: border-box; border-radius: 10px; background: #F6F3EC; color: var(--muted, #6B635A); font-size: 13px; text-align: center; }
+.dr-worn-note { color: var(--gold-deep, #8A6F2E); font-weight: 600; }
+.dr-worn-ask b { font-size: 15px; }
+.dr-worn-ask .dr-review-hint { margin: 0; font-size: 13px; line-height: 1.45; }
+@media (max-width: 420px) {
+  .dr-worn { padding: 12px; }
+  .dr-worn-card { width: 100%; max-width: 100%; padding: 10px; }
+  .dr-worn-acts button { flex: 1 1 auto; padding: 9px 12px; }
+}
 
 /* Round 6 (8 Nov 2026): the three-tap start, the "Ask the team" card, the print check on Review */
 .dr-starter, .dr-helpcard { display: grid; gap: 8px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 14px; background: #fff; }

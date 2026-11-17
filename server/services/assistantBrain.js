@@ -12,7 +12,7 @@
 //   AI_CHAT_MODEL       optional, defaults to gemini-flash-latest (shared with aiChatService)
 //   AI_CHAT_PROVIDER    "mock": keyword answers, no Google call (for testing the whole room without cost)
 //   AI_CHAT_THINKING    optional: "low" | "medium" | "high" — asks the text model to think before answering
-import { askJson, aiTextConfigured } from "./aiTextService.js";
+import { askJson, askJsonWithImage, aiTextConfigured } from "./aiTextService.js";
 import { chatModel, MENU_ITEMS, TONES, FOLD_AT, MEMORY_MAX } from "./aiChatService.js";
 
 const mock = () => process.env.AI_CHAT_PROVIDER?.trim() === "mock";
@@ -22,7 +22,10 @@ export const thinkingLevel = () => {
   return ["low", "medium", "high"].includes(v) ? v : null;
 };
 
-export const STEP_TYPES = ["ask", "concepts", "develop", "match", "draw", "edit", "slogans", "menu", "undo", "team", "size", "orders", "reorder", "email", "group"];
+export const STEP_TYPES = ["ask", "concepts", "develop", "match", "draw", "edit", "slogans", "menu", "undo", "team", "size", "orders", "reorder", "email", "group", "photos"];
+// (17 Nov 2026) several photos in one message: up to 6; each made one of these ways (the one-photo abilities)
+export const MAX_PHOTOS = 6;
+export const PHOTO_JOBS = ["photo", "copy", "art", "inspired"];
 export const SIZE_WHO = ["men", "women", "kids"];
 export const PIECES = ["front", "back", "sleeve"];
 export const MAX_STEPS = 6;
@@ -76,11 +79,21 @@ export const isBarePick = (text, max) => {
  * @param sheets   concept sheets made in this chat, oldest first: [{ n, brief, concepts: [{ n, title }], developed: [n] }]
  * @returns {Promise<{ reply, steps, chips, memory? }>}
  */
-export async function brainReply({ message, history = [], earlier = [], memory = "", design = {}, facts = {}, areas = [], styles = [], sheets = [], attached = null, logo = null, profile = "" }) {
+// photos (17 Nov 2026): several pictures with this message (or still waiting from the last one, photosEarlier):
+// [{ url, about, image?: { data, mime } }] — the images (small copies) are shown to the model so it can look at all
+// of them together; photoStyles: the art styles a photo can be redrawn in
+export async function brainReply({ message, history = [], earlier = [], memory = "", design = {}, facts = {}, areas = [], styles = [], sheets = [], attached = null, logo = null, profile = "", photos = [], photosEarlier = false, photoStyles = [] }) {
   const said = clip(message, 2000);
-  const ctx = { areas, styles, sheets, design };
+  const many = (Array.isArray(photos) ? photos : []).slice(0, MAX_PHOTOS);
+  const ctx = { areas, styles, sheets, design, photoCount: many.length > 1 ? many.length : 0, photoStyles };
+  const prompt = () => buildPrompt({ said, history, earlier, memory, design, facts, areas, styles, sheets, attached, logo, profile, photos: many.length > 1 ? many : [], photosEarlier, photoStyles });
+  const images = many.length > 1 ? many.map((p) => p.image).filter((im) => im?.data) : [];
   const [raw, folded] = await Promise.all([
-    mock() ? mockBrain(said, ctx, facts, history, { attached, logo }) : askJson(buildPrompt({ said, history, earlier, memory, design, facts, areas, styles, sheets, attached, logo, profile }), 0.7, chatModel(), { thinking: thinkingLevel(), timeoutMs: 40_000 }),
+    mock()
+      ? mockBrain(said, ctx, facts, history, { attached, logo, photos: ctx.photoCount })
+      : images.length
+        ? askJsonWithImage(prompt(), images, 0.7, chatModel(), { timeoutMs: 45_000 })
+        : askJson(prompt(), 0.7, chatModel(), { thinking: thinkingLevel(), timeoutMs: 40_000 }),
     earlier.length >= FOLD_AT ? foldNote(memory, earlier, profile).catch(() => null) : null,
   ]);
   const answer = cleanBrainAnswer(raw, ctx);
@@ -113,7 +126,7 @@ async function foldNote(memory, earlier, profile = "") {
   return note ? { note, profile: clip(out?.profile, PROFILE_MAX) || null } : null;
 }
 
-function buildPrompt({ said, history, earlier, memory, design, facts, areas, styles, sheets, attached = null, logo = null, profile = "" }) {
+function buildPrompt({ said, history, earlier, memory, design, facts, areas, styles, sheets, attached = null, logo = null, profile = "", photos = [], photosEarlier = false, photoStyles = [] }) {
   const past = asLines(history.slice(-14));
   return [
     "You are the IDENTEE Assistant: a thoughtful, creative t-shirt designer inside the design room of IDENTEE, an Indian custom t-shirt shop (identee.co.in). The customer talks to you the way they would talk to ChatGPT: in their own words, in any language. You design the whole tee with them.",
@@ -152,7 +165,8 @@ function buildPrompt({ said, history, earlier, memory, design, facts, areas, sty
     "Print areas: " + JSON.stringify(areas.map((a) => ({ key: a.key, label: a.label, free: a.free !== false }))) + ". For \"front\" use centre-front and for \"back\" use full-back unless they name another area or that one isn't free. Picture styles: " + JSON.stringify(styles) + ".",
     "The tee now: " + JSON.stringify(design).slice(0, 6000),
     attached ? "The customer attached a picture WITH THIS MESSAGE (their logo, artwork or a photo): " + JSON.stringify(clip(attached.about || "a picture", 200)) + ". If they want it printed as it is or built into designs, use concepts with logo: true (or edit to place it). If they want it redrawn as art (cartoon, sketch …), use menu \"Photo to art\". If unclear, ask." : "",
-    !attached && logo ? "The customer's own logo / artwork is on file from earlier in this chat: concepts may use it (logo: true) when they ask for their logo or brand." : "",
+    photos.length > 1 ? photosPrompt(photos, photosEarlier, photoStyles) : "",
+    !attached && !photos.length && logo ? "The customer's own logo / artwork is on file from earlier in this chat: concepts may use it (logo: true) when they ask for their logo or brand." : "",
     sheets.length ? "Concept sheets in this chat (oldest first; developed = already made into artwork): " + JSON.stringify(sheets.map((s) => ({ sheet: s.n, brief: clip(s.brief, 120), concepts: (s.concepts || []).map((c) => ({ n: c.n, title: c.title })), developed: s.developed || [] }))) : "No concept sheets yet in this chat.",
     memory ? "Notes from earlier in this chat (the customer's own wishes and answers, keep to them): " + JSON.stringify(clip(memory, MEMORY_MAX)) : "",
     profile ? "What we know about this customer from their earlier visits (use it to suggest, never to assume — they may want something new today): " + JSON.stringify(clip(profile, PROFILE_MAX)) : "",
@@ -164,9 +178,23 @@ function buildPrompt({ said, history, earlier, memory, design, facts, areas, sty
     .join("\n");
 }
 
+// (17 Nov 2026) several pictures in one message: what they are, and the two ways to use them — each its own way and
+// place (a "photos" step: the one-photo abilities, once per picture), or mixed into one design (a concept sheet)
+function photosPrompt(photos, earlier, photoStyles = []) {
+  const n = photos.length;
+  return [
+    `The customer ${earlier ? "sent" : "attached"} ${n} pictures ${earlier ? "with an earlier message (still waiting to be used)" : "WITH THIS MESSAGE"}, numbered 1 to ${n} in the order sent${photos.some((p) => p.image) ? " (the images above, in the same order)" : ""}. Look at ALL of them together with the words and work out exactly what they want. Name them by number and by what they show ("your logo (picture 1)").`,
+    'To use the pictures on the tee each in its own way: {"type":"photos","items":[{"photo": number,"job":"photo"|"copy"|"art"|"inspired","areas":[print area keys],"style": string|null,"cutOut": true|false,"change": string|null,"subject": string|null,"design": string|null,"words": [strings],"seen": up to 8 words}]} — one item per picture they want used (leave out pictures they did not ask for). job: photo = the picture printed itself (a logo, a person, a pet, a place), cutOut true to remove its background (free — default for logos and people), false "as it is"; copy = ONLY the printed design on a garment or object in the picture, recreated flat (when they say copy / same design / this tee\'s print) — design: that design in at most 40 words, words: its exact printed words; art = the picture redrawn in one of ' + JSON.stringify(photoStyles) + "; inspired = a NEW design that only takes the look of the picture (subject: what it shows, in English). areas: where each goes; every picture on a DIFFERENT free area unless they said otherwise (logo → a chest area, a big photo → centre-front or full-back). The page shows this as a plan with what it costs and makes nothing until the customer taps Make all.",
+    "To MIX pictures into ONE design (\"mix these into one design\", \"combine them\", \"a collage\", \"copy this tee's style using my photo\", \"my dog in the style of this tee\"): a concepts step with logo true and \"photos\": [the picture numbers to use]; each concept says which picture is used for what (\"the dog from picture 2 drawn in the bold style of the tee in picture 1\").",
+    "A photo is free; copy, art and inspired are one picture each; a concept sheet is one picture. Never use a picture they did not ask to use, and never make the same picture twice. If what they want is not clear from the words and the pictures, ask ONE short question with options (\"Each on its own place\", \"Mix them into one design\").",
+  ].join(" ");
+}
+
 /** Only what the page can use goes back: known step kinds, real areas, styles, pieces, short texts, an ask last. */
-export function cleanBrainAnswer(out, { areas = [], styles = [], sheets = [] } = {}) {
+export function cleanBrainAnswer(out, { areas = [], styles = [], sheets = [], photoCount = 0, photoStyles = [] } = {}) {
   const areaKey = (k) => (areas.some((a) => a.key === k) ? k : null);
+  // (17 Nov 2026) picture numbers of the photos sent with the message: 1 … photoCount, no repeats
+  const photoNos = (list) => [...new Set((Array.isArray(list) ? list : []).map(Number).filter((n) => Number.isInteger(n) && n >= 1 && n <= photoCount))];
   const style = (s) => (styles.includes(s) ? s : null);
   const totalConcepts = sheets.reduce((n, s) => n + (s.concepts || []).length, 0);
   const steps = [];
@@ -194,7 +222,38 @@ export function cleanBrainAnswer(out, { areas = [], styles = [], sheets = [] } =
         .filter((c) => c.title && (c.front || c.back || c.sleeve))
         .slice(0, CONCEPTS_PER_SHEET);
       if (concepts.length < 2) continue;
-      steps.push({ type, brief: clip(raw.brief, 400) || concepts.map((c) => c.title).join(", "), concepts, logo: raw.logo === true, ...(raw.basis === "tee" ? { basis: "tee" } : {}) });
+      // photos: the pictures of this message the sheet is built from (mixing several into one design, 17 Nov 2026)
+      const used = photoNos(raw.photos);
+      steps.push({ type, brief: clip(raw.brief, 400) || concepts.map((c) => c.title).join(", "), concepts, logo: raw.logo === true || used.length > 0, ...(raw.basis === "tee" && !used.length ? { basis: "tee" } : {}), ...(used.length ? { photos: used } : {}) });
+      continue;
+    }
+    if (type === "photos") {
+      // each picture made its own way, on its own areas — only real pictures, jobs, areas and styles; the same picture
+      // asked the same way twice is one item (it is made once)
+      if (!photoCount || steps.some((s) => s.type === "photos")) continue;
+      const items = [];
+      for (const it of Array.isArray(raw.items) ? raw.items : []) {
+        const [photo] = photoNos([it?.photo]);
+        if (!photo) continue;
+        const job = PHOTO_JOBS.includes(it.job) ? it.job : "photo";
+        const keys = [...new Set((Array.isArray(it.areas) ? it.areas : [it.area]).map(areaKey).filter(Boolean))].slice(0, 3);
+        const item = {
+          photo,
+          job,
+          areas: keys,
+          style: job === "art" ? (photoStyles.includes(it.style) ? it.style : null) : job === "inspired" ? style(it.style) : null,
+          cutOut: job === "photo" ? it.cutOut !== false : true,
+          change: job === "copy" ? clip(it.change, 200) || null : null,
+          subject: job === "inspired" ? clip(it.subject, 300) || null : null,
+          design: job === "copy" ? clip(it.design, 400) || null : null,
+          words: job === "copy" && Array.isArray(it.words) ? it.words.map((w) => clip(w, 60)).filter(Boolean).slice(0, 8) : [],
+          seen: clip(it.seen, 80),
+        };
+        const twin = items.find((x) => x.photo === item.photo && x.job === item.job && x.style === item.style && x.change === item.change && x.subject === item.subject && x.cutOut === item.cutOut);
+        if (twin) twin.areas = [...new Set([...twin.areas, ...item.areas])].slice(0, 3);
+        else items.push(item);
+      }
+      if (items.length) steps.push({ type, items: items.slice(0, MAX_PHOTOS * 2) });
       continue;
     }
     if (type === "match") {
@@ -264,12 +323,16 @@ export function cleanBrainAnswer(out, { areas = [], styles = [], sheets = [] } =
 }
 
 // AI_CHAT_PROVIDER=mock: keyword answers that exercise every step kind (no Google call, nothing spent)
-function mockBrain(said, { areas, styles, sheets }, facts = {}, history = [], { attached = null, logo = null } = {}) {
+function mockBrain(said, { areas, styles, sheets }, facts = {}, history = [], { attached = null, logo = null, photos = 0 } = {}) {
   const low = said.toLowerCase();
   const front = areas.find((a) => /front/.test(a.key) && a.free !== false)?.key || areas[0]?.key || null;
   const back = areas.find((a) => /back/.test(a.key) && a.free !== false)?.key || null;
   const total = sheets.reduce((n, s) => n + (s.concepts || []).length, 0);
   const picks = parsePicks(low, Math.max(total, 1));
+  if (photos > 1) {
+    const mixed = mockPhotos(said, low, photos, { areas, styles, sheets, front, back });
+    if (mixed) return mixed;
+  }
   if (/\bundo\b|go back|revert/.test(low)) return { reply: "MOCK: undone.", steps: [{ type: "undo" }], chips: [] };
   // round 8 (11 Nov 2026): email, group link, orders, order again, delivery dates, size from height and weight
   if (/e-?mail (me|it|my|this)|mail (me|it) |to my (e-?mail|mail)/.test(low)) return { reply: "MOCK: I'll email your design to you.", steps: [{ type: "email" }], chips: [] };
@@ -373,4 +436,27 @@ function mockBrain(said, { areas, styles, sheets }, facts = {}, history = [], { 
   if (/price|cost|how much/.test(low)) return { reply: `MOCK: this tee is ₹${facts.price || "…"}.`, steps: [], chips: ["Show me designs"] };
   if (/deliver|return|refund/.test(low)) return { reply: "MOCK: see the Shipping & Delivery page (/shipping-policy).", steps: [], chips: [] };
   return { reply: "MOCK: tell me what you'd like on your tee — a design idea, a picture, words, or an occasion.", steps: [], chips: ["Designs for my college fest", "Draw a lion", "A slogan for my team"] };
+}
+
+// AI_CHAT_PROVIDER=mock, several pictures (17 Nov 2026): mix them (a concept sheet from all of them), each on its own
+// place (a "photos" step: by the areas and art words said), or ask which — never a picture made without being asked
+function mockPhotos(said, low, n, { areas, styles, sheets, front, back }) {
+  const all = Array.from({ length: n }, (_, i) => i + 1);
+  if (/\b(mix|combine|merge|blend|collage|together|one design|style of|in the style|same style)\b/.test(low)) {
+    const base = sheets.length * CONCEPTS_PER_SHEET;
+    const concepts = ["all the pictures in one bold badge", "picture 2 drawn in the style of picture 1", "a collage of every picture"].map((f, i) => ({ title: `Mock mix ${base + i + 1}`, front: f, back: null, sleeve: null, colours: "as the pictures", style: styles[0] || null }));
+    return { reply: `MOCK: three designs that mix your ${n} pictures.`, steps: [{ type: "concepts", brief: said, logo: true, photos: all, concepts }], chips: ["More options"] };
+  }
+  const chest = areas.find((a) => /chest/.test(a.key) && a.free !== false)?.key || null;
+  const sleeve = areas.find((a) => /sleeve/.test(a.key) && a.free !== false)?.key || null;
+  // the places said, in the order said ("logo on the chest and the photo on the back")
+  const said2 = [...low.matchAll(/\b(chest|back|front|sleeve)\b/g)].map((m) => ({ chest, back, front, sleeve })[m[1]]).filter(Boolean);
+  const art = /\bcartoons?\b/.test(low) ? "Cartoon" : /\bsketch(es)?\b/.test(low) ? "Sketch" : null;
+  const job = /\bcopy|same design\b/.test(low) ? "copy" : art ? "art" : "photo";
+  if (said2.length || art || /\b(each|own place|separately|all of them|both|remove (the )?backgrounds?)\b/.test(low)) {
+    const free = [front, back, chest, sleeve].filter(Boolean);
+    const items = all.map((p, i) => ({ photo: p, job: /logo/.test(low) && i === 0 ? "photo" : job, areas: [said2[i] || free.find((k) => !said2.includes(k) && !free.slice(0, i).includes(k)) || free[i % free.length]].filter(Boolean), style: art, cutOut: true, seen: `mock picture ${p}` }));
+    return { reply: `MOCK: here's a plan for your ${n} pictures — check it, then tap Make all.`, steps: [{ type: "photos", items }], chips: [] };
+  }
+  return { reply: `MOCK: what should I do with your ${n} pictures?`, steps: [{ type: "ask", question: `What should I do with your ${n} pictures?`, options: ["Each on its own place", "Mix them into one design", "Make them cartoons"] }], chips: [] };
 }

@@ -34,9 +34,12 @@ import myPicturesService from "../services/myPicturesService";
 import { chatTitle, historyFor, listChats, loadChat, moveLocalChats, saveChat } from "./chatStore";
 import { AFTER_AI_SLOGANS, AFTER_DESIGN_CHIPS, BACK, CHANGE_IDEA, DRAW_MINE, PHOTO_AS_IS, PHOTO_CHOICES, PHOTO_CUT, PHOTO_REVERT, PROMPT_MAX, bot as botSays, checkMessages, chips as chipRow, firstMessages, firstState, smartPlan } from "./assistantScript";
 import { makeShareCard, shareTee } from "./shareTee";
+import { makeShareLink, shareMessage, whatsappUrl } from "../services/shareService";
 import { firstMessagesV2, isUntouchedStart, sheetsFromChat, nextConceptNumber, findConcept, piecesOf, pieceArea, placementHint, shrinkForHint, aiPictureOnTee, ideaSheet } from "./assistantV2";
 import { styleIn } from "./styleInfo";
+import { costLine, makeSideBySide, photoDataUrl, planSides, printedSides, sideLabel, sideWords, skippedNote, wornCaption } from "./wornPhotos";
 import { areasFromWords, photoJobFrom, SAME_THEME } from "./photoIntent";
+import { limitLine, makeActFor, noWordsLine, photosFromWords, pictureCost, picturesNeeded, planPhotos } from "./multiPhoto";
 import aiService from "../services/aiService";
 import { applyAiOps, areaFor, describeDesign } from "./aiOps";
 import WaitCard from "./WaitCard";
@@ -261,9 +264,15 @@ export default function DesignRoomPage() {
   const [twirlKey, setTwirlKey] = useState(0); // goes up to make the tee do one full turn
   const [shots, setShots] = useState(null);
   const [sharing, setSharing] = useState(false); // Share my tee: the picture is being made
+  const [waLink, setWaLink] = useState(""); // Share my tee: the WhatsApp address, when the browser blocked the new tab
   const [emailing, setEmailing] = useState(false); // Email me this design (round 8): the email is on its way
-  const [worn, setWorn] = useState(null); // Photo of it worn (round 5): null | "making" | { url }
+  // Photo of it worn (round 5) / Try it on me (round 7). Since 17 Nov 2026 one photo per printed side:
+  // null | "making" (the first side) | { run, me, at, note, photos: [{ side, label, url?, making?, failed?, from? }] }
+  const [worn, setWorn] = useState(null);
+  const wornRun = useRef(0); // which set the window shows: closing it leaves the answers still on their way unused
   const tryOnRef = useRef(null); // Try it on me (round 7): the customer's own photo
+  const tryOnBackRef = useRef(null); // (17 Nov 2026) and, if they like, a photo of their back
+  const [tryOnAsk, setTryOnAsk] = useState(null); // (17 Nov 2026) { photo }: their photo is in — add a photo of the back too?
   const [spin, setSpin] = useState(true);
   const [lit, setLit] = useState(false); // Review: the dressing room has been drawn, so its lights can come up
   const litTimer = useRef(null);
@@ -1228,6 +1237,11 @@ export default function DesignRoomPage() {
     sizeNow,
     chart: (sz) => garment.sizeChart?.find((r) => r.size === sz),
     areas: positions.map((p) => ({ key: p.key, label: p.label, side: p.side, main: !!p.main, free: usedKeys.includes(p.key) || !blockersOf(p.key, positions, usedKeys).length })),
+    // (17 Nov 2026) the areas a picture already on the tee could be MOVED to (its own areas don't block it)
+    moveFree: (url) => {
+      const used = usedIfMoved(url);
+      return positions.filter((p) => used.includes(p.key) || !blockersOf(p.key, positions, used).length).map((p) => p.key);
+    },
     activeKey: active || null,
     issues: designIssues,
     inks: inksFor(fabricHex, INKS),
@@ -1376,6 +1390,8 @@ export default function DesignRoomPage() {
   });
   const chatAssist = async (a, progress, run) => {
     const c = assistantCtx();
+    // (17 Nov 2026) the photos of this message (a.photos), or the ones still waiting from the last message
+    const photosNow = a.photos?.length > 1 ? a.photos : chatState.photosOpen && chatState.photos?.length > 1 ? chatState.photos : [];
     if (!isLoggedIn()) return [botSays("Sign in and I’ll design with you. Your tee stays here."), chipRow(["Log in"])];
     let res;
     if (a.steps) res = { reply: "", steps: a.steps, chips: [] };
@@ -1394,9 +1410,13 @@ export default function DesignRoomPage() {
           // a picture sent with this message, and the logo on file in this chat
           ...(a.photo?.url ? { photo: { url: a.photo.url, about: a.text || "" } } : {}),
           ...(chatState.logo ? { logoUrl: chatState.logo } : {}),
+          // (17 Nov 2026) several photos sent with this message — or still waiting from the last one (the brain asked
+          // what to do with them, and this is the answer)
+          ...(photosNow.length > 1 ? { photos: photosNow.map((p) => ({ url: p.url, about: a.photos ? a.text || "" : "" })), ...(a.photos ? {} : { photosEarlier: true }) } : {}),
         });
       } catch (err) {
-        if (err.response?.status === 503) return [{ fallback: { text: a.text } }];
+        // (several photos and the brain resting: the free rules make the plan, so the photos aren't lost)
+        if (err.response?.status === 503) return photosNow.length > 1 ? photosByRules(a.text, photosNow) : [{ fallback: { text: a.text } }];
         if (err.response?.status === 401) return [botSays("Sign in and I’ll design with you. Your tee stays here."), chipRow(["Log in"])];
         return [botSays(err.response?.data?.message || "I couldn’t answer that just now — the connection was slow. Tap Try again and I’ll answer it."), { failed: true }];
       }
@@ -1425,7 +1445,10 @@ export default function DesignRoomPage() {
         asked = true;
         break;
       }
-      if (step.type === "concepts") out.push(...(await makeSheet(step, progress, a.photo?.url || null)));
+      // (a sheet may mix several of the customer's photos: step.photos are their numbers, 17 Nov 2026)
+      if (step.type === "concepts") out.push(...(await makeSheet(step, progress, a.photo?.url || null, step.photos?.length ? step.photos.map((n) => photosNow[n - 1]?.url).filter(Boolean) : null)));
+      // several photos, each made its own way and put on its own place: the plan card first (nothing is made yet)
+      else if (step.type === "photos" && photosNow.length > 1) out.push(...photosPlanMsgs(step.items, photosNow, Boolean(res.reply)));
       else if (step.type === "menu" && step.item === "Photo to art" && (a.photo || chatState.photo)) out.push(...(await chatPhotoUnderstand({ text: a.text, photo: a.photo || chatState.photo }, run)));
       else if (step.type === "develop") out.push(...(await developPicks(step, progress, run)));
       else if (step.type === "match") out.push(...(await matchPiece(step, progress, run)));
@@ -1449,6 +1472,8 @@ export default function DesignRoomPage() {
         if (!res.reply) out.push(botSays("Undone."));
       }
     }
+    // the waiting photos were used (a plan for them, or a sheet from them): later messages don't carry them any more
+    if ((res.steps || []).some((st) => st.type === "photos" || st.photos?.length)) setChatState((st) => ({ ...st, photosOpen: false }));
     // (a sheet card has its own number buttons and More options, so those chips aren't repeated under it)
     const madeSheet = out.some((m) => m.sheet);
     const chips = (res.chips || []).filter((c) => !madeSheet || !(/^(option|concept|number)?\s*\d{1,2}$/i.test(c) || /^more options$/i.test(c)));
@@ -1467,22 +1492,24 @@ export default function DesignRoomPage() {
     return shown.length ? shown : [botSays("How can I help with your tee?")];
   };
   // a concept sheet: one picture, three numbered tees (counts as one picture request)
-  const makeSheet = async (step, progress, photoUrl = null) => {
+  // photoUrls (17 Nov 2026): several of the customer's photos mixed into the concepts — all go to the picture AI
+  const makeSheet = async (step, progress, photoUrl = null, photoUrls = null) => {
     if (!ai.available) return [botSays("Pictures can’t be made right now. You can pick from the art library or upload your own."), chipRow(["Open the art library", "Upload a picture"])];
     if (ai.left === 0) return [botSays("You’ve made today’s pictures. They come back tomorrow — I can still help with words and layout.")];
     const numberFrom = nextConceptNumber(sheetsFromChat(chat));
     // the names show at once, while the picture is drawn (the wait feels shorter)
     const names = step.concepts.map((c, i) => `${numberFrom + i} ${c.title}`).join(" · ");
     progress?.({ label: "Drawing three concepts…", expect: 25, hint: names });
-    const logoUrl = step.logo ? photoUrl || chatState.logo || null : null;
+    const logoUrls = step.logo && photoUrls?.length > 1 ? photoUrls : null;
+    const logoUrl = step.logo && !logoUrls ? photoUrls?.[0] || photoUrl || chatState.logo || null : null;
     // colourways / variations of the picture already on the tee (round 5): that picture is the reference
-    const basis = step.basis === "tee" && !logoUrl ? aiPictureOnTee(elements, positions) : null;
-    if (step.basis === "tee" && !logoUrl && !basis) return [botSays("There’s no picture on the tee yet to make versions of. Tell me what you’d like and I’ll show three concepts."), chipRow(["Show me 3 options"])];
+    const basis = step.basis === "tee" && !logoUrl && !logoUrls ? aiPictureOnTee(elements, positions) : null;
+    if (step.basis === "tee" && !logoUrl && !logoUrls && !basis) return [botSays("There’s no picture on the tee yet to make versions of. Tell me what you’d like and I’ll show three concepts."), chipRow(["Show me 3 options"])];
     try {
-      const res = await aiService.concepts({ concepts: step.concepts, brief: step.brief, garment: garment?.label || "t-shirt", teeColour: colour?.name || "white", teeIsDark: lum(fabricHex) < 0.55, numberFrom, ...(logoUrl ? { logoUrl } : {}), ...(basis ? { basisUrl: basis.url } : {}) });
+      const res = await aiService.concepts({ concepts: step.concepts, brief: step.brief, garment: garment?.label || "t-shirt", teeColour: colour?.name || "white", teeIsDark: lum(fabricHex) < 0.55, numberFrom, ...(logoUrl ? { logoUrl } : {}), ...(logoUrls ? { logoUrls } : {}), ...(basis ? { basisUrl: basis.url } : {}) });
       if (res.left != null) setAi((cur) => ({ ...cur, left: res.left }));
       // (stopped meanwhile: the sheet was still made and counted, so the chat shows it anyway)
-      return [{ sheet: { ...res.sheet, brief: step.brief, developed: [], logoUrl: res.sheet.logoUrl || logoUrl || null } }];
+      return [{ sheet: { ...res.sheet, brief: step.brief, developed: [], logoUrl: res.sheet.logoUrl || logoUrl || null, ...(logoUrls ? { logoUrls: res.sheet.logoUrls || logoUrls } : {}) } }];
     } catch (err) {
       return [botSays(err.response?.data?.message || "The concept sheet couldn’t be made just now."), { failed: true }];
     }
@@ -1537,7 +1564,7 @@ export default function DesignRoomPage() {
       progress?.({ label: `Making concept ${n} — ${concept.title}${step.change ? ` (${step.change})` : ""}…`, expect: 30, hint: `${pieces.map((pc) => areasFor[pc]?.label || pc).join(" · ")}. Drawn from the sheet, usually 20–40 seconds.` });
       let res;
       try {
-        res = await aiService.develop({ sheetUrl: sheet.url, n, concept, pieces, teeColour: colour?.name || "white", teeIsDark: lum(fabricHex) < 0.55, ratios, ...(sheet.logoUrl ? { logoUrl: sheet.logoUrl } : {}), ...(step.change ? { change: step.change } : {}) });
+        res = await aiService.develop({ sheetUrl: sheet.url, n, concept, pieces, teeColour: colour?.name || "white", teeIsDark: lum(fabricHex) < 0.55, ratios, ...(sheet.logoUrls?.length > 1 ? { logoUrls: sheet.logoUrls } : sheet.logoUrl ? { logoUrl: sheet.logoUrl } : {}), ...(step.change ? { change: step.change } : {}) });
       } catch (err) {
         out.push(botSays(err.response?.data?.message || `Concept ${n} couldn’t be made just now.`));
         continue;
@@ -2074,10 +2101,20 @@ export default function DesignRoomPage() {
   };
   // Put an AI-made design on a print area (the open one unless areaKey is given): its plain
   // background is cleared, the cut-out is uploaded once, and it replaces the AI design already there.
+  // (17 Nov 2026, the owner: a picture on Full Back could not be moved to Centre Back — "Move or copy to…" didn't offer
+  // it, as Centre Back overlaps Full Back, which only that same picture was using) the areas a picture leaves when it is
+  // MOVED: those holding this AI picture and nothing else; the overlap check leaves them out.
+  const usedIfMoved = (url) => {
+    const leaves = Object.entries(aiPlaced)
+      .filter(([key, put]) => put.url === url && elements.some((e) => e.id === put.elId) && elements.every((e) => e.position !== key || e.id === put.elId))
+      .map(([key]) => key);
+    return usedKeys.filter((k) => !leaves.includes(k));
+  };
   const placeAiDesign = async (url, areaKey, { move = false } = {}) => {
     const pos = positions.find((p) => p.key === (areaKey || active)) || ensureArea();
     if (!pos || busy) return;
-    const blockedBy = usedKeys.includes(pos.key) ? [] : blockersOf(pos.key, positions, usedKeys);
+    const used = move ? usedIfMoved(url) : usedKeys;
+    const blockedBy = used.includes(pos.key) ? [] : blockersOf(pos.key, positions, used);
     if (blockedBy.length) return say(`${pos.label} overlaps ${blockedBy.map((b) => b.label).join(" and ")}. Remove that print first.`);
     try {
       let cut = aiCuts.current.get(url);
@@ -2356,21 +2393,95 @@ export default function DesignRoomPage() {
     if (!isLoggedIn()) return [botSays("Log in to send a photo. Your design stays here while you log in."), chipRow(["Log in", "Something else"])];
     const res = await dispatch(uploadDesignImage(a.file));
     if (!uploadDesignImage.fulfilled.match(res)) return [botSays(res.payload || "The photo didn’t send. Check the internet connection, then tap 📎 and try again.")];
-    const photo = { url: res.payload.path, w: a.w, h: a.h };
+    return photoArrived({ url: res.payload.path, w: a.w, h: a.h }, a.text);
+  };
+  // one photo uploaded: what happens next (17 Nov 2026: also when only one of several photos got through)
+  const photoArrived = (photo, text) => {
+    const a = { text };
     // Assistant v2 (round 2, 7 Nov 2026): the picture goes to the brain with the words — a logo for the concepts, or a
     // photo to redraw (the brain opens Photo to art). It stays on file in this chat as the customer's logo.
     if (ai?.v2) {
-      setChatState((st) => ({ ...st, photo, logo: photo.url, photoUrl: null, wait: null, photoAreaKey: null, photoAreaKeys: [] }));
+      setChatState((st) => ({ ...st, photosOpen: false, photo, logo: photo.url, photoUrl: null, wait: null, photoAreaKey: null, photoAreaKeys: [] }));
       return [{ photoSent: photo }, { next: { type: "assist", text: a.text || "I attached a picture — use it on my tee.", photo } }];
     }
     if (a.text) {
-      setChatState((st) => ({ ...st, photo, photoUrl: null, wait: null, photoAreaKey: null, photoAreaKeys: [] }));
+      setChatState((st) => ({ ...st, photosOpen: false, photo, photoUrl: null, wait: null, photoAreaKey: null, photoAreaKeys: [] }));
       // (the photo goes along with the next step: the chat's memory isn't updated yet when it starts, so reading
       // it from there said "I don't have your photo any more" the first time a photo was sent with words)
       return [{ photoSent: photo }, { next: { type: "photoUnderstand", text: a.text, photo } }];
     }
-    setChatState((st) => ({ ...st, photo, photoUrl: null, wait: "photoWhat", photoAreaKey: null, photoAreaKeys: [] }));
+    setChatState((st) => ({ ...st, photosOpen: false, photo, photoUrl: null, wait: "photoWhat", photoAreaKey: null, photoAreaKeys: [] }));
     return [{ photoSent: photo }, botSays("Got your photo. Tell me what you want in your own words — for example “only the design from this tee” or “my photo on the back”. Or tap one:"), chipRow([...PHOTO_CHOICES, "Something else"])];
+  };
+  // (17 Nov 2026) several photos in one message: each uploaded (the phone already made each small enough), then the
+  // Assistant v2 brain looks at all of them with the words (it plans, mixes them into a sheet, or asks). Without the
+  // brain the free rules (multiPhoto.photosFromWords) make the plan. Nothing is made until the customer taps Make.
+  const chatPhotos = async (a) => {
+    if (!isLoggedIn()) return [botSays("Log in to send photos. Your design stays here while you log in."), chipRow(["Log in", "Something else"])];
+    const photos = [];
+    let missed = 0;
+    let why = "";
+    for (const f of a.files || []) {
+      const res = await dispatch(uploadDesignImage(f.file));
+      if (uploadDesignImage.fulfilled.match(res)) photos.push({ url: res.payload.path, w: f.w, h: f.h });
+      else {
+        missed += 1;
+        why = why || res.payload || "";
+      }
+    }
+    if (!photos.length) return [botSays(why || "The photos didn’t send. Check the internet connection, then tap 📎 and try again.")];
+    const note = missed ? [botSays(`${missed} of your photos didn’t send${why ? ` (${String(why).replace(/\.$/, "")})` : ""}, so I’m going on with the other ${photos.length === 1 ? "one" : photos.length}.`)] : [];
+    // only one got through: the one-photo way, exactly as before
+    if (photos.length === 1) return [{ photosSent: photos }, ...note, ...photoArrived(photos[0], a.text).filter((x) => !x.photoSent)];
+    if (ai?.v2) {
+      setChatState((st) => ({ ...st, photos, photosOpen: true, photoUrl: null, wait: null, photoAreaKey: null, photoAreaKeys: [] }));
+      return [{ photosSent: photos }, ...note, { next: { type: "assist", text: a.text || noWordsLine(photos.length), photos } }];
+    }
+    setChatState((st) => ({ ...st, photos, photosOpen: false, photoUrl: null, wait: null }));
+    return [{ photosSent: photos }, ...note, ...photosByRules(a.text, photos)];
+  };
+  // the free rules' plan for several photos (the brain off or resting); mixing them needs the brain's concept sheet
+  const photosByRules = (text, photos) => {
+    const opts = { areas: assistantCtx().areas, photoStyles: ai.photoStyles || [] };
+    const got = photosFromWords(text, photos.length, opts);
+    if (got.mix) return [botSays("Mixing photos into one design needs the smart Assistant, which is resting just now. Here’s each photo on its own place instead — free:"), ...photosPlanMsgs(photosFromWords("", photos.length, opts).items, photos, true)];
+    return photosPlanMsgs(got.items, photos);
+  };
+  // the plan card for several photos: each its own print area (free, not overlapping one given to an earlier photo),
+  // what it uses of today's pictures — said plainly first when it is more than what is left
+  const photosPlanMsgs = (items, photos, quiet = false) => {
+    const fits = (k, taken) => !taken.includes(k) && freeArea(k) && !blockersOf(k, positions, taken).length;
+    const plan = planPhotos({ items, photos, areas: assistantCtx().areas, fits, styles: ai.styles, photoStyles: ai.photoStyles || [] });
+    if (!plan.items.length) return [botSays("I couldn’t tell which photos to use. Tell me in a few words, like “the first on the front, the second on the back”.")];
+    const tight = plan.need > 0 && ai.left != null && plan.need > ai.left;
+    const intro = tight ? limitLine(plan.need, ai.left) : `Here’s my plan for your ${photos.length} photos. Check each one, then tap Make.`;
+    return [...(quiet && !tight ? [] : [botSays(intro)]), { photosPlan: { items: plan.items } }];
+  };
+  // "Make all" on that plan: the pictures (copy, art, a new design) are made at the same time, the free photos one by
+  // one (each background removed on our server); each is made and put on its areas as "Make it" does for one photo.
+  // Checked first: never more pictures than are left today.
+  const chatPhotosMake = async (a, progress, run) => {
+    const items = (a.items || []).filter((x) => !x.skip && x.photo?.url);
+    if (!items.length) return [botSays("There’s nothing to make — choose at least one photo in the plan.")];
+    if (!isLoggedIn()) return [botSays("Log in and I’ll make it. Your design stays here."), chipRow(["Log in", "Something else"])];
+    const need = picturesNeeded(items);
+    if (need && !ai.available) return [botSays("Pictures can’t be made right now. The photos themselves (free) still work — switch those rows to “The photo” in a new plan."), chipRow(["Something else"])];
+    if (need && ai.left != null && need > ai.left) return [botSays(limitLine(need, ai.left)), chipRow(["Something else"])];
+    const done = new Map();
+    // (a row that didn't work gets its own Try again — never the whole plan again, which would make the others twice)
+    const tidy = (it, msgs) => msgs.filter((m) => !m.chips).map((m) => (m.failed ? { retry: makeActFor(it) } : m));
+    const paid = items.filter((x) => pictureCost(x));
+    if (paid.length) progress?.({ label: `Making ${paid.length} picture${paid.length === 1 ? "" : "s"} at the same time…`, expect: 35, hint: "Usually 20–40 seconds for all of them." });
+    const made = await Promise.all(paid.map((it) => chatPhotoMake(makeActFor(it)).catch(() => [{ failed: true }])));
+    paid.forEach((it, i) => done.set(it, tidy(it, made[i])));
+    const free = items.filter((x) => !pictureCost(x));
+    for (const [i, it] of free.entries()) {
+      if (run?.stopped) break;
+      const of = free.length > 1 ? ` (${i + 1} of ${free.length})` : "";
+      done.set(it, tidy(it, await chatPhotoMake(makeActFor(it), (w) => progress?.({ ...w, label: `${String(w.label || "Working").replace(/…$/, "")}${of}…` })).catch(() => [{ failed: true }])));
+    }
+    setChatState((st) => ({ ...st, photosOpen: false }));
+    return [...items.flatMap((it) => done.get(it) || []), chipRow(["Check my design", "Something else"])];
   };
   // the photo's print area: the one named, if free — else the open one, else the main front area, else any free one
   const freeArea = (k) => k && positions.some((p) => p.key === k && (usedKeys.includes(k) || !blockersOf(k, positions, usedKeys).length));
@@ -2442,7 +2553,8 @@ export default function DesignRoomPage() {
   };
   // "Make it" on the photo plan
   const chatPhotoMake = async (a, progress) => {
-    const photo = chatState.photo;
+    // (17 Nov 2026) one of several photos carries its own photo; a single photo is the one on file in this chat
+    const photo = a.photo || chatState.photo;
     if (!photo) return [botSays("I don’t have your photo any more. Tap 📎 and send it again.")];
     if (!isLoggedIn()) return [botSays("Log in and I’ll make it. Your design stays here."), chipRow(["Log in", "Something else"])];
     // every chosen area (the picture is made once, then put on each)
@@ -2622,6 +2734,8 @@ export default function DesignRoomPage() {
     if (a.type === "improve") return chatImprove(a, run);
     if (a.type === "drawPlan") return drawPlan(a, progress, run);
     if (a.type === "photo") return chatPhoto(a);
+    if (a.type === "photos") return chatPhotos(a);
+    if (a.type === "photosMake") return chatPhotosMake(a, progress, run);
     if (a.type === "photoUnderstand") return chatPhotoUnderstand(a, run);
     if (a.type === "photoMake") return chatPhotoMake(a, progress);
     if (a.type === "photoPlace") return chatPhotoPlace(a, progress);
@@ -2836,6 +2950,78 @@ export default function DesignRoomPage() {
     setStep("fit");
     setCamRequest(narrow ? { position: [0, 1.5, 8], ms: 900, n: nextReq() } : { ...SHOWCASE, ms: 900, n: nextReq() });
   };
+  // Photo of it worn / Try it on me on every printed side (17 Nov 2026, the owner: "it must show all sides where the
+  // prints are available"): the first side is made first and shown at once; the other sides are then asked for
+  // together, each with the first photo as the person to keep (same person, place and light). Each photo is one of
+  // today's pictures; with fewer left than sides, the first sides are made and the window says which were not.
+  const wornSides = printedSides(elements);
+  const wornBusy = worn === "making" || Boolean(worn?.photos?.some((p) => p.making));
+  const wornSwipe = useRef(null);
+  const wornShown = worn?.photos ? worn.photos[worn.at] || worn.photos[0] : null; // the side shown in the window
+  const wornReady = worn?.photos ? worn.photos.filter((p) => p.url) : [];
+  const wornGo = (i) => setWorn((cur) => (cur?.photos ? { ...cur, at: (i + cur.photos.length) % cur.photos.length } : cur));
+  const closeWorn = () => {
+    wornRun.current++;
+    setWorn(null);
+  };
+  async function makeWornPhotos({ me = false, photo = null, backPhoto = null } = {}) {
+    if (!shots?.[0]?.url) return;
+    const { make, skipped } = planSides(wornSides, ai.left);
+    if (!make.length) return say(costLine({ sides: wornSides, left: 0, daily: ai.dailyPerUser }));
+    const run = ++wornRun.current;
+    const shotOf = (side) => shots[SIDES.findIndex(([v]) => v === side)]?.url || shots[0].url;
+    const base = { garment: garment?.label || "t-shirt", teeColour: colour?.name || "white" };
+    const ask = (side, ref) =>
+      me
+        ? aiService.tryOn({ ...base, side, image: shotOf(side), ...(ref ? { ref } : { photo }), ...(side === "back" && backPhoto ? { backPhoto } : {}) })
+        : aiService.worn({ ...base, side, image: shotOf(side), ...(ref ? { ref } : {}) });
+    const why = (err) => err?.response?.data?.message || err?.message || "The photo couldn’t be made just now.";
+    const keepLeft = (res) => res?.left != null && setAi((cur) => ({ ...cur, left: res.left }));
+    const done = (res) => ({ url: res.url, from: res.from || "photo", making: false });
+    setWorn("making");
+    let first;
+    try {
+      first = await ask(make[0]);
+    } catch (err) {
+      if (run === wornRun.current) {
+        setWorn(null);
+        say(why(err));
+      }
+      return;
+    }
+    keepLeft(first);
+    if (run !== wornRun.current) return;
+    setWorn({ run, me, at: 0, note: skippedNote(skipped), photos: make.map((side, i) => ({ side, label: sideLabel(side), ...(i === 0 ? done(first) : { making: true }) })) });
+    if (make.length < 2) return;
+    const put = (side, patch) => setWorn((cur) => (cur?.run === run ? { ...cur, photos: cur.photos.map((p) => (p.side === side ? { ...p, ...patch } : p)) } : cur));
+    await Promise.all(
+      make.slice(1).map(async (side) => {
+        try {
+          put(side, done(await ask(side, first.url)));
+        } catch (err) {
+          put(side, { making: false, failed: why(err) });
+        }
+      }),
+    );
+    // (the sides were asked for together, so each answer's "left" may be one out: read it once more)
+    aiService
+      .status()
+      .then((st) => st?.left != null && setAi((cur) => ({ ...cur, left: st.left })))
+      .catch(() => {});
+  }
+  async function shareAllWorn() {
+    const ready = (worn?.photos || []).filter((p) => p.url);
+    try {
+      const blob = await makeSideBySide(
+        ready.map((p) => ({ src: imageUrl(p.url, 1200), label: p.label })),
+        { title: `${garment?.label || "My tee"} · ${colour?.name || ""}`.trim() },
+      );
+      const how = await shareTee(blob, { text: `My ${garment?.label || "tee"} design on IDENTEE`, fileName: "my-identee-tee-worn-all.png" });
+      if (how === "saved") say("The photos are saved as one picture — send it to whoever needs to say yes.");
+    } catch (err) {
+      say(err?.message || "The picture couldn’t be made just now.");
+    }
+  }
   // the browser's Back walks the room's own steps, like its ← button (17 Nov 2026: Back in the room went straight
   // to the garment list): Review → the design → colour & size. (Before the windows below: a window opened inside a
   // step sits on top of it, so Back closes the window first.)
@@ -2847,7 +3033,8 @@ export default function DesignRoomPage() {
   useBackClose(pickOpen, () => setPickOpen(false));
   useBackClose(saveOpen, () => setSaveOpen(false));
   useBackClose(chatsOpen, () => setChatsOpen(false));
-  useBackClose(Boolean(worn?.url), () => setWorn(null));
+  useBackClose(Boolean(worn?.photos), () => closeWorn());
+  useBackClose(Boolean(tryOnAsk), () => setTryOnAsk(null));
   useBackClose(narrow && step === "design" && areasOpen, () => setAreasOpen(false));
   useBackClose(narrow && step === "design" && Boolean(activePos) && !assist, () => activePos && goView(activePos.side));
   useBackClose(narrow && step === "design" && assist, () => setAssist(false));
@@ -3573,20 +3760,45 @@ export default function DesignRoomPage() {
                   className="dr-share"
                   disabled={sharing}
                   onClick={async () => {
+                    // (17 Nov 2026, the owner: "make it share in WhatsApp") WhatsApp opens with a message and a link that
+                    // shows the tee picture as its preview (services/shareService.js). The new tab is opened at once and
+                    // pointed at WhatsApp when the link is ready: a phone blocks a tab opened after a wait.
+                    const tab = window.open("", "_blank");
                     setSharing(true);
+                    setWaLink("");
                     try {
-                      const blob = await makeShareCard({ front: shots[0].url, back: shots[1]?.url, title: `${garment?.label || "My tee"} · ${colour?.name || ""}`.trim() });
-                      const how = await shareTee(blob, { text: `My ${garment?.label || "tee"} design on IDENTEE` });
-                      if (how === "saved") say("The picture of your tee is saved — send it to whoever needs to say yes.");
+                      const title = `${garment?.label || "My tee"} · ${colour?.name || ""}`.trim();
+                      const blob = await makeShareCard({ front: shots[0].url, back: shots[1]?.url, title });
+                      let link = null;
+                      try {
+                        link = await makeShareLink(blob, title);
+                      } catch {
+                        /* no connection to the server: the picture itself is shared instead (below) */
+                      }
+                      if (!link) {
+                        tab?.close();
+                        const how = await shareTee(blob, { text: `My ${garment?.label || "tee"} design on IDENTEE` });
+                        if (how === "saved") say("The picture of your tee is saved — send it to whoever needs to say yes.");
+                        return;
+                      }
+                      const url = whatsappUrl(shareMessage(garment?.label, link.page));
+                      if (tab && !tab.closed) tab.location.href = url;
+                      else setWaLink(url); // the browser blocked the new tab: a button to open it by hand
                     } catch (err) {
+                      tab?.close();
                       say(err?.message || "The picture couldn’t be made just now.");
                     } finally {
                       setSharing(false);
                     }
                   }}
                 >
-                  {sharing ? "Making the picture…" : "Share my tee"}
+                  {sharing ? "Making the link…" : "Share my tee on WhatsApp"}
                 </button>
+              )}
+              {waLink && (
+                <a className="dr-share alt" href={waLink} target="_blank" rel="noopener noreferrer" onClick={() => setWaLink("")}>
+                  Open WhatsApp
+                </a>
               )}
               {/* Email me this design (round 8, 11 Nov 2026): saved, then sent to their own address with a link back to it */}
               {shots?.length === 4 && shots[0]?.url && (
@@ -3604,32 +3816,26 @@ export default function DesignRoomPage() {
                   {emailing ? "Sending the email…" : "Email me this design"}
                 </button>
               )}
-              {/* Photo of it worn (round 5, 8 Nov 2026): one AI photo of the finished tee on a person, for WhatsApp / Instagram */}
+              {/* Photo of it worn (round 5, 8 Nov 2026): an AI photo of the finished tee on a person, for WhatsApp / Instagram.
+                  Since 17 Nov 2026 one photo per printed side (front, back, a sleeve side) — makeWornPhotos above */}
               {shots?.length === 4 && shots[0]?.url && ai.available && (
                 <button
                   type="button"
-                  className="dr-share alt"
-                  disabled={worn === "making"}
-                  onClick={async () => {
+                  className="dr-share alt dr-worn-btn"
+                  disabled={wornBusy}
+                  onClick={() => {
                     if (!isLoggedIn()) return goToLogin();
-                    setWorn("making");
-                    try {
-                      const res = await aiService.worn({ image: shots[0].url, garment: garment?.label || "t-shirt", teeColour: colour?.name || "white" });
-                      if (res.left != null) setAi((cur) => ({ ...cur, left: res.left }));
-                      setWorn({ url: res.url });
-                    } catch (err) {
-                      setWorn(null);
-                      say(err?.response?.data?.message || "The photo couldn’t be made just now.");
-                    }
+                    makeWornPhotos();
                   }}
                 >
-                  {worn === "making" ? "Taking the photo… (about 30 s)" : "Photo of it worn"}
+                  {worn === "making" ? (wornSides.length > 1 ? `Taking the ${sideWords(wornSides.slice(0, 1))} photo first… (about 30 s)` : "Taking the photo… (about 30 s)") : "Photo of it worn"}
                 </button>
               )}
-              {/* Try it on me (round 7, 8 Nov 2026): the customer's own photo, wearing this tee */}
+              {/* Try it on me (round 7, 8 Nov 2026): the customer's own photo, wearing this tee — the other sides are the
+                  same person, made by the AI (17 Nov 2026); a photo of their back may be added when the back has a print */}
               {shots?.length === 4 && shots[0]?.url && ai.available && (
                 <>
-                  <button type="button" className="dr-share alt" disabled={worn === "making"} onClick={() => (isLoggedIn() ? tryOnRef.current?.click() : goToLogin())}>
+                  <button type="button" className="dr-share alt dr-worn-btn" disabled={wornBusy} onClick={() => (isLoggedIn() ? tryOnRef.current?.click() : goToLogin())}>
                     Try it on me
                   </button>
                   <input
@@ -3641,62 +3847,124 @@ export default function DesignRoomPage() {
                       const file = e.target.files?.[0];
                       e.target.value = "";
                       if (!file) return;
-                      setWorn("making");
+                      let photo;
                       try {
-                        const photo = await new Promise((resolve, reject) => {
-                          const img = new Image();
-                          const url = URL.createObjectURL(file);
-                          img.onload = () => {
-                            const k = Math.min(1, 1280 / Math.max(img.width, img.height));
-                            const c = document.createElement("canvas");
-                            c.width = Math.round(img.width * k);
-                            c.height = Math.round(img.height * k);
-                            c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
-                            URL.revokeObjectURL(url);
-                            resolve(c.toDataURL("image/jpeg", 0.9));
-                          };
-                          img.onerror = () => reject(new Error("That photo couldn’t be read."));
-                          img.src = url;
-                        });
-                        const res = await aiService.tryOn({ photo, image: shots[0].url, garment: garment?.label || "t-shirt", teeColour: colour?.name || "white" });
-                        if (res.left != null) setAi((cur) => ({ ...cur, left: res.left }));
-                        setWorn({ url: res.url, me: true }); // made from the customer's own photo: the caption says so
+                        photo = await photoDataUrl(file);
                       } catch (err) {
-                        setWorn(null);
-                        say(err?.response?.data?.message || err?.message || "The photo couldn’t be made just now.");
+                        return say(err?.message || "That photo couldn’t be read.");
+                      }
+                      // the back gets a photo too: their own back, if they like (truer), else the AI makes it from this photo
+                      if (planSides(wornSides, ai.left).make.includes("back")) return setTryOnAsk({ photo });
+                      makeWornPhotos({ me: true, photo });
+                    }}
+                  />
+                  <input
+                    ref={tryOnBackRef}
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    hidden
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      e.target.value = "";
+                      const photo = tryOnAsk?.photo;
+                      if (!file || !photo) return;
+                      setTryOnAsk(null);
+                      try {
+                        makeWornPhotos({ me: true, photo, backPhoto: await photoDataUrl(file) });
+                      } catch (err) {
+                        say(err?.message || "That photo couldn’t be read.");
                       }
                     }}
                   />
+                  {/* no surprise cost (17 Nov 2026): how many photos a press makes, of today's pictures */}
+                  <p className="dr-review-hint dr-worn-cost">{costLine({ sides: wornSides, left: isLoggedIn() ? ai.left : null, daily: ai.dailyPerUser })}</p>
                 </>
               )}
-              {worn?.url &&
+              {tryOnAsk &&
+                createPortal(
+                <div className="dr-worn" role="dialog" aria-label="A photo of your back?">
+                  <div className="dr-worn-card dr-worn-ask">
+                    <b>Your photo shows your front.</b>
+                    <p className="dr-review-hint">
+                      Your design has a print on the back, so there will be a back photo too. The AI can make it from this photo — or add a photo of your back (standing, facing away), so the back looks truer.
+                    </p>
+                    <p className="dr-review-hint">{costLine({ sides: wornSides, left: isLoggedIn() ? ai.left : null, daily: ai.dailyPerUser })}</p>
+                    <div className="dr-worn-acts">
+                      <button type="button" onClick={() => tryOnBackRef.current?.click()}>Add a photo of my back</button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const photo = tryOnAsk.photo;
+                          setTryOnAsk(null);
+                          makeWornPhotos({ me: true, photo });
+                        }}
+                      >
+                        Go on without it
+                      </button>
+                      <button type="button" onClick={() => setTryOnAsk(null)}>Cancel</button>
+                    </div>
+                  </div>
+                </div>,
+                document.body,
+              )}
+              {worn?.photos &&
                 createPortal(
                 <div className="dr-worn" role="dialog" aria-label="Your tee, worn">
                   <div className="dr-worn-card">
-                    <img src={imageUrl(worn.url, 1200)} alt="Your tee, worn" />
+                    {worn.photos.length > 1 && (
+                      <div className="dr-worn-tabs" role="tablist" aria-label="Sides">
+                        {worn.photos.map((p, i) => (
+                          <button key={p.side} type="button" role="tab" aria-selected={i === worn.at} className={i === worn.at ? "on" : ""} onClick={() => wornGo(i)}>
+                            {p.label}
+                            {p.making ? " …" : p.failed ? " ✕" : ""}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    {/* swipe left / right on a phone for the next side */}
+                    <div
+                      className="dr-worn-pic"
+                      onTouchStart={(e) => (wornSwipe.current = e.touches[0]?.clientX ?? null)}
+                      onTouchEnd={(e) => {
+                        const x0 = wornSwipe.current;
+                        wornSwipe.current = null;
+                        const dx = x0 == null ? 0 : (e.changedTouches[0]?.clientX ?? x0) - x0;
+                        if (worn.photos.length > 1 && Math.abs(dx) > 48) wornGo(worn.at + (dx < 0 ? 1 : -1));
+                      }}
+                    >
+                      {wornShown.url ? (
+                        <img src={imageUrl(wornShown.url, 1200)} alt={`Your tee, worn — ${wornShown.label.toLowerCase()}`} />
+                      ) : (
+                        <div className="dr-worn-wait" role="status">
+                          {wornShown.making ? `Making the ${wornShown.label.toLowerCase()} photo… (about 30 s)` : wornShown.failed || "This photo couldn’t be made."}
+                        </div>
+                      )}
+                    </div>
                     <div className="dr-worn-acts">
                       <button
                         type="button"
-                        className="dr-share"
+                        disabled={!wornShown.url}
                         onClick={async () => {
                           try {
-                            const blob = await (await fetch(imageUrl(worn.url))).blob();
-                            const how = await shareTee(blob, { text: `My ${garment?.label || "tee"} design on IDENTEE`, fileName: "my-identee-tee-worn.jpg" });
+                            const blob = await (await fetch(imageUrl(wornShown.url))).blob();
+                            const how = await shareTee(blob, { text: `My ${garment?.label || "tee"} design on IDENTEE`, fileName: `my-identee-tee-worn-${wornShown.side}.jpg` });
                             if (how === "saved") say("The photo is saved — send it to whoever needs to say yes.");
                           } catch {
-                            window.open(imageUrl(worn.url), "_blank", "noopener");
+                            window.open(imageUrl(wornShown.url), "_blank", "noopener");
                           }
                         }}
                       >
-                        Share the photo
+                        {worn.photos.length > 1 ? "Share this photo" : "Share the photo"}
                       </button>
-                      <button type="button" className="dr-share" onClick={() => setWorn(null)}>Close</button>
+                      {worn.photos.length > 1 && (
+                        <button type="button" disabled={wornReady.length < 2} onClick={shareAllWorn}>
+                          Share all{wornReady.length < worn.photos.length ? ` (${wornReady.length} ready)` : ""}
+                        </button>
+                      )}
+                      <button type="button" onClick={closeWorn}>Close</button>
                     </div>
-                    <p className="dr-review-hint">
-                      {worn.me
-                        ? "An AI picture of you in your tee, made from your photo — a preview, not a real photo. The print is as on your tee."
-                        : "An AI photo of your design on a person — the print is as on your tee; the person and place are made up."}
-                    </p>
+                    {worn.note && <p className="dr-review-hint dr-worn-note">{worn.note}</p>}
+                    <p className="dr-review-hint">{wornCaption({ me: worn.me, side: wornShown.side, from: wornShown.from })}</p>
                   </div>
                 </div>,
                 document.body,

@@ -1,0 +1,47 @@
+/* Several photos in one chat message (17 Nov 2026): the row of waiting photos in the message box, the photos the
+   customer sent, and the plan card for them (PhotosPlanCard.jsx). Phone and laptop: the row scrolls sideways, so it
+   never pushes Send off the screen; every button is at least 40 px; inputs are 16 px on phones (no zoom on iPhone). */
+
+/* the photos waiting in the message box */
+.dr-attachmany { flex: 1 0 100%; min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; padding: 6px; border: 1px solid var(--line); border-radius: 12px; background: #FBF9F4; margin-bottom: 4px; }
+.dr-attachrow { display: flex; gap: 8px; min-width: 0; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: thin; padding-bottom: 2px; }
+.dr-athumb { position: relative; flex: none; width: 64px; height: 64px; }
+.dr-athumb img { display: block; width: 64px; height: 64px; object-fit: cover; border-radius: 10px; background: #2b2724; }
+.dr-athumb b { position: absolute; left: 4px; bottom: 4px; min-width: 18px; padding: 1px 5px; border-radius: 999px; background: rgba(20, 17, 16, .72); color: #fff; font-size: 12px; line-height: 16px; text-align: center; }
+/* the ✕: a 40 px tap target in the corner, with a small round mark inside it */
+.dr-composer .dr-athumb-x { position: absolute; top: 0; right: 0; width: 40px; height: 40px; padding: 0; border: 0; background: transparent; display: grid; place-items: start end; }
+.dr-athumb-x span { width: 22px; height: 22px; margin: 3px 3px 0 0; border-radius: 50%; display: grid; place-items: center; background: rgba(20, 17, 16, .78); color: #fff; font-size: 12px; line-height: 1; }
+.dr-composer .dr-athumb-add { flex: none; width: 64px; height: 64px; padding: 0; border: 1px dashed var(--line); border-radius: 10px; background: #fff; color: var(--ink); font-size: 24px; line-height: 1; }
+.dr-composer .dr-athumb-add:hover:not(:disabled) { border-color: var(--ink); }
+.dr-attachmany p { margin: 0; font-size: 12.5px; line-height: 1.35; color: var(--ink-soft); }
+
+/* several photos the customer sent, as their message */
+.dr-msg.dr-photosmsg { display: grid; gap: 6px; padding: 5px; max-width: min(80%, 280px); }
+.dr-photosgrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; }
+.dr-photosgrid.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.dr-photosgrid img { display: block; width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 8px; background: #2b2724; }
+.dr-photosmsg span { padding: 0 6px 4px; }
+.dr-photosmsg small { padding: 0 6px 4px; font-size: 12px; font-weight: 700; color: #F4B6A8; }
+.dr-photosmsg.failed img { opacity: .55; }
+
+/* the plan card for several photos */
+.mpc-h { margin: 0; font-size: 14px; font-weight: 800; color: var(--ink); }
+.mpc-rows { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.mpc-row { display: grid; grid-template-columns: 56px minmax(0, 1fr); gap: 8px 10px; align-items: start; padding: 8px; border: 1px solid var(--line); border-radius: 12px; background: #fff; }
+.mpc-row img { width: 56px; height: 56px; object-fit: cover; border-radius: 8px; background: #F3EFE6; border: 1px solid var(--line); }
+.mpc-row.off img { opacity: .45; }
+.mpc-body { display: grid; gap: 6px; min-width: 0; }
+.mpc-what { margin: 0; font-size: 13px; line-height: 1.35; color: var(--ink); overflow-wrap: anywhere; }
+.mpc-what span { color: var(--muted); }
+.mpc-sum { margin: 0; font-size: 13px; line-height: 1.4; color: var(--muted); overflow-wrap: anywhere; }
+.mpc-body select { width: 100%; min-width: 0; min-height: 42px; border: 1px solid var(--line); border-radius: 10px; background: #fff; padding: 0 8px; font: 600 14px/1.2 var(--body); color: var(--ink); }
+.mpc-also { font-size: 12px; color: var(--muted); }
+.mpc-skip { grid-column: 1 / -1; justify-self: end; min-height: 40px; padding: 0 14px; border: 1px solid var(--line); border-radius: 999px; background: #fff; color: var(--ink); font-size: 13px; font-weight: 700; }
+.mpc-skip:hover { border-color: var(--ink); }
+.mpc-warn { color: #9A3B22; font-weight: 700; }
+.mpc.done .mpc-row { background: #FBF9F4; }
+
+@media (max-width: 760px) {
+  .mpc-body select { font-size: 16px; }
+  .dr-athumb, .dr-athumb img, .dr-composer .dr-athumb-add { width: 58px; height: 58px; }
+}

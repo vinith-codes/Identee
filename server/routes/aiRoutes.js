@@ -27,12 +27,14 @@ router.post("/concepts", protect, rateLimit({ windowMs: 60_000, max: 6, message:
 router.post("/develop", protect, rateLimit({ windowMs: 60_000, max: 6, message: "Slow down a little — try again in a minute." }), makeDevelop);
 // round 5 (8 Nov 2026): a matching piece from the tee's own picture; a photo of the finished tee worn
 router.post("/match", protect, rateLimit({ windowMs: 60_000, max: 6, message: "Slow down a little — try again in a minute." }), makeMatch);
-router.post("/worn", protect, rateLimit({ windowMs: 60_000, max: 4, message: "Slow down a little — try again in a minute." }), makeWorn);
+// (17 Nov 2026) one photo per printed side: a press asks up to 4 times (front, back, left, right) — 12 a minute, so a
+// second press or a retry is not refused; the day's 10 pictures still limit what is made
+router.post("/worn", protect, rateLimit({ windowMs: 60_000, max: 12, message: "Slow down a little — try again in a minute." }), makeWorn);
 // round 6 (8 Nov 2026): "Ask the IDENTEE team to finish it" — the customer's request, and the admin's list
 router.post("/help", protect, rateLimit({ windowMs: 60_000, max: 5, message: "Slow down a little — try again in a minute." }), requestHelp);
 router.get("/help", protect, adminOrSeller, listHelp);
 // round 7 (8 Nov 2026): the customer's own photo wearing the tee; Browse ideas (featured concept sheets)
-router.post("/tryon", protect, rateLimit({ windowMs: 60_000, max: 4, message: "Slow down a little — try again in a minute." }), makeTryOn);
+router.post("/tryon", protect, rateLimit({ windowMs: 60_000, max: 12, message: "Slow down a little — try again in a minute." }), makeTryOn);
 router.get("/ideas", listIdeas);
 router.put("/ideas/:id", protect, adminOnly, setIdea);
 router.put("/help/:id", protect, adminOrSeller, setHelpStatus);

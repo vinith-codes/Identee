@@ -62,11 +62,13 @@ const dropPrintPicture = async (body) => (await axios.delete(`${API_URL}/admin/p
 // round 5 (8 Nov 2026): a companion piece drawn from the picture already on the tee, and a photo of the finished tee worn
 // { fromUrl, fromLabel, piece, brief, teeColour, teeIsDark, ratio } -> { piece: { piece, url, width, height }, left }
 const match = async (body) => (await axios.post(`${API_URL}/match`, body, { ...auth(), timeout: 200000 })).data;
-// { image: data URL of the front mock-up, garment, teeColour } -> { url, width, height, left }
+// { image: data URL of the mock-up from that side, side?: "front"|"back"|"left"|"right", ref?: the first photo's url
+// (17 Nov 2026: one photo per printed side, the same person kept), garment, teeColour } -> { url, width, height, side, left }
 const worn = async (body) => (await axios.post(`${API_URL}/worn`, body, { ...auth(), timeout: 200000 })).data;
 // round 6 (8 Nov 2026): "Ask the IDENTEE team to finish it" { note, garment, colour, size, design, chat, mockup? } -> { ok }
 const help = async (body) => (await axios.post(`${API_URL}/help`, body, { ...auth(), timeout: 60000 })).data;
 // round 7 (8 Nov 2026): the customer's own photo wearing the tee; Browse ideas (the sheets the admin featured)
+// { photo, image, side?, ref?, backPhoto?, garment, teeColour } -> { url, width, height, side, from: "photo"|"ai", left } (17 Nov 2026)
 const tryOn = async (body) => (await axios.post(`${API_URL}/tryon`, body, { ...auth(), timeout: 200000 })).data;
 const ideas = async () => (await axios.get(`${API_URL}/ideas`, { timeout: 20000 })).data;
 const setIdea = async (id, featured) => (await axios.put(`${API_URL}/ideas/${id}`, { featured }, auth())).data;

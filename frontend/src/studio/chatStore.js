@@ -35,7 +35,9 @@ export const worthKeeping = (body) => Boolean(body?.chat?.some((m) => m.from ===
 
 // one message in words (pictures and cards as a short note), or null
 export const toHistory = (m) =>
-  m.from === "me" ? { who: "customer", text: m.text || (m.photo ? "(sent a photo)" : "") }
+  // (17 Nov 2026) several photos in one message: how many, with the words sent with them
+  m.from === "me" ? { who: "customer", text: m.photos?.length ? `(sent ${m.photos.length} photos)${m.text ? ` ${m.text}` : ""}` : m.text || (m.photo ? "(sent a photo)" : "") }
+  : m.photosPlan ? { who: "assistant", text: `Photo plan shown: ${m.photosPlan.items.map((x) => `photo ${x.n}: ${x.skip ? "not used" : `${x.job} on ${(x.areaKeys || []).join(" + ")}`}`).join(" | ")}` }
   : m.from === "bot" ? { who: "assistant", text: m.text }
   : m.slogans ? { who: "assistant", text: `Slogans shown: ${m.slogans.join(" | ")}` }
   : m.ideas ? { who: "assistant", text: `Ideas shown: ${m.ideas.map((i) => i.title).join(" | ")}` }

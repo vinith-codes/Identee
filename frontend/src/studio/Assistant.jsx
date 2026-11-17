@@ -12,6 +12,9 @@ import WaitCard from "./WaitCard";
 import IdeaPreview from "./IdeaPreview";
 import PlanCard from "./PlanCard";
 import PhotoPlanCard from "./PhotoPlanCard";
+import PhotosPlanCard from "./PhotosPlanCard";
+import { MAX_PHOTOS, roomFor, tooManyLine } from "./multiPhoto";
+import "./multiPhotos.css";
 import MyPictures from "./MyPictures";
 import SheetCard from "./SheetCard";
 import { assistAct, STARTER_CHIP, ASK_TEAM, STARTER, starterStep, starterOptions, starterBrief, BROWSE_CHIP } from "./assistantV2";
@@ -22,7 +25,7 @@ import { leftLine, MIC_LANGS, nextMicLang, readMicLang, saveMicLang, spotName, W
 
 const PICTURE_HINT = "Usually 20–40 seconds. You can look around the room meanwhile.";
 // the acts that take a while (an AI or the server): the chat waits for them with a wait card
-const SLOW = ["generate", "slogans", "edit", "improve", "drawPlan", "photoPlace", "photoUnderstand", "photoMake", "smart", "assist", "help", "ideas"];
+const SLOW = ["generate", "slogans", "edit", "improve", "drawPlan", "photoPlace", "photoUnderstand", "photoMake", "photosMake", "smart", "assist", "help", "ideas"];
 // What the wait card says for an AI job: { label, expect (usual seconds), hint }
 const waitFor = (a) =>
   a.type === "assist"
@@ -37,6 +40,11 @@ const waitFor = (a) =>
         ? { label: "Improving your idea…", expect: 9 }
       : a.type === "photoUnderstand"
         ? { label: "Looking at your photo…", expect: 6 }
+      // several photos made at once (17 Nov 2026): the pictures are made at the same time, the free ones one by one
+      : a.type === "photosMake"
+        ? (a.items || []).some((x) => x.job !== "photo" || x.enhance)
+          ? { label: `Making your ${a.items.length} photos…`, expect: 35, hint: "The pictures are made at the same time. Usually 20–40 seconds." }
+          : { label: `Putting your ${a.items.length} photos on the tee…`, expect: 6 * a.items.length, hint: "Free. Removing a background takes a few seconds each." }
       : a.type === "photoMake"
         ? a.job === "copy"
           ? { label: "Copying the design…", expect: 30, hint: PICTURE_HINT }
@@ -97,11 +105,18 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
   const [nudging, setNudging] = useState(false);
   useEffect(() => {
     if (!photoNudge) return;
-    setNudging(true);
+    // (17 Nov 2026: switched on from a timer, not straight in the effect — the same moment for the eye, and the lint
+    // check no longer flags it)
+    const on = setTimeout(() => setNudging(true), 0);
     const t = setTimeout(() => setNudging(false), 4000);
-    return () => clearTimeout(t);
+    return () => {
+      clearTimeout(on);
+      clearTimeout(t);
+    };
   }, [photoNudge]);
-  const [attached, setAttached] = useState(null); // a photo picked with 📎, waiting to be sent with the words: { file, w, h, local }
+  // the photos picked with 📎, waiting to be sent with the words: [{ file, w, h, local }] (17 Nov 2026: up to
+  // MAX_PHOTOS at a time, like ChatGPT — one photo works exactly as before)
+  const [attached, setAttached] = useState([]);
   // 🎤 speak instead of type (round 3): the words land in the box as they are heard; Send sends them
   const [listening, setListening] = useState(false);
   const [micLang, setMicLang] = useState(readMicLang); // round 8: English or Tamil, remembered in this browser
@@ -246,7 +261,7 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
     }
     // the chips just answered can't be tapped again
     // ("Not now" on a plan card closes that card too)
-    setMessages((m) => [...m.map((x) => (x.chips || x.retry || ((x.plan || x.photoPlan) && text === NOT_NOW) ? { ...x, done: true } : x)), { from: "me", text }]);
+    setMessages((m) => [...m.map((x) => (x.chips || x.retry || ((x.plan || x.photoPlan || x.photosPlan) && text === NOT_NOW) ? { ...x, done: true } : x)), { from: "me", text }]);
     // the smart Assistant (23 Oct 2026): a typed message goes to Google's text AI — unless it answers a question the
     // fixed chat just asked, is a button's own words, or is a pasted player list (assistantScript.smartCanAnswer).
     // Taps never go there. If it can't answer, the fixed replies below answer instead.
@@ -321,26 +336,41 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
   // the photo: made small enough on the phone, shown in the chat at once, then sent (the page uploads it and answers)
   // picked: the photo waits in the chat box (like a messaging app) so the customer can say what they want with it,
   // then Send sends both together
-  const attachPhoto = async (file) => {
-    if (!file) return;
-    try {
-      const ready = await shrinkPhoto(file);
-      if (attached) URL.revokeObjectURL(attached.local);
-      setAttached({ ...ready, local: URL.createObjectURL(ready.file) });
-      setTimeout(() => box.current?.focus(), 100);
-    } catch (err) {
-      setMessages((m) => [...m, { from: "bot", text: err instanceof PhotoError ? err.message : "The photo couldn’t be prepared. Try another one." }]);
+  // (17 Nov 2026) several at a time: each is made ready on its own (one after another, so a phone doesn't run out of
+  // memory), added to the ones already waiting, up to MAX_PHOTOS — more than that is said plainly, never dropped silently
+  const attachPhotos = async (files) => {
+    const list = (files || []).filter(Boolean);
+    if (!list.length) return;
+    const { take, extra } = roomFor(attached.length, list.length);
+    const ready = [];
+    const said = [];
+    for (const file of list.slice(0, take)) {
+      try {
+        const r = await shrinkPhoto(file);
+        ready.push({ ...r, local: URL.createObjectURL(r.file) });
+      } catch (err) {
+        const why = err instanceof PhotoError ? err.message : "The photo couldn’t be prepared. Try another one.";
+        if (!said.includes(why)) said.push(why);
+      }
     }
+    if (ready.length) setAttached((cur) => [...cur, ...ready].slice(0, MAX_PHOTOS));
+    if (extra) said.push(tooManyLine(extra, attached.length));
+    if (said.length) setMessages((m) => [...m, ...said.map((text) => ({ from: "bot", text }))]);
+    if (ready.length) setTimeout(() => box.current?.focus(), 100);
   };
-  const dropAttached = () => {
-    if (attached) URL.revokeObjectURL(attached.local);
-    setAttached(null);
-  };
+  // ✕ on one waiting photo (no index: all of them)
+  const dropAttached = (i = null) =>
+    setAttached((cur) => {
+      cur.forEach((x, n) => (i == null || n === i) && URL.revokeObjectURL(x.local));
+      return i == null ? [] : cur.filter((_, n) => n !== i);
+    });
+  // Send with photos waiting: one goes the way one photo always went; two or more go together (sendPhotos)
+  const sendAttached = (words) => (attached.length > 1 ? sendPhotos(attached, words) : sendPhoto(attached[0], words));
   const sendPhoto = async (ready, words) => {
     if (!ready || thinking) return;
     const { local } = ready;
     const id = `p${Date.now()}`;
-    setAttached(null);
+    setAttached([]);
     setDraft("");
     setMessages((m) => [...m.map((x) => (x.chips || x.retry ? { ...x, done: true } : x)), { from: "me", photo: { url: local, w: ready.w, h: ready.h }, text: words, sending: id }]);
     setThinking({ label: "Sending your photo…", expect: 4, hint: "On mobile data this can take a few seconds.", noStop: true });
@@ -363,6 +393,35 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
     // words came with the photo: it is read with them now (no menu to pick from)
     const next = out.find((x) => x.next)?.next;
     if (sent && next) run(next, waitFor(next));
+  };
+  // (17 Nov 2026) several photos in one message: shown at once as one message, sent together (the page uploads each,
+  // then the Assistant looks at all of them with the words — or asks what to do when there are none)
+  const sendPhotos = async (list, words) => {
+    if (!list?.length || thinking) return;
+    const id = `p${Date.now()}`;
+    setAttached([]);
+    setDraft("");
+    const shown = list.map((r) => ({ url: r.local, w: r.w, h: r.h }));
+    setMessages((m) => [...m.map((x) => (x.chips || x.retry ? { ...x, done: true } : x)), { from: "me", photos: shown, text: words, sending: id }]);
+    setThinking({ label: `Sending your ${list.length} photos…`, expect: 3 + 2 * list.length, hint: "On mobile data this can take a little while.", noStop: true });
+    onWorking?.(true);
+    let out;
+    try {
+      out = (await onAct({ type: "photos", files: list.map((r) => ({ file: r.file, w: r.w, h: r.h })), text: words })) || [];
+    } catch {
+      out = [];
+    }
+    setThinking(false);
+    onWorking?.(false);
+    const sent = out.find((x) => x.photosSent)?.photosSent || [];
+    // sent: the photos in the chat now point at the uploaded copies (still there after a reload)
+    setMessages((m) => [
+      ...m.map((x) => (x.sending === id ? { from: "me", photos: sent.length ? sent : x.photos, text: x.text, ...(sent.length ? {} : { failed: true }) } : x)),
+      ...(out.length ? out.filter((x) => !x.photosSent && !x.next) : [{ from: "bot", text: "The photos didn’t send. Check the internet connection, then tap 📎 and try again." }]),
+    ]);
+    if (sent.length) setTimeout(() => list.forEach((r) => URL.revokeObjectURL(r.local)), 5000);
+    const next = out.find((x) => x.next)?.next;
+    if (sent.length && next) run(next, waitFor(next));
   };
   // "Change" on a design: the next thing typed is the change to make
   const startChange = (url, spot = "") => {
@@ -394,12 +453,21 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
   const left = leftLine(ctx().ai);
   const mic = MIC_LANGS.find((l) => l.key === micLang) || MIC_LANGS[0];
   // only the newest plan can still be changed and drawn (a drawing plan or a photo plan)
-  const lastPlan = messages.reduce((last, m, i) => (m.plan || m.photoPlan ? i : last), -1);
+  const lastPlan = messages.reduce((last, m, i) => (m.plan || m.photoPlan || m.photosPlan ? i : last), -1);
   // "Make it" on a photo plan
   const makePhoto = (i, plan) => {
     if (thinking) return;
     setMessages((all) => [...all.map((x, n) => (n === i ? { ...x, photoPlan: plan, done: true } : x.chips ? { ...x, done: true } : x)), { from: "me", text: "Make it" }]);
     const a = { type: "photoMake", job: plan.job, areaKey: plan.areaKey, areaKeys: plan.areaKeys || [], style: plan.style, change: plan.change, subject: plan.subject, design: plan.design, words: plan.words, cutOut: plan.cutOut, enhance: !!plan.enhance };
+    run(a, waitFor(a));
+  };
+  // "Make all" on the plan for several photos (17 Nov 2026): each photo that is used, made like "Make it" makes one
+  const makePhotos = (i, plan) => {
+    if (thinking) return;
+    const items = (plan.items || []).filter((x) => !x.skip);
+    if (!items.length) return;
+    setMessages((all) => [...all.map((x, n) => (n === i ? { ...x, photosPlan: plan, done: true } : x.chips ? { ...x, done: true } : x)), { from: "me", text: items.length > 1 ? "Make all" : "Make it" }]);
+    const a = { type: "photosMake", items };
     run(a, waitFor(a));
   };
   // Draw on the plan card: the plan is kept as it was drawn, and the pictures are made one after the other
@@ -530,6 +598,23 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
                 live={i === lastPlan && !m.done && !thinking}
                 onChange={(photoPlan) => setMessages((all) => all.map((x, n) => (n === i ? { ...x, photoPlan } : x)))}
                 onMake={(plan) => makePhoto(i, plan)}
+                onCancel={() => say(NOT_NOW, true)}
+              />
+            );
+          }
+          if (m.photosPlan) {
+            const c = ctx();
+            return (
+              <PhotosPlanCard
+                key={i}
+                plan={m.photosPlan}
+                areas={c.areas}
+                styles={c.ai.styles}
+                photoStyles={c.ai.photoStyles || []}
+                ai={c.ai}
+                live={i === lastPlan && !m.done && !thinking}
+                onChange={(photosPlan) => setMessages((all) => all.map((x, n) => (n === i ? { ...x, photosPlan } : x)))}
+                onMake={(plan) => makePhotos(i, plan)}
                 onCancel={() => say(NOT_NOW, true)}
               />
             );
@@ -713,15 +798,17 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
                     {pickFor === url && (
                       <div className="dr-designareas">
                         {/* already on the tee: ask first — on both areas, or moved (it used to be added a second time, silently) */}
-                        {areas.map((a) => (
-                          <button key={a.key} type="button" className="dr-chip" onClick={() => { setPickFor(null); if (placed[url]?.length) setMoveAsk({ url, key: a.key, label: a.label }); else onAct({ type: "place", url, areaKey: a.key }); }}>{a.label}</button>
+                        {/* (17 Nov 2026) a picture already on the tee may also MOVE into an area only it was overlapping
+                            (Full Back → Centre Back); such an area can't carry it twice, so it is only moved there */}
+                        {(placed[url]?.length ? ctx().areas.filter((a) => a.free || ctx().moveFree?.(url)?.includes(a.key)) : areas).map((a) => (
+                          <button key={a.key} type="button" className="dr-chip" onClick={() => { setPickFor(null); if (placed[url]?.length) setMoveAsk({ url, key: a.key, label: a.label, onlyMove: !a.free }); else onAct({ type: "place", url, areaKey: a.key }); }}>{a.label}</button>
                         ))}
                       </div>
                     )}
                     {moveAsk?.url === url && (
                       <div className="dr-moveask" role="group" aria-label={`Put it on ${moveAsk.label}`}>
-                        <p>Put it on {moveAsk.label}:</p>
-                        <button type="button" className="dr-chip" onClick={() => { setMoveAsk(null); onAct({ type: "place", url, areaKey: moveAsk.key }); }}>Keep on {placed[url].join(" and ")} too</button>
+                        <p>{moveAsk.onlyMove ? `${moveAsk.label} overlaps ${placed[url].join(" and ")}, so the picture can only be moved there, not printed on both.` : `Put it on ${moveAsk.label}:`}</p>
+                        {!moveAsk.onlyMove && <button type="button" className="dr-chip" onClick={() => { setMoveAsk(null); onAct({ type: "place", url, areaKey: moveAsk.key }); }}>Keep on {placed[url].join(" and ")} too</button>}
                         <button type="button" className="dr-chip on" onClick={() => { setMoveAsk(null); onAct({ type: "place", url, areaKey: moveAsk.key, move: true }); }}>Move it to {moveAsk.label}</button>
                         <button type="button" className="dr-moveno" onClick={() => setMoveAsk(null)}>Cancel</button>
                       </div>
@@ -746,6 +833,20 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
                 {m.inks.map((c) => (
                   <button key={c} type="button" className="dr-ink" style={{ background: c }} aria-label={`Use ink ${c}`} onClick={() => onAct({ type: "ink", color: c })} />
                 ))}
+              </div>
+            );
+          }
+          if (m.photos) {
+            // several photos sent in one message (17 Nov 2026)
+            return (
+              <div key={i} className={`dr-msg me dr-photosmsg${m.failed ? " failed" : ""}`}>
+                <div className={`dr-photosgrid${m.photos.length === 2 || m.photos.length === 4 ? " two" : ""}`}>
+                  {m.photos.map((p, n) => (
+                    <img key={`${p.url}-${n}`} src={/^blob:/.test(p.url) ? p.url : imageUrl(p.url, 300)} alt={`Photo ${n + 1} you sent`} />
+                  ))}
+                </div>
+                {m.text && <span>{m.text}</span>}
+                {m.failed && <small>Not sent</small>}
               </div>
             );
           }
@@ -777,19 +878,37 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
           e.preventDefault();
           if (thinking) return;
           // a photo waiting in the box: it goes with what was typed (or alone, and then I ask)
-          if (attached) return sendPhoto(attached, draft.trim());
+          if (attached.length) return sendAttached(draft.trim());
           // only cleared when it was sent (pressing Send while busy keeps what was typed)
           if (say(draft.trim())) setDraft("");
         }}
       >
-        {attached && (
+        {attached.length === 1 && (
           <div className="dr-attached">
-            <img src={attached.local} alt="The photo you picked" />
+            <img src={attached[0].local} alt="The photo you picked" />
             <span>Photo ready. Say what you want with it, then tap Send.</span>
-            <button type="button" className="dr-attached-x" onClick={dropAttached} aria-label="Remove the photo">✕</button>
+            {/* (17 Nov 2026) + adds more photos to send together */}
+            <button type="button" className="dr-attached-x" onClick={pickPhoto} disabled={!!thinking} aria-label="Add more photos" title="Add more photos">+</button>
+            <button type="button" className="dr-attached-x" onClick={() => dropAttached()} aria-label="Remove the photo">✕</button>
           </div>
         )}
-        <input ref={photoBox} type="file" accept="image/*" hidden onChange={(e) => { const file = e.target.files?.[0]; e.target.value = ""; attachPhoto(file); }} />
+        {/* several photos waiting (17 Nov 2026): a row of small pictures that scrolls sideways, each with its own ✕ */}
+        {attached.length > 1 && (
+          <div className="dr-attachmany" role="group" aria-label={`${attached.length} photos ready to send`}>
+            <div className="dr-attachrow">
+              {attached.map((p, n) => (
+                <div key={p.local} className="dr-athumb">
+                  <img src={p.local} alt={`Photo ${n + 1}`} />
+                  <b aria-hidden="true">{n + 1}</b>
+                  <button type="button" className="dr-athumb-x" onClick={() => dropAttached(n)} aria-label={`Remove photo ${n + 1}`}><span aria-hidden="true">✕</span></button>
+                </div>
+              ))}
+              {attached.length < MAX_PHOTOS && <button type="button" className="dr-athumb-add" onClick={pickPhoto} disabled={!!thinking} aria-label="Add more photos" title="Add more photos">+</button>}
+            </div>
+            <p>{attached.length} photos ready (up to {MAX_PHOTOS}). Say what you want with them — like “logo on the chest, photo on the back” or “mix them into one design” — then tap Send.</p>
+          </div>
+        )}
+        <input ref={photoBox} type="file" accept="image/*" multiple hidden onChange={(e) => { const files = Array.from(e.target.files || []); e.target.value = ""; attachPhotos(files); }} />
         <textarea
           ref={box}
           rows={1}
@@ -802,8 +921,8 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
               e.currentTarget.form?.requestSubmit();
             }
           }}
-          placeholder={attached ? "What should I do with it?" : "Describe your idea…"}
-          aria-label={attached ? "What should I do with this photo?" : "Message the design assistant"}
+          placeholder={attached.length > 1 ? "What should I do with them?" : attached.length ? "What should I do with it?" : "Describe your idea…"}
+          aria-label={attached.length > 1 ? "What should I do with these photos?" : attached.length ? "What should I do with this photo?" : "Message the design assistant"}
           maxLength={PROMPT_MAX}
           autoComplete="off"
         />
@@ -826,7 +945,7 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
           )}
           {/* what is typed is made clear first, free — always here (the examples list is only at the start of a chat);
               not while a photo waits to be sent (what is typed then is about the photo) */}
-          {ctx().ai.available && ctx().ai.text && !attached && (
+          {ctx().ai.available && ctx().ai.text && !attached.length && (
             <button
               type="button"
               className="dr-improve"

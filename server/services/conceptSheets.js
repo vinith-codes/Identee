@@ -24,7 +24,8 @@ export const conceptWords = (c) =>
  * @param teeColour e.g. "black"; teeIsDark for the text about contrast
  * @param numberFrom the number of the first concept on this sheet (4 for the second sheet)
  */
-export function sheetPrompt({ concepts, garment = "t-shirt", teeColour = "white", teeIsDark = false, numberFrom = 1, logo = false, basis = false }) {
+// pictures (17 Nov 2026): how many of the customer's own pictures are attached to be mixed into the concepts (2–6)
+export function sheetPrompt({ concepts, garment = "t-shirt", teeColour = "white", teeIsDark = false, numberFrom = 1, logo = false, basis = false, pictures = 0 }) {
   const list = concepts.map((c, i) => `${numberFrom + i}) "${clean(c.title, 50)}" — ${conceptWords(c)}`).join(" ");
   return (
     `A clean product concept sheet on a plain light grey studio background, landscape, showing ${concepts.length} different t-shirt design concepts side by side as flat catalogue mockups. ` +
@@ -32,6 +33,7 @@ export function sheetPrompt({ concepts, garment = "t-shirt", teeColour = "white"
     `The printed artwork must be clearly visible and large on each tee${teeIsDark ? ", in inks that stand out on the dark fabric" : ""}. The concepts: ${list}. ` +
     `Consistent lighting, no people, no hangers, no extra text anywhere except the numerals and the words that are printed on the tees. Every word printed on a tee must be spelled exactly as given.` +
     (logo ? ` The attached image is the customer's own logo / artwork: wherever a concept says "logo", print it on the tee EXACTLY as it is — the same shapes, colours and words, not redrawn, not restyled — sized and placed as that concept describes.` : "") +
+    (pictures > 1 ? ` ${picturesLine(pictures, 1)} Wherever a concept names "picture 1", "picture 2" … (or "logo"), use THAT attached picture: a logo or lettering stays EXACTLY as it is (same shapes, colours and words); a person, pet or object is drawn recognisably in the concept's style; a garment's print gives its style and look.` : "") +
     (basis ? ` The attached image is the artwork already on the customer's tee: every concept is a version of THAT artwork — the same drawing, composition and words, changed only as the concept says (its ink colours or its style). Do not invent a different picture.` : "")
   );
 }
@@ -54,12 +56,32 @@ export function matchPrompt({ piece = "back", from = "the front", brief = "", te
  * A lifestyle photo of the finished tee on a person (round 5, 8 Nov 2026): for sharing.
  * The attached image is the tee's own front mock-up (from the Review step).
  */
-export function wornPrompt({ garment = "t-shirt", teeColour = "white", setting = "" }) {
+// Every printed side (17 Nov 2026, the owner: "it must show all sides where the prints are available"): one photo
+// per side. How the person stands for each side, and what the tee picture shows.
+export const WORN_SIDES = ["front", "back", "left", "right"];
+const SIDE_POSE = {
+  front: { shows: "the tee and its printed design", pose: "Relaxed natural pose, facing the camera so the front print is fully visible", from: "from the front" },
+  back: { shows: "the BACK of the tee and its printed design", pose: "Standing with their back to the camera (head turned slightly to one side), so the back print is fully visible", from: "from behind" },
+  left: { shows: "the tee from its LEFT side, with the print on the left sleeve", pose: "Standing side-on with their LEFT side and left sleeve towards the camera, so the sleeve print is fully visible", from: "from their left side" },
+  right: { shows: "the tee from its RIGHT side, with the print on the right sleeve", pose: "Standing side-on with their RIGHT side and right sleeve towards the camera, so the sleeve print is fully visible", from: "from their right side" },
+};
+const sidePose = (side) => SIDE_POSE[side] || SIDE_POSE.front;
+
+/**
+ * @param side    "front" | "back" | "left" | "right": the side of the tee in the attached picture (17 Nov 2026)
+ * @param sameAs  true when a SECOND image is attached: a photo already made of the person (the first side), so this
+ *                side shows the same person, place and light — as if one more shot was taken a moment later
+ */
+export function wornPrompt({ garment = "t-shirt", teeColour = "white", setting = "", side = "front", sameAs = false }) {
   const where = clean(setting, 80) || "outdoors on a college campus in India, soft daylight";
+  const p = sidePose(side);
   return (
-    `A realistic lifestyle photograph of a young Indian adult wearing this exact ${clean(garment, 40)} in ${clean(teeColour, 30)} — the attached image shows the tee and its printed design. ` +
-    `Reproduce the printed design EXACTLY as in the attached image: the same artwork, words, colours, placement and size on the tee, not redrawn, not restyled, nothing added to the print. ` +
-    `Setting: ${where}. Relaxed natural pose, facing the camera so the front print is fully visible, natural skin and fabric, shallow depth of field. Photo-real, 3:4 portrait. No text, no logo overlays, no watermark, no frame.`
+    `A realistic lifestyle photograph of a young Indian adult wearing this exact ${clean(garment, 40)} in ${clean(teeColour, 30)}${side === "front" ? "" : `, seen ${p.from}`} — the ${sameAs ? "FIRST " : ""}attached image shows ${p.shows}. ` +
+    `Reproduce the printed design EXACTLY as in the ${sameAs ? "first " : ""}attached image: the same artwork, words, colours, placement and size on the tee, not redrawn, not restyled, nothing added to the print. ` +
+    (sameAs
+      ? `The SECOND attached image is a photo already taken of this person wearing the tee: show the SAME person (same face, hair, skin, build, the same trousers and shoes), in the same place, light and time of day, as if the photographer took one more shot a moment later ${p.from}. Do not copy the print from the second image — the print for this side is the one in the first image. `
+      : `Setting: ${where}. `) +
+    `${p.pose}, natural skin and fabric, shallow depth of field. Photo-real, 3:4 portrait. No text, no logo overlays, no watermark, no frame.`
   );
 }
 
@@ -68,15 +90,20 @@ export function wornPrompt({ garment = "t-shirt", teeColour = "white", setting =
  * @param piece   "front" | "back" | "sleeve"
  * @param n       the concept's number on the sheet
  */
-export function developPrompt({ concept, n, piece, teeIsDark = false, logo = false, change = "" }) {
+export function developPrompt({ concept, n, piece, teeIsDark = false, logo = false, change = "", pictures = 0 }) {
   const what = clean(concept?.[piece], 300) || clean(concept?.front, 300);
   return (
     `The attached image is a concept sheet with numbered t-shirt designs. Reproduce ONLY the ${PIECE_WORD[piece] || "front"} artwork of concept ${n} ("${clean(concept?.title, 50)}": ${what}${concept?.colours ? `; ink colours ${clean(concept.colours, 80)}` : ""}${concept?.style ? `; style ${clean(concept.style, 40)}` : ""}) as finished, print-ready artwork: the artwork alone, large and centred, on a flat, solid, pure magenta (#FF00FF) background and nothing else (no magenta, pink or purple in the artwork itself). ` +
     `No t-shirt, no mockup, no numerals, no sheet, no shadows, no extra text — only the words that are part of the artwork, spelled exactly as on the sheet. Keep its colours, style and composition as shown on the sheet, with sharper, cleaner detail.` +
     (logo ? ` The second attached image is the customer's own logo: where the artwork uses it, reproduce it EXACTLY (same shapes, colours and words), not redrawn.` : "") +
+    (pictures > 1 ? ` ${picturesLine(pictures, 2)} Where the artwork uses one of them, keep it as on the sheet: a logo or lettering EXACTLY as it is, a person, pet or object recognisable.` : "") +
     (clean(change, 300) ? ` The customer asked for ONE change to this artwork: ${clean(change, 300)}. Apply exactly that change and keep everything else as on the sheet.` : "")
   );
 }
+
+// "The attached images 2 to 4 are the customer's own pictures 1 to 3, in order." (17 Nov 2026)
+const picturesLine = (n, first) =>
+  first === 1 ? `The ${n} attached images are the customer's own pictures, picture 1 to picture ${n} in order.` : `After the concept sheet, the next ${n} attached images are the customer's own pictures, picture 1 to picture ${n} in order.`;
 
 /** Which pieces a concept has (the ones with a print). */
 export const piecesOf = (concept) => ["front", "back", "sleeve"].filter((p) => concept?.[p]);
@@ -153,10 +180,28 @@ export function unfinishedDesigns(sheetRows = [], developRows = [], orders = [],
  * "Try it on me" (round 7, 8 Nov 2026): the customer's own photo (first image) with the finished tee (second image)
  * put on them — the person, face, pose and place kept, the print exactly as on the tee.
  */
-export function tryOnPrompt({ garment = "t-shirt", teeColour = "white" }) {
+export function tryOnPrompt({ garment = "t-shirt", teeColour = "white", side = "front" }) {
+  // side "back" (17 Nov 2026): the customer added a photo of their back — it is dressed the same way
+  const back = side === "back";
   return (
-    `Two images are attached. The FIRST is a photo of a person. The SECOND shows a ${clean(garment, 40)} in ${clean(teeColour, 30)} with a printed design. ` +
+    `Two images are attached. The FIRST is a photo of a person${back ? " seen from behind" : ""}. The SECOND shows ${back ? "the BACK of " : ""}a ${clean(garment, 40)} in ${clean(teeColour, 30)} with a printed design. ` +
     `Dress the person in the first photo in that exact ${clean(garment, 40)}: keep their face, hair, body, pose, hands, the lighting and the background exactly as in their photo — change only their upper-body clothing to this tee. ` +
     `The printed design must appear exactly as in the second image: the same artwork, words, colours, placement and size, following the folds of the fabric naturally. Photo-real. No text, no watermark, no frame.`
+  );
+}
+
+/**
+ * "Try it on me", the other sides (17 Nov 2026): the customer's photo shows their front, so the back (or a sleeve
+ * side) is MADE by the AI — the same person turned round. The first image is the person (their front try-on photo
+ * when there is one, else their own photo); the second is the tee from that side. The Review caption says so.
+ */
+export function tryOnSidePrompt({ garment = "t-shirt", teeColour = "white", side = "back" }) {
+  const p = sidePose(side === "front" ? "back" : side);
+  const tee = `a ${clean(garment, 40)} in ${clean(teeColour, 30)}`;
+  const shows = side === "left" || side === "right" ? `${tee} from its ${side.toUpperCase()} side, with the print on the ${side} sleeve` : `the BACK of ${tee}, with its printed design`;
+  return (
+    `Two images are attached. The FIRST is a photo of a person. The SECOND shows ${shows}. ` +
+    `Make a new photo-real picture of the SAME person seen ${p.from}: the same hair, skin, build and other clothes, in the same place, light and time of day — as if a friend took one more photo of them a moment later ${p.from}. They wear that exact ${clean(garment, 40)}. ` +
+    `The printed design must appear exactly as in the second image: the same artwork, words, colours, placement and size, following the folds of the fabric naturally. ${p.pose}. No text, no watermark, no frame.`
   );
 }
