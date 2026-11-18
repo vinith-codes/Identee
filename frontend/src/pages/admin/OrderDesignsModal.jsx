@@ -12,6 +12,7 @@ import { imageUrl } from "../../utils/imageUrl";
 import { THEME, labelStyle } from "../../theme/theme";
 import { adminEnlarger } from "../../studio/enlargerNote";
 import { useBackClose } from "../../utils/backClose";
+import { prepEstimate, prepPriceWords } from "../../utils/prepPrice";
 
 const SIDES = ["front", "back", "left", "right"];
 const GOOD_DPI = 250; // close enough to 300 that enlarging adds nothing worth paying for
@@ -156,7 +157,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // "Prepare for print" button (the approved way: enlarged on a graphics card, vector edge, 600 DPI) and, as the old way,
 // a redraw by Google's AI. One row per picture.
-function PrintPictures({ design, price, sizes, longs = {}, pf, onChanged, onReady, onLost, locked = false, allPrep = null }) {
+function PrintPictures({ design, price, sizes, longs = {}, dims = {}, pf, onChanged, onReady, onLost, locked = false, allPrep = null }) {
   const [busy, setBusy] = useState(null); // index being redrawn by Google
   const [preparing, setPreparing] = useState(null); // { index, jobId, step }
   const [compare, setCompare] = useState(null); // { index, url } — the picture being compared with its original
@@ -169,7 +170,6 @@ function PrintPictures({ design, price, sizes, longs = {}, pf, onChanged, onRead
   });
   const rows = design.elements.map((el, index) => ({ el, index })).filter(({ el }) => el.type === "image" && el.src);
   const enlarger = pf?.enlarger;
-  const prepPrice = enlarger?.priceInr ? `about ₹${enlarger.priceInr}` : enlarger?.mock ? "free (test)" : "";
 
   // Prepare for print: start the job, then ask every few seconds how it is going
   useEffect(() => {
@@ -214,7 +214,8 @@ function PrintPictures({ design, price, sizes, longs = {}, pf, onChanged, onRead
     };
   }, [preparing?.jobId, preparing?.index, onReady]);
 
-  const prepare = async (index, printCm, copyFirst = 0) => {
+  // (18 Nov 2026) prepPrice: the price worked out for THIS picture (its size → Topaz's units), not one unit
+  const prepare = async (index, printCm, copyFirst = 0, prepPrice = "") => {
     if (!enlarger?.configured) return setError("The enlarger is not set up on this server yet (REPLICATE_API_TOKEN in the server's .env).");
     // (16 Nov 2026) copyFirst = the picture's longest side when it is not 4K: the AI copies it at 4K, Topaz enlarges the copy
     const copyNote = copyFirst ? `\n\nIt is not 4K (${copyFirst} px), so the AI first makes a 4K copy of it (the same picture, nothing changed${pf?.aiCopy?.priceInr ? `, about ₹${pf.aiCopy.priceInr} more` : ""}) and Topaz enlarges that copy. If Google refuses (famous people, film characters), Grok makes the copy instead (about ₹6, about 2K, it redraws more: compare it with the original).` : "";
@@ -300,6 +301,9 @@ function PrintPictures({ design, price, sizes, longs = {}, pf, onChanged, onRead
         // (16 Nov 2026) the picture is not 4K: Prepare for print makes the AI's 4K copy first, then Topaz enlarges it
         const long = longs[el.src];
         const copyFirst = Boolean(pf?.aiCopy?.on) && !el.printSrc && !el.aiCopyOff && long != null && long < (pf.aiCopy.fourK || 3840);
+        // (18 Nov 2026) what preparing THIS picture costs: Topaz bills by the size it gives back (VF-2026-0083: 3 units)
+        const px = dims[el.printSrc || el.src];
+        const prepPrice = prepPriceWords(prepEstimate({ width: px?.w, height: px?.h, printCm, copyFirst, enlarger }), enlarger);
         const tone = ready ? (rDpi && rDpi < GOOD_DPI ? "#7A5B12" : "#24522F") : dpi == null ? THEME.textMuted : dpi >= GOOD_DPI ? "#24522F" : dpi >= LOW_DPI ? "#7A5B12" : THEME.danger;
         const word = dpi == null ? "measuring…" : dpi >= GOOD_DPI ? "sharp" : dpi >= LOW_DPI ? "acceptable" : "low, may print soft";
         return (
@@ -344,7 +348,7 @@ function PrintPictures({ design, price, sizes, longs = {}, pf, onChanged, onRead
               <span style={{ fontSize: 13, color: THEME.textMuted }}>Redrawing… about half a minute</span>
             ) : (
               <div style={{ display: "grid", gap: 4, justifyItems: "end" }}>
-                <button type="button" onClick={() => prepare(index, printCm, copyFirst ? long : 0)} disabled={busy != null || !!preparing || !printCm || locked} title={enlarger?.configured ? "" : "The enlarger (Replicate) is not set up on this server"} style={{ background: THEME.ink, color: "#fff", border: "none", borderRadius: 9, padding: "8px 14px", minHeight: 40, fontSize: 12.5, fontWeight: 700, cursor: busy != null || preparing || locked ? "not-allowed" : "pointer", opacity: busy != null || preparing || !printCm || locked ? 0.5 : 1 }}>
+                <button type="button" onClick={() => prepare(index, printCm, copyFirst ? long : 0, prepPrice)} disabled={busy != null || !!preparing || !printCm || locked} title={enlarger?.configured ? "" : "The enlarger (Replicate) is not set up on this server"} style={{ background: THEME.ink, color: "#fff", border: "none", borderRadius: 9, padding: "8px 14px", minHeight: 40, fontSize: 12.5, fontWeight: 700, cursor: busy != null || preparing || locked ? "not-allowed" : "pointer", opacity: busy != null || preparing || !printCm || locked ? 0.5 : 1 }}>
                   Prepare for print{prepPrice ? ` · ${prepPrice}` : ""}{copyFirst && pf?.aiCopy?.priceInr ? ` + 4K copy ₹${pf.aiCopy.priceInr}` : ""}
                 </button>
                 {el.printSrc ? (
@@ -485,6 +489,7 @@ export default function OrderDesignsModal({ orderId, onClose }) {
   // every picture's file width, measured here so a picture further down the page counts too
   const [pictureSizes, setPictureSizes] = useState({}); // src -> pixel width of the file
   const [pictureLongs, setPictureLongs] = useState({}); // src -> its longest side (16 Nov 2026: under 4K = copied at 4K first)
+  const [pictureDims, setPictureDims] = useState({}); // src -> { w, h } (18 Nov 2026: the Prepare price follows the picture's size)
   useEffect(() => {
     const srcs = new Set();
     for (const d of pack?.designs || []) for (const el of d.elements || []) if (el.type === "image" && el.src) srcs.add(el.printSrc || el.src);
@@ -493,6 +498,7 @@ export default function OrderDesignsModal({ orderId, onClose }) {
       img.onload = () => {
         setPictureSizes((s) => (s[src] ? s : { ...s, [src]: img.naturalWidth }));
         setPictureLongs((s) => (s[src] ? s : { ...s, [src]: Math.max(img.naturalWidth, img.naturalHeight) }));
+        setPictureDims((s) => (s[src] ? s : { ...s, [src]: { w: img.naturalWidth, h: img.naturalHeight } }));
       };
       img.src = full(src);
     }
@@ -515,7 +521,23 @@ export default function OrderDesignsModal({ orderId, onClose }) {
   const allPictures = picturesOf(pack);
   const notReady = allPictures.filter((p) => !p.ready);
   const lowPictures = softOf(allPictures);
-  const prepPrice = pf?.enlarger?.priceInr || 0;
+  // (18 Nov 2026) what preparing these pictures costs, each by its own size (Topaz bills by the size it gives back);
+  // "+" when a picture is still being measured
+  const prepCost = (list) => {
+    if (!pf?.enlarger || pf.enlarger.mock) return "";
+    let inr = 0;
+    let unknown = 0;
+    for (const p of list) {
+      const src = p.el.printSrc || p.el.src;
+      const long = pictureLongs[src];
+      const copyFirst = Boolean(pf?.aiCopy?.on) && !p.el.printSrc && !p.el.aiCopyOff && long != null && long < (pf.aiCopy.fourK || 3840);
+      const est = prepEstimate({ width: pictureDims[src]?.w, height: pictureDims[src]?.h, printCm: p.printCm, copyFirst, enlarger: pf.enlarger });
+      if (est) inr += est.inr + (copyFirst ? Number(pf.aiCopy.priceInr) || 0 : 0);
+      else unknown += 1;
+    }
+    if (unknown) inr += unknown * (Number(pf.enlarger.priceInr) || 0);
+    return inr || unknown ? `about ₹${Math.round(inr * 100) / 100}${unknown ? "+" : ""}` : "free — no enlarging needed";
+  };
 
   // the soft-picture warning asked before the ZIP is made (Download and Send alike); false = the admin stopped
   const blurryOk = (verb) => {
@@ -534,8 +556,8 @@ export default function OrderDesignsModal({ orderId, onClose }) {
       setError("The enlarger is not set up on this server yet (REPLICATE_API_TOKEN in the server's .env), so pictures can't be prepared.");
       return false;
     }
-    const cost = prepPrice ? ` It costs about ₹${Math.round(prepPrice * todo.length * 100) / 100} (₹${prepPrice} each).` : pf.enlarger.mock ? " Free (test enlarger)." : "";
-    const copyNote = pf?.aiCopy?.on ? `\n\nA picture that is not 4K is first copied at 4K by the AI (the same picture, nothing changed${pf.aiCopy.priceInr ? `, about ₹${pf.aiCopy.priceInr} more each` : ""}) and Topaz enlarges that copy. If Google refuses (famous people, film characters), Grok makes the copy instead (about ₹6, about 2K, it redraws more: compare it with the original).` : "";
+    const cost = pf.enlarger.mock ? " Free (test enlarger)." : ` It costs ${prepCost(todo)} (each picture by its size; a picture under 4K includes its 4K copy).`;
+    const copyNote = pf?.aiCopy?.on ? `\n\nA picture that is not 4K is first copied at 4K by the AI (the same picture, nothing changed${pf.aiCopy.priceInr ? `, about ₹${pf.aiCopy.priceInr} each, already in the price above` : ""}) and Topaz enlarges that copy. If Google refuses (famous people, film characters), Grok makes the copy instead (about ₹6, about 2K, it redraws more: compare it with the original).` : "";
     if (ask && !window.confirm(`Prepare ${todo.length === 1 ? "1 picture" : `all ${todo.length} pictures`} for print?${cost}\n\nEach is enlarged on the graphics-card service and given its vector edge — about 1–3 minutes each.${copyNote}\n\nCompare them with the originals afterwards.`)) return false;
     setError("");
     let cur = packRef.current;
@@ -649,7 +671,7 @@ export default function OrderDesignsModal({ orderId, onClose }) {
       if (stuck) {
         if (!window.confirm(`${notReady.length === 1 ? "1 picture is" : `${notReady.length} pictures are`} not prepared for print and can't be prepared${pf?.enlarger?.configured ? " (it failed)" : " (the enlarger is not set up)"}.\n\nThey would go as plain pictures: no vector edge, not enlarged. The print team asked for prepared pictures.\nPress OK to send them plain anyway.`)) return;
       } else {
-        const cost = prepPrice ? ` (about ₹${Math.round(prepPrice * notReady.length * 100) / 100})` : "";
+        const cost = prepCost(notReady) ? ` (${prepCost(notReady)})` : "";
         if (!window.confirm(`${notReady.length === 1 ? "1 picture is" : `${notReady.length} pictures are`} not prepared for print yet. The print team gets prepared pictures only.\n\nPrepare ${notReady.length === 1 ? "it" : "them"} now${cost} and then send? (about 1–3 minutes a picture)`)) return;
         if (!(await prepareAll({ ask: false }))) return;
       }
@@ -782,7 +804,7 @@ export default function OrderDesignsModal({ orderId, onClose }) {
               </div>
             )}
             {d.layoutVersion === 2 && (
-              <PrintPictures design={d} price={printPrice} sizes={pictureSizes} longs={pictureLongs} pf={pf} locked={!!allPrep} allPrep={allPrep} onChanged={(index, src) => pictureChanged(d._id, index, src)} onReady={(index, printFile) => pictureReady(d._id, index, printFile)} onLost={(index) => pictureLost(d._id, index)} />
+              <PrintPictures design={d} price={printPrice} sizes={pictureSizes} longs={pictureLongs} dims={pictureDims} pf={pf} locked={!!allPrep} allPrep={allPrep} onChanged={(index, src) => pictureChanged(d._id, index, src)} onReady={(index, printFile) => pictureReady(d._id, index, printFile)} onLost={(index) => pictureLost(d._id, index)} />
             )}
           </section>
         ))}
@@ -855,7 +877,7 @@ export default function OrderDesignsModal({ orderId, onClose }) {
               )}
             </span>
             <button type="button" onClick={() => prepareAll()} disabled={!!allPrep || !!progress || !!sending || !pf?.enlarger?.configured} title={pf?.enlarger?.configured ? "" : "The enlarger (Replicate) is not set up on this server"} style={{ background: THEME.ink, color: "#fff", border: "none", borderRadius: 9, padding: "8px 14px", minHeight: 40, fontSize: 12.5, fontWeight: 700, cursor: allPrep ? "wait" : "pointer", opacity: allPrep || !pf?.enlarger?.configured ? 0.6 : 1 }}>
-              {allPrep ? "Preparing…" : `Prepare all${prepPrice ? ` · about ₹${Math.round(prepPrice * notReady.length * 100) / 100}` : pf?.enlarger?.mock ? " · free (test)" : ""}`}
+              {allPrep ? "Preparing…" : `Prepare all${pf?.enlarger?.mock ? " · free (test)" : prepCost(notReady.filter((p) => p.printCm)) ? ` · ${prepCost(notReady.filter((p) => p.printCm))}` : ""}`}
             </button>
           </div>
         )}
