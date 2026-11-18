@@ -17,6 +17,29 @@ export function printedSides(elements) {
   return sides.length ? sides : ["front"];
 }
 
+/**
+ * Try it on me (18 Nov 2026, the owner: "it should ask the user to upload the photos of where the designs are … you
+ * should not make it mandatory"): the customer's own photos to ask for — a FRONT photo when the front or a sleeve side
+ * carries a print (the sleeve sides are made by the AI from it), a BACK photo when the back carries one. Each optional.
+ */
+export function tryOnAsks(sides) {
+  const asks = [];
+  if (sides.some((s) => s !== "back")) asks.push("front");
+  if (sides.includes("back")) asks.push("back");
+  return asks;
+}
+
+/** The printed sides the photos given can make: the back from the back photo, every other side from the front photo. */
+export function tryOnSides(sides, { front = false, back = false } = {}) {
+  const make = sides.filter((s) => (s === "back" ? back : front));
+  return { make, noPhoto: sides.filter((s) => !make.includes(s)) };
+}
+
+/** The note in the photo window for printed sides left out because no photo was added for them. */
+export function noPhotoNote(noPhoto) {
+  return noPhoto.length ? `Not made: the ${sideWords(noPhoto)} — no photo was added for ${noPhoto.length === 1 ? "it" : "them"}.` : "";
+}
+
 /** What fits in today's pictures, the first side first. left = null (not known yet) → all of them; the server still checks. */
 export function planSides(sides, left) {
   const n = left == null ? sides.length : Math.max(0, Math.min(sides.length, Math.floor(Number(left)) || 0));

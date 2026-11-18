@@ -3,7 +3,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import { costLine, planSides, printedSides, sideBySideLayout, sideLabel, sideWords, skippedNote, wornCaption } from "../src/studio/wornPhotos.js";
+import { costLine, noPhotoNote, planSides, printedSides, sideBySideLayout, sideLabel, sideWords, skippedNote, tryOnAsks, tryOnSides, wornCaption } from "../src/studio/wornPhotos.js";
 
 test("the printed sides, in the order the photos are made", () => {
   assert.deepEqual(printedSides([]), ["front"]);
@@ -60,11 +60,32 @@ test("Share all: the photos side by side at one height, inside the picture", () 
   assert.ok(L.labelY > 28 + 960 && L.footY < L.H);
 });
 
+test("Try it on me asks for a front photo (front or sleeves printed) and a back photo (back printed)", () => {
+  assert.deepEqual(tryOnAsks(["front"]), ["front"]);
+  assert.deepEqual(tryOnAsks(["front", "back"]), ["front", "back"]);
+  assert.deepEqual(tryOnAsks(["back"]), ["back"]);
+  assert.deepEqual(tryOnAsks(["front", "back", "right"]), ["front", "back"]);
+  assert.deepEqual(tryOnAsks(["left"]), ["front"]); // a sleeve is made from the front photo
+});
+
+test("Try it on me makes only the sides the photos given can make; none is required", () => {
+  const all = ["front", "back", "left", "right"];
+  assert.deepEqual(tryOnSides(all, { front: true, back: true }), { make: all, noPhoto: [] });
+  assert.deepEqual(tryOnSides(all, { front: true }), { make: ["front", "left", "right"], noPhoto: ["back"] });
+  assert.deepEqual(tryOnSides(all, { back: true }), { make: ["back"], noPhoto: ["front", "left", "right"] });
+  assert.deepEqual(tryOnSides(["front", "back"], {}), { make: [], noPhoto: ["front", "back"] });
+  assert.equal(noPhotoNote(["back"]), "Not made: the back — no photo was added for it.");
+  assert.equal(noPhotoNote(["front", "right"]), "Not made: the front + right side — no photo was added for them.");
+  assert.equal(noPhotoNote([]), "");
+});
+
 test("the Design Room asks side by side: the first photo goes with the other sides; Back closes the window; shareTee kept", () => {
   const src = fs.readFileSync(new URL("../src/studio/DesignRoomPage.jsx", import.meta.url), "utf8");
-  assert.match(src, /put\(side, done\(await ask\(side, first\.url\)\)\)/);
+  assert.match(src, /put\(side, done\(await ask\(side, keep\)\)\)/);
+  assert.match(src, /const keep = !me \|\| make\[0\] === "front" \? first\.url : null;/);
+  assert.match(src, /tryOnSides\(wornSides, \{ front: Boolean\(photo\), back: Boolean\(backPhoto\) \}\)/);
   assert.match(src, /useBackClose\(Boolean\(worn\?\.photos\), \(\) => closeWorn\(\)\)/);
-  assert.match(src, /planSides\(wornSides, ai\.left\)/);
+  assert.match(src, /planSides\(mine\.make, ai\.left\)/);
   assert.match(src, /makeSideBySide\(/);
   assert.match(src, /shareTee\(blob, \{ text: `My \$\{garment\?\.label \|\| "tee"\} design on IDENTEE`, fileName: "my-identee-tee-worn-all\.png" \}\)/);
 });

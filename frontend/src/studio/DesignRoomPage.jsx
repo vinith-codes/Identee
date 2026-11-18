@@ -42,7 +42,8 @@ import { makeShareCard, shareTee } from "./shareTee";
 import { makeShareLink, shareMessage, whatsappUrl } from "../services/shareService";
 import { firstMessagesV2, isUntouchedStart, sheetsFromChat, nextConceptNumber, findConcept, piecesOf, pieceArea, placementHint, shrinkForHint, aiPictureOnTee, ideaSheet, STARTER_CHIP, suggestionsFor } from "./assistantV2";
 import { styleIn } from "./styleInfo";
-import { costLine, makeSideBySide, photoDataUrl, planSides, printedSides, sideLabel, sideWords, skippedNote, wornCaption } from "./wornPhotos";
+import { costLine, makeSideBySide, noPhotoNote, photoDataUrl, planSides, printedSides, sideLabel, sideWords, skippedNote, tryOnSides, wornCaption } from "./wornPhotos";
+import TryOnPhotos from "./TryOnPhotos";
 import { areasFromWords, photoJobFrom, SAME_THEME } from "./photoIntent";
 import { limitLine, makeActFor, noWordsLine, photosFromWords, pictureCost, picturesNeeded, planPhotos } from "./multiPhoto";
 import aiService from "../services/aiService";
@@ -400,9 +401,11 @@ export default function DesignRoomPage() {
   // null | "making" (the first side) | { run, me, at, note, photos: [{ side, label, url?, making?, failed?, from? }] }
   const [worn, setWorn] = useState(null);
   const wornRun = useRef(0); // which set the window shows: closing it leaves the answers still on their way unused
-  const tryOnRef = useRef(null); // Try it on me (round 7): the customer's own photo
-  const tryOnBackRef = useRef(null); // (17 Nov 2026) and, if they like, a photo of their back
-  const [tryOnAsk, setTryOnAsk] = useState(null); // (17 Nov 2026) { photo }: their photo is in — add a photo of the back too?
+  // Try it on me (round 7): the customer's own photos. Since 18 Nov 2026 a window asks for one photo per printed part —
+  // the front (the sleeve sides are made from it) and the back — each optional: null | { front, back } (data URLs)
+  const [tryOnAsk, setTryOnAsk] = useState(null);
+  const tryOnRef = useRef(null); // the file chooser, shared by the two slots
+  const tryOnSlot = useRef("front"); // which slot the chooser fills
   const [spin, setSpin] = useState(true);
   const [lit, setLit] = useState(false); // Review: the dressing room has been drawn, so its lights can come up
   const litTimer = useRef(null);
@@ -3870,16 +3873,25 @@ export default function DesignRoomPage() {
     wornRun.current++;
     setWorn(null);
   };
+  const pickTryOn = (slot) => {
+    tryOnSlot.current = slot;
+    tryOnRef.current?.click();
+  };
+  // Try it on me (18 Nov 2026): only the printed sides the customer's photos can make — the back from their back photo,
+  // the front and the sleeve sides from their front photo; a side with no photo is left out (and the window says so)
   async function makeWornPhotos({ me = false, photo = null, backPhoto = null } = {}) {
     if (!shots?.[0]?.url) return;
-    const { make, skipped } = planSides(wornSides, ai.left);
-    if (!make.length) return say(costLine({ sides: wornSides, left: 0, daily: ai.dailyPerUser }));
+    const mine = me ? tryOnSides(wornSides, { front: Boolean(photo), back: Boolean(backPhoto) }) : { make: wornSides, noPhoto: [] };
+    if (!mine.make.length) return;
+    const { make, skipped } = planSides(mine.make, ai.left);
+    if (!make.length) return say(costLine({ sides: mine.make, left: 0, daily: ai.dailyPerUser }));
     const run = ++wornRun.current;
     const shotOf = (side) => shots[SIDES.findIndex(([v]) => v === side)]?.url || shots[0].url;
     const base = { garment: garment?.label || "t-shirt", teeColour: colour?.name || "white" };
+    // the back goes from their back photo; a sleeve side from their front try-on photo (ref) when made, else their front photo
     const ask = (side, ref) =>
       me
-        ? aiService.tryOn({ ...base, side, image: shotOf(side), ...(ref ? { ref } : { photo }), ...(side === "back" && backPhoto ? { backPhoto } : {}) })
+        ? aiService.tryOn({ ...base, side, image: shotOf(side), ...(side === "back" ? { backPhoto } : ref ? { ref } : { photo }) })
         : aiService.worn({ ...base, side, image: shotOf(side), ...(ref ? { ref } : {}) });
     const why = (err) => err?.response?.data?.message || err?.message || "The photo couldn’t be made just now.";
     const keepLeft = (res) => res?.left != null && setAi((cur) => ({ ...cur, left: res.left }));
@@ -3897,13 +3909,16 @@ export default function DesignRoomPage() {
     }
     keepLeft(first);
     if (run !== wornRun.current) return;
-    setWorn({ run, me, at: 0, note: skippedNote(skipped), photos: make.map((side, i) => ({ side, label: sideLabel(side), ...(i === 0 ? done(first) : { making: true }) })) });
+    const note = [noPhotoNote(mine.noPhoto), skippedNote(skipped)].filter(Boolean).join(" ");
+    setWorn({ run, me, at: 0, note, photos: make.map((side, i) => ({ side, label: sideLabel(side), ...(i === 0 ? done(first) : { making: true }) })) });
     if (make.length < 2) return;
     const put = (side, patch) => setWorn((cur) => (cur?.run === run ? { ...cur, photos: cur.photos.map((p) => (p.side === side ? { ...p, ...patch } : p)) } : cur));
+    // the first photo is the person to keep — for Try it on me only when it is their front (a back photo shows no face)
+    const keep = !me || make[0] === "front" ? first.url : null;
     await Promise.all(
       make.slice(1).map(async (side) => {
         try {
-          put(side, done(await ask(side, first.url)));
+          put(side, done(await ask(side, keep)));
         } catch (err) {
           put(side, { making: false, failed: why(err) });
         }
@@ -4950,11 +4965,11 @@ export default function DesignRoomPage() {
                   {worn === "making" ? (wornSides.length > 1 ? `Taking the ${sideWords(wornSides.slice(0, 1))} photo first… (about 30 s)` : "Taking the photo… (about 30 s)") : "Photo of it worn"}
                 </button>
               )}
-              {/* Try it on me (round 7, 8 Nov 2026): the customer's own photo, wearing this tee — the other sides are the
-                  same person, made by the AI (17 Nov 2026); a photo of their back may be added when the back has a print */}
+              {/* Try it on me (round 7, 8 Nov 2026): the customer's own photos, wearing this tee. Since 18 Nov 2026 a window
+                  asks for a photo of each printed part (front / back), none required; only the parts with a photo are made */}
               {shots?.length === 4 && shots[0]?.url && ai.available && (
                 <>
-                  <button type="button" className="dr-share alt dr-worn-btn" disabled={wornBusy} onClick={() => (isLoggedIn() ? tryOnRef.current?.click() : goToLogin())}>
+                  <button type="button" className="dr-share alt dr-worn-btn" disabled={wornBusy} onClick={() => (isLoggedIn() ? setTryOnAsk({ front: null, back: null }) : goToLogin())}>
                     Try it on me
                   </button>
                   <input
@@ -4966,30 +4981,10 @@ export default function DesignRoomPage() {
                       const file = e.target.files?.[0];
                       e.target.value = "";
                       if (!file) return;
-                      let photo;
+                      const slot = tryOnSlot.current;
                       try {
-                        photo = await photoDataUrl(file);
-                      } catch (err) {
-                        return say(err?.message || "That photo couldn’t be read.");
-                      }
-                      // the back gets a photo too: their own back, if they like (truer), else the AI makes it from this photo
-                      if (planSides(wornSides, ai.left).make.includes("back")) return setTryOnAsk({ photo });
-                      makeWornPhotos({ me: true, photo });
-                    }}
-                  />
-                  <input
-                    ref={tryOnBackRef}
-                    type="file"
-                    accept="image/png,image/jpeg,image/webp"
-                    hidden
-                    onChange={async (e) => {
-                      const file = e.target.files?.[0];
-                      e.target.value = "";
-                      const photo = tryOnAsk?.photo;
-                      if (!file || !photo) return;
-                      setTryOnAsk(null);
-                      try {
-                        makeWornPhotos({ me: true, photo, backPhoto: await photoDataUrl(file) });
+                        const photo = await photoDataUrl(file);
+                        setTryOnAsk((cur) => (cur ? { ...cur, [slot]: photo } : cur));
                       } catch (err) {
                         say(err?.message || "That photo couldn’t be read.");
                       }
@@ -5001,31 +4996,21 @@ export default function DesignRoomPage() {
               )}
               {tryOnAsk &&
                 createPortal(
-                <div className="dr-worn" role="dialog" aria-label="A photo of your back?">
-                  <div className="dr-worn-card dr-worn-ask">
-                    <b>Your photo shows your front.</b>
-                    <p className="dr-review-hint">
-                      Your design has a print on the back, so there will be a back photo too. The AI can make it from this photo — or add a photo of your back (standing, facing away), so the back looks truer.
-                    </p>
-                    <p className="dr-review-hint">{costLine({ sides: wornSides, left: isLoggedIn() ? ai.left : null, daily: ai.dailyPerUser })}</p>
-                    <div className="dr-worn-acts">
-                      <button type="button" onClick={() => tryOnBackRef.current?.click()}>Add a photo of my back</button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const photo = tryOnAsk.photo;
-                          setTryOnAsk(null);
-                          makeWornPhotos({ me: true, photo });
-                        }}
-                      >
-                        Go on without it
-                      </button>
-                      <button type="button" onClick={() => setTryOnAsk(null)}>Cancel</button>
-                    </div>
-                  </div>
-                </div>,
-                document.body,
-              )}
+                  <TryOnPhotos
+                    sides={wornSides}
+                    photos={tryOnAsk}
+                    onPick={pickTryOn}
+                    onRemove={(slot) => setTryOnAsk((cur) => ({ ...cur, [slot]: null }))}
+                    onMake={() => {
+                      const { front, back } = tryOnAsk;
+                      setTryOnAsk(null);
+                      makeWornPhotos({ me: true, photo: front, backPhoto: back });
+                    }}
+                    onCancel={() => setTryOnAsk(null)}
+                    costFor={(make) => costLine({ sides: make, left: isLoggedIn() ? ai.left : null, daily: ai.dailyPerUser })}
+                  />,
+                  document.body,
+                )}
               {worn?.photos &&
                 createPortal(
                 <div className="dr-worn" role="dialog" aria-label="Your tee, worn">
