@@ -4,7 +4,7 @@ import express from "express";
 import { protect, admin } from "../middleware/authMiddleware.js";
 import rateLimit from "../middleware/rateLimit.js";
 import { readStudioRefs } from "../multer/multer.js";
-import { changePicture, createStudioDesign, deleteStudioDesign, enlargeDesign, getStudioDesign, getStudioSetup, improvePrompt, listStudioDesigns, makeModelPhotos, makePicture, planTee, printCheck, publishStudioDesign, removeModelPhoto, studioPrintPack, updateStudioDesign } from "../controllers/studioController.js";
+import { addSizesToShopTees, changePicture, createStudioDesign, deleteStudioDesign, enlargeDesign, getStudioDesign, getStudioSetup, improvePrompt, listStudioDesigns, makeModelPhotos, makePicture, planTee, printCheck, publishStudioDesign, removeModelPhoto, studioPrintPack, updateStudioDesign } from "../controllers/studioController.js";
 
 const router = express.Router();
 const aiLimit = rateLimit({ windowMs: 60_000, max: 12, message: "Too many pictures at once — wait a minute." });
@@ -25,5 +25,7 @@ router.post("/designs/:id/publish", protect, admin, publishStudioDesign);
 router.post("/designs/:id/model-photos", protect, admin, aiLimit, makeModelPhotos);
 router.delete("/designs/:id/model-photos", protect, admin, removeModelPhoto);
 router.post("/designs/:id/enlarge", protect, admin, aiLimit, enlargeDesign);
+// add sizes to every shop tee at once, without remaking pictures (19 Nov 2026) — { sizes: ["XS", "4XL"], dryRun }
+router.post("/add-sizes", protect, admin, addSizesToShopTees);
 
 export default router;

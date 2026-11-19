@@ -20,6 +20,19 @@ import { readSettings } from "./aiController.js";
 import { aiImageConfigured } from "../services/aiImageService.js";
 import { xaiConfigured } from "../services/xaiImageService.js";
 import { rememberPictures } from "./myPictureController.js";
+import { KNOWN_SIZES, addShopTeeSizes } from "../services/shopTeeSizes.js";
+
+// POST /api/studio/add-sizes  (admin) { sizes: ["XS", "4XL", "5XL"], dryRun: true } — adds the sizes to every published
+// shop tee and its shop products, where its garment sells them (services/shopTeeSizes.js). dryRun (the default) only
+// counts; send dryRun: false to write.
+export const addSizesToShopTees = asyncHandler(async (req, res) => {
+  const sizes = Array.isArray(req.body?.sizes) ? req.body.sizes.map(String).filter((s) => KNOWN_SIZES.includes(s)) : [];
+  if (!sizes.length) {
+    res.status(400);
+    throw new Error(`Pick the sizes to add (${KNOWN_SIZES.join(", ")}).`);
+  }
+  res.json(await addShopTeeSizes({ sizes, dryRun: req.body?.dryRun !== false }));
+});
 
 const notFound = (res, what = "Not found") => {
   res.status(404);
