@@ -8,7 +8,7 @@ import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Environment, Lightformer, MeshReflectorMaterial, OrbitControls, Sparkles, useGLTF } from "@react-three/drei";
 import * as THREE from "three";
 import { DecalGeometry } from "three/examples/jsm/geometries/DecalGeometry.js";
-import { areaCentreRaw, sideAtPoint } from "./teeModel";
+import { areaCentreRaw, fitDistance, sideAtPoint, unwidenX, widenDepth, widenX } from "./teeModel";
 import { dipFrontNeck } from "./neckDip";
 import { LABEL_VIEW, labelCloser, labelSpot, pressLabel } from "./neckLabel";
 import { neckLabelCanvas } from "./neckLabelArt";
@@ -25,6 +25,11 @@ const VIEWS = {
 };
 // where a view looks (default: the middle of the tee)
 const VIEW_LOOK = { shorts: [0, -0.45, 0] };
+// Front on a narrow screen (a phone): how much of the width the whole tee may take. The view steps back when the
+// tee is wider than that — it cut the sleeve tips off on a 375 px phone, more so since the tee is drawn as wide as
+// its size (19 Nov 2026). A computer's wide view never needs it, so it stays where it was. (The Back view can't:
+// the dark room's back wall is right behind it.)
+const FIT_ACROSS = 0.96;
 const RAY = {
   front: { origin: (p) => new THREE.Vector3(p.x, p.y, 2), dir: new THREE.Vector3(0, 0, -1) },
   shorts: { origin: (p) => new THREE.Vector3(p.x, p.y, 2), dir: new THREE.Vector3(0, 0, -1) }, // the shorts' front
@@ -650,10 +655,43 @@ function floatGeometry(src) {
   return geo;
 }
 
-function useTeeGeometry(model) {
+// The tee drawn to the size chart's shape (teeModel.js widenFor, 19 Nov 2026): the body k times wider and deeper, the
+// sleeves moved out with it at their own size. Before the centring, in the model's own space (x across = raw x, y up
+// = raw z, z = −raw y), so the measured heights stay the anchors' own. The prints are pressed onto this shape at their
+// true size, so they are not stretched with it.
+function widenGeometry(geo, k, half) {
+  const pos = geo.getAttribute("position");
+  // the body's depth middle (the sleeves left out)
+  let lo = Infinity;
+  let hi = -Infinity;
+  for (let i = 0; i < pos.count; i++) {
+    if (Math.abs(pos.getX(i)) > half) continue;
+    const z = pos.getZ(i);
+    if (z < lo) lo = z;
+    if (z > hi) hi = z;
+  }
+  const mid = (lo + hi) / 2;
+  const nor = geo.getAttribute("normal");
+  const tan = geo.getAttribute("tangent");
+  const v = new THREE.Vector3();
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i);
+    const kx = Math.abs(x) <= half ? k : 1; // how much this bit is stretched across
+    const kz = widenDepth(x, k, half);
+    pos.setXYZ(i, widenX(x, k, half), pos.getY(i), mid + (pos.getZ(i) - mid) * kz);
+    // a stretched surface turns its normals the other way (divided by the stretch), its tangents with it
+    if (nor) nor.setXYZ(i, ...v.set(nor.getX(i) / kx, nor.getY(i), nor.getZ(i) / kz).normalize().toArray());
+    if (tan) tan.setXYZ(i, ...v.set(tan.getX(i) * kx, tan.getY(i), tan.getZ(i) * kz).normalize().toArray(), tan.getW(i));
+  }
+  pos.needsUpdate = true;
+}
+
+function useTeeGeometry(model, widen = 1) {
   const gltf = useGLTF(model.url);
   const hang = model.hangHalfHeight;
   const dip = model.neckDip;
+  const half = model.bodyHalf;
+  const k = half && widen > 0 ? widen : 1;
   return useMemo(() => {
     gltf.scene.updateMatrixWorld(true);
     let src = null;
@@ -665,6 +703,7 @@ function useTeeGeometry(model) {
     // centring: the heights are still the anchors' own. The tee's size and middle stay the same, so the Review,
     // cart and order pictures keep their framing.
     if (dip) dipFrontNeck(geo, dip);
+    if (k !== 1) widenGeometry(geo, k, half);
     geo.computeBoundingBox();
     const c = new THREE.Vector3();
     geo.boundingBox.getCenter(c);
@@ -678,10 +717,11 @@ function useTeeGeometry(model) {
     );
     const probe = new THREE.Mesh(geo); // identity transform: raycasts in model space
     probe.userData.toModel = toModel;
+    probe.userData.widen = { k, half };
     const map = src.material.map;
     if (map) map.colorSpace = THREE.SRGBColorSpace;
     return { geo, probe, map, normalMap: src.material.normalMap, centre: c };
-  }, [gltf, hang, dip]);
+  }, [gltf, hang, dip, k, half]);
 }
 
 const SLEEVE_DEPTH = 0.09; // metres: enough for the sleeve's curve, not enough to reach the body behind it
@@ -978,8 +1018,8 @@ function Bottoms({ part, teeCentre, colour, areas, hotspots, glowKey, glowSpot, 
 
 const onBottoms = (spot) => spot?.side === "shorts";
 
-function Tee({ model, colour, areas, onPickArea, interactive, still, spotsRef, turntable, spin, face, spinSpeed, unfoldKey, onLit, hotspots, glowKey, activeKey, onHoverArea, popKey, showcase, twirlKey, handKey, neckLabel, tapMode = false, onTapPoint }) {
-  const { geo, probe, map, normalMap, centre } = useTeeGeometry(model);
+function Tee({ model, colour, areas, onPickArea, interactive, still, spotsRef, turntable, spin, face, spinSpeed, unfoldKey, onLit, hotspots, glowKey, activeKey, onHoverArea, popKey, showcase, twirlKey, handKey, neckLabel, tapMode = false, onTapPoint, widen = 1 }) {
+  const { geo, probe, map, normalMap, centre } = useTeeGeometry(model, widen);
   // a full turn that eases out: on stepping into the room and when the tee's colour is changed there
   const twirl = useRef({ key: twirlKey, t: 9, from: 0 });
   const group = useRef();
@@ -1199,7 +1239,7 @@ function Tee({ model, colour, areas, onPickArea, interactive, still, spotsRef, t
   });
 
   return (
-    <group ref={group} name="tee" scale={baseScale} position-y={TEE_Y} userData={{ baseScale, hasLabel: !!neckLabel }}>
+    <group ref={group} name="tee" scale={baseScale} position-y={TEE_Y} userData={{ baseScale, hasLabel: !!neckLabel, shape: geo }}>
       <group position-y={model.outfit?.lift || 0}>
       <mesh
         ref={mesh}
@@ -1227,8 +1267,12 @@ function Tee({ model, colour, areas, onPickArea, interactive, still, spotsRef, t
             const n = e.face?.normal || new THREE.Vector3(0, 0, 1);
             const look = e.ray.direction.clone().transformDirection(new THREE.Matrix4().copy(mesh.current.matrixWorld).invert());
             const front = look.z < -0.15 ? true : look.z > 0.15 ? false : mesh.current.worldToLocal(e.point.clone()).z > 0;
+            // raw: on the tee as drawn (its widths are the chart's: pointToCm reads cm from it); which side it is on is
+            // found on the model as measured (bodyHalf, …), so the across is taken back to it first
             const raw = [r.x, r.y, r.z];
-            onTapPoint?.({ raw, side: sideAtPoint(model, raw, [n.x, -n.z, n.y], front) });
+            const { k, half } = probe.userData.widen || { k: 1 };
+            const asModelled = k === 1 ? raw : [unwidenX(r.x, k, half), r.y, r.z];
+            onTapPoint?.({ raw, side: sideAtPoint(model, asModelled, [n.x, -n.z, n.y], front) });
             return;
           }
           const key = areaAt(e);
@@ -1297,7 +1341,9 @@ function CameraRig({ request, getSpot, apiRef, wakeKey, room, dark, setNearest }
     return { point, scale };
   };
   const labelCamera = (l, closer = 1) => l.point.clone().add(new THREE.Vector3(0, LABEL_VIEW.up, LABEL_VIEW.out).multiplyScalar(l.scale * closer));
+  const refit = useRef(null); // a Front / Back view asked for before the tee was there
   const start = (request) => {
+    refit.current = null;
     let to;
     let look = new THREE.Vector3(0, 0.1, 0);
     holdLean.current = !!request.label;
@@ -1319,6 +1365,19 @@ function CameraRig({ request, getSpot, apiRef, wakeKey, room, dark, setNearest }
     } else if (request.view) {
       to = new THREE.Vector3(...VIEWS[request.view]);
       if (VIEW_LOOK[request.view]) look = new THREE.Vector3(...VIEW_LOOK[request.view]);
+      // a phone: back far enough for the whole tee, sleeves and all (FIT_ACROSS)
+      const tee = scene.getObjectByName("tee");
+      const shape = tee?.userData.shape?.getAttribute("position");
+      if (request.view === "front" || request.view === "back") {
+        if (shape) {
+          const across = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * (size.width / Math.max(1, size.height)) * FIT_ACROSS;
+          const sign = request.view === "front" ? 1 : -1;
+          // (never behind the Back view's own spot: the dark room's wall, slats and lit arch are just behind it)
+          const most = request.view === "back" ? Math.abs(VIEWS.back[2]) : 9;
+          const need = Math.min(most, fitDistance(shape, tee.userData.baseScale || TEE_SCALE, across, sign));
+          if (need > Math.abs(to.z)) to.z = sign * need;
+        } else refit.current = request; // the tee is still loading (the page's first Front): fit it once it is there
+      }
     } else if (request.area) {
       const s = getSpot(request.area);
       if (!s) {
@@ -1397,12 +1456,14 @@ function CameraRig({ request, getSpot, apiRef, wakeKey, room, dark, setNearest }
 
   useFrame((frame, dt) => {
     if (awake.current > 0) awake.current -= 1;
-    if (awake.current > 0 || anim.current || pending.current) invalidate();
+    if (awake.current > 0 || anim.current || pending.current || refit.current) invalidate();
     const p = pending.current;
     if (p) {
       if ((p.frames -= 1) <= 0) pending.current = null;
       else start(p.request);
     }
+    // the tee has come: the Front / Back view asked for while it loaded steps back now if a phone needs it
+    if (refit.current && !anim.current && scene.getObjectByName("tee")?.userData.shape) start({ ...refit.current, from: undefined, ms: 500 });
     const a = anim.current;
     // dressing room: the view leans slightly towards the pointer, which gives the room depth
     if (!a && controls && room === "boutique" && !dragging.current && !holdLean.current) {
@@ -1538,7 +1599,8 @@ function CameraRig({ request, getSpot, apiRef, wakeKey, room, dark, setNearest }
 // the back neck; null = none (the admin's Studio and Collection maker don't show it)
 // tapMode + onTapPoint ("Anywhere", free placement phase 3): while on, a tap (not a drag to turn) on the tee says where
 // it landed — onTapPoint({ raw: [x, y, z] model metres, side }) — instead of picking a print area
-const Room3D = forwardRef(function Room3D({ model, colour, areas, onPickArea, camRequest, interactive = true, still = false, room = "studio", spin = false, face = null, spinSpeed = 1.6, unfoldKey = 0, onLit, hotspots, glowKey = null, activeKey = null, onHoverArea, popKey = 0, showcase = false, twirlKey = 0, dark = false, neckLabel = null, tapMode = false, onTapPoint }, ref) {
+// widen: how much wider the tee is drawn for the size picked, so its shape is the size chart's (teeModel.js widenFor)
+const Room3D = forwardRef(function Room3D({ model, colour, areas, onPickArea, camRequest, interactive = true, still = false, room = "studio", spin = false, face = null, spinSpeed = 1.6, unfoldKey = 0, onLit, hotspots, glowKey = null, activeKey = null, onHoverArea, popKey = 0, showcase = false, twirlKey = 0, dark = false, neckLabel = null, tapMode = false, onTapPoint, widen = 1 }, ref) {
   const boutique = room === "boutique";
   const spotsRef = useRef(() => null);
   // the camera's nearest distance: 1, or nearer only while the neck label is shown close up on a small view
@@ -1556,7 +1618,7 @@ const Room3D = forwardRef(function Room3D({ model, colour, areas, onPickArea, ca
       <Studio visible={!boutique} colour={colour} />
       <Suspense fallback={null}>
         <Boutique visible={boutique} model={model} colour={colour} />
-        <Tee model={model} colour={colour} areas={areas} onPickArea={onPickArea} interactive={interactive} still={still} spotsRef={spotsRef} turntable={boutique} handKey={camRequest?.n} spin={spin} face={face} spinSpeed={spinSpeed} unfoldKey={unfoldKey} onLit={onLit} hotspots={hotspots} glowKey={glowKey} activeKey={activeKey} onHoverArea={onHoverArea} popKey={popKey} showcase={showcase} twirlKey={twirlKey} neckLabel={neckLabel} tapMode={tapMode} onTapPoint={onTapPoint} />
+        <Tee model={model} colour={colour} areas={areas} onPickArea={onPickArea} interactive={interactive} still={still} spotsRef={spotsRef} turntable={boutique} handKey={camRequest?.n} spin={spin} face={face} spinSpeed={spinSpeed} unfoldKey={unfoldKey} onLit={onLit} hotspots={hotspots} glowKey={glowKey} activeKey={activeKey} onHoverArea={onHoverArea} popKey={popKey} showcase={showcase} twirlKey={twirlKey} neckLabel={neckLabel} tapMode={tapMode} onTapPoint={onTapPoint} widen={widen} />
       </Suspense>
       <OrbitControls
         makeDefault
@@ -1574,7 +1636,7 @@ const Room3D = forwardRef(function Room3D({ model, colour, areas, onPickArea, ca
         // (in the dressing room a drag turns the tee instead — see Tee's turnDrag)
         enableRotate={!boutique}
       />
-      <CameraRig request={camRequest} getSpot={(k) => spotsRef.current(k)} apiRef={ref} room={room} dark={dark} setNearest={setNearest} wakeKey={`${dark}|${colour}|${still}|${interactive}|${glowKey}|${popKey}|${twirlKey}|${areas.map((a) => `${a.key}:${a.version}`).join(",")}`} />
+      <CameraRig request={camRequest} getSpot={(k) => spotsRef.current(k)} apiRef={ref} room={room} dark={dark} setNearest={setNearest} wakeKey={`${dark}|${colour}|${widen}|${still}|${interactive}|${glowKey}|${popKey}|${twirlKey}|${areas.map((a) => `${a.key}:${a.version}`).join(",")}`} />
     </Canvas>
   );
 });

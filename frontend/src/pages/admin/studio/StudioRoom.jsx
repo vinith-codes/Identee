@@ -11,7 +11,7 @@ import AreaThumb from "../../../studio/AreaThumb";
 import MockupCamera from "../../../studio/MockupCamera";
 import WaitCard from "../../../studio/WaitCard";
 import { AreaRenderer, cachedImage, imageSrcs, loadImage, measureText, printThumb } from "../../../studio/konvaRender";
-import { areaCm, blockersOf, clashesIn, modelForGarment, placeArea } from "../../../studio/teeModel";
+import { areaCm, blockersOf, clashesIn, modelForGarment, placeArea, widenFor } from "../../../studio/teeModel";
 import { areaPx as areaPxOf } from "../../../studio/designFinish";
 import { checkDesign } from "../../../studio/designCheck";
 import { addStudioFonts, fontsReady } from "../../../studio/fonts";
@@ -61,6 +61,7 @@ export default function StudioRoom({ setup, garment, colourSlug: firstColour, de
   const [size, setSize] = useState(draft?.size || firstDesign?.size || "M");
   const sizes = garment.sizes?.length ? garment.sizes : ["S", "M", "L", "XL"];
   const lengthCm = ((garment.sizeChart || []).find((r) => r.size === size)?.length || 30) * 2.54;
+  const widen = widenFor(model, (garment.sizeChart || []).find((r) => r.size === size));
   const [narrow, setNarrow] = useState(isNarrow);
   useEffect(() => {
     const on = () => setNarrow(isNarrow());
@@ -1056,6 +1057,7 @@ export default function StudioRoom({ setup, garment, colourSlug: firstColour, de
               <Room3D
                 ref={roomApi}
                 model={model}
+                widen={widen}
                 colour={fabricHex}
                 areas={areas3D}
                 onPickArea={(k) => step === "design" && openArea(k)}

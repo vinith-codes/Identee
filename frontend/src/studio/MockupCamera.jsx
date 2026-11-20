@@ -9,7 +9,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Room3D from "./Room3D";
 import { AreaRenderer, imageSrcs, loadImage } from "./konvaRender";
-import { modelForGarment, placeArea } from "./teeModel";
+import { modelForGarment, placeArea, widenFor } from "./teeModel";
 import { cropMockup } from "./mockupCrop";
 import { areaPx } from "./designFinish";
 import { fontsReady } from "./fonts";
@@ -29,6 +29,7 @@ export default function MockupCamera({ job, onDone }) {
 
   const model = useMemo(() => modelForGarment(job.garment), [job.garment]);
   const lengthCm = ((job.garment?.sizeChart || []).find((r) => r.size === job.size)?.length || 30) * 2.54;
+  const widen = widenFor(model, (job.garment?.sizeChart || []).find((r) => r.size === job.size));
 
   // 1. fonts and pictures loaded, every used area painted (without the editing outline)
   useEffect(() => {
@@ -91,6 +92,7 @@ export default function MockupCamera({ job, onDone }) {
         <Room3D
           ref={roomApi}
           model={model}
+          widen={widen}
           colour={job.colourHex}
           areas={areas}
           interactive={false}

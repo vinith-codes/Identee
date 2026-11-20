@@ -152,7 +152,7 @@ test("the 3D tee settings: front anchors 3 cm lower and still 8 cm apart (printF
   // the room lowers it before the centring and makes the shape again when the setting changes
   const room = src("../src/studio/Room3D.jsx");
   assert.match(room, /if \(dip\) dipFrontNeck\(geo, dip\);[\s\S]{0,200}geo\.computeBoundingBox\(\);/);
-  assert.match(room, /\}, \[gltf, hang, dip\]\);/);
+  assert.match(room, /\}, \[gltf, hang, dip, k, half\]\);/); // (19 Nov 2026: and the size chart's width — teeWiden.test.mjs)
 });
 
 // Lowest point (largest y) of an SVG path made of M / L / Q / Z commands, as drawn.

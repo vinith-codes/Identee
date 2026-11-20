@@ -14,6 +14,9 @@ export const TEE_MODELS = {
     url: "/models/oversized-tee.glb",
     credit: { text: "3D tee: “oversized_t-shirt” by ap-school, CC BY 4.0", href: "https://sketchfab.com/3d-models/oversized-t-shirt-e6f9b60f58404ccaa40e8e3bdb4edc95" },
     lengthCm: 72.4, // the model's pattern length (shoulder top → hem), ≈ size S/M
+    // its chest laid flat (half its girth just under the sleeves), measured on the model 19 Nov 2026: 22" on a 28.5"
+    // length — narrower than the client's chart (M 24.5" × 28.5"), so the room widens it to the chart (widenFor)
+    flatChestCm: 55.8,
     // Where the MAIN print of each side starts (its top edge), raw metres.
     // Front/back: below the neckline at the centre line (estimates — the print
     // team's sheet doesn't cover the main areas). Sleeves: below the sleeve top.
@@ -46,6 +49,7 @@ export const TEE_MODELS = {
     url: "/models/regular-tee.glb",
     credit: { text: "3D tee: “Tshirt” by Tabbuso, CC BY 4.0", href: "https://sketchfab.com/3d-models/tshirt-5a21282b2e454d1696547148f617d3d0" },
     lengthCm: 62.6, // shoulder top → hem at the centre, ≈ size S
+    flatChestCm: 48.5, // its chest laid flat, measured on the model 19 Nov 2026 (as the oversized tee's)
     sleeveDrop: 0.102,
     bodyHalf: 0.17, // (measured at its waist: the regular tee is cut straight)
     anchors: {
@@ -188,6 +192,43 @@ export function placeArea(model, position, size, sizeLengthCm) {
   return { side: position.side, x, top, w, h };
 }
 
+/**
+ * How much wider the 3D tee is drawn for a size, so its shape is the size chart's (19 Nov 2026, the client's
+ * measurement sheet: the Oversized M is 24.5" across × 28.5" long; the model is 22" × 28.5"). The room already makes
+ * every print smaller on a longer size (size length ÷ model length); this makes the tee's width follow the chart the
+ * same way: (chart's flat chest ÷ model's flat chest) ÷ (chart length ÷ model length). 1 = as modelled.
+ * chartRow: { chest (inches, all round = flat × 2), length (inches) }
+ */
+export function widenFor(model, chartRow) {
+  const chest = Number(chartRow?.chest);
+  const length = Number(chartRow?.length);
+  if (!model?.flatChestCm || !(chest > 0) || !(length > 0)) return 1;
+  const s = (length * 2.54) / model.lengthCm;
+  const k = (chest * 2.54) / 2 / model.flatChestCm / s;
+  return Math.round(Math.min(1.25, Math.max(0.85, k)) * 1000) / 1000;
+}
+
+/**
+ * The widened shape (Room3D's useTeeGeometry), raw metres across (raw x): the body (out to bodyHalf) is stretched by k;
+ * past it the sleeves only move out with it, keeping their own size. unwidenX is its inverse.
+ */
+export const widenX = (x, k, half) => {
+  const a = Math.abs(x);
+  return Math.sign(x) * (a <= half ? a * k : a + (k - 1) * half);
+};
+export const unwidenX = (x, k, half) => {
+  const a = Math.abs(x);
+  return Math.sign(x) * (a <= half * k ? a / k : a - (k - 1) * half);
+};
+// the body is made deeper by k too (so its girth is k × the model's); the sleeves not: it eases to 1 over this many metres
+export const WIDEN_EASE = 0.06;
+export const widenDepth = (x, k, half) => {
+  const a = Math.abs(x);
+  if (a <= half) return k;
+  if (a >= half + WIDEN_EASE) return 1;
+  return k + (1 - k) * ((a - half) / WIDEN_EASE);
+};
+
 // Raw (z-up) model point of an area's centre, before the ray finds the surface.
 export function areaCentreRaw(spot) {
   if (spot.side === "left" || spot.side === "right") return [0, spot.lateral, spot.top - spot.h / 2];
@@ -224,4 +265,15 @@ export function sideAtPoint(model, raw, normal, lookingAtFront) {
     if (normal[0] * out > 0.55 && raw[0] * out > 0.12 && raw[2] <= a.shoulder + 0.03 && reach) return side;
   }
   return lookingAtFront ? "front" : "back";
+}
+
+/**
+ * How far the Front (sign 1) or Back (−1) camera must stand for the whole tee to fit across the view (Room3D's
+ * FIT_ACROSS, 19 Nov 2026): `positions` the tee's drawn points (model space, centred), `s` its room scale, `across`
+ * tan(half the view's height angle) × the view's width ÷ height × the share of the width it may take.
+ */
+export function fitDistance(positions, s, across, sign) {
+  let need = 0;
+  for (let i = 0; i < positions.count; i++) need = Math.max(need, sign * positions.getZ(i) * s + (Math.abs(positions.getX(i)) * s) / across);
+  return need;
 }

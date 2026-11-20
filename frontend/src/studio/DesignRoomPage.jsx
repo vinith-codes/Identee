@@ -23,7 +23,7 @@ import AreaEditor from "./AreaEditor";
 import PanelEditor from "./PanelEditor";
 import { AreaRenderer, cachedImage, imageSrcs, loadImage, measureText, playerElements, printThumb } from "./konvaRender";
 import { MAX_PLAYERS, NAME_MAX, NUMBER_MAX, filled, hasRoles, parsePlayers, playerLabel, rolesIn, sizeCounts } from "./teamOrder";
-import { areaCm, blockersOf, clashesIn, modelForGarment, placeArea, pointToCm } from "./teeModel";
+import { areaCm, blockersOf, clashesIn, modelForGarment, placeArea, pointToCm, widenFor } from "./teeModel";
 import { JOIN_CM, MAX_SPOTS, SPOT_SIDES, applySpotFix, isSpotKey, normaliseSpots, reboxChanged, reboxSpot, spotPosition, spotsIn, spotWhere, withSpotBoxes } from "./panelModel";
 import { CAP_MSG, dropThing, keepInside, movedThing, panelBox, panelView, scaledThing, snapLines, spotCount, startBox } from "./panelDrag";
 import AreaThumb from "./AreaThumb";
@@ -530,6 +530,10 @@ export default function DesignRoomPage() {
   const sizeNow = sizes.includes(size) ? size : sizes.includes("M") ? "M" : sizes[0];
   const chartRow = garment?.sizeChart?.find((r) => r.size === sizeNow);
   const lengthCm = (chartRow?.length || 30) * 2.54;
+  // the 3D tee drawn to this size's chart shape: wider than the model when the chart says so (19 Nov 2026)
+  // (plain numbers, so the page's own memos are kept: React's compiler treats a passed object as one that may change)
+  const [flatChestCm, modelCm, chartChest, chartLength] = [model?.flatChestCm, model?.lengthCm, chartRow?.chest, chartRow?.length];
+  const teeWiden = useMemo(() => widenFor({ flatChestCm, lengthCm: modelCm }, { chest: chartChest, length: chartLength }), [flatChestCm, modelCm, chartChest, chartLength]);
   // a co-ord set's shorts: their own length for this size (else the shorts model's own length)
   const bottomLengthCm = chartRow?.bottomLength ? chartRow.bottomLength * 2.54 : model?.bottom?.lengthCm;
   const fabricHex = colour?.hex || "#1C1C1D";
@@ -4395,6 +4399,7 @@ export default function DesignRoomPage() {
                 unfoldKey={step === "review" ? unfoldKey : 0}
                 onLit={() => setLit(true)}
                 neckLabel={neckLabel}
+                widen={teeWiden}
               />
               {step === "design" && anywhere && (
                 <div className="dr-anybar" role="status">
