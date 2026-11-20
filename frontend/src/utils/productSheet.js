@@ -24,24 +24,28 @@ export const SHEET_FABRICS = [
   { key: "french-terry", name: "French Terry", detail: "240–260 GSM, 60% cotton / 40% polyester, brushed back" },
 ];
 
-export const ALL_SIZES = ["XS", "S", "M", "L", "XL", "2XL", "3XL"];
+// XS → 5XL, as the live garments are sold (19 Nov 2026). A size missing here was dropped from the chart when
+// the Sizes step was saved.
+export const ALL_SIZES = ["XS", "S", "M", "L", "XL", "2XL", "3XL", "4XL", "5XL"];
 
-// inches: [chest, shoulder, length]
+// inches: [chest, length] — the client's measurement sheet of 19 Nov 2026 (MEASURMENTS.xlsx), as live.
+// The sheet gives the chest laid flat (pit to pit); the site keeps the chest all round, so flat × 2.
+// No shoulder: the sheet has none and it isn't needed (only Find my size's drawing uses it, and guesses without).
 const CHARTS = {
   oversized: {
-    XS: [42, 21, 28], S: [44, 22, 29], M: [46, 23, 30], L: [48, 24, 31],
-    XL: [50, 25, 32], "2XL": [52, 26, 33], "3XL": [54, 27, 34],
+    XS: [47, 26.5], S: [48, 27.5], M: [49, 28.5], L: [50, 29.5], XL: [51, 30.5],
+    "2XL": [52, 31.5], "3XL": [53, 32.5], "4XL": [54, 33.5], "5XL": [55, 34.5],
   },
   regular: {
-    XS: [36, 15, 26], S: [38, 16, 27], M: [40, 17, 28], L: [42, 18, 29],
-    XL: [44, 19, 30], "2XL": [46, 20, 31], "3XL": [48, 21, 32],
+    XS: [43, 25.5], S: [44, 26.5], M: [45, 27.5], L: [46, 28.5], XL: [47, 29.5],
+    "2XL": [48, 30.5], "3XL": [49, 31.5], "4XL": [50, 32.5], "5XL": [51, 33.5],
   },
 };
 
 export const sheetSizeChart = (fit) =>
   ALL_SIZES.map((size) => {
-    const [chest, shoulder, length] = CHARTS[fit === "oversized" ? "oversized" : "regular"][size];
-    return { size, chest, shoulder, length };
+    const [chest, length] = CHARTS[fit === "oversized" ? "oversized" : "regular"][size];
+    return { size, chest, shoulder: "", length };
   });
 
 export const SHEET_DESCRIPTION = {

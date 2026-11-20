@@ -424,7 +424,7 @@ function SizesStep({ garment, save, saving, next }) {
 
       <div style={{ marginTop: 20, overflowX: "auto" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
-          <span className="aw-lbl">{garment.fit === "oversized" ? "Oversized" : "Regular fit"} size chart (inches, laid flat)</span>
+          <span className="aw-lbl">{garment.fit === "oversized" ? "Oversized" : "Regular fit"} size chart (inches)</span>
           <button type="button" className="aw-link" style={{ background: "none", border: "none", cursor: "pointer" }} onClick={() => setChart(sheetSizeChart(garment.fit))}>
             Reset to product sheet
           </button>
@@ -447,7 +447,7 @@ function SizesStep({ garment, save, saving, next }) {
           </tbody>
         </table>
         <p className="aw-help">
-          Chest = around the fullest part · Shoulder = seam to seam · Length = highest shoulder point to hem.
+          Chest = all round (twice the laid-flat width) · Shoulder = seam to seam (can stay empty) · Length = highest shoulder point to hem.
           {fromSheet && " Filled in from your product sheet — press Save to keep it."} The garment photos are drawn to this chart, so print sizes look true to size.
         </p>
       </div>
