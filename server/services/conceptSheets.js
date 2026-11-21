@@ -128,13 +128,18 @@ export function wornPrompt({ garment = "t-shirt", teeColour = "white", setting =
  * @param n       the concept's number on the sheet
  */
 // reference (21 Nov 2026): the second attached image is the tee the customer wants one like (its look kept exactly)
-export function developPrompt({ concept, n, piece, teeIsDark = false, logo = false, change = "", pictures = 0, reference = false }) {
+// layout (21 Nov 2026, live test): the piece is a whole laid-out side (a chest logo, strokes down the side, a tag near
+// the hem …) placed on that side's WHOLE print area — every part stays where it sits on the tee, not "large and centred"
+export function developPrompt({ concept, n, piece, teeIsDark = false, logo = false, change = "", pictures = 0, reference = false, layout = false }) {
   const what = clean(concept?.[piece], 300) || clean(concept?.front, 300);
   const word = PIECE_WORD[piece] || "front";
   // a concept with one sleeve print calls it "the sleeve" on the sheet
   const onSheet = piece === "sleeve" && !concept?.sleeve2 ? "sleeve" : word;
+  const placed = layout
+    ? `the whole ${word} print area of the tee, edge to edge: every part of it exactly where it sits on the ${word} of that tee on the sheet — a chest logo up at the chest on its side, strokes down the side, a tag just above the hem — at the same sizes relative to each other and to the ${word}, with empty space between the parts (do NOT gather them in the middle or enlarge them). The picture's edges are the edges of the ${word} print area (just inside the collar, the side seams and the hem); leave a thin magenta margin all round — no part touches the picture's edges`
+    : "the artwork alone, large and centred";
   return (
-    `The attached image is a concept sheet with numbered t-shirt designs. Reproduce ONLY the ${onSheet} artwork of concept ${n} ("${clean(concept?.title, 50)}": ${what}${concept?.colours ? `; ink colours ${clean(concept.colours, 80)}` : ""}${concept?.style ? `; style ${clean(concept.style, 40)}` : ""}) as finished, print-ready artwork: the artwork alone, large and centred, on a flat, solid, pure magenta (#FF00FF) background and nothing else (no magenta, pink or purple in the artwork itself). ` +
+    `The attached image is a concept sheet with numbered t-shirt designs. Reproduce ONLY the ${onSheet} artwork of concept ${n} ("${clean(concept?.title, 50)}": ${what}${concept?.colours ? `; ink colours ${clean(concept.colours, 80)}` : ""}${concept?.style ? `; style ${clean(concept.style, 40)}` : ""}) as finished, print-ready artwork: ${placed}, on a flat, solid, pure magenta (#FF00FF) background and nothing else (no magenta, pink or purple in the artwork itself). ` +
     `No t-shirt, no mockup, no numerals, no sheet, no shadows, no extra text — only the words that are part of the artwork, spelled exactly as on the sheet. Keep its colours, style and composition as shown on the sheet, with sharper, cleaner detail.` +
     (logo ? ` The second attached image is the customer's own logo: where the artwork uses it, reproduce it EXACTLY (same shapes, colours and words), not redrawn.` : "") +
     (reference && !logo && pictures < 2 ? ` The second attached image is the t-shirt the customer wants theirs to be like: take the look of this ${onSheet} print from the same place on it — its lettering style, brush or texture effects, shapes and ink colours — with any logo or lettering EXACTLY as it is there. Draw it flat, as artwork only.` : "") +

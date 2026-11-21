@@ -35,7 +35,10 @@ export async function cutOutPlainBackground(buffer) {
   const mid = (k) => edge.map((p) => data[p * 4 + k]).sort((a, b) => a - b)[edge.length >> 1];
   const colour = [mid(0), mid(1), mid(2)];
   const close = edge.filter((p) => dist(data, p * 4, colour) < 36).length;
-  if (close < edge.length * 0.94) return unchanged();
+  // (21 Nov 2026) on the magenta key colour — never in the artwork — a laid-out side whose brush strokes run off an
+  // edge still has a magenta edge for the most part: half is enough there (a white or black edge keeps 94%)
+  const magentaEdge = colour[0] > 180 && colour[2] > 180 && colour[1] < 90;
+  if (close < edge.length * (magentaEdge ? 0.5 : 0.94)) return unchanged();
 
   // everything connected to the edges in the background colour
   const gone = new Uint8Array(w * h);

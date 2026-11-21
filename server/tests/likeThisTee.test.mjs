@@ -183,3 +183,12 @@ test("tee photo, unclear words: two fixed buttons; tapping each one gives the co
     delete process.env.AI_CHAT_PROVIDER;
   }
 });
+
+test("a laid-out side is drawn with every part where it sits, for the whole print area (not large and centred)", () => {
+  const concept = { title: "A", front: "small logo on the left chest, brush strokes from the hem", back: "x" };
+  const laid = developPrompt({ concept, n: 1, piece: "front", layout: true });
+  assert.match(laid, /the whole front print area of the tee, edge to edge/);
+  assert.match(laid, /do NOT gather them in the middle/);
+  assert.doesNotMatch(laid, /large and centred/);
+  assert.match(developPrompt({ concept, n: 1, piece: "front" }), /large and centred/);
+});

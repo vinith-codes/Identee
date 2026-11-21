@@ -293,6 +293,8 @@ export const makeDevelop = asyncHandler(async (req, res) => {
   const n = Math.max(1, Math.min(99, Number(req.body?.n) || 1));
   const wanted = (Array.isArray(req.body?.pieces) ? req.body.pieces : []).filter((p) => PIECES.includes(p));
   const pieces = (wanted.length ? wanted : piecesOf(concept)).filter((p) => concept[p]);
+  // (21 Nov 2026) the pieces the page puts on a side's whole print area as a laid-out side (front / back only)
+  const layout = (Array.isArray(req.body?.layout) ? req.body.layout : []).filter((p) => p === "front" || p === "back");
   if (!concept.title || !pieces.length) {
     res.status(400);
     throw new Error("That concept has nothing to print.");
@@ -317,7 +319,7 @@ export const makeDevelop = asyncHandler(async (req, res) => {
   const ref = refUrl ? await smallCopy(await fetchOurImage(refUrl, req), 1536) : null;
   const ratioOf = Object.fromEntries(pieces.map((piece) => [piece, nearestRatio(Number(ratios[piece]) || (/^sleeve/.test(piece) ? 0.75 : 1))]));
   const drawPiece = (piece, extraChange = null) => {
-    const prompt = developPrompt({ concept, n, piece, teeIsDark, logo: Boolean(logo) && logos.length < 2, pictures: logos.length > 1 ? logos.length : 0, reference: Boolean(ref), change: [change, extraChange].filter(Boolean).join(". ") || null });
+    const prompt = developPrompt({ concept, n, piece, teeIsDark, logo: Boolean(logo) && logos.length < 2, pictures: logos.length > 1 ? logos.length : 0, reference: Boolean(ref), layout: layout.includes(piece), change: [change, extraChange].filter(Boolean).join(". ") || null });
     return withGrok(
       s,
       // (the pieces go on the customer's tee: drawn at 4K since 15 Nov 2026; the sheet itself stays SHEET_SIZE)
@@ -364,7 +366,8 @@ export const makeDevelop = asyncHandler(async (req, res) => {
   const cut = await Promise.all(
     made.map((m) =>
       cutOutPlainBackground(m.made.buffer)
-        .then(trimClearEdges)
+        // (a laid-out side keeps its empty space: it IS the layout, the picture's edges are the print area's — 21 Nov 2026)
+        .then((c) => (layout.includes(m.piece) ? c : trimClearEdges(c)))
         .catch(() => ({ buffer: m.made.buffer, mime: m.made.mime, width: 1024, height: 1024, cut: false })),
     ),
   );

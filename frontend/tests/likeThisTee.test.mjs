@@ -31,3 +31,26 @@ test("sleeve → left sleeve, sleeve2 → right sleeve; one sleeve alone still g
   // with only a left sleeve area, the right-sleeve piece still finds a sleeve
   assert.equal(pieceArea("sleeve2", [positions[0], positions[2]], []).key, "left-sleeve");
 });
+
+// (21 Nov 2026, live test) a whole-tee copy's front — chest logo + strokes from the hem + a hem tag — went into the
+// 12×13 cm Left Chest because its words begin "small ID logo on the left chest"
+test("a front made of prints in several places goes on the Full Front, a lone chest logo still on the chest", async () => {
+  const { placementHint, spreadOut } = await import("../src/studio/assistantV2.js");
+  const all = [
+    ...positions,
+    { key: "full-front", side: "front", label: "Full Front", ...cm(35, 52) },
+    { key: "left-chest", side: "front", label: "Left Chest", ...cm(12, 13) },
+  ];
+  const front = "Small 'ID IDENTEE' logo on the left chest, black and yellow brush strokes rising from the lower left hem with 'IDEAS DESIGNS PEOPLE STORIES ON TEES' beside them, and a small 'ID' tag just above the hem";
+  assert.equal(spreadOut(front), true);
+  assert.deepEqual(placementHint(front, all), { area: "whole", size: null });
+  assert.equal(pieceArea("front", all, [], placementHint(front, all)).key, "full-front");
+  // the old cases keep working
+  assert.equal(pieceArea("front", all, [], placementHint("small ID logo on the left chest", all)).key, "left-chest");
+  assert.equal(pieceArea("front", all, [], placementHint("a large roaring lion", all)).key, "centre-front");
+  // a back laid out top and bottom → Full Back; a sleeve is never "whole"
+  assert.equal(pieceArea("back", all, [], placementHint("'TEAM' across the shoulders and the number lower down", all)).key, "full-back");
+  assert.equal(pieceArea("sleeve", all, [], { area: "whole", size: null }).key, "left-sleeve");
+  // a tee without a Full Front: the main front area
+  assert.equal(pieceArea("front", positions, [], { area: "whole", size: null }).key, "centre-front");
+});

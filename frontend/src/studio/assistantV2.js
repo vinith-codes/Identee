@@ -147,6 +147,10 @@ export function assistAct(text, messages) {
  */
 export function placementHint(text, positions = null) {
   const t = String(text || "").toLowerCase();
+  // (21 Nov 2026, live test) several prints in different places of one side — "small ID logo on the left chest,
+  // brush strokes rising from the lower hem, a tag just above the hem" — are ONE picture laid out like that side:
+  // it goes on the side's whole print area ("whole"), never into the chest spot one of its parts names
+  if (spreadOut(t)) return { area: "whole", size: null };
   const chest = /left[- ]chest|right[- ]chest|chest (badge|logo|emblem|crest|pocket|icon|mark)|pocket[- ]?(size|print|logo)|(badge|logo|emblem|crest|icon|monogram)\b[^.]{0,30}\b(on|at|over) the chest/.test(t);
   const full = /full[- ](back|front)|\b(covers?|covering|across) the (whole|full|entire)|edge[- ]to[- ]edge/.test(t);
   const small = /\b(small|tiny|little|subtle|minimal|pocket[- ]?size|discreet)\b/.test(t);
@@ -172,6 +176,10 @@ const MARK = /\b(small|tiny|little|mini|subtle|minimal|discreet|logo|badge|emble
  *   - a logo spot (200 cm² or less: Back Neck, Lower Left / Right, the chests) only for a small mark — "small",
  *     a logo, a badge, an icon.
  */
+// the places on one side of a tee a piece's words can name; two or more different ones = a laid-out side
+const PLACES = [/\bchest\b/, /\bhem\b|\bbottom\b|\blower\b/, /\bside\b|\bflank\b/, /\bcollar\b|\bneck\b|\bnape\b/, /\bshoulders?\b/, /\bcorner\b/];
+export const spreadOut = (text) => PLACES.filter((re) => re.test(String(text || "").toLowerCase())).length >= 2;
+
 function wholePieceFits(p, t, size) {
   if (p.main) return true;
   const [w, h] = p.cm?.standard || [0, 0];
@@ -197,7 +205,10 @@ export function pieceArea(piece, positions = [], used = [], hint = null) {
   const onPiece = (p) => (sleeve ? p.side === "left" || p.side === "right" : p.side === piece);
   const namedKey = positions.find((p) => p.key === hint?.area && onPiece(p))?.key || null;
   const chestKey = hint?.area === "chest" && piece === "front" ? ["left-chest", ...positions.filter((p) => p.side === "front" && /chest|pocket/.test(p.key)).map((p) => p.key)].find(has) : null;
+  // a laid-out side (hint "whole"): the side's whole print area — Full Front / Full Back — else its main area
+  const wholeKey = hint?.area === "whole" && !sleeve ? [piece === "back" ? "full-back" : "full-front"].find(has) || null : null;
   const want =
+    wholeKey ||
     namedKey ||
     chestKey ||
     (sleeve

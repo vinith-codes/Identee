@@ -2409,7 +2409,10 @@ export default function DesignRoomPage() {
       progress?.({ label: `Making concept ${n} — ${concept.title}${step.change ? ` (${step.change})` : ""}…`, expect: 30, hint: `${pieces.map((pc) => areasFor[pc]?.label || pieceName(pc)).join(" · ")}. Drawn from the sheet, usually 20–40 seconds.` });
       let res;
       try {
-        res = await aiService.develop({ sheetUrl: sheet.url, n, concept, pieces, teeColour: colour?.name || "white", teeIsDark: lum(fabricHex) < 0.55, ratios, ...(sheet.logoUrls?.length > 1 ? { logoUrls: sheet.logoUrls } : sheet.logoUrl ? { logoUrl: sheet.logoUrl } : sheet.refUrl && !sheet.inspired ? { refUrl: sheet.refUrl } : {}), ...(step.change ? { change: step.change } : {}) });
+        // (21 Nov 2026) layout: pieces that are a whole laid-out side (logo at the chest, strokes down the side …) — drawn
+        // with every part where it sits on that side, for its whole print area
+        const layout = pieces.filter((pc) => hints[pc]?.area === "whole" && areasFor[pc]);
+        res = await aiService.develop({ sheetUrl: sheet.url, n, concept, pieces, teeColour: colour?.name || "white", teeIsDark: lum(fabricHex) < 0.55, ratios, ...(layout.length ? { layout } : {}), ...(sheet.logoUrls?.length > 1 ? { logoUrls: sheet.logoUrls } : sheet.logoUrl ? { logoUrl: sheet.logoUrl } : sheet.refUrl && !sheet.inspired ? { refUrl: sheet.refUrl } : {}), ...(step.change ? { change: step.change } : {}) });
       } catch (err) {
         out.push(botSays(err.response?.data?.message || `Concept ${n} couldn’t be made just now.`));
         continue;
