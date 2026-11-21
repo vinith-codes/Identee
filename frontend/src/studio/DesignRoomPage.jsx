@@ -40,7 +40,7 @@ import { accountChat, chatTitle, DRAFT_PREFIX, hashText, historyFor, keptChat, l
 import { AFTER_AI_SLOGANS, AFTER_DESIGN_CHIPS, BACK, CHANGE_IDEA, DRAW_MINE, PHOTO_AS_IS, PHOTO_CHOICES, PHOTO_CUT, PHOTO_REVERT, PROMPT_MAX, bot as botSays, checkMessages, chips as chipRow, firstMessages, firstState, smartPlan } from "./assistantScript";
 import { makeShareCard, shareTee } from "./shareTee";
 import { makeShareLink, shareMessage, whatsappUrl } from "../services/shareService";
-import { firstMessagesV2, isUntouchedStart, sheetsFromChat, nextConceptNumber, findConcept, piecesOf, pieceArea, placementHint, shrinkForHint, aiPictureOnTee, ideaSheet, STARTER_CHIP, suggestionsFor } from "./assistantV2";
+import { firstMessagesV2, isUntouchedStart, sheetsFromChat, nextConceptNumber, findConcept, piecesOf, pieceArea, pieceName, placementHint, shrinkForHint, aiPictureOnTee, ideaSheet, STARTER_CHIP, suggestionsFor } from "./assistantV2";
 import { styleIn } from "./styleInfo";
 import { costLine, makeSideBySide, noPhotoNote, photoDataUrl, planSides, printedSides, sideLabel, sideWords, skippedNote, tryOnSides, wornCaption } from "./wornPhotos";
 import TryOnPhotos from "./TryOnPhotos";
@@ -2223,6 +2223,8 @@ export default function DesignRoomPage() {
     const c = assistantCtx();
     // (17 Nov 2026) the photos of this message (a.photos), or the ones still waiting from the last message
     const photosNow = a.photos?.length > 1 ? a.photos : chatState.photosOpen && chatState.photos?.length > 1 ? chatState.photos : [];
+    // (21 Nov 2026) the one photo sent a message or two ago and not used yet: it goes along again (photoEarlier)
+    const waitingPhoto = !a.photo && photosNow.length < 2 && chatState.photoWaiting > 0 && chatState.photo?.url ? chatState.photo : null;
     if (!isLoggedIn()) return [botSays("Sign in and I’ll design with you. Your tee stays here."), chipRow(["Log in"])];
     let res;
     if (a.steps) res = { reply: "", steps: a.steps, chips: [] };
@@ -2241,6 +2243,7 @@ export default function DesignRoomPage() {
           // a picture sent with this message, and the logo on file in this chat
           ...(a.photo?.url ? { photo: { url: a.photo.url, about: a.text || "" } } : {}),
           ...(chatState.logo ? { logoUrl: chatState.logo } : {}),
+          ...(waitingPhoto ? { photoEarlier: { url: waitingPhoto.url, about: "" } } : {}),
           // (17 Nov 2026) several photos sent with this message — or still waiting from the last one (the brain asked
           // what to do with them, and this is the answer)
           ...(photosNow.length > 1 ? { photos: photosNow.map((p) => ({ url: p.url, about: a.photos ? a.text || "" : "" })), ...(a.photos ? {} : { photosEarlier: true }) } : {}),
@@ -2261,6 +2264,7 @@ export default function DesignRoomPage() {
         setChat((m) => m.map((x) => (noted.has(x) ? { ...x, folded: true } : x)));
       }
       if (res.left != null) setAi((cur) => ({ ...cur, left: res.left }));
+      if (waitingPhoto) setChatState((st) => ({ ...st, photoWaiting: Math.max(0, (st.photoWaiting || 0) - 1) }));
     }
     if (run?.stopped) return [];
     // the reply shows at once; the steps (a sheet, pieces …) follow while the customer reads it
@@ -2281,7 +2285,8 @@ export default function DesignRoomPage() {
         break;
       }
       // (a sheet may mix several of the customer's photos: step.photos are their numbers, 17 Nov 2026)
-      if (step.type === "concepts") out.push(...(await makeSheet(step, progress, a.photo?.url || null, step.photos?.length ? step.photos.map((n) => photosNow[n - 1]?.url).filter(Boolean) : null)));
+      // (21 Nov 2026) step.reference: the photo is a whole tee and the concepts are made like it (refUrl)
+      if (step.type === "concepts") out.push(...(await makeSheet(step, progress, a.photo?.url || null, step.photos?.length ? step.photos.map((n) => photosNow[n - 1]?.url).filter(Boolean) : null, step.reference ? a.photo?.url || waitingPhoto?.url || chatState.photo?.url || null : null)));
       // several photos, each made its own way and put on its own place: the plan card first (nothing is made yet)
       else if (step.type === "photos" && photosNow.length > 1) out.push(...photosPlanMsgs(step.items, photosNow, Boolean(res.reply)));
       else if (step.type === "menu" && step.item === "Photo to art" && (a.photo || chatState.photo)) out.push(...(await chatPhotoUnderstand({ text: a.text, photo: a.photo || chatState.photo }, run)));
@@ -2309,6 +2314,8 @@ export default function DesignRoomPage() {
     }
     // the waiting photos were used (a plan for them, or a sheet from them): later messages don't carry them any more
     if ((res.steps || []).some((st) => st.type === "photos" || st.photos?.length)) setChatState((st) => ({ ...st, photosOpen: false }));
+    // (21 Nov 2026) a picture was made from the one waiting photo: it stops going along
+    if ((res.steps || []).some((st) => ["concepts", "draw", "photos"].includes(st.type) || (st.type === "menu" && st.item === "Photo to art"))) setChatState((st) => ({ ...st, photoWaiting: 0 }));
     // (a sheet card has its own number buttons and More options, so those chips aren't repeated under it)
     const madeSheet = out.some((m) => m.sheet);
     const chips = (res.chips || []).filter((c) => !madeSheet || !(/^(option|concept|number)?\s*\d{1,2}$/i.test(c) || /^more options$/i.test(c)));
@@ -2328,23 +2335,25 @@ export default function DesignRoomPage() {
   };
   // a concept sheet: one picture, three numbered tees (counts as one picture request)
   // photoUrls (17 Nov 2026): several of the customer's photos mixed into the concepts — all go to the picture AI
-  const makeSheet = async (step, progress, photoUrl = null, photoUrls = null) => {
+  // refUrl (21 Nov 2026): the customer's picture of a whole tee — the three concepts are made LIKE it (not as a logo);
+  // with step.inspired they are NEW designs with its feel, and its pieces are then drawn from the sheet alone
+  const makeSheet = async (step, progress, photoUrl = null, photoUrls = null, refUrl = null) => {
     if (!ai.available) return [botSays("Pictures can’t be made right now. You can pick from the art library or upload your own."), chipRow(["Open the art library", "Upload a picture"])];
     if (ai.left === 0) return [botSays("You’ve made today’s pictures. They come back tomorrow — I can still help with words and layout.")];
     const numberFrom = nextConceptNumber(sheetsFromChat(chat));
     // the names show at once, while the picture is drawn (the wait feels shorter)
     const names = step.concepts.map((c, i) => `${numberFrom + i} ${c.title}`).join(" · ");
     progress?.({ label: "Drawing three concepts…", expect: 25, hint: names });
-    const logoUrls = step.logo && photoUrls?.length > 1 ? photoUrls : null;
-    const logoUrl = step.logo && !logoUrls ? photoUrls?.[0] || photoUrl || chatState.logo || null : null;
+    const logoUrls = !refUrl && step.logo && photoUrls?.length > 1 ? photoUrls : null;
+    const logoUrl = !refUrl && step.logo && !logoUrls ? photoUrls?.[0] || photoUrl || chatState.logo || null : null;
     // colourways / variations of the picture already on the tee (round 5): that picture is the reference
-    const basis = step.basis === "tee" && !logoUrl && !logoUrls ? aiPictureOnTee(elements, positions) : null;
-    if (step.basis === "tee" && !logoUrl && !logoUrls && !basis) return [botSays("There’s no picture on the tee yet to make versions of. Tell me what you’d like and I’ll show three concepts."), chipRow(["Show me 3 options"])];
+    const basis = step.basis === "tee" && !refUrl && !logoUrl && !logoUrls ? aiPictureOnTee(elements, positions) : null;
+    if (step.basis === "tee" && !refUrl && !logoUrl && !logoUrls && !basis) return [botSays("There’s no picture on the tee yet to make versions of. Tell me what you’d like and I’ll show three concepts."), chipRow(["Show me 3 options"])];
     try {
-      const res = await aiService.concepts({ concepts: step.concepts, brief: step.brief, garment: garment?.label || "t-shirt", teeColour: colour?.name || "white", teeIsDark: lum(fabricHex) < 0.55, numberFrom, ...(logoUrl ? { logoUrl } : {}), ...(logoUrls ? { logoUrls } : {}), ...(basis ? { basisUrl: basis.url } : {}) });
+      const res = await aiService.concepts({ concepts: step.concepts, brief: step.brief, garment: garment?.label || "t-shirt", teeColour: colour?.name || "white", teeIsDark: lum(fabricHex) < 0.55, numberFrom, ...(logoUrl ? { logoUrl } : {}), ...(logoUrls ? { logoUrls } : {}), ...(basis ? { basisUrl: basis.url } : {}), ...(refUrl ? { refUrl, ...(step.inspired ? { inspired: true } : {}) } : {}) });
       if (res.left != null) setAi((cur) => ({ ...cur, left: res.left }));
       // (stopped meanwhile: the sheet was still made and counted, so the chat shows it anyway)
-      return [{ sheet: { ...res.sheet, brief: step.brief, developed: [], logoUrl: res.sheet.logoUrl || logoUrl || null, ...(logoUrls ? { logoUrls: res.sheet.logoUrls || logoUrls } : {}) } }];
+      return [{ sheet: { ...res.sheet, brief: step.brief, developed: [], logoUrl: res.sheet.logoUrl || logoUrl || null, ...(logoUrls ? { logoUrls: res.sheet.logoUrls || logoUrls } : {}), ...(refUrl ? { refUrl: res.sheet.refUrl || refUrl, ...(step.inspired ? { inspired: true } : {}) } : {}) } }];
     } catch (err) {
       return [botSays(err.response?.data?.message || "The concept sheet couldn’t be made just now."), { failed: true }];
     }
@@ -2377,11 +2386,11 @@ export default function DesignRoomPage() {
       if (!pieces.length) {
         // "the back of 3" when concept 3 has no back print
         const has = piecesOf(concept);
-        out.push(botSays(`Concept ${n} “${concept.title}” has no ${andList(step.pieces || [])} print — it has ${has.length ? `only the ${andList(has)}` : "nothing to print"}. Say “the ${has[0] || "front"} of ${n}”, or pick another concept.`));
+        out.push(botSays(`Concept ${n} “${concept.title}” has no ${andList((step.pieces || []).map(pieceName))} print — it has ${has.length ? `only the ${andList(has.map(pieceName))}` : "nothing to print"}. Say “the ${pieceName(has[0] || "front")} of ${n}”, or pick another concept.`));
         continue;
       }
       if (leftNow != null && leftNow < pieces.length) {
-        out.push(botSays(`Concept ${n} has ${pieces.length} pieces (${andList(pieces)}) — that’s ${pieces.length} pictures, and you have ${leftNow} left today. Ask for just ${leftNow === 1 ? "one piece" : `${leftNow} of them`}, like “the ${pieces[0]} of ${n}”, or come back tomorrow.`));
+        out.push(botSays(`Concept ${n} has ${pieces.length} pieces (${andList(pieces.map(pieceName))}) — that’s ${pieces.length} pictures, and you have ${leftNow} left today. Ask for just ${leftNow === 1 ? "one piece" : `${leftNow} of them`}, like “the ${pieceName(pieces[0])} of ${n}”, or come back tomorrow.`));
         break;
       }
       const areasFor = {};
@@ -2393,13 +2402,14 @@ export default function DesignRoomPage() {
         const pos = pieceArea(pc, positions, used, hints[pc]);
         if (!pos) continue;
         areasFor[pc] = pos;
+        used.push(pos.key); // (21 Nov 2026) the next piece doesn't take the same area (left sleeve, then right sleeve)
         const { W, H } = areaPx(pos);
         ratios[pc] = W / H;
       }
-      progress?.({ label: `Making concept ${n} — ${concept.title}${step.change ? ` (${step.change})` : ""}…`, expect: 30, hint: `${pieces.map((pc) => areasFor[pc]?.label || pc).join(" · ")}. Drawn from the sheet, usually 20–40 seconds.` });
+      progress?.({ label: `Making concept ${n} — ${concept.title}${step.change ? ` (${step.change})` : ""}…`, expect: 30, hint: `${pieces.map((pc) => areasFor[pc]?.label || pieceName(pc)).join(" · ")}. Drawn from the sheet, usually 20–40 seconds.` });
       let res;
       try {
-        res = await aiService.develop({ sheetUrl: sheet.url, n, concept, pieces, teeColour: colour?.name || "white", teeIsDark: lum(fabricHex) < 0.55, ratios, ...(sheet.logoUrls?.length > 1 ? { logoUrls: sheet.logoUrls } : sheet.logoUrl ? { logoUrl: sheet.logoUrl } : {}), ...(step.change ? { change: step.change } : {}) });
+        res = await aiService.develop({ sheetUrl: sheet.url, n, concept, pieces, teeColour: colour?.name || "white", teeIsDark: lum(fabricHex) < 0.55, ratios, ...(sheet.logoUrls?.length > 1 ? { logoUrls: sheet.logoUrls } : sheet.logoUrl ? { logoUrl: sheet.logoUrl } : sheet.refUrl && !sheet.inspired ? { refUrl: sheet.refUrl } : {}), ...(step.change ? { change: step.change } : {}) });
       } catch (err) {
         out.push(botSays(err.response?.data?.message || `Concept ${n} couldn’t be made just now.`));
         continue;
@@ -2432,9 +2442,9 @@ export default function DesignRoomPage() {
         const redrawn = res.pieces.filter((pc) => pc.redrawn?.length);
         out.push(
           botSays(
-            `Concept ${n} “${concept.title}” is on your tee${res.pieces.length > 1 ? ` — ${andList(res.pieces.map((pc) => areasFor[pc.piece]?.label || pc.piece))}` : ""}.` +
+            `Concept ${n} “${concept.title}” is on your tee${res.pieces.length > 1 ? ` — ${andList(res.pieces.map((pc) => areasFor[pc.piece]?.label || pieceName(pc.piece)))}` : ""}.` +
               (replaced.length ? ` It took the place of the earlier print on ${andList(replaced)} — press Undo (↶) to bring that back, or say “put the old one on the back”.` : " Tell me what to change, or press Undo (↶).") +
-              (redrawn.length ? ` (I checked the spelling and drew the ${andList(redrawn.map((pc) => areasFor[pc.piece]?.label || pc.piece))} again so ${andList(redrawn.flatMap((pc) => pc.redrawn).map((w) => `“${w}”`))} reads right.)` : ""),
+              (redrawn.length ? ` (I checked the spelling and drew the ${andList(redrawn.map((pc) => areasFor[pc.piece]?.label || pieceName(pc.piece)))} again so ${andList(redrawn.flatMap((pc) => pc.redrawn).map((w) => `“${w}”`))} reads right.)` : ""),
           ),
         );
         // the price, said once, when the first picture lands (a picture print adds a set amount per tee)
@@ -3241,7 +3251,9 @@ export default function DesignRoomPage() {
     // Assistant v2 (round 2, 7 Nov 2026): the picture goes to the brain with the words — a logo for the concepts, or a
     // photo to redraw (the brain opens Photo to art). It stays on file in this chat as the customer's logo.
     if (ai?.v2) {
-      setChatState((st) => ({ ...st, photosOpen: false, photo, logo: photo.url, photoUrl: null, wait: null, photoAreaKey: null, photoAreaKeys: [] }));
+      // (21 Nov 2026) photoWaiting: the next 3 messages still send it (photoEarlier) until a picture is made from it —
+      // a tapped chip like "New inspired designs" is about this photo, not an older topic
+      setChatState((st) => ({ ...st, photosOpen: false, photo, logo: photo.url, photoWaiting: 3, photoUrl: null, wait: null, photoAreaKey: null, photoAreaKeys: [] }));
       return [{ photoSent: photo }, { next: { type: "assist", text: a.text || "I attached a picture — use it on my tee.", photo } }];
     }
     if (a.text) {

@@ -17,7 +17,11 @@ test("the sheet instruction numbers the concepts, names the garment and colour, 
   assert.match(p, /oversized t-shirt in black/);
   assert.match(p, /VORTEX arched in bold letters/);
   assert.match(p, /stand out on the dark fabric/);
-  assert.match(p, /numerals? above/i);
+  assert.match(p, /numerals? \(1, 2, 3\)/i);
+  // (21 Nov 2026) the tees fill the sheet; the numerals are small labels
+  assert.match(p, /FILL THE FRAME/);
+  assert.match(p, /about 80% of its height/);
+  assert.match(p, /small, bold, black numeral/);
   assert.match(p, /front: nothing|back: nothing|sleeve: nothing/);
 });
 

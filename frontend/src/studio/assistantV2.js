@@ -29,7 +29,9 @@ export const suggestionsFor = (date = new Date()) => {
   return [first, "Draw a lion with a cricket bat", "A slogan for my team"];
 };
 export const CONCEPTS_PER_SHEET = 3;
-export const PIECES = ["front", "back", "sleeve"];
+export const PIECES = ["front", "back", "sleeve", "sleeve2"];
+// a piece in the chat's words: "sleeve2" is the right sleeve (21 Nov 2026)
+export const pieceName = (piece) => (piece === "sleeve2" ? "right sleeve" : piece);
 
 // Round 6 (8 Nov 2026): a start with no typing — three taps make the brief; and the way to a person
 export const STARTER_CHIP = "Help me start (3 taps)";
@@ -188,16 +190,18 @@ function wholePieceFits(p, t, size) {
  * hint: placementHint() of the concept's words — a chest badge goes on a chest area when the tee has one, a place
  * named in words (hint.area = its key: "nape", "lower-left") on that area when it is on this piece's side.
  */
+// sleeve2 (21 Nov 2026): the right sleeve of a concept with a print on each sleeve ("sleeve" is then the left one)
 export function pieceArea(piece, positions = [], used = [], hint = null) {
   const has = (key) => positions.some((p) => p.key === key);
-  const onPiece = (p) => (piece === "sleeve" ? p.side === "left" || p.side === "right" : p.side === piece);
+  const sleeve = /^sleeve/.test(piece);
+  const onPiece = (p) => (sleeve ? p.side === "left" || p.side === "right" : p.side === piece);
   const namedKey = positions.find((p) => p.key === hint?.area && onPiece(p))?.key || null;
   const chestKey = hint?.area === "chest" && piece === "front" ? ["left-chest", ...positions.filter((p) => p.side === "front" && /chest|pocket/.test(p.key)).map((p) => p.key)].find(has) : null;
   const want =
     namedKey ||
     chestKey ||
-    (piece === "sleeve"
-      ? ["left-sleeve", "right-sleeve", ...positions.filter((p) => /sleeve/.test(p.key)).map((p) => p.key)].find(has)
+    (sleeve
+      ? [...(piece === "sleeve2" ? ["right-sleeve", "left-sleeve"] : ["left-sleeve", "right-sleeve"]), ...positions.filter((p) => /sleeve/.test(p.key)).map((p) => p.key)].find(has)
       : piece === "back"
         ? ["full-back", positions.find((p) => p.side === "back" && p.main)?.key, positions.find((p) => p.side === "back")?.key].find(has)
         : ["centre-front", positions.find((p) => p.side === "front" && p.main)?.key, positions.find((p) => p.side === "front")?.key].find(has));

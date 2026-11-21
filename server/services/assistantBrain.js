@@ -28,7 +28,9 @@ export const STEP_TYPES = ["ask", "concepts", "develop", "match", "draw", "edit"
 export const MAX_PHOTOS = 6;
 export const PHOTO_JOBS = ["photo", "copy", "art", "inspired"];
 export const SIZE_WHO = ["men", "women", "kids"];
-export const PIECES = ["front", "back", "sleeve"];
+// (21 Nov 2026) "sleeve" is the left sleeve (or the one sleeve print); "sleeve2" the right sleeve when both carry prints
+export const PIECES = ["front", "back", "sleeve", "sleeve2"];
+const TEAM_ON = ["front", "back", "sleeve"]; // where a team's names and numbers can go
 export const MAX_STEPS = 6;
 export const CONCEPTS_PER_SHEET = 3;
 
@@ -83,12 +85,15 @@ export const isBarePick = (text, max) => {
 // photos (17 Nov 2026): several pictures with this message (or still waiting from the last one, photosEarlier):
 // [{ url, about, image?: { data, mime } }] — the images (small copies) are shown to the model so it can look at all
 // of them together; photoStyles: the art styles a photo can be redrawn in
+// attached (21 Nov 2026): { url, about, image?, earlier? } — one picture; its image (a small copy) is shown to the model
+// too, so it can see what the picture is (a whole tee to make one like, a logo, a photo). earlier: it was sent with an
+// earlier message and is not used yet, so the customer's answer is about it.
 export async function brainReply({ message, history = [], earlier = [], memory = "", design = {}, facts = {}, areas = [], styles = [], sheets = [], attached = null, logo = null, profile = "", photos = [], photosEarlier = false, photoStyles = [] }) {
   const said = clip(message, 2000);
   const many = (Array.isArray(photos) ? photos : []).slice(0, MAX_PHOTOS);
-  const ctx = { areas, styles, sheets, design, photoCount: many.length > 1 ? many.length : 0, photoStyles };
+  const ctx = { areas, styles, sheets, design, photoCount: many.length > 1 ? many.length : 0, photoStyles, picture: Boolean(attached) && many.length < 2 };
   const prompt = () => buildPrompt({ said, history, earlier, memory, design, facts, areas, styles, sheets, attached, logo, profile, photos: many.length > 1 ? many : [], photosEarlier, photoStyles });
-  const images = many.length > 1 ? many.map((p) => p.image).filter((im) => im?.data) : [];
+  const images = many.length > 1 ? many.map((p) => p.image).filter((im) => im?.data) : attached?.image?.data ? [attached.image] : [];
   const [raw, folded] = await Promise.all([
     mock()
       ? mockBrain(said, ctx, facts, history, { attached, logo, photos: ctx.photoCount })
@@ -136,7 +141,7 @@ function buildPrompt({ said, history, earlier, memory, design, facts, areas, sty
     "reply: what you say, in the customer's language (English, Tamil, Tanglish or a mix — match how they wrote). Warm, clear, short: 1 to 3 sentences. Say what you are doing or asking. Never mention JSON, steps, tools, ids, prompts, models or that you are an AI.",
     "steps: the moves to make now, in order (0 to " + MAX_STEPS + "). The page runs them one after another and the tee updates as it goes. Kinds:",
     '- {"type":"ask","question": string,"options": [2 to 4 short suggested answers]} — a question you need answered BEFORE you can continue. Only for what you truly cannot guess: a name, number or date to print, whose photo, which of two prints to replace, the fest/team/company name when the design is built around it. One question per message (two very short ones at most, in the same "question"). An ask must be the LAST step. Never ask what the chat, notes or tee already tell you. If the brief is enough to make something, make it first and ask after, in the reply.',
-    '- {"type":"concepts","brief": string,"logo": true|false,"concepts": [exactly ' + CONCEPTS_PER_SHEET + ' objects {"title": up to 5 words,"front": what is printed on the front (null if nothing),"back": the back print (null if nothing),"sleeve": the sleeve print (null if nothing),"colours": the main ink colours,"style": one of the picture styles}]} — each print says WHERE and HOW BIG it goes, in its own text ("small left-chest badge", "large centre-front artwork", "full-back lettering", "small sleeve logo", and where the tee offers them "small nape logo", "a line of words on the chest line", "small lower-left hit", "words across the lower back"): the page places and sizes it from those words. logo: true when the tees should carry the customer\'s own logo / artwork (they attached one, or one is on file, and they want it used): then say "logo" in the prints that use it. THE NORMAL ANSWER to any design or picture request: designs, ideas, options, "make me a tee for…", a complete design, AND a single picture ("a lion on the front", "a skull on the back"). The page draws ONE picture showing the three tees numbered 1, 2, 3 (front, back, sleeve) and the customer picks. For a single picture request, the three are three really different takes on THAT picture on THAT area (e.g. a fierce realistic lion, a bold mascot lion, a minimal line lion), the other areas null. Make the three really different from each other and specific to the brief, the tee colour and everything they said. Prints with words must include the exact words. "More options" = another concepts step with three new ones (numbering continues from the sheets listed below). "basis": "tee" (optional) — when the three concepts are versions of the picture ALREADY ON THE TEE ("show this in 3 colourways", "variations of this", "the same in other styles"): the page sends that picture as the reference; each concept then says what changes (the ink colours, the style) and what stays.',
+    '- {"type":"concepts","brief": string,"logo": true|false,"reference": true|false,"inspired": true|false,"concepts": [exactly ' + CONCEPTS_PER_SHEET + ' objects {"title": up to 5 words,"front": what is printed on the front (null if nothing),"back": the back print (null if nothing),"sleeve": the sleeve print — the LEFT sleeve when both sleeves are printed (null if nothing),"sleeve2": the RIGHT sleeve print, only when the two sleeves carry DIFFERENT prints (else null),"colours": the main ink colours,"style": one of the picture styles}]} — reference: true only for tees made from the customer\'s picture of a whole tee, and inspired: true when they are NEW designs inspired by it rather than a copy (see the picture rules below). Each print says WHERE and HOW BIG it goes, in its own text ("small left-chest badge", "large centre-front artwork", "full-back lettering", "small sleeve logo", and where the tee offers them "small nape logo", "a line of words on the chest line", "small lower-left hit", "words across the lower back"): the page places and sizes it from those words. logo: true when the tees should carry the customer\'s own logo / artwork (they attached one, or one is on file, and they want it used): then say "logo" in the prints that use it. THE NORMAL ANSWER to any design or picture request: designs, ideas, options, "make me a tee for…", a complete design, AND a single picture ("a lion on the front", "a skull on the back"). The page draws ONE picture showing the three tees numbered 1, 2, 3 (front, back, sleeve) and the customer picks. For a single picture request, the three are three really different takes on THAT picture on THAT area (e.g. a fierce realistic lion, a bold mascot lion, a minimal line lion), the other areas null. Make the three really different from each other and specific to the brief, the tee colour and everything they said. Prints with words must include the exact words, in quotes; lettering without its words ("stencil typography", "a slogan", "coordinates") is never enough — give the words or say "no words". "More options" = another concepts step with three new ones (numbering continues from the sheets listed below). "basis": "tee" (optional) — when the three concepts are versions of the picture ALREADY ON THE TEE ("show this in 3 colourways", "variations of this", "the same in other styles"): the page sends that picture as the reference; each concept then says what changes (the ink colours, the style) and what stays.',
     '- {"type":"develop","picks": [concept numbers],"sheet": the sheet number they are on,"pieces": ["front","back","sleeve"] or a subset or null for all the pieces that concept has,"change": string|null} — when they choose concepts by number or words ("3 and 6", "the second one", "I like 2 but only the front"). Numbers refer to the sheets listed below (sheet 1 has concepts 1-3, sheet 2 has 4-6 …). The page draws the real artwork pieces from the sheet and puts the first pick on the tee. change: a change they want in that concept\'s artwork as it is drawn ("2 but with the text in gold", "2 with the logo bigger", "3 in blue") — in English, null when none. A change INSIDE the artwork (its colours, the words drawn in it, its style) goes in change ONLY — never also as an edit step, because the words in a drawn picture are not text items on the tee. A change to the tee itself (its colour, the size or place of a print) is an edit step after the develop step instead. Mixing concepts ("the front of 1 with the back of 3"): one develop step per concept, each with only its pieces.',
     '- {"type":"match","piece":"back"|"sleeve"|"front","brief": string} — a companion piece drawn FROM the picture already on the tee ("make a matching back", "a sleeve print to go with this"): same style, line quality and ink colours. brief: what the new piece shows, in English, words to print included (a back often carries the name or slogan large). Only when the tee already has a picture (see The tee now); else use concepts.',
     '- {"type":"team","players": [{"name": string,"number": string|null}],"namesOn": "back"|"front"|"sleeve","numbersOn": "back"|"front"|"sleeve"|null} — one tee per person with their own name (and number) when they list people ("Arun, Priya, Karthik", "Arun 7, Priya 10 …", a pasted list): the page adds a name slot (and a number slot) on those areas and a tee for each. Keep the names exactly as written. Up to 99. The design itself (pictures, team name) goes in the other steps as usual.',
@@ -167,7 +172,7 @@ function buildPrompt({ said, history, earlier, memory, design, facts, areas, sty
     "Stay on topic: their tee, designs, printing and ordering at IDENTEE. For anything else, answer kindly in one sentence and steer back to their design.",
     "Print areas: " + JSON.stringify(aiAreas(areas.map((a) => ({ key: a.key, label: a.label, free: a.free !== false, ...spotWhereOf(a) })))) + ". For \"front\" use centre-front and for \"back\" use full-back unless they name another area or that one isn't free. " + AREA_WORDS_RULE + " In an edit step, name the area by its label (\"move the logo to the Back Neck\"). Picture styles: " + JSON.stringify(styles) + ".",
     "The tee now: " + JSON.stringify(design).slice(0, 6000),
-    attached ? "The customer attached a picture WITH THIS MESSAGE (their logo, artwork or a photo): " + JSON.stringify(clip(attached.about || "a picture", 200)) + ". If they want it printed as it is or built into designs, use concepts with logo: true (or edit to place it). If they want it redrawn as art (cartoon, sketch …), use menu \"Photo to art\". If unclear, ask." : "",
+    attached ? pictureRules(attached) : "",
     photos.length > 1 ? photosPrompt(photos, photosEarlier, photoStyles) : "",
     !attached && !photos.length && logo ? "The customer's own logo / artwork is on file from earlier in this chat: concepts may use it (logo: true) when they ask for their logo or brand." : "",
     sheets.length ? "Concept sheets in this chat (oldest first; developed = already made into artwork): " + JSON.stringify(sheets.map((s) => ({ sheet: s.n, brief: clip(s.brief, 120), concepts: (s.concepts || []).map((c) => ({ n: c.n, title: c.title })), developed: s.developed || [] }))) : "No concept sheets yet in this chat.",
@@ -179,6 +184,32 @@ function buildPrompt({ said, history, earlier, memory, design, facts, areas, sty
   ]
     .filter(Boolean)
     .join("\n");
+}
+
+// One picture from the customer (21 Nov 2026, the owner's live test: a whole tee sent with "design a t-shirt like
+// this" came back as logo layouts, and an answer to "how should I use it?" forgot the picture): what it is, and what to
+// make from it. The image itself is attached to the request when the server could load it.
+// the two buttons for a photo of a whole tee when the words don't say which (21 Nov 2026)
+export const TEE_PHOTO_CHOICES = ["Make one like this", "New designs inspired by it"];
+
+export function pictureRules(attached) {
+  const seen = attached.image ? " (the image above)" : "";
+  const said = clip(attached.about, 200);
+  return [
+    attached.earlier
+      ? `The customer sent a picture${seen} earlier in this chat and it is NOT used yet${said ? ` (they wrote with it: ${JSON.stringify(said)})` : ""}. Their new message is most likely about that picture — an answer to how to use it, or a request built on it. Never fall back to an older topic of the chat instead.`
+      : `The customer attached a picture${seen} WITH THIS MESSAGE${said ? ` (their words: ${JSON.stringify(said)})` : ""}.`,
+    "Look at the picture and work out what it is before you answer.",
+    'A WHOLE T-SHIRT (or other garment) design — a mock-up, a product photo, a tee someone wears: read EVERY print on it (the front, the back, each sleeve, small marks near the collar or the hem), then see which of two things they want. ' +
+      'NEW DESIGNS INSPIRED BY IT — "new inspired designs", "inspired by this", "ideas from this", "something in this style", "not a copy": a concepts step with reference: true, inspired: true, logo: false. Three NEW designs, really different from each other, that keep the picture\'s feel: prints in similar places and sizes, the same kind of lettering and brush or texture effects, the same colour mood — but new artwork and new words (the customer\'s own name or words if they gave any, else words that suit the brief). Never its logo or brand words. Each print says what it shows, its place and its size. ' +
+      'ONE LIKE IT — "like this", "same as this", "similar", "design a tee like this", "make me this", "copy this": a concepts step with reference: true, inspired: false, logo: false. Concept 1 is that whole tee as close as we can print it: every print in its own words with what it shows (exact words included), its place and its size ("small ID logo on the left chest", "yellow and black brush strokes down the left side of the front, from the chest to near the hem", "IDENTEE in tall letters down the centre of the back with a thin yellow line"). Concepts 2 and 3 keep the same layout and feel with ONE clear twist each (other ink colours, or their own name or words in place of the brand words). Both sleeves printed differently: sleeve = the left one, sleeve2 = the right one. ' +
+      // (21 Nov 2026: "stencil typography", "a 3-line manifesto", "coordinates" were printed as those very words)
+      'In ALL three concepts, every print with lettering gives its EXACT words in quotes (\'"MADE TO CREATE" in tall letters down the back\'), the same words in every concept that keeps them. Never describe lettering without its words ("typography", "slogan", "tagline", "manifesto", "micro-text", "coordinates", "box logo", "monogram" alone) — the picture would print those words. If a print has no words, say so ("brush strokes, no words"). ' +
+      // (21 Nov 2026) a customer can't know what to type: the same two buttons every time
+      `When the words do not say which of the two they want (only the picture, "use this", "hmm", "what can you do?") — never guess, and never print the photo of the tee itself as it is: an ask step with the question "Do you want a tee like this one, or new designs inspired by it?" and EXACTLY these options: ${JSON.stringify(TEE_PHOTO_CHOICES)} (the first means ONE LIKE IT, the second NEW DESIGNS INSPIRED BY IT).`,
+    "What our printing (DTF transfers pressed on the finished tee) cannot do — change it into the nearest thing we can, and say so in ONE short sentence in the reply: a print running over the collar, a seam or the hem → it stops just short of the edge; a band all the way round a sleeve → a band on the outside of the sleeve; a sewn tag or patch → a small print just above the hem. Leave out the label inside the neck: every IDENTEE tee has its own.",
+    'A logo, artwork or a photo to put on the tee as it is, or to build designs around: concepts with logo: true (or an edit step to place it). Redrawn as art (cartoon, sketch …): menu "Photo to art". If you truly cannot tell what they want, ask ONE short question with options.',
+  ].join(" ");
 }
 
 // (17 Nov 2026) several pictures in one message: what they are, and the two ways to use them — each its own way and
@@ -194,7 +225,8 @@ function photosPrompt(photos, earlier, photoStyles = []) {
 }
 
 /** Only what the page can use goes back: known step kinds, real areas, styles, pieces, short texts, an ask last. */
-export function cleanBrainAnswer(out, { areas = [], styles = [], sheets = [], photoCount = 0, photoStyles = [] } = {}) {
+// picture: one picture of the customer's is attached or still waiting (a sheet may be made LIKE it: reference)
+export function cleanBrainAnswer(out, { areas = [], styles = [], sheets = [], photoCount = 0, photoStyles = [], picture = false } = {}) {
   const areaKey = (k) => (areas.some((a) => a.key === k) ? k : null);
   // (17 Nov 2026) picture numbers of the photos sent with the message: 1 … photoCount, no repeats
   const photoNos = (list) => [...new Set((Array.isArray(list) ? list : []).map(Number).filter((n) => Number.isInteger(n) && n >= 1 && n <= photoCount))];
@@ -214,20 +246,36 @@ export function cleanBrainAnswer(out, { areas = [], styles = [], sheets = [], ph
     }
     if (type === "concepts") {
       const concepts = (Array.isArray(raw.concepts) ? raw.concepts : [])
-        .map((c) => ({
-          title: clip(c?.title, 50),
-          front: c?.front ? clip(c.front, 300) : null,
-          back: c?.back ? clip(c.back, 300) : null,
-          sleeve: c?.sleeve ? clip(c.sleeve, 200) : null,
-          colours: clip(c?.colours, 80),
-          style: style(c?.style) || styles[0] || null,
-        }))
+        .map((c) => {
+          // (21 Nov 2026) a second sleeve print only next to a first one: a lone "sleeve2" is the sleeve print
+          const [s1, s2] = [c?.sleeve ? clip(c.sleeve, 200) : null, c?.sleeve2 ? clip(c.sleeve2, 200) : null];
+          return {
+            title: clip(c?.title, 50),
+            front: c?.front ? clip(c.front, 300) : null,
+            back: c?.back ? clip(c.back, 300) : null,
+            sleeve: s1 || s2,
+            sleeve2: s1 && s2 && s2 !== s1 ? s2 : null,
+            colours: clip(c?.colours, 80),
+            style: style(c?.style) || styles[0] || null,
+          };
+        })
         .filter((c) => c.title && (c.front || c.back || c.sleeve))
         .slice(0, CONCEPTS_PER_SHEET);
       if (concepts.length < 2) continue;
       // photos: the pictures of this message the sheet is built from (mixing several into one design, 17 Nov 2026)
       const used = photoNos(raw.photos);
-      steps.push({ type, brief: clip(raw.brief, 400) || concepts.map((c) => c.title).join(", "), concepts, logo: raw.logo === true || used.length > 0, ...(raw.basis === "tee" && !used.length ? { basis: "tee" } : {}), ...(used.length ? { photos: used } : {}) });
+      // reference (21 Nov 2026): made LIKE the customer's picture of a whole tee — that picture goes to the picture AI
+      // as the reference (not as a logo printed as it is), so only with one picture and no other basis
+      const reference = raw.reference === true && picture && !used.length;
+      steps.push({
+        type,
+        brief: clip(raw.brief, 400) || concepts.map((c) => c.title).join(", "),
+        concepts,
+        logo: reference ? false : raw.logo === true || used.length > 0,
+        ...(reference ? { reference: true, ...(raw.inspired === true ? { inspired: true } : {}) } : {}),
+        ...(raw.basis === "tee" && !used.length && !reference ? { basis: "tee" } : {}),
+        ...(used.length ? { photos: used } : {}),
+      });
       continue;
     }
     if (type === "photos") {
@@ -270,7 +318,7 @@ export function cleanBrainAnswer(out, { areas = [], styles = [], sheets = [], ph
         .filter((p) => p.name || p.number)
         .slice(0, 99);
       if (!players.length) continue;
-      const on = (v, fallback) => (PIECES.includes(v) ? v : fallback);
+      const on = (v, fallback) => (TEAM_ON.includes(v) ? v : fallback);
       steps.push({ type, players, namesOn: on(raw.namesOn, "back"), numbersOn: raw.numbersOn == null ? null : on(raw.numbersOn, "back") });
       continue;
     }
@@ -392,6 +440,27 @@ function mockBrain(said, { areas, styles, sheets }, facts = {}, history = [], { 
   }
   const seeOn = low.match(/^(see|show) it on (\w+)/);
   if (seeOn) return { reply: `MOCK: here it is on ${seeOn[2]}.`, steps: [{ type: "edit", message: `Change the tee colour to ${seeOn[2]}` }], chips: ["Back to my colour", "Looks great!"] };
+  // (21 Nov 2026) a picture of a whole tee + "like this" (or the answer "new inspired designs" while it waits): three
+  // concepts made LIKE it — every print, both sleeves; a band round the sleeve becomes one on its outside
+  // a picture with words that don't say what to do (the stand-in can't see it is a tee): the two tee buttons
+  if (attached && /^(hmm+|ok|\?+|what can you do\??|use this)$/.test(low.trim()))
+    return { reply: "MOCK: nice tee!", steps: [{ type: "ask", question: "Do you want a tee like this one, or new designs inspired by it?", options: TEE_PHOTO_CHOICES }], chips: [] };
+  // ("inspired" = new designs with its feel, not a copy)
+  const inspired = /inspired|ideas from|in (this|that) style|not a copy/.test(low);
+  if (attached && (inspired || /\blike (this|that|it)\b|similar|same as (this|that)|make me this|copy this/.test(low))) {
+    const base = sheets.length * CONCEPTS_PER_SHEET;
+    const twist = inspired ? ["a new mascot with the same brush strokes", "new bold lettering in the same style", "a new badge in the same colour mood"] : ["as in the picture", "in red and black inks", "with my own name in place of the brand words"];
+    const concepts = twist.map((t, i) => ({
+      title: `Mock ${inspired ? "inspired" : "like-this"} ${base + i + 1}`,
+      front: `small logo on the left chest, brush strokes down the left side of the front, ${t}`,
+      back: `the brand name in tall letters down the centre of the back, ${t}`,
+      sleeve: "a short line of words on the left sleeve",
+      sleeve2: "a band with the brand name on the outside of the right sleeve",
+      colours: i === 1 ? "red, black" : "black, yellow",
+      style: styles[0] || null,
+    }));
+    return { reply: `MOCK: three ${inspired ? "new designs inspired by" : "tees like"} your picture. The sleeve band goes on the outside of the sleeve — a print can't go all the way round.`, steps: [{ type: "concepts", brief: said, reference: true, ...(inspired ? { inspired: true } : {}), concepts }], chips: ["More options"] };
+  }
   // a picture attached (or a logo on file) + "use our logo": three concepts built around it
   if ((attached || logo) && /logo|brand|this picture|this image|use (this|it|our)/.test(low)) {
     const base = sheets.length * CONCEPTS_PER_SHEET;

@@ -9,13 +9,23 @@ import sharp from "sharp";
 export const SHEET_RATIO = "16:9";
 export const SHEET_SIZE = "2K"; // three tees on one picture need the detail (₹4.20 instead of ₹3)
 export const SHEET_COST_FACTOR = 1.5; // a 2K picture costs 1.5× a 1K one (Google's price list, 7 Nov 2026)
-const PIECE_WORD = { front: "front", back: "back", sleeve: "sleeve" };
+// sleeve2 (21 Nov 2026): a concept may carry a print on each sleeve — "sleeve" is the left one, "sleeve2" the right
+const PIECE_WORD = { front: "front", back: "back", sleeve: "left sleeve", sleeve2: "right sleeve" };
 
 const clean = (v, n) => String(v ?? "").replace(/\s+/g, " ").trim().slice(0, n);
 
 /** The words for one concept, as the sheet prompt and the develop prompt describe it. */
 export const conceptWords = (c) =>
-  [c.front ? `front: ${c.front}` : "front: nothing", c.back ? `back: ${c.back}` : "back: nothing", c.sleeve ? `sleeve: ${c.sleeve}` : "sleeve: nothing", c.colours ? `ink colours: ${c.colours}` : "", c.style ? `style: ${c.style}` : ""].filter(Boolean).join("; ");
+  [
+    c.front ? `front: ${c.front}` : "front: nothing",
+    c.back ? `back: ${c.back}` : "back: nothing",
+    c.sleeve2 ? `left sleeve: ${c.sleeve || "nothing"}` : c.sleeve ? `sleeve: ${c.sleeve}` : "sleeve: nothing",
+    c.sleeve2 ? `right sleeve: ${c.sleeve2}` : "",
+    c.colours ? `ink colours: ${c.colours}` : "",
+    c.style ? `style: ${c.style}` : "",
+  ]
+    .filter(Boolean)
+    .join("; ");
 
 /**
  * The picture instruction for a sheet of numbered concepts.
@@ -25,18 +35,38 @@ export const conceptWords = (c) =>
  * @param numberFrom the number of the first concept on this sheet (4 for the second sheet)
  */
 // pictures (17 Nov 2026): how many of the customer's own pictures are attached to be mixed into the concepts (2–6)
-export function sheetPrompt({ concepts, garment = "t-shirt", teeColour = "white", teeIsDark = false, numberFrom = 1, logo = false, basis = false, pictures = 0 }) {
+// reference (21 Nov 2026): the attached image is a whole tee the customer wants one LIKE — its layout and look are
+// copied (each concept says how), within what we can print. inspired: the same picture only as inspiration — three
+// NEW designs with its feel, none a copy
+export function sheetPrompt({ concepts, garment = "t-shirt", teeColour = "white", teeIsDark = false, numberFrom = 1, logo = false, basis = false, pictures = 0, reference = false, inspired = false }) {
   const list = concepts.map((c, i) => `${numberFrom + i}) "${clean(c.title, 50)}" — ${conceptWords(c)}`).join(" ");
+  const twoSleeves = concepts.some((c) => c.sleeve2);
   return (
     `A clean product concept sheet on a plain light grey studio background, landscape, showing ${concepts.length} different t-shirt design concepts side by side as flat catalogue mockups. ` +
-    `Each concept is labelled with a large, bold, black numeral above it (${concepts.map((_, i) => numberFrom + i).join(", ")}) and shows the same ${clean(garment, 40)} in ${clean(teeColour, 30)} from the front and from the back, with the sleeve print as a small inset where the concept has one. ` +
+    `Each concept shows the same ${clean(garment, 40)} in ${clean(teeColour, 30)} from the front and from the back, with ${twoSleeves ? "each sleeve print as a small inset (left sleeve, right sleeve)" : "the sleeve print as a small inset"} where the concept has one — each sleeve inset shown ONCE per concept, beside its front view, never repeated by the back view. ` +
+    // (21 Nov 2026 real test: insets drawn twice; a tiny neck label drawn inside the collar)
+    `Draw no neck label, size tag, hem tag or brand tab on the tees — only the printed artwork the concept describes. ` +
+    // (21 Nov 2026: the sheet used to give half its height to huge numerals over tiny tees)
+    `FILL THE FRAME: the tees are the main subject and take up most of the picture — about 80% of its height, edge to edge with only a small margin. Each concept is labelled with a small, bold, black numeral (${concepts.map((_, i) => numberFrom + i).join(", ")}) in the top-left corner just above its tees, no taller than one-tenth of the picture's height. No big empty space anywhere. ` +
     `The printed artwork must be clearly visible and large on each tee${teeIsDark ? ", in inks that stand out on the dark fabric" : ""}. The concepts: ${list}. ` +
-    `Consistent lighting, no people, no hangers, no extra text anywhere except the numerals and the words that are printed on the tees. Every word printed on a tee must be spelled exactly as given.` +
+    `Consistent lighting, no people, no hangers, no extra text anywhere except the numerals and the words that are printed on the tees — no titles, no concept names, no captions, no "FRONT" / "BACK" labels${twoSleeves ? " (only a tiny \"L\" and \"R\" beside the two sleeve insets)" : ""}. Every word printed on a tee must be spelled exactly as given. ` +
+    // (21 Nov 2026: "stencil typography" was printed as the word STENCIL, "technical box logo" as TECHNICAL LOGO)
+    `Only words given in quotes are printed. A print described without quoted words has NO lettering at all (a shape, mark or texture instead) — never print a description, a style name or made-up words.` +
     (logo ? ` The attached image is the customer's own logo / artwork: wherever a concept says "logo", print it on the tee EXACTLY as it is — the same shapes, colours and words, not redrawn, not restyled — sized and placed as that concept describes.` : "") +
     (pictures > 1 ? ` ${picturesLine(pictures, 1)} Wherever a concept names "picture 1", "picture 2" … (or "logo"), use THAT attached picture: a logo or lettering stays EXACTLY as it is (same shapes, colours and words); a person, pet or object is drawn recognisably in the concept's style; a garment's print gives its style and look.` : "") +
-    (basis ? ` The attached image is the artwork already on the customer's tee: every concept is a version of THAT artwork — the same drawing, composition and words, changed only as the concept says (its ink colours or its style). Do not invent a different picture.` : "")
+    (basis ? ` The attached image is the artwork already on the customer's tee: every concept is a version of THAT artwork — the same drawing, composition and words, changed only as the concept says (its ink colours or its style). Do not invent a different picture.` : "") +
+    (reference ? ` ${inspired ? INSPIRED_LINE : REFERENCE_LINE} ${DTF_LINE}` : "")
   );
 }
+
+// the reference tee (21 Nov 2026): what the picture AI takes from it, and the printing limits it keeps to
+const REFERENCE_LINE =
+  "The attached image shows a t-shirt the customer wants a tee LIKE. Copy its layout and look: the same kinds of prints in the same places and at the same sizes, the same lettering style, brush or texture effects, graphic shapes and ink colours — changed only where a concept says so. A logo or lettering in it stays EXACTLY as it is (same shapes and words).";
+// "new inspired designs" (21 Nov 2026): the picture is only inspiration — its feel, never its artwork
+const INSPIRED_LINE =
+  "The attached image shows a t-shirt the customer likes — use it ONLY as inspiration. Take its feel: the kind of layout (where the prints sit and how big they are), the lettering style, brush or texture effects and the colour mood. Each concept is a NEW design made from what that concept says: do not copy the picture's artwork, logo or brand words, and no concept is a copy of it.";
+const DTF_LINE =
+  "Every print sits on flat fabric, as a direct-to-film transfer is pressed: a print near an edge stops a little short of the collar, the hem and the side seams instead of running over them, and a sleeve band is printed on the outside of the sleeve only, not all the way round. Leave out sewn labels and tags — they are not prints.";
 
 /**
  * A companion piece drawn from the artwork already on the tee (round 5, 8 Nov 2026): "make a matching back".
@@ -46,7 +76,7 @@ export function sheetPrompt({ concepts, garment = "t-shirt", teeColour = "white"
  */
 export function matchPrompt({ piece = "back", from = "the front", brief = "", teeColour = "white", teeIsDark = false }) {
   return (
-    `The attached image is the artwork printed on ${clean(from, 40)} of a ${clean(teeColour, 30)} t-shirt. Draw the matching ${PIECE_WORD[piece] || "back"} artwork for the SAME tee: a companion piece in exactly the same style, line quality, level of detail and ink colours, so the two clearly belong together${teeIsDark ? ", in inks that stand out on the dark fabric" : ""}. ` +
+    `The attached image is the artwork printed on ${clean(from, 40)} of a ${clean(teeColour, 30)} t-shirt. Draw the matching ${piece === "sleeve" ? "sleeve" : PIECE_WORD[piece] || "back"} artwork for the SAME tee: a companion piece in exactly the same style, line quality, level of detail and ink colours, so the two clearly belong together${teeIsDark ? ", in inks that stand out on the dark fabric" : ""}. ` +
     `The new piece shows: ${clean(brief, 400) || "a simpler companion mark in the same style"}. Any words must be spelled exactly as given. ` +
     `Finished, print-ready artwork alone, large and centred, on a flat, solid, pure magenta (#FF00FF) background and nothing else (no magenta, pink or purple in the artwork itself). No t-shirt, no mockup, no frame, no extra text.`
   );
@@ -97,12 +127,17 @@ export function wornPrompt({ garment = "t-shirt", teeColour = "white", setting =
  * @param piece   "front" | "back" | "sleeve"
  * @param n       the concept's number on the sheet
  */
-export function developPrompt({ concept, n, piece, teeIsDark = false, logo = false, change = "", pictures = 0 }) {
+// reference (21 Nov 2026): the second attached image is the tee the customer wants one like (its look kept exactly)
+export function developPrompt({ concept, n, piece, teeIsDark = false, logo = false, change = "", pictures = 0, reference = false }) {
   const what = clean(concept?.[piece], 300) || clean(concept?.front, 300);
+  const word = PIECE_WORD[piece] || "front";
+  // a concept with one sleeve print calls it "the sleeve" on the sheet
+  const onSheet = piece === "sleeve" && !concept?.sleeve2 ? "sleeve" : word;
   return (
-    `The attached image is a concept sheet with numbered t-shirt designs. Reproduce ONLY the ${PIECE_WORD[piece] || "front"} artwork of concept ${n} ("${clean(concept?.title, 50)}": ${what}${concept?.colours ? `; ink colours ${clean(concept.colours, 80)}` : ""}${concept?.style ? `; style ${clean(concept.style, 40)}` : ""}) as finished, print-ready artwork: the artwork alone, large and centred, on a flat, solid, pure magenta (#FF00FF) background and nothing else (no magenta, pink or purple in the artwork itself). ` +
+    `The attached image is a concept sheet with numbered t-shirt designs. Reproduce ONLY the ${onSheet} artwork of concept ${n} ("${clean(concept?.title, 50)}": ${what}${concept?.colours ? `; ink colours ${clean(concept.colours, 80)}` : ""}${concept?.style ? `; style ${clean(concept.style, 40)}` : ""}) as finished, print-ready artwork: the artwork alone, large and centred, on a flat, solid, pure magenta (#FF00FF) background and nothing else (no magenta, pink or purple in the artwork itself). ` +
     `No t-shirt, no mockup, no numerals, no sheet, no shadows, no extra text — only the words that are part of the artwork, spelled exactly as on the sheet. Keep its colours, style and composition as shown on the sheet, with sharper, cleaner detail.` +
     (logo ? ` The second attached image is the customer's own logo: where the artwork uses it, reproduce it EXACTLY (same shapes, colours and words), not redrawn.` : "") +
+    (reference && !logo && pictures < 2 ? ` The second attached image is the t-shirt the customer wants theirs to be like: take the look of this ${onSheet} print from the same place on it — its lettering style, brush or texture effects, shapes and ink colours — with any logo or lettering EXACTLY as it is there. Draw it flat, as artwork only.` : "") +
     (pictures > 1 ? ` ${picturesLine(pictures, 2)} Where the artwork uses one of them, keep it as on the sheet: a logo or lettering EXACTLY as it is, a person, pet or object recognisable.` : "") +
     (clean(change, 300) ? ` The customer asked for ONE change to this artwork: ${clean(change, 300)}. Apply exactly that change and keep everything else as on the sheet.` : "")
   );
@@ -113,10 +148,10 @@ const picturesLine = (n, first) =>
   first === 1 ? `The ${n} attached images are the customer's own pictures, picture 1 to picture ${n} in order.` : `After the concept sheet, the next ${n} attached images are the customer's own pictures, picture 1 to picture ${n} in order.`;
 
 /** Which pieces a concept has (the ones with a print). */
-export const piecesOf = (concept) => ["front", "back", "sleeve"].filter((p) => concept?.[p]);
+export const piecesOf = (concept) => ["front", "back", "sleeve", "sleeve2"].filter((p) => concept?.[p]);
 
 /** The shape of a piece's picture: a sleeve print is tall and thin, the others square-ish (the area's ratio decides later). */
-export const pieceRatio = (piece, areaRatio) => areaRatio || (piece === "sleeve" ? "3:4" : "1:1");
+export const pieceRatio = (piece, areaRatio) => areaRatio || (/^sleeve/.test(piece) ? "3:4" : "1:1");
 
 /** The stand-in sheet for AI_IMAGE_PROVIDER=mock: three numbered tiles on a light background (a real PNG). */
 export async function mockSheet(concepts, { teeColour = "white", numberFrom = 1 } = {}) {

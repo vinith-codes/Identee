@@ -58,6 +58,8 @@ const conceptIn = (c) => ({
   front: c?.front ? text(c.front, 300) : null,
   back: c?.back ? text(c.back, 300) : null,
   sleeve: c?.sleeve ? text(c.sleeve, 200) : null,
+  // (21 Nov 2026) the right sleeve, when both sleeves carry prints
+  sleeve2: c?.sleeve && c?.sleeve2 ? text(c.sleeve2, 200) : null,
   colours: text(c?.colours, 80),
   style: AI_STYLES[c?.style] ? c.style : null,
 });
@@ -103,7 +105,10 @@ export const makeAssist = asyncHandler(async (req, res) => {
   );
   const left = Math.max(0, s.dailyPerUser - (await usedToday(req.user._id)));
   // a picture sent with this message, and the logo on file in this chat (only our own uploads)
-  const attached = req.body?.photo?.url && isOurUpload(String(req.body.photo.url)) ? { url: String(req.body.photo.url), about: text(req.body.photo.about, 200) } : null;
+  // (21 Nov 2026) photoEarlier: a picture sent with an earlier message and not used yet — the answer is about it
+  const sentNow = req.body?.photo?.url && isOurUpload(String(req.body.photo.url)) ? { url: String(req.body.photo.url), about: text(req.body.photo.about, 200) } : null;
+  const waiting = !sentNow && req.body?.photoEarlier?.url && isOurUpload(String(req.body.photoEarlier.url)) ? { url: String(req.body.photoEarlier.url), about: text(req.body.photoEarlier.about, 200), earlier: true } : null;
+  const attached = sentNow || waiting;
   const logo = req.body?.logoUrl && isOurUpload(String(req.body.logoUrl)) ? String(req.body.logoUrl) : null;
   // (17 Nov 2026) several pictures with this message (or still waiting from the last one: photosEarlier) — only our own
   // uploads, at most 6. The real brain is shown small copies of them all, so it can look at them together.
@@ -116,6 +121,15 @@ export const makeAssist = asyncHandler(async (req, res) => {
     small.forEach((im, i) => {
       if (im) photos[i].image = im;
     });
+  }
+  // (21 Nov 2026) ONE picture is shown to the brain too (it used to get only the customer's words about it, so a whole
+  // tee sent with "like this" was taken for a logo): a 1,024 px copy, so the small prints on a tee can be read
+  const one = attached || (photos.length === 1 && !req.body?.photosEarlier ? { ...photos[0] } : null);
+  if (one && process.env.AI_CHAT_PROVIDER?.trim() !== "mock") {
+    const im = await fetchOurImage(one.url, req)
+      .then((pic) => smallCopy(pic, 1024))
+      .catch(() => null);
+    if (im) one.image = im;
   }
   // what we know about this customer from earlier visits (round 5, 8 Nov 2026) — kept on their account
   const profile = String((await User.findById(req.user._id).select("aiProfile").lean().catch(() => null))?.aiProfile || "").slice(0, 400);
@@ -136,7 +150,7 @@ export const makeAssist = asyncHandler(async (req, res) => {
       styles: Object.keys(AI_STYLES),
       sheets,
       // (one picture goes as `attached`, exactly as before; two or more as `photos`)
-      attached: attached || (photos.length === 1 && !req.body?.photosEarlier ? photos[0] : null),
+      attached: one,
       logo,
       photos: photos.length > 1 ? photos : [],
       photosEarlier: Boolean(req.body?.photosEarlier),
@@ -216,6 +230,10 @@ async function withGrok(settings, googleJob, grokJob, what) {
 export const makeConcepts = asyncHandler(async (req, res) => {
   const { s, used } = await mayDraw(req, res);
   const concepts = (Array.isArray(req.body?.concepts) ? req.body.concepts : []).map(conceptIn).filter((c) => c.title && (c.front || c.back || c.sleeve)).slice(0, CONCEPTS_PER_SHEET);
+  // (21 Nov 2026) refUrl: the customer's picture of a whole tee, the concepts made LIKE it — the reference picture
+  const refUrl = req.body?.refUrl && isOurUpload(String(req.body.refUrl)) ? String(req.body.refUrl) : null;
+  // inspired: NEW designs with that picture's feel, not a copy of it ("new inspired designs")
+  const inspired = Boolean(refUrl) && req.body?.inspired === true;
   if (concepts.length < 2) {
     res.status(400);
     throw new Error("Tell me what the concepts should show.");
@@ -226,13 +244,15 @@ export const makeConcepts = asyncHandler(async (req, res) => {
   const numberFrom = Math.max(1, Math.min(97, Number(req.body?.numberFrom) || 1));
   // the customer's own logo / artwork (one of our uploads): sent with the instruction, printed exactly as it is
   // (17 Nov 2026) logoUrls: several of the customer's pictures mixed into one design — all sent, numbered in order
-  const logoUrls = ourUrls(req.body?.logoUrls);
-  const logoUrl = logoUrls.length > 1 ? null : logoUrls[0] || (req.body?.logoUrl && isOurUpload(String(req.body.logoUrl)) ? String(req.body.logoUrl) : null);
+  // (a reference tee is the one picture sent: no logo, no other basis with it)
+  const logoUrls = refUrl ? [] : ourUrls(req.body?.logoUrls);
+  const logoUrl = refUrl || logoUrls.length > 1 ? null : logoUrls[0] || (req.body?.logoUrl && isOurUpload(String(req.body.logoUrl)) ? String(req.body.logoUrl) : null);
   // colourways / variations (round 5): the picture already on the tee goes as the reference instead
-  const basisUrl = !logoUrl && logoUrls.length < 2 && req.body?.basisUrl && isOurUpload(String(req.body.basisUrl)) ? String(req.body.basisUrl) : null;
+  const basisUrl = !refUrl && !logoUrl && logoUrls.length < 2 && req.body?.basisUrl && isOurUpload(String(req.body.basisUrl)) ? String(req.body.basisUrl) : null;
   const logos = logoUrls.length > 1 ? await Promise.all(logoUrls.map(async (u) => smallCopy(await fetchOurImage(u, req), 1024))) : [];
-  const logo = logos[0] || (logoUrl ? await smallCopy(await fetchOurImage(logoUrl, req), 1024) : basisUrl ? await smallCopy(await fetchOurImage(basisUrl, req), 1024) : null);
-  const prompt = sheetPrompt({ concepts, garment, teeColour, teeIsDark, numberFrom, logo: Boolean(logoUrl), basis: Boolean(basisUrl), pictures: logos.length });
+  const one = refUrl || logoUrl || basisUrl;
+  const logo = logos[0] || (one ? await smallCopy(await fetchOurImage(one, req), refUrl ? 1536 : 1024) : null);
+  const prompt = sheetPrompt({ concepts, garment, teeColour, teeIsDark, numberFrom, logo: Boolean(logoUrl), basis: Boolean(basisUrl), pictures: logos.length, reference: Boolean(refUrl), inspired });
   const { made, byGrok } = mockImages()
     ? { made: await mockSheet(concepts, { teeColour, numberFrom }), byGrok: false }
     : await withGrok(
@@ -251,10 +271,10 @@ export const makeConcepts = asyncHandler(async (req, res) => {
     costInr: Math.round((byGrok ? s.grokPricePerImageInr : s.pricePerImageInr * SHEET_COST_FACTOR) * 100) / 100,
     model: byGrok ? xaiModel() : aiImageModel(),
     // the sheet itself, so the admin can feature it in Browse ideas (round 7)
-    sheet: { url: stored.url, width: meta.width || 1536, height: meta.height || 864, brief: text(req.body?.brief, 400), concepts, teeColour, teeIsDark, logo: Boolean(logoUrl || basisUrl || logos.length) },
+    sheet: { url: stored.url, width: meta.width || 1536, height: meta.height || 864, brief: text(req.body?.brief, 400), concepts, teeColour, teeIsDark, logo: Boolean(logoUrl || basisUrl || refUrl || logos.length) },
   });
   res.status(201).json({
-    sheet: { url: stored.url, width: meta.width || 1536, height: meta.height || 864, numberFrom, concepts: concepts.map((c, i) => ({ n: numberFrom + i, ...c })), byGrok, logoUrl: logoUrl || null, ...(logos.length ? { logoUrls } : {}) },
+    sheet: { url: stored.url, width: meta.width || 1536, height: meta.height || 864, numberFrom, concepts: concepts.map((c, i) => ({ n: numberFrom + i, ...c })), byGrok, logoUrl: logoUrl || null, ...(logos.length ? { logoUrls } : {}), ...(refUrl ? { refUrl, ...(inspired ? { inspired: true } : {}) } : {}) },
     left: Math.max(0, s.dailyPerUser - used - 1),
   });
 });
@@ -291,13 +311,17 @@ export const makeDevelop = asyncHandler(async (req, res) => {
   const logoUrl = logoUrls.length ? null : req.body?.logoUrl && isOurUpload(String(req.body.logoUrl)) ? String(req.body.logoUrl) : null;
   const logos = logoUrls.length ? await Promise.all(logoUrls.map(async (u) => smallCopy(await fetchOurImage(u, req), 1024))) : [];
   const logo = logos[0] || (logoUrl ? await smallCopy(await fetchOurImage(logoUrl, req), 1024) : null);
-  const ratioOf = Object.fromEntries(pieces.map((piece) => [piece, nearestRatio(Number(ratios[piece]) || (piece === "sleeve" ? 0.75 : 1))]));
+  // (21 Nov 2026) a sheet made LIKE the customer's picture of a whole tee: that picture goes along again, so each
+  // piece keeps its look (the lettering, the brush strokes) — never with a logo
+  const refUrl = !logo && req.body?.refUrl && isOurUpload(String(req.body.refUrl)) ? String(req.body.refUrl) : null;
+  const ref = refUrl ? await smallCopy(await fetchOurImage(refUrl, req), 1536) : null;
+  const ratioOf = Object.fromEntries(pieces.map((piece) => [piece, nearestRatio(Number(ratios[piece]) || (/^sleeve/.test(piece) ? 0.75 : 1))]));
   const drawPiece = (piece, extraChange = null) => {
-    const prompt = developPrompt({ concept, n, piece, teeIsDark, logo: Boolean(logo) && logos.length < 2, pictures: logos.length > 1 ? logos.length : 0, change: [change, extraChange].filter(Boolean).join(". ") || null });
+    const prompt = developPrompt({ concept, n, piece, teeIsDark, logo: Boolean(logo) && logos.length < 2, pictures: logos.length > 1 ? logos.length : 0, reference: Boolean(ref), change: [change, extraChange].filter(Boolean).join(". ") || null });
     return withGrok(
       s,
       // (the pieces go on the customer's tee: drawn at 4K since 15 Nov 2026; the sheet itself stays SHEET_SIZE)
-      () => generateImage({ prompt, image, images: logos.length ? logos : logo ? [logo] : [], ratio: ratioOf[piece], size: DESIGN_SIZE }),
+      () => generateImage({ prompt, image, images: logos.length ? logos : logo ? [logo] : ref ? [ref] : [], ratio: ratioOf[piece], size: DESIGN_SIZE }),
       () => xaiEditImage({ prompt, image, ratio: ratioOf[piece], resolution: GROK_BEST }),
       `${piece} of concept ${n}${extraChange ? " (spelling)" : ""}`,
     );
@@ -382,7 +406,7 @@ export const makeMatch = asyncHandler(async (req, res) => {
   const brief = text(req.body?.brief, 400);
   const teeColour = text(req.body?.teeColour, 30).replace(/[^\w \-]/g, "") || "white";
   const teeIsDark = Boolean(req.body?.teeIsDark);
-  const ratio = nearestRatio(Number(req.body?.ratio) || (piece === "sleeve" ? 0.75 : 1));
+  const ratio = nearestRatio(Number(req.body?.ratio) || (/^sleeve/.test(piece) ? 0.75 : 1));
   const image = await smallCopy(await fetchOurImage(fromUrl, req), 1536);
   const prompt = matchPrompt({ piece, from: text(req.body?.fromLabel, 40) || "the front", brief, teeColour, teeIsDark });
   const { made, byGrok } = mockImages()
