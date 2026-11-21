@@ -24,7 +24,7 @@ import PanelEditor from "./PanelEditor";
 import { AreaRenderer, cachedImage, imageSrcs, loadImage, measureText, playerElements, printThumb } from "./konvaRender";
 import { MAX_PLAYERS, NAME_MAX, NUMBER_MAX, filled, hasRoles, parsePlayers, playerLabel, rolesIn, sizeCounts } from "./teamOrder";
 import { areaCm, blockersOf, clashesIn, modelForGarment, placeArea, pointToCm, widenFor } from "./teeModel";
-import { JOIN_CM, MAX_SPOTS, SPOT_SIDES, applySpotFix, isSpotKey, normaliseSpots, reboxChanged, reboxSpot, spotPosition, spotsIn, spotWhere, withSpotBoxes } from "./panelModel";
+import { JOIN_CM, MAX_SPOTS, SPOT_SIDES, applySpotFix, areaBoxCm, isSpotKey, normaliseSpots, reboxChanged, reboxSpot, spotPosition, spotsIn, spotWhere, withSpotBoxes } from "./panelModel";
 import { CAP_MSG, dropThing, keepInside, movedThing, panelBox, panelView, scaledThing, snapLines, spotCount, startBox } from "./panelDrag";
 import AreaThumb from "./AreaThumb";
 import { AREA_GROUPS, groupOfSide, listOrder } from "./areaGroups";
@@ -40,7 +40,7 @@ import { accountChat, chatTitle, DRAFT_PREFIX, hashText, historyFor, keptChat, l
 import { AFTER_AI_SLOGANS, AFTER_DESIGN_CHIPS, BACK, CHANGE_IDEA, DRAW_MINE, PHOTO_AS_IS, PHOTO_CHOICES, PHOTO_CUT, PHOTO_REVERT, PROMPT_MAX, bot as botSays, checkMessages, chips as chipRow, firstMessages, firstState, smartPlan } from "./assistantScript";
 import { makeShareCard, shareTee } from "./shareTee";
 import { makeShareLink, shareMessage, whatsappUrl } from "../services/shareService";
-import { firstMessagesV2, isUntouchedStart, sheetsFromChat, nextConceptNumber, findConcept, piecesOf, pieceArea, pieceName, placementHint, shrinkForHint, aiPictureOnTee, ideaSheet, STARTER_CHIP, suggestionsFor } from "./assistantV2";
+import { firstMessagesV2, isUntouchedStart, sheetsFromChat, nextConceptNumber, findConcept, piecesOf, pieceArea, pieceName, placementHint, shrinkForHint, partsAsSpots, aiPictureOnTee, ideaSheet, STARTER_CHIP, suggestionsFor } from "./assistantV2";
 import { styleIn } from "./styleInfo";
 import { costLine, makeSideBySide, noPhotoNote, photoDataUrl, planSides, printedSides, sideLabel, sideWords, skippedNote, tryOnSides, wornCaption } from "./wornPhotos";
 import TryOnPhotos from "./TryOnPhotos";
@@ -2368,6 +2368,7 @@ export default function DesignRoomPage() {
     let focus = null;
     let first = true;
     const placed = {};
+    const dropLayout = new Set(); // laid-out pieces made again: their earlier parts' entries go
     // the pictures left today, kept up to date between concepts (each piece is one picture; 16 Nov 2026)
     let leftNow = ai.left == null ? null : Number(ai.left);
     for (const n of picks) {
@@ -2412,7 +2413,11 @@ export default function DesignRoomPage() {
         // (21 Nov 2026) layout: pieces that are a whole laid-out side (logo at the chest, strokes down the side …) — drawn
         // with every part where it sits on that side, for its whole print area
         const layout = pieces.filter((pc) => hints[pc]?.area === "whole" && areasFor[pc]);
-        res = await aiService.develop({ sheetUrl: sheet.url, n, concept, pieces, teeColour: colour?.name || "white", teeIsDark: lum(fabricHex) < 0.55, ratios, ...(layout.length ? { layout } : {}), ...(sheet.logoUrls?.length > 1 ? { logoUrls: sheet.logoUrls } : sheet.logoUrl ? { logoUrl: sheet.logoUrl } : sheet.refUrl && !sheet.inspired ? { refUrl: sheet.refUrl } : {}), ...(step.change ? { change: step.change } : {}) });
+        // (21 Nov 2026) ... and cut into its separate parts, each a print of its own in a free place: the server needs
+        // the print area's width (cm) and how many free places are left (the earlier AI parts are replaced, so free)
+        const layoutCm = Object.fromEntries(layout.map((pc) => [pc, areaBoxCm(areasFor[pc], size, garment).w]));
+        const freePlaces = Math.max(0, MAX_SPOTS - spotsIn(els).filter((b) => !aiPlaced[b.key]?.layout).length);
+        res = await aiService.develop({ sheetUrl: sheet.url, n, concept, pieces, teeColour: colour?.name || "white", teeIsDark: lum(fabricHex) < 0.55, ratios, ...(layout.length ? { layout, layoutCm, freePlaces } : {}), ...(sheet.logoUrls?.length > 1 ? { logoUrls: sheet.logoUrls } : sheet.logoUrl ? { logoUrl: sheet.logoUrl } : sheet.refUrl && !sheet.inspired ? { refUrl: sheet.refUrl } : {}), ...(step.change ? { change: step.change } : {}) });
       } catch (err) {
         out.push(botSays(err.response?.data?.message || `Concept ${n} couldn’t be made just now.`));
         continue;
@@ -2424,6 +2429,10 @@ export default function DesignRoomPage() {
       res.pieces.forEach((pc) => {
         aiCuts.current.set(pc.url, { path: pc.url, w: pc.width, h: pc.height });
         loadImage(pc.url).catch(() => {});
+        (pc.parts || []).forEach((p) => {
+          aiCuts.current.set(p.url, { path: p.url, w: p.width, h: p.height });
+          loadImage(p.url).catch(() => {});
+        });
       });
       setChat((m) => m.map((x) => (x.sheet?.url === sheet.url ? { ...x, sheet: { ...x.sheet, developed: [...new Set([...(x.sheet.developed || []), n])] } } : x)));
       if (run?.stopped) {
@@ -2432,21 +2441,38 @@ export default function DesignRoomPage() {
       }
       if (first) {
         const replaced = [];
+        const replacedParts = []; // laid-out sides whose earlier separate prints were replaced
+        const splitInto = {};
         for (const pc of res.pieces) {
           const pos = areasFor[pc.piece];
           if (!pos) continue;
           const el = shrinkForHint(aiElement(pos, { path: pc.url, w: pc.width, h: pc.height }, els.length + 1), pos, hints[pc.piece]);
           const old = aiPlaced[pos.key]?.elId;
           if (old && els.some((e) => e.id === old)) replaced.push(pos.label);
-          els = [...els.filter((e) => e.id !== old), el];
+          // (21 Nov 2026) the separate prints an earlier laid-out side of this piece was cut into go too
+          // (marked on the prints themselves, so an Undo that brought earlier parts back doesn't leave them under the new ones)
+          const oldParts = [...Object.values(aiPlaced).filter((put) => put.layout === pc.piece).map((put) => put.elId), ...els.filter((e) => e.aiLayout === pc.piece).map((e) => e.id)];
+          if (oldParts.some((id) => els.some((e) => e.id === id))) replacedParts.push(pieceName(pc.piece));
+          els = els.filter((e) => e.id !== old && !oldParts.includes(e.id));
+          dropLayout.add(pc.piece);
+          const split = pc.parts?.length > 1 || pc.parts?.[0]?.at ? partsAsSpots(els, el, pc.parts, pos, { positions, garment, size, maxPrint, makeId }) : null;
+          if (split) {
+            els = split.elements;
+            split.spots.forEach((sp) => (placed[sp.key] = { url: sp.url, elId: sp.elId, layout: pc.piece }));
+            splitInto[pc.piece] = split.spots.map((sp) => sp.label);
+            focus = focus || split.spots[0].key;
+            continue;
+          }
+          els = [...els, el];
           placed[pos.key] = { url: pc.url, elId: el.id };
           focus = focus || pos.key;
         }
         const redrawn = res.pieces.filter((pc) => pc.redrawn?.length);
         out.push(
           botSays(
-            `Concept ${n} “${concept.title}” is on your tee${res.pieces.length > 1 ? ` — ${andList(res.pieces.map((pc) => areasFor[pc.piece]?.label || pieceName(pc.piece)))}` : ""}.` +
-              (replaced.length ? ` It took the place of the earlier print on ${andList(replaced)} — press Undo (↶) to bring that back, or say “put the old one on the back”.` : " Tell me what to change, or press Undo (↶).") +
+            `Concept ${n} “${concept.title}” is on your tee${res.pieces.length > 1 ? ` — ${andList(res.pieces.map((pc) => (splitInto[pc.piece] ? `the ${pieceName(pc.piece)} as ${splitInto[pc.piece].length} prints` : areasFor[pc.piece]?.label || pieceName(pc.piece))))}` : ""}.` +
+              (Object.keys(splitInto).length ? ` The ${andList(Object.keys(splitInto).map(pieceName))} is in ${andList(Object.values(splitInto).map((l) => `${l.length > 1 ? `${l.length} separate prints` : "a print of its own"} (${andList(l)})`))}, ${res.pieces.some((pc) => splitInto[pc.piece] && pc.parts?.some((p) => p.at)) ? "each where it is on the concept you picked" : "each where it sits on the tee"} — move, resize or remove any of them on its own.` : "") +
+              (replaced.length ? ` It took the place of the earlier print on ${andList(replaced)} — press Undo (↶) to bring that back, or say “put the old one on the back”.` : replacedParts.length ? ` It took the place of the earlier ${andList(replacedParts)} prints — press Undo (↶) to bring them back.` : " Tell me what to change, or press Undo (↶).") +
               (redrawn.length ? ` (I checked the spelling and drew the ${andList(redrawn.map((pc) => areasFor[pc.piece]?.label || pieceName(pc.piece)))} again so ${andList(redrawn.flatMap((pc) => pc.redrawn).map((w) => `“${w}”`))} reads right.)` : ""),
           ),
         );
@@ -2459,7 +2485,7 @@ export default function DesignRoomPage() {
       if (res.failed?.length) out.push(botSays(`The ${andList(res.failed)} piece${res.failed.length === 1 ? "" : "s"} of concept ${n} couldn’t be drawn.`));
     }
     if (els !== elements) commit((now) => (now === elements ? els : mergeAiChanges(now, elements, els)));
-    if (Object.keys(placed).length) setAiPlaced((cur) => ({ ...cur, ...placed }));
+    if (Object.keys(placed).length || dropLayout.size) setAiPlaced((cur) => ({ ...Object.fromEntries(Object.entries(cur).filter(([, put]) => !dropLayout.has(put.layout))), ...placed }));
     if (focus && focus !== active) openArea(focus, { force: true });
     setSelectedId(null);
     // (which areas got a print just now — the chips after the steps look at it; the chat shows nothing for it)

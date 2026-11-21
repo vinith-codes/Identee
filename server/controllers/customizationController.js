@@ -66,6 +66,8 @@ const cleanElement = (positionByKey) => (el, i) => {
       ...base,
       src: el.src,
       artDesignId: mongoose.isValidObjectId(el.artDesignId) ? el.artDesignId : undefined,
+      // (21 Nov 2026) a part of the AI's laid-out side (the Assistant replaces these when that side is made again)
+      ...(el.aiLayout === "front" || el.aiLayout === "back" ? { aiLayout: el.aiLayout } : {}),
       // the 4K copy made for printing (the Studio's "Sharpen for print", 25 Oct 2026) and its width in px
       ...(el.printSrc && isOurImage(el.printSrc) ? { printSrc: el.printSrc, printW: clampNum(el.printW, 1, 20000, 0) || undefined } : {}),
     };

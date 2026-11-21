@@ -1,0 +1,57 @@
+{
+ "found": true,
+ "collar": [
+  39,
+  169,
+  101,
+  270
+ ],
+ "body": [
+  39,
+  9,
+  537,
+  419
+ ],
+ "parts": [
+  {
+   "part": 1,
+   "box": [
+    166,
+    256,
+    215,
+    311
+   ],
+   "what": "chest logo"
+  },
+  {
+   "part": 2,
+   "box": [
+    233,
+    76,
+    536,
+    158
+   ],
+   "what": "brush strokes print"
+  },
+  {
+   "part": 3,
+   "box": [
+    335,
+    159,
+    419,
+    202
+   ],
+   "what": "text block"
+  },
+  {
+   "part": 4,
+   "box": [
+    504,
+    313,
+    536,
+    336
+   ],
+   "what": "hem tag"
+  }
+ ]
+}

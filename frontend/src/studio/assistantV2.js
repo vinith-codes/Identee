@@ -3,6 +3,7 @@
 // Pure functions the chat and the page share: the first screen, the concept sheets kept in a chat, picks by number
 // ("3, 6 and 9", "the second one"), and which print area a concept's piece goes on.
 import { areaFor, areaInWords } from "./aiOps";
+import { MAX_SPOTS, areaBoxCm, elementToSpot, isSpotKey, panelFor, spotsIn } from "./panelModel";
 // (placementHint / shrinkForHint: where a concept's print goes and how big, from its own words — round 4)
 // (placementHint / shrinkForHint: where a concept's print goes and how big, from its own words — round 4)
 
@@ -269,3 +270,86 @@ export const ideaSheet = (idea, numberFrom = 1) => ({
   developed: [],
   fromIdeas: true,
 });
+
+/**
+ * (21 Nov 2026) A part of a copied tee's side where the server found it on the customer's photo (`part.at`: its top
+ * below the collar seam, its centre to the VIEWER's right of the centre line, its size — in front lengths, collar seam to
+ * hem = 1), as % of the print area `area` (areaBoxCm) on a tee whose side is `len` cm long: the part fitted inside that
+ * box, keeping its own shape, centred. One scale for every part (the side's length), so the layout keeps its shape.
+ * null when the part wasn't found (it stays where the drawing put it).
+ */
+export function photoPlace(part, side, area, frame) {
+  const at = part?.at;
+  const { len, drop, half, full } = frame || {};
+  if (!at || at.inCollar || !len || !area?.w || !area?.h) return null;
+  // "outline" (21 Nov 2026, the owner: "what we see in the mockup the same in the 3D tee"): a share of the tee as it
+  // LOOKS — down from its top (the 3D tee's top is `drop` above its collar line) to its hem, across its body's
+  // half-width (prints are pressed straight on). "shoulder": from the top of the shoulders in the size chart's length.
+  // Else: the collar seam to the hem.
+  const outline = at.from === "outline";
+  const shoulder = at.from === "shoulder";
+  const above = outline ? drop : shoulder && full ? full - len : 0;
+  if (above == null) return null;
+  const unit = outline || shoulder ? above + len : len;
+  const across = outline ? half : unit;
+  if (!unit || !across) return null;
+  const top = at.d * unit - above;
+  const boxW = at.w * across;
+  const boxH = at.h * unit;
+  const shape = (part.width || 1) / (part.height || 1);
+  // the part keeps its own shape, inside the box — and grows up to 15 % past it on its other side, so a mockup tee cut
+  // a little wider than ours (sheet 0.32 as wide as long, our 3D tee 0.28) doesn't squeeze a tall print: its top and
+  // bottom stay where the mockup has them (21 Nov 2026: gold strokes from the chest to the hem came out at 80 %)
+  const fit = boxW / boxH > shape ? boxH * shape : boxW;
+  const grow = Math.min(1.15, Math.max(boxW / fit, boxH / (fit / shape)));
+  const w = fit * grow;
+  const h = w / shape;
+  const centreR = at.r * across; // viewer's right of the centre line
+  // the print area's left edge as the viewer sees it (the front: + across is the wearer's left = the viewer's right;
+  // the back is seen from behind: the wearer's left is the viewer's left) — its file runs left to right the same way
+  const areaLeft = (side === "back" ? -area.across : area.across) - area.w / 2;
+  return { x: ((centreR - w / 2 - areaLeft) / area.w) * 100, y: ((top + (boxH - h) / 2 - area.down) / area.h) * 100, width: (w / area.w) * 100, height: (h / area.h) * 100 };
+}
+
+/**
+ * (21 Nov 2026) A laid-out side cut into its separate parts by the server (the chest logo, the strokes with their words,
+ * the hem tag): each part is put where it sits in the whole picture (`el`: the whole picture as it would go on the
+ * print area `pos`), then made a print of its own in a free place, keeping its cm place on the tee size `size`.
+ * @param parts  [{ url, width, height, x, y, w, h }] (x … h: 0–1 of the whole picture)
+ * @returns { elements, spots: [{ key, label, elId, url }] }, or null when any part can't be (the tee's free places
+ *          run out, a turned picture) — the whole picture goes on the print area then
+ */
+export function partsAsSpots(els, el, allParts, pos, { positions, garment, size, maxPrint = null, makeId }) {
+  // (a part inside the collar ring — a neck label the picture AI drew — is never printed: IDENTEE's own label goes there)
+  const parts = (allParts || []).filter((p) => !p?.at?.inCollar);
+  if (!parts.length || el.rotation || spotsIn(els).length + parts.length > MAX_SPOTS) return null;
+  // (a part found on the customer's photo goes where it is there: photoPlace)
+  const area = areaBoxCm(pos, size, garment);
+  const panel = panelFor(garment, size);
+  const len = panel?.[pos.side]?.len || null;
+  // (each part is marked as the AI's laid-out side, so making that side again replaces them — also after an Undo)
+  const partEls = parts.map((p, i) => ({
+    id: makeId(),
+    type: "image",
+    src: p.url,
+    aiLayout: pos.side,
+    position: pos.key,
+    side: pos.side,
+    rotation: 0,
+    zIndex: (el.zIndex || 1) + i,
+    ...(photoPlace(p, pos.side, area, { len, drop: panel?.[pos.side]?.drop, half: panel?.bodyHalf, full: panel?.length }) || { x: el.x + p.x * el.width, y: el.y + p.y * el.height, width: p.w * el.width, height: p.h * el.height }),
+    pxW: p.width,
+  }));
+  let next = [...els, ...partEls];
+  for (const pe of partEls) next = elementToSpot(next, pe.id, { positions, garment, size, maxPrint });
+  const spots = partEls.map((pe, i) => {
+    const now = next.find((e) => e.id === pe.id);
+    return now && isSpotKey(now.position) ? { key: now.position, label: now.spot?.label || now.position, elId: pe.id, url: parts[i].url } : null;
+  });
+  if (spots.some((sp) => !sp) || new Set(spots.map((sp) => sp.key)).size !== spots.length) return null;
+  // the parts were one print area's layout, which grows with the tee size: they all grow with it ("G"), so the layout
+  // keeps its shape on every size (a small logo alone would keep its cm, "F")
+  const keys = new Set(spots.map((sp) => sp.key));
+  next = next.map((e) => (keys.has(e.position) && e.spot && e.spot.scale !== "G" ? { ...e, spot: { ...e.spot, scale: "G" } } : e));
+  return { elements: next, spots };
+}

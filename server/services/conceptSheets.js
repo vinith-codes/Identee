@@ -130,22 +130,44 @@ export function wornPrompt({ garment = "t-shirt", teeColour = "white", setting =
 // reference (21 Nov 2026): the second attached image is the tee the customer wants one like (its look kept exactly)
 // layout (21 Nov 2026, live test): the piece is a whole laid-out side (a chest logo, strokes down the side, a tag near
 // the hem …) placed on that side's WHOLE print area — every part stays where it sits on the tee, not "large and centred"
-export function developPrompt({ concept, n, piece, teeIsDark = false, logo = false, change = "", pictures = 0, reference = false, layout = false }) {
+export function developPrompt({ concept, n, piece, teeColour = "", teeIsDark = false, logo = false, change = "", pictures = 0, reference = false, layout = false }) {
   const what = clean(concept?.[piece], 300) || clean(concept?.front, 300);
+  const inks = inkColours(concept?.colours, teeColour, teeIsDark);
   const word = PIECE_WORD[piece] || "front";
   // a concept with one sleeve print calls it "the sleeve" on the sheet
   const onSheet = piece === "sleeve" && !concept?.sleeve2 ? "sleeve" : word;
   const placed = layout
-    ? `the whole ${word} print area of the tee, edge to edge: every part of it exactly where it sits on the ${word} of that tee on the sheet — a chest logo up at the chest on its side, strokes down the side, a tag just above the hem — at the same sizes relative to each other and to the ${word}, with empty space between the parts (do NOT gather them in the middle or enlarge them). The picture's edges are the edges of the ${word} print area (just inside the collar, the side seams and the hem); leave a thin magenta margin all round — no part touches the picture's edges`
+    ? `the whole ${word} print area of the tee, edge to edge: every part of it exactly where it sits on the ${word} of that tee on the sheet — a chest logo up at the chest on its side, strokes down the side, a tag just above the hem — at the same sizes relative to each other and to the ${word}, with empty space between the parts (do NOT gather them in the middle or enlarge them). The picture's edges are the edges of the ${word} print area (just inside the collar, the side seams and the hem); leave a thin magenta margin all round — no part touches the picture's edges. Nothing inside the collar or on the neck: no neck label, no brand tab or size tag there even if the sheet shows one (IDENTEE sews its own woven label inside the collar)`
     : "the artwork alone, large and centred";
   return (
-    `The attached image is a concept sheet with numbered t-shirt designs. Reproduce ONLY the ${onSheet} artwork of concept ${n} ("${clean(concept?.title, 50)}": ${what}${concept?.colours ? `; ink colours ${clean(concept.colours, 80)}` : ""}${concept?.style ? `; style ${clean(concept.style, 40)}` : ""}) as finished, print-ready artwork: ${placed}, on a flat, solid, pure magenta (#FF00FF) background and nothing else (no magenta, pink or purple in the artwork itself). ` +
+    `The attached image is a concept sheet with numbered t-shirt designs. Reproduce ONLY the ${onSheet} artwork of concept ${n} ("${clean(concept?.title, 50)}": ${what}${inks ? `; ink colours ${inks}` : ""}${concept?.style ? `; style ${clean(concept.style, 40)}` : ""}) as finished, print-ready artwork: ${placed}, on a flat, solid, pure magenta (#FF00FF) background and nothing else (no magenta, pink or purple in the artwork itself). ` +
     `No t-shirt, no mockup, no numerals, no sheet, no shadows, no extra text — only the words that are part of the artwork, spelled exactly as on the sheet. Keep its colours, style and composition as shown on the sheet, with sharper, cleaner detail.` +
+    // (21 Nov 2026: on a black tee the sheet's thin gold streaks came out as BLACK streaks — the dark fabric between
+    // them was drawn as ink — so on the tee the strokes looked shorter than on the sheet)
+    (teeIsDark
+      ? ` The tee is dark: on the sheet, the dark you see around and between the marks is the tee's own fabric, not ink — draw it as magenta background. Draw every mark only in its own ink colour as on the sheet: thin, faint or broken streaks and dry-brush tips stay thin streaks in their own colour, never turned into black or dark shapes; no black or near-black outlines, shadows or patches that are not clearly printed in black on the sheet.`
+      : "") +
     (logo ? ` The second attached image is the customer's own logo: where the artwork uses it, reproduce it EXACTLY (same shapes, colours and words), not redrawn.` : "") +
     (reference && !logo && pictures < 2 ? ` The second attached image is the t-shirt the customer wants theirs to be like: take the look of this ${onSheet} print from the same place on it — its lettering style, brush or texture effects, shapes and ink colours — with any logo or lettering EXACTLY as it is there. Draw it flat, as artwork only.` : "") +
     (pictures > 1 ? ` ${picturesLine(pictures, 2)} Where the artwork uses one of them, keep it as on the sheet: a logo or lettering EXACTLY as it is, a person, pet or object recognisable.` : "") +
     (clean(change, 300) ? ` The customer asked for ONE change to this artwork: ${clean(change, 300)}. Apply exactly that change and keep everything else as on the sheet.` : "")
   );
+}
+
+/**
+ * The concept's ink colours for the drawing, without the tee's own colour on a dark tee (21 Nov 2026: a concept on a
+ * black tee listed "black, yellow" — the black being the fabric seen on the sheet — and the drawing painted the thin
+ * gold streaks and the fabric between them in black ink, invisible on the tee). "" when nothing is left.
+ */
+export function inkColours(colours, teeColour = "", teeIsDark = false) {
+  const all = clean(colours, 80);
+  const tee = String(teeColour || "").toLowerCase().match(/[a-z]+/g) || [];
+  if (!all || !teeIsDark || !tee.length) return all;
+  const kept = all
+    .split(/\s*(?:,|\/|&|\band\b)\s*/i)
+    .map((c) => c.trim())
+    .filter((c) => c && !(c.toLowerCase().match(/[a-z]+/g) || []).some((w) => tee.includes(w)));
+  return kept.join(", ");
 }
 
 // "The attached images 2 to 4 are the customer's own pictures 1 to 3, in order." (17 Nov 2026)
@@ -160,6 +182,13 @@ export const pieceRatio = (piece, areaRatio) => areaRatio || (/^sleeve/.test(pie
 
 /** The stand-in sheet for AI_IMAGE_PROVIDER=mock: three numbered tiles on a light background (a real PNG). */
 export async function mockSheet(concepts, { teeColour = "white", numberFrom = 1 } = {}) {
+  // (21 Nov 2026, laptop checks only) AI_MOCK_SHEET = a real concept sheet file the stand-in gives back, so measuring a
+  // picked concept on its sheet can be tried on a real sheet
+  if (process.env.AI_MOCK_SHEET?.trim()) {
+    const { readFile } = await import("fs/promises");
+    const file = process.env.AI_MOCK_SHEET.trim();
+    return { buffer: await readFile(file), mime: /.png$/i.test(file) ? "image/png" : "image/jpeg" };
+  }
   const W = 1536, H = 864, n = Math.max(1, concepts.length), gap = 48, tile = Math.floor((W - gap * (n + 1)) / n);
   const dark = /black|navy|maroon|charcoal|burgundy|bottle|coffee|dark/i.test(teeColour);
   const tiles = concepts

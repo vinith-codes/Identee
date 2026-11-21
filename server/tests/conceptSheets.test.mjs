@@ -2,7 +2,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import sharp from "sharp";
-import { sheetPrompt, developPrompt, piecesOf, mockSheet, conceptWords } from "../services/conceptSheets.js";
+import { sheetPrompt, developPrompt, piecesOf, mockSheet, conceptWords, inkColours } from "../services/conceptSheets.js";
 
 const concepts = [
   { title: "Cosmic Swirl", front: "a neon spiral vortex", back: "VORTEX arched in bold letters", sleeve: null, colours: "purple and teal", style: "Bold mascot" },
@@ -138,4 +138,24 @@ test("13 Nov (feedback 7): a photo of the back gets the back of the tee; the wor
   assert.equal(wornPrompt({ garment: "oversized tee", teeColour: "black", side: "front" }), wf);
   assert.match(wf, /facing the camera so the front print is fully visible/);
   assert.doesNotMatch(wf, /BACK|back to the camera/);
+});
+
+test("a dark tee: the drawing is told the dark on the sheet is fabric, so thin streaks stay in their colour (not black)", () => {
+  const c = { title: "Mock", front: "logo, strokes", colours: "gold, white" };
+  const dark = developPrompt({ concept: c, n: 1, piece: "front", teeIsDark: true, layout: true });
+  assert.match(dark, /the dark you see around and between the marks is the tee's own fabric, not ink/);
+  assert.match(dark, /never turned into black or dark shapes/);
+  assert.doesNotMatch(developPrompt({ concept: c, n: 1, piece: "front", teeIsDark: false, layout: true }), /The tee is dark/);
+});
+
+test("on a dark tee the tee's own colour is not an ink: 'black, yellow' on a Black tee draws yellow only", () => {
+  assert.equal(inkColours("black, yellow", "Black", true), "yellow");
+  assert.equal(inkColours("Gold and jet black", "Black", true), "Gold");
+  assert.equal(inkColours("black, yellow", "White", false), "black, yellow", "a light tee keeps black ink");
+  assert.equal(inkColours("navy, gold", "Black", true), "navy, gold");
+  assert.equal(inkColours("black", "Black", true), "");
+  const c = { title: "Mock", front: "logo, strokes", colours: "black, yellow" };
+  const p = developPrompt({ concept: c, n: 1, piece: "front", teeColour: "Black", teeIsDark: true, layout: true });
+  assert.match(p, /ink colours yellow\)/);
+  assert.doesNotMatch(p, /ink colours black/);
 });

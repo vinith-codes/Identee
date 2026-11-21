@@ -176,7 +176,8 @@ print files** per print, as today. It grows by how much wider the tee is (the si
 
 A print must keep clear of the seams. A print too close to a seam on one size is **moved in** or **shrunk** on that size only, and the design check tells the customer.
 
-- **Collar seam:** 3 cm. **Side seams:** 5 cm. **Hem:** 4 cm.
+- **Collar seam:** 2 cm. **Side seams:** 2.5 cm. **Hem:** 2 cm. (Smaller since 20 Nov 2026, the owner's ask; they
+  were 3 / 5 / 4 cm. Still an estimate: ask the print team.)
 - **Sleeve:** 2.5 cm from the shoulder seam, the sleeve's hem and its sides.
 - **Biggest print:** the print team's Full Front / Centre Back, which is 35 x 52 cm (37 x 54 at 2XL–3XL).
 - **Biggest sleeve print:** 10 x 10 cm (13 x 14 at 2XL–3XL).
@@ -189,7 +190,9 @@ sizes while orders are open:** that changes the print pages of every unprinted F
 shrinks prints in free places too (see "Two things to know for later").
 
 The 3D tee's body is narrower than the real tee, so a print also keeps 1 cm inside the 3D tee's outline. On M the
-widest print that fits is 35.8 cm. On a sleeve it also keeps 1 cm inside the 3D sleeve's hem: the regular round-neck
+widest print that fits is 35.8 cm. Since 20 Nov 2026 the outline is the one the room draws — the tee widened to the
+size chart (teeModel.js widenFor), never narrower than the model — so with the client's chart the Oversized M front
+has 38.1 cm across (was 34) and the round neck M 36.9 (was 34.8): the full 35 cm print fits on every size. On a sleeve it also keeps 1 cm inside the 3D sleeve's hem: the regular round-neck
 tee's 3D sleeve is short, so a sleeve print there is at most about 7 cm tall. The crop tops keep their full sleeve
 (cropping the body doesn't shorten the sleeve). Prints in their usual print areas are never moved or shrunk.
 

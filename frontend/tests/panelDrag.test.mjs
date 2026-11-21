@@ -244,7 +244,7 @@ test("arrow keys and Centre move a thing through the same rule, kept inside the 
   // pushed up past the collar: stops at the limit (its box then starts on the safe line)
   const up = pd.dropThing(els, pd.movedThing(els, "e1", { dy: -30 }, ctx()), ctx());
   const box = up.elements.find((e) => e.id === "e1").spot;
-  assert.ok(box.downCm >= 3 - 1e-9, `${box.downCm} cm below the collar`);
+  assert.ok(box.downCm >= 2 - 1e-9, `${box.downCm} cm below the collar`);
   assert.equal(pm.spotProblem(box, garment, { maxPrint }), null);
   assert.deepEqual(pm.spotPosition(box, garment, { maxPrint }).clamped, {});
 });
@@ -341,7 +341,7 @@ test("Anywhere: a 10 x 10 cm print centred on the tap, moved inside the safe zon
   const box = pd.anywhereBox({ side: "front", across: 3, down: 25 }, { garment, size: "M", maxPrint, elements: [] });
   assert.deepEqual([box.key, box.label, box.wCm, box.hCm, box.downCm, box.acrossCm, box.base, box.scale], ["spot-1", "Front 1", 10, 10, 20, 3, "M", "F"]);
   const high = pd.anywhereBox({ side: "front", across: 0, down: 1 }, { garment, size: "M", maxPrint, elements: [] });
-  assert.ok(high.downCm >= 3, "kept clear of the collar");
+  assert.ok(high.downCm >= 2, "kept clear of the collar");
   const sleeve = pd.anywhereBox({ side: "right", across: 4, down: 6 }, { garment, size: "M", maxPrint, elements: [] });
   assert.equal(sleeve.acrossCm, 0);
   assert.equal(pm.spotProblem(sleeve, garment, { maxPrint }), null);
@@ -495,14 +495,14 @@ test("a players' name let go off the centre stays where it was let go (its 30 cm
 test("a nudge on a tee size that holds a print in keeps the print's own measurements (not that size's)", () => {
   const els = design.elements.map((e, i) => ({ id: `e${i + 1}`, ...e }));
   // Front 2 (it grows) low on the front: on 2XL and 3XL the hem holds it up
-  const low = { ...els[1].spot, downCm: 53 };
+  const low = { ...els[1].spot, downCm: 55 };
   const held = els.map((e) => (e.position === "spot-2" ? { ...e, spot: low } : e));
   assert.deepEqual(clampedSizes(low).map(([s]) => s), ["2XL", "3XL"]);
   const out = pd.dropThing(held, pd.movedThing(held, "e2", { dx: 0.5 }, ctx("3XL")), ctx("3XL"));
   const box = out.elements.find((e) => e.id === "e2").spot;
   assert.equal(box.base, "M"); // (re-based on 3XL it would take 3XL's held-up place to every size)
   assert.ok(box.acrossCm > 0 && box.acrossCm <= 0.5, `${box.acrossCm}`);
-  near(box.downCm, 53, 0.5, "down");
+  near(box.downCm, 55, 0.5, "down");
 });
 
 test("the print's own editor (a free place): through the drop rule, kept together; too big refused; near a print joins", () => {

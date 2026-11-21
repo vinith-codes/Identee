@@ -246,7 +246,7 @@ export async function askGrounded(prompt, temperature = 0.3, modelName = ideaMod
 
 // The text model with a picture: the same as askJson, with the photo sent along (Gemini reads images).
 // (exported for the Collection maker's example pictures, 25 Oct 2026; `image` may be a list — all are sent)
-export async function askJsonWithImage(prompt, image, temperature = 0.2, modelName = ideaModel(), { timeoutMs = TIMEOUT_MS } = {}) {
+export async function askJsonWithImage(prompt, image, temperature = 0.2, modelName = ideaModel(), { timeoutMs = TIMEOUT_MS, thinking = null } = {}) {
   const images = Array.isArray(image) ? image : [image];
   const key = apiKey();
   if (!key) throw Object.assign(new Error("not set up"), { status: 503 });
@@ -259,7 +259,8 @@ export async function askJsonWithImage(prompt, image, temperature = 0.2, modelNa
       headers: { "x-goog-api-key": key, "Content-Type": "application/json" },
       body: JSON.stringify({
         contents: [{ role: "user", parts: [...images.map((im) => ({ inline_data: { mime_type: im.mime || "image/jpeg", data: im.data.toString("base64") } })), { text: prompt }] }],
-        generationConfig: { temperature, responseMimeType: "application/json" },
+        // thinking: "low" etc. — a quick look (photoMeasure.js: left to think freely it ran past 40 s, 21 Nov 2026)
+        generationConfig: { temperature, responseMimeType: "application/json", ...(thinking && !/^gemini-(1|2)\./.test(modelName) ? { thinkingConfig: { thinkingLevel: thinking } } : {}) },
       }),
       signal: ctrl.signal,
     });

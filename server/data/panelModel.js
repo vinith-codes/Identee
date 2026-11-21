@@ -28,10 +28,12 @@ const SPOT_KEY = /^spot-(\d+)$/;
 export const isSpotKey = (key) => SPOT_KEY.test(String(key ?? ""));
 
 // The safe zone (cm), our ESTIMATE until the print team answers: DTF transfers are not pressed over the collar rib,
-// a seam or the hem. Shops keep about 2.5 cm from every seam; these are a little stricter.
-export const SAFE_CM = { collar: 3, sideSeam: 5, hem: 4, shoulder: 2.5, sleeveHem: 2.5, sleeveSide: 2.5 };
-// The 3D tee's body is narrower than the real tee (about 0.65 of the size chart's width): a print also keeps this far
-// inside its outline, so it shows on the front or back and doesn't wrap round the side in the preview.
+// a seam or the hem. 20 Nov 2026 (owner: "make the margins smaller"): 2 cm from the collar seam and the hem, 2.5 from
+// the side seam (was 3 / 4 / 5) — what most DTF shops keep. The sleeve's own margins are unchanged.
+export const SAFE_CM = { collar: 2, sideSeam: 2.5, hem: 2, shoulder: 2.5, sleeveHem: 2.5, sleeveSide: 2.5 };
+// A print also keeps this far inside the 3D tee's body outline, so it shows on the front or back and doesn't wrap
+// round the side in the preview. The room draws the tee widened to the size chart (teeModel.js widenFor), so the
+// outline is the widened one (before 20 Nov 2026 the model's own, about 0.65 of the chart's width).
 export const MODEL_EDGE_CM = 1;
 export const MAX_SPOTS = 8; // prints in free places per tee (each one is a picture and a 3D decal: phones run out of memory)
 export const JOIN_CM = 1; // two prints closer than this are pressed as one transfer
@@ -67,11 +69,19 @@ const isSleeve = (side) => side === "left" || side === "right";
 // The 3D tee is one size: for a tee size it is scaled by the size chart's length / lengthCm (teeModel.js placeArea).
 const SLEEVE = { len: 9 / 30, w: 8.5 / 30 };
 const teeSleeve = (lengthCm) => [SLEEVE.len * lengthCm, SLEEVE.w * lengthCm];
+// flatChestCm: the 3D tee's chest laid flat (teeModel.js): the room widens the body by widenOf (= teeModel.js widenFor)
+// drop: how far the 3D tee's top (the shoulders / back of the collar, as it shows from the front or back) is above its
+// collar line at the centre, model cm (measured on the .glb 21 Nov 2026, glbmeasure.cjs: oversized top 1.6309, front
+// collar 1.55 with the room's dip, back 1.6096; regular top 1.6803, front 1.6328, back 1.6802) — a mockup's tee is
+// matched to the 3D tee as it looks from its top to its hem (photoMeasure.js "outline")
+// lookHalf: the 3D body's half-width below the sleeves as the model is drawn, cm (teeModel.js bodyHalf, raw metres ×
+// 100) — wider than `half` (the print limit's): a mockup's tee is matched across to THIS (21 Nov 2026: with `half`
+// the 3D tee looked 0.26 as wide as long against the mockup's 0.32, and tall prints came out squeezed to 80 %)
 const KINDS = {
-  oversized: { lengthCm: 72.4, front: 60.36, back: 68.83, half: 18, sleeveStart: 5, start: { front: 8, back: 7 }, sleeve: teeSleeve(72.4), sleeve3d: 20.7 },
-  oversizedCrop: { lengthCm: 48.3, front: 39.3, back: 45.26, half: 19.2, sleeveStart: 5, start: { front: 8, back: 7 }, sleeve: teeSleeve(72.4), sleeve3d: 20.7 },
-  regular: { lengthCm: 62.6, front: 57.62, back: 62.59, half: 16.5, sleeveStart: 2, start: { front: 8, back: 7 }, sleeve: teeSleeve(62.6), sleeve3d: 10.2 },
-  collarCrop: { lengthCm: 42.6, front: 37.87, back: 41.1, half: 16.5, frontTop: 15.07, sleeveStart: 5, start: { front: 15.07, back: 7 }, sleeve: [19.7, (19.7 * 8.5) / 9], sleeve3d: 19.7 },
+  oversized: { lengthCm: 72.4, flatChestCm: 55.8, lookHalf: 19.3, drop: { front: 8.09, back: 2.13 }, front: 60.36, back: 68.83, half: 18, sleeveStart: 5, start: { front: 8, back: 7 }, sleeve: teeSleeve(72.4), sleeve3d: 20.7 },
+  oversizedCrop: { lengthCm: 48.3, lookHalf: 19.3, drop: { front: 8.09, back: 2.13 }, front: 39.3, back: 45.26, half: 19.2, sleeveStart: 5, start: { front: 8, back: 7 }, sleeve: teeSleeve(72.4), sleeve3d: 20.7 },
+  regular: { lengthCm: 62.6, flatChestCm: 48.5, lookHalf: 17, drop: { front: 4.75, back: 0.01 }, front: 57.62, back: 62.59, half: 16.5, sleeveStart: 2, start: { front: 8, back: 7 }, sleeve: teeSleeve(62.6), sleeve3d: 10.2 },
+  collarCrop: { lengthCm: 42.6, lookHalf: 17.5, front: 37.87, back: 41.1, half: 16.5, frontTop: 15.07, sleeveStart: 5, start: { front: 15.07, back: 7 }, sleeve: [19.7, (19.7 * 8.5) / 9], sleeve3d: 19.7 },
 };
 
 // Which 3D tee a garment is shown on — the same rule as studio/teeModel.js modelForGarment (null = no 3D tee: the
@@ -139,7 +149,11 @@ const groupMembers = (group, garment) => {
 /* ---------- the panels ---------- */
 /**
  * Each side of the tee for one tee size, in cm.
- * @returns {{ kind, size, s, sleeveStart, start, front, back, left, right }} or null (no 3D tee). Each side:
+ * @returns {{ kind, size, s, length, bodyHalf, sleeveStart, start, front, back, left, right }} or null (no 3D tee) —
+ *   length: the size chart's length (the top of the shoulders to the hem), cm; bodyHalf: the 3D tee's body from its
+ *   centre line to its outline, as the room draws it for this size, cm — front and back prints are pressed straight
+ *   on, so this is how far out the tee LOOKS (a mockup's tee is matched to it: photoMeasure.js "outline"). Each side
+ *   (front / back also `drop`: the 3D tee's top above its collar line, cm — null on a tee not measured for it):
  *   flatW   width from side seam to side seam (the size chart's chest / 2; a sleeve: its opening)
  *   w       the width a print can use on the 3D tee too (the smaller of the chart's and the 3D tee's)
  *   len     collar seam to hem at the centre (a sleeve: its top seam to its hem)
@@ -155,8 +169,14 @@ export function panelFor(garment, size) {
   const L = length * 2.54;
   const s = L / kind.lengthCm;
   const flatW = (chest * 2.54) / 2;
-  const modelW = 2 * kind.half * s;
-  const body = (len, top) => ({ flatW, w: Math.min(flatW, modelW), len, top, bottom: len - SAFE_CM.hem, half: Math.min(flatW / 2 - SAFE_CM.sideSeam, modelW / 2 - MODEL_EDGE_CM) });
+  // the 3D body's width as the room draws it for this size: widened to the chart like teeModel.js widenFor (the same
+  // sum and limits; a tee without flatChestCm — the crops — is drawn as modelled). Never less than as modelled, so a
+  // print saved before 20 Nov 2026 is never moved in (a size drawn narrower still keeps it inside MODEL_EDGE_CM's 1 cm).
+  const widen = kind.flatChestCm ? Math.max(1, Math.round(Math.min(1.25, flatW / kind.flatChestCm / s) * 1000) / 1000) : 1;
+  const modelW = 2 * kind.half * s * widen;
+  // how wide the room really draws it (teeModel.js widenFor: may be narrower than modelled, down to 0.85)
+  const drawn = kind.flatChestCm ? Math.round(Math.min(1.25, Math.max(0.85, flatW / kind.flatChestCm / s)) * 1000) / 1000 : 1;
+  const body = (len, top, drop) => ({ flatW, w: Math.min(flatW, modelW), len, top, bottom: len - SAFE_CM.hem, half: Math.min(flatW / 2 - SAFE_CM.sideSeam, modelW / 2 - MODEL_EDGE_CM), drop: drop != null ? drop * s : null });
   const sleeveLen = kind.sleeve[0] * s;
   const sleeveW = kind.sleeve[1] * s;
   const sleeve = { flatW: sleeveW, w: sleeveW, len: sleeveLen, top: SAFE_CM.shoulder, bottom: Math.min(sleeveLen - SAFE_CM.sleeveHem, kind.sleeve3d * s - MODEL_EDGE_CM), half: sleeveW / 2 - SAFE_CM.sleeveSide };
@@ -164,10 +184,12 @@ export function panelFor(garment, size) {
     kind: name,
     size,
     s,
+    length: L,
+    bodyHalf: kind.lookHalf ? kind.lookHalf * s * drawn : modelW / 2,
     sleeveStart: kind.sleeveStart * s,
     start: { front: kind.start.front * s, back: kind.start.back * s },
-    front: body(kind.front * s, Math.max(SAFE_CM.collar, (kind.frontTop || 0) * s)),
-    back: body(kind.back * s, SAFE_CM.collar),
+    front: body(kind.front * s, Math.max(SAFE_CM.collar, (kind.frontTop || 0) * s), kind.drop?.front),
+    back: body(kind.back * s, SAFE_CM.collar, kind.drop?.back),
     left: sleeve,
     right: { ...sleeve },
   };

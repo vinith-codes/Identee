@@ -228,6 +228,13 @@ function findImage(node, depth = 0) {
  */
 export async function generateImage({ prompt, image, images = [], ratio = "1:1", size = "1K" }) {
   // (the stand-in honours the size too: a "4K" copy comes back 2,048 px wide, so print checks behave as with the real service)
+  // (21 Nov 2026, laptop checks only) AI_MOCK_PICTURE = a real picture file the stand-in gives back for 4K pictures, so
+  // what happens after the AI (cut-out, splitting a laid-out side) can be tried on a real drawing at no cost
+  if (mock() && size === "4K" && process.env.AI_MOCK_PICTURE?.trim()) {
+    const { readFile } = await import("fs/promises");
+    const file = process.env.AI_MOCK_PICTURE.trim();
+    return { buffer: await readFile(file), mime: /.png$/i.test(file) ? "image/png" : "image/jpeg" };
+  }
   if (mock()) return { buffer: mockPng(prompt + (image ? "changed" : ""), size === "4K" ? 2048 : size === "2K" ? 1024 : 512), mime: "image/png" };
   const key = apiKey();
   if (!key) throw Object.assign(new Error("The design maker is not set up yet."), { status: 503 });

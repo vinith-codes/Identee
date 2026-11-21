@@ -67,6 +67,9 @@ const elementSchema = new mongoose.Schema(
       aiCopy: { type: Boolean },
     },
     artDesignId: { type: mongoose.Schema.Types.ObjectId, ref: "ArtDesign" },
+    // (21 Nov 2026) a part of the AI's laid-out side ("front" / "back"), cut out of one picture into a free place: making
+    // that side again replaces every part marked so
+    aiLayout: { type: String, enum: ["front", "back"] },
 
     // text elements
     text: { type: String, maxlength: 200 },

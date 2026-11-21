@@ -75,10 +75,11 @@ test("panelModel.js picks the same 3D tee as the design room, at the same scale 
 
 test("the panels of the Oversized tee at XS, M and 3XL (cm, from the size chart and the 3D tee)", () => {
   const want = {
-    // chart (inches): XS 42 / 28 (one step below S, not sold), M 46 / 30, 3XL 54 / 34
-    XS: { front: [53.3, 35.4, 59.3, 3, 55.3, 16.7], back: [53.3, 35.4, 67.6, 3, 63.6, 16.7], left: [20.2, 20.2, 21.3, 2.5, 18.8, 7.6] },
-    M: { front: [58.4, 37.9, 63.5, 3, 59.5, 17.9], back: [58.4, 37.9, 72.4, 3, 68.4, 17.9], left: [21.6, 21.6, 22.9, 2.5, 20.4, 8.3] },
-    "3XL": { front: [68.6, 42.9, 72, 3, 68, 20.5], back: [68.6, 42.9, 82.1, 3, 78.1, 20.5], left: [24.5, 24.5, 25.9, 2.5, 23.4, 9.7] },
+    // chart (inches): XS 42 / 28 (one step below S, not sold), M 46 / 30, 3XL 54 / 34. Safe zone 2 cm from the collar
+    // and hem (20 Nov 2026); 3XL's chest is wider than the 3D tee's, so the room draws it widened: 44.2 cm usable
+    XS: { front: [53.3, 35.4, 59.3, 2, 57.3, 16.7], back: [53.3, 35.4, 67.6, 2, 65.6, 16.7], left: [20.2, 20.2, 21.3, 2.5, 18.8, 7.6] },
+    M: { front: [58.4, 37.9, 63.5, 2, 61.5, 17.9], back: [58.4, 37.9, 72.4, 2, 70.4, 17.9], left: [21.6, 21.6, 22.9, 2.5, 20.4, 8.3] },
+    "3XL": { front: [68.6, 44.2, 72, 2, 70, 21.1], back: [68.6, 44.2, 82.1, 2, 80.1, 21.1], left: [24.5, 24.5, 25.9, 2.5, 23.4, 9.7] },
   };
   for (const [size, sides] of Object.entries(want)) {
     const p = pm.panelFor(garment, size);
@@ -132,9 +133,9 @@ test("on a size where it would not fit, a spot moves in from the seams or shrink
   const side = sizes(frontSpot("spot-1", "Front 1", 10, 13, 9, 9, "F"));
   assert.deepEqual([side.M.across, side.M.clamped], [13, []]);
   assert.deepEqual([side.S.across, side.S.clamped], [12.8, ["side"]]);
-  // a growing print near the collar: 3 cm on M is 2.9 on S, moved down to 3
-  const collar = sizes(frontSpot("spot-1", "Front 1", 3, 0, 20, 5, "G"));
-  assert.deepEqual([collar.S.down, collar.S.clamped], [3, ["collar"]]);
+  // a growing print near the collar: 2 cm on M is 1.9 on S, moved down to 2
+  const collar = sizes(frontSpot("spot-1", "Front 1", 2, 0, 20, 5, "G"));
+  assert.deepEqual([collar.S.down, collar.S.clamped], [2, ["collar"]]);
   // the biggest print on M grows past 37 x 54 on 2XL: shrunk as a whole
   const big = sizes(frontSpot("spot-1", "Front 1", 6, 0, 35, 52, "G"));
   assert.ok(big["2XL"].w <= 37 && big["2XL"].h <= 54 && big["2XL"].clamped.includes("big"), JSON.stringify(big["2XL"]));
@@ -289,18 +290,18 @@ const cmAt = (size) => (p) => {
 const check = (els, list, size) => checkDesign(els, list, { ...ink, cmOf: cmAt(size), garment, size, maxPrint });
 
 test("the design check: too near the collar on one size — and its fix makes it fit", () => {
-  let els = [spotEl(frontSpot("spot-1", "Front 1", 3, 0, 20, 5, "G"))];
+  let els = [spotEl(frontSpot("spot-1", "Front 1", 2, 0, 20, 5, "G"))];
   let list = pm.withSpots(catalog, els, garment, maxPrint);
   assert.deepEqual(check(els, list, "M").filter((i) => i.spotFix), []);
   const [issue] = check(els, list, "S").filter((i) => i.spotFix);
   assert.equal(issue.kind, "spot-collar");
-  assert.equal(issue.text, "Front 1 is too near the collar on size S. A print keeps 3 cm clear of the collar seam, so it moves down.");
+  assert.equal(issue.text, "Front 1 is too near the collar on size S. A print keeps 2 cm clear of the collar seam, so it moves down.");
   assert.equal(issue.fixLabel, "Move it down");
   assert.deepEqual(issue.spotFix, { kind: "fit", key: "spot-1", sizes: ["S"] });
   els = pm.applySpotFix(els, issue.spotFix, { positions: list, garment, size: "S", maxPrint });
   list = pm.withSpots(catalog, els, garment, maxPrint);
   assert.deepEqual(check(els, list, "S").filter((i) => i.spotFix), []);
-  assert.equal(els[0].spot.downCm, 3.1);
+  assert.equal(els[0].spot.downCm, 2.1);
 });
 
 test("the design check: two prints less than 1 cm apart join into one; a thing past its spot's edge re-boxes it", () => {
@@ -553,8 +554,8 @@ test("Bigger / the chat's 'make it bigger' on a print in a free place: it grows,
 test("a design-check fix is worked out when tapped: an old card never puts back an old box; a gone print changes nothing", () => {
   const ctx = { positions: catalog, garment, size: "S", maxPrint };
   const fix = { kind: "fit", key: "spot-1", sizes: ["S"] };
-  const els = [spotEl(frontSpot("spot-1", "Front 1", 3, 0, 20, 5, "G"))];
-  assert.equal(pm.applySpotFix(els, fix, ctx)[0].spot.downCm, 3.1);
+  const els = [spotEl(frontSpot("spot-1", "Front 1", 2, 0, 20, 5, "G"))];
+  assert.equal(pm.applySpotFix(els, fix, ctx)[0].spot.downCm, 2.1);
   // moved down since the check: the old card leaves it where it is
   const moved = [spotEl(frontSpot("spot-1", "Front 1", 12, 0, 20, 5, "G"))];
   assert.deepEqual(pm.applySpotFix(moved, fix, ctx)[0].spot, moved[0].spot);
@@ -566,12 +567,12 @@ test("a design-check fix is worked out when tapped: an old card never puts back 
 });
 
 test("the design check looks at every size the tee comes in: a print that moves on 2XL and 3XL says so", () => {
-  const els = elements.map((e) => (e.position === "spot-3" ? { ...e, spot: { ...e.spot, downCm: 30 } } : e));
+  const els = elements.map((e) => (e.position === "spot-3" ? { ...e, spot: { ...e.spot, downCm: 32 } } : e));
   const list = pm.withSpots(catalog, els, garment, maxPrint);
   const all = (e, l) => checkDesign(e, l, { ...ink, cmOf: cmAt("M"), garment, size: "M", sizes: garment.sizes, maxPrint }).filter((i) => i.spotFix);
   assert.deepEqual(check(els, list, "M").filter((i) => i.spotFix), []); // M alone: fine
   const [issue] = all(els, list);
-  assert.equal(issue.text, "Back 1 is too near the hem on sizes 2XL and 3XL. A print keeps 4 cm clear of it, so it moves up.");
+  assert.equal(issue.text, "Back 1 is too near the hem on sizes 2XL and 3XL. A print keeps 2 cm clear of it, so it moves up.");
   assert.deepEqual(issue.spotFix, { kind: "fit", key: "spot-3", sizes: ["2XL", "3XL"] });
   const fixed = pm.applySpotFix(els, issue.spotFix, { positions: list, garment, size: "M", maxPrint });
   assert.deepEqual(all(fixed, pm.withSpots(catalog, fixed, garment, maxPrint)), []);

@@ -79,8 +79,8 @@ test("a box is cleaned: rounded to 1 mm, a sleeve print on the sleeve's centre l
 });
 
 test("refused with a plain reason: too near the side seam, the collar, the hem or the shoulder seam, too big, a wrong size, no box", async () => {
-  await refused(withBox(0, { acrossCm: 15 }), /^Front 1: it is too near the side seam \(keep 5 cm clear\)\. Please move or shrink it\.$/);
-  await refused(withBox(1, { downCm: 1 }), /^Front 2: it is too near the collar \(keep 3 cm clear of the collar seam\)/);
+  await refused(withBox(0, { acrossCm: 15 }), /^Front 1: it is too near the side seam \(keep 2.5 cm clear\)\. Please move or shrink it\.$/);
+  await refused(withBox(1, { downCm: 1 }), /^Front 2: it is too near the collar \(keep 2 cm clear of the collar seam\)/);
   await refused(withBox(2, { downCm: 40 }), /^Back 1: it is too near the hem/);
   await refused(withBox(2, { wCm: 36, hCm: 40 }), /^Back 1: it is bigger than the biggest print \(35 x 52 cm\)/);
   await refused(withBox(3, { downCm: 1 }), /^Left sleeve 1: it is too near the shoulder seam/);

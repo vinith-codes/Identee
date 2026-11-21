@@ -15,6 +15,8 @@ import { customerCancelMode } from "../services/orderCancel.js";
 import { dayWords, deliveryFact, indiaDay } from "../utils/deliveryDates.js";
 import { uploadFile } from "../utils/imageStorage.js";
 import { cutOutPlainBackground, trimClearEdges } from "../services/cutoutService.js";
+import { splitParts } from "../services/splitParts.js";
+import { measureParts } from "../services/photoMeasure.js";
 import { rememberPictures } from "./myPictureController.js";
 import { GROK_BEST, xaiConfigured, xaiEditImage, xaiModel, xaiNewImage } from "../services/xaiImageService.js";
 import { AI_STYLES, PHOTO_STYLES, aiImageModel, generateImage, nearestRatio } from "../services/aiImageService.js";
@@ -282,6 +284,12 @@ export const makeConcepts = asyncHandler(async (req, res) => {
 // POST /api/ai/develop
 // { sheetUrl, n, concept: { title, front, back, sleeve, colours, style }, pieces?: ["front"|"back"|"sleeve"], teeColour, teeIsDark, ratios?: { front, back, sleeve } }
 // -> { pieces: [{ piece, url, width, height }], left }   (one picture per piece, drawn in parallel; a refused piece goes to Grok)
+// (21 Nov 2026) layout?: ["front"|"back"] laid-out sides, layoutCm?: { front: print area width }, freePlaces?: the free
+// places the tee has left — a laid-out piece also comes with parts: [{ url, width, height, x, y, w, h }] (x … h: 0–1
+// of the whole picture) when it has 2 or more separate parts
+// parts of a laid-out side closer than this (cm) stay one print: with the 0.5 cm round each print's box, every two
+// prints are then at least JOIN_CM (1 cm) apart, so none is pressed together with another
+export const SPLIT_GAP_CM = 2;
 export const makeDevelop = asyncHandler(async (req, res) => {
   const { s, used } = await mayDraw(req, res);
   const sheetUrl = String(req.body?.sheetUrl || "");
@@ -295,6 +303,10 @@ export const makeDevelop = asyncHandler(async (req, res) => {
   const pieces = (wanted.length ? wanted : piecesOf(concept)).filter((p) => concept[p]);
   // (21 Nov 2026) the pieces the page puts on a side's whole print area as a laid-out side (front / back only)
   const layout = (Array.isArray(req.body?.layout) ? req.body.layout : []).filter((p) => p === "front" || p === "back");
+  // (21 Nov 2026) ... and how wide that print area is (cm) and how many free places the tee has left: a laid-out side is
+  // cut into its separate parts, each its own print anywhere on the tee
+  const layoutCm = req.body?.layoutCm && typeof req.body.layoutCm === "object" ? req.body.layoutCm : {};
+  const freePlaces = Math.max(0, Math.min(8, Number(req.body?.freePlaces ?? 8) || 0));
   if (!concept.title || !pieces.length) {
     res.status(400);
     throw new Error("That concept has nothing to print.");
@@ -305,6 +317,7 @@ export const makeDevelop = asyncHandler(async (req, res) => {
     throw new Error(noPicturesLeft(s.dailyPerUser, s.dailyPerUser - used, pieces.length));
   }
   const teeIsDark = Boolean(req.body?.teeIsDark);
+  const teeColour = text(req.body?.teeColour, 30).replace(/[^\w \-]/g, ""); // (its own colour is left out of the inks)
   const ratios = req.body?.ratios && typeof req.body.ratios === "object" ? req.body.ratios : {};
   const change = text(req.body?.change, 300); // "with the text in gold" — asked together with the pick
   const image = await smallCopy(await fetchOurImage(sheetUrl, req), 2048);
@@ -319,7 +332,7 @@ export const makeDevelop = asyncHandler(async (req, res) => {
   const ref = refUrl ? await smallCopy(await fetchOurImage(refUrl, req), 1536) : null;
   const ratioOf = Object.fromEntries(pieces.map((piece) => [piece, nearestRatio(Number(ratios[piece]) || (/^sleeve/.test(piece) ? 0.75 : 1))]));
   const drawPiece = (piece, extraChange = null) => {
-    const prompt = developPrompt({ concept, n, piece, teeIsDark, logo: Boolean(logo) && logos.length < 2, pictures: logos.length > 1 ? logos.length : 0, reference: Boolean(ref), layout: layout.includes(piece), change: [change, extraChange].filter(Boolean).join(". ") || null });
+    const prompt = developPrompt({ concept, n, piece, teeColour, teeIsDark, logo: Boolean(logo) && logos.length < 2, pictures: logos.length > 1 ? logos.length : 0, reference: Boolean(ref), layout: layout.includes(piece), change: [change, extraChange].filter(Boolean).join(". ") || null });
     return withGrok(
       s,
       // (the pieces go on the customer's tee: drawn at 4K since 15 Nov 2026; the sheet itself stays SHEET_SIZE)
@@ -372,6 +385,33 @@ export const makeDevelop = asyncHandler(async (req, res) => {
     ),
   );
   const stored = await Promise.all(cut.map((c) => uploadFile(c.buffer, c.mime, "ai-designs")));
+  // (21 Nov 2026) a laid-out side in its separate parts (the chest logo, the strokes with their words, the hem tag), each
+  // cut straight out of the 4K picture — the page puts each in a free place where it sits; the whole picture stays too.
+  // Each part is also found on the concept sheet the customer picked from (photoMeasure.js), so it goes where it is
+  // THERE — the picture AI puts the parts only roughly in place (a chest logo 11 cm low on the first test)
+  let measured = 0;
+  const split = await Promise.all(
+    made.map(async (m, i) => {
+      if (!layout.includes(m.piece) || !cut[i].cut || freePlaces < 2) return null;
+      const widthCm = Math.max(5, Math.min(80, Number(layoutCm[m.piece]) || 35));
+      const r = await splitParts(cut[i].buffer, { widthCm, gapCm: SPLIT_GAP_CM, maxParts: freePlaces }).catch((err) => {
+        console.log(`[ai:v2] concept ${n} ${m.piece}: not split (${err.message})`);
+        return null;
+      });
+      if (!r) return null;
+      if (r.dropped) console.log(`[ai:v2] concept ${n} ${m.piece}: ${r.dropped} stray speck(s) left out of the parts`);
+      // each part is found on the concept the customer picked, on the sheet they picked it from ("the customer expects
+      // the output as like in the mockup", 21 Nov 2026) — a part inside the collar ring is left off: our label goes there
+      const shape = r.parts[0] ? r.parts[0].width / r.parts[0].w / (r.parts[0].height / r.parts[0].h) : 1; // the laid-out picture's width / height
+      const place = await measureParts(image, r.parts.map((p) => p.buffer), m.piece, { concept: n, layout: r.parts.map(({ x, y, w, h }) => ({ x, y, w, h })), aspect: shape }).finally(() => measured++);
+      const keep = r.parts.map((p, k) => k).filter((k) => !place?.at[k]?.inCollar);
+      if (keep.length < r.parts.length) console.log(`[ai:v2] concept ${n} ${m.piece}: ${r.parts.length - keep.length} part(s) inside the collar left off (the neck label goes there)`);
+      console.log(`[ai:v2] concept ${n} ${m.piece}: ${place ? `${place.at.filter((a) => a && !a.inCollar).length} of ${keep.length} parts found on the sheet (${place.how})` : "the sheet could not be measured — the parts stay as drawn"}`);
+      if (!keep.length) return null;
+      const up = await Promise.all(keep.map((k) => uploadFile(r.parts[k].buffer, r.parts[k].mime, "ai-designs")));
+      return keep.map((k, j) => { const p = r.parts[k]; return { url: up[j].url, width: p.width, height: p.height, x: p.x, y: p.y, w: p.w, h: p.h, ...(place?.at[k] ? { at: place.at[k] } : {}) }; });
+    }),
+  );
   const byGrok = made.some((m) => m.byGrok);
   await AiUsage.create({
     user: req.user._id,
@@ -381,7 +421,7 @@ export const makeDevelop = asyncHandler(async (req, res) => {
     images: made.length + redraws,
     counted: made.length,
     ...(made.some((m) => m.byGrok) ? { grokUrls: stored.filter((_, i) => made[i].byGrok).map((st) => st.url) } : {}), // the day's limit counts the pieces made; the automatic redraws are free (16 Nov 2026)
-    costInr: Math.round((made.reduce((sum, m) => sum + (m.byGrok ? s.grokPricePerImageInr : designPictureCost(s)) * (m.redrawn ? 2 : 1), 0) + checks * (s.chatPricePerMessageInr || 0)) * 100) / 100,
+    costInr: Math.round((made.reduce((sum, m) => sum + (m.byGrok ? s.grokPricePerImageInr : designPictureCost(s)) * (m.redrawn ? 2 : 1), 0) + (checks + measured) * (s.chatPricePerMessageInr || 0)) * 100) / 100,
     model: byGrok ? xaiModel() : aiImageModel(),
   });
   await rememberPictures(
@@ -389,7 +429,7 @@ export const makeDevelop = asyncHandler(async (req, res) => {
     stored.map((st, i) => ({ url: st.url, kind: "ai", about: `${concept.title} — ${made[i].piece} (concept ${n})`, style: concept.style || "", width: cut[i].width, height: cut[i].height })),
   );
   res.status(201).json({
-    pieces: stored.map((st, i) => ({ piece: made[i].piece, url: st.url, width: cut[i].width, height: cut[i].height, byGrok: made[i].byGrok, ...(made[i].redrawn ? { redrawn: made[i].redrawn } : {}) })),
+    pieces: stored.map((st, i) => ({ piece: made[i].piece, url: st.url, width: cut[i].width, height: cut[i].height, byGrok: made[i].byGrok, ...(made[i].redrawn ? { redrawn: made[i].redrawn } : {}), ...(split[i] ? { parts: split[i] } : {}) })),
     failed: results.filter((r) => r.status === "rejected").map((r, i) => pieces.filter((p) => !made.some((m) => m.piece === p))[i]).filter(Boolean),
     left: Math.max(0, s.dailyPerUser - used - made.length),
   });
