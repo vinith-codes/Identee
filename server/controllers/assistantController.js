@@ -15,8 +15,8 @@ import { customerCancelMode } from "../services/orderCancel.js";
 import { dayWords, deliveryFact, indiaDay } from "../utils/deliveryDates.js";
 import { uploadFile } from "../utils/imageStorage.js";
 import { cutOutPlainBackground, trimClearEdges } from "../services/cutoutService.js";
-import { splitParts } from "../services/splitParts.js";
-import { measureParts } from "../services/photoMeasure.js";
+import { dropFrame, splitParts } from "../services/splitParts.js";
+import { measureParts, measureSleeve } from "../services/photoMeasure.js";
 import { rememberPictures } from "./myPictureController.js";
 import { GROK_BEST, xaiConfigured, xaiEditImage, xaiModel, xaiNewImage } from "../services/xaiImageService.js";
 import { AI_STYLES, PHOTO_STYLES, aiImageModel, generateImage, nearestRatio } from "../services/aiImageService.js";
@@ -209,6 +209,27 @@ async function mayDraw(req, res) {
 }
 
 // Google refused (a named person, a protected character) → Grok, when it is set up and under its cap
+// (21 Nov 2026, laptop checks only) AI_MOCK_PIECES = {"front": "file", "back": "file", ...}: those pieces come from
+// pictures saved from an earlier paid run instead of the picture AI — no cost. A saved one that was already cut out is
+// put back on the magenta key colour first, so the cut-out, splitting and measuring all run as on a fresh drawing.
+// Never set on the live server.
+function mockPieceFile(piece) {
+  try {
+    const map = JSON.parse(process.env.AI_MOCK_PIECES?.trim() || "{}");
+    return typeof map?.[piece] === "string" ? map[piece] : null;
+  } catch {
+    return null;
+  }
+}
+async function replayPiece(file) {
+  const { readFile } = await import("fs/promises");
+  const saved = await readFile(file);
+  const meta = await sharp(saved).metadata();
+  if (!meta.hasAlpha) return { made: { buffer: saved, mime: meta.format === "png" ? "image/png" : "image/jpeg" }, byGrok: false };
+  const buffer = await sharp(saved).flatten({ background: { r: 255, g: 0, b: 255 } }).png().toBuffer();
+  return { made: { buffer, mime: "image/png" }, byGrok: false };
+}
+
 async function withGrok(settings, googleJob, grokJob, what) {
   try {
     return { made: await googleJob(), byGrok: false };
@@ -332,6 +353,8 @@ export const makeDevelop = asyncHandler(async (req, res) => {
   const ref = refUrl ? await smallCopy(await fetchOurImage(refUrl, req), 1536) : null;
   const ratioOf = Object.fromEntries(pieces.map((piece) => [piece, nearestRatio(Number(ratios[piece]) || (/^sleeve/.test(piece) ? 0.75 : 1))]));
   const drawPiece = (piece, extraChange = null) => {
+    const saved = mockPieceFile(piece); // (laptop checks only — see mockPieceFile)
+    if (saved) return replayPiece(saved);
     const prompt = developPrompt({ concept, n, piece, teeColour, teeIsDark, logo: Boolean(logo) && logos.length < 2, pictures: logos.length > 1 ? logos.length : 0, reference: Boolean(ref), layout: layout.includes(piece), change: [change, extraChange].filter(Boolean).join(". ") || null });
     return withGrok(
       s,
@@ -380,7 +403,7 @@ export const makeDevelop = asyncHandler(async (req, res) => {
     made.map((m) =>
       cutOutPlainBackground(m.made.buffer)
         // (a laid-out side keeps its empty space: it IS the layout, the picture's edges are the print area's — 21 Nov 2026)
-        .then((c) => (layout.includes(m.piece) ? c : trimClearEdges(c)))
+        .then((c) => (layout.includes(m.piece) ? dropFrame(c) : trimClearEdges(c)))
         .catch(() => ({ buffer: m.made.buffer, mime: m.made.mime, width: 1024, height: 1024, cut: false })),
     ),
   );
@@ -392,9 +415,10 @@ export const makeDevelop = asyncHandler(async (req, res) => {
   let measured = 0;
   const split = await Promise.all(
     made.map(async (m, i) => {
-      if (!layout.includes(m.piece) || !cut[i].cut || freePlaces < 2) return null;
+      // (a side with one print is measured too: the back of a live test, one tall print, wasn't — 21 Nov 2026)
+      if (!layout.includes(m.piece) || !cut[i].cut || freePlaces < 1) return null;
       const widthCm = Math.max(5, Math.min(80, Number(layoutCm[m.piece]) || 35));
-      const r = await splitParts(cut[i].buffer, { widthCm, gapCm: SPLIT_GAP_CM, maxParts: freePlaces }).catch((err) => {
+      const r = await splitParts(cut[i].buffer, { widthCm, gapCm: SPLIT_GAP_CM, maxParts: freePlaces, minParts: 1 }).catch((err) => {
         console.log(`[ai:v2] concept ${n} ${m.piece}: not split (${err.message})`);
         return null;
       });
@@ -410,6 +434,14 @@ export const makeDevelop = asyncHandler(async (req, res) => {
       if (!keep.length) return null;
       const up = await Promise.all(keep.map((k) => uploadFile(r.parts[k].buffer, r.parts[k].mime, "ai-designs")));
       return keep.map((k, j) => { const p = r.parts[k]; return { url: up[j].url, width: p.width, height: p.height, x: p.x, y: p.y, w: p.w, h: p.h, ...(place?.at[k] ? { at: place.at[k] } : {}) }; });
+    }),
+  );
+  // (21 Nov 2026) each sleeve piece is found on the concept too: where it sits along its sleeve (the sheet's inset)
+  const sleevePlace = await Promise.all(
+    made.map(async (m, i) => {
+      if (!/^sleeve/.test(m.piece) || !cut[i].cut) return null;
+      const place = await measureSleeve(image, cut[i].buffer, m.piece, { concept: n, both: Boolean(concept.sleeve2) }).finally(() => measured++);
+      return place;
     }),
   );
   const byGrok = made.some((m) => m.byGrok);
@@ -429,7 +461,7 @@ export const makeDevelop = asyncHandler(async (req, res) => {
     stored.map((st, i) => ({ url: st.url, kind: "ai", about: `${concept.title} — ${made[i].piece} (concept ${n})`, style: concept.style || "", width: cut[i].width, height: cut[i].height })),
   );
   res.status(201).json({
-    pieces: stored.map((st, i) => ({ piece: made[i].piece, url: st.url, width: cut[i].width, height: cut[i].height, byGrok: made[i].byGrok, ...(made[i].redrawn ? { redrawn: made[i].redrawn } : {}), ...(split[i] ? { parts: split[i] } : {}) })),
+    pieces: stored.map((st, i) => ({ piece: made[i].piece, url: st.url, width: cut[i].width, height: cut[i].height, byGrok: made[i].byGrok, ...(made[i].redrawn ? { redrawn: made[i].redrawn } : {}), ...(split[i] ? { parts: split[i] } : {}), ...(sleevePlace[i] ? { place: sleevePlace[i] } : {}) })),
     failed: results.filter((r) => r.status === "rejected").map((r, i) => pieces.filter((p) => !made.some((m) => m.piece === p))[i]).filter(Boolean),
     left: Math.max(0, s.dailyPerUser - used - made.length),
   });

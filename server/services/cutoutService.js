@@ -34,17 +34,25 @@ export async function cutOutPlainBackground(buffer) {
   for (let y = 1; y < h - 1; y++) edge.push(y * w, y * w + w - 1);
   const mid = (k) => edge.map((p) => data[p * 4 + k]).sort((a, b) => a - b)[edge.length >> 1];
   const colour = [mid(0), mid(1), mid(2)];
-  const close = edge.filter((p) => dist(data, p * 4, colour) < 36).length;
   // (21 Nov 2026) on the magenta key colour — never in the artwork — a laid-out side whose brush strokes run off an
   // edge still has a magenta edge for the most part: half is enough there (a white or black edge keeps 94%)
   const magentaEdge = colour[0] > 180 && colour[2] > 180 && colour[1] < 90;
+  // on the key colour, anything strongly of the key's hue is background — nothing a drawing uses, by the instruction
+  // the AI gets (a sliver blended with it between a bucket's teeth or inside a letter; and, 21 Nov 2026, a whole
+  // background the picture AI shaded: a back drawn on magenta from (244, 11, 240) to (255, 98, 255) had only 9 % of
+  // its edge near the middle colour — it was left uncut and printed as a pink square)
+  const keyColour = Math.max(...colour) - Math.min(...colour) > 120;
+  const lowCh = colour.indexOf(Math.min(...colour));
+  const hi = [0, 1, 2].filter((k) => k !== lowCh);
+  const keyHue = (i) => data[i + hi[0]] > data[i + lowCh] + 90 && data[i + hi[1]] > data[i + lowCh] + 90 && (data[i + hi[0]] + data[i + hi[1]]) / 2 > 80;
+  const close = edge.filter((p) => dist(data, p * 4, colour) < 36 || (magentaEdge && keyHue(p * 4))).length;
   if (close < edge.length * (magentaEdge ? 0.5 : 0.94)) return unchanged();
 
   // everything connected to the edges in the background colour
   const gone = new Uint8Array(w * h);
   const stack = [];
   const push = (p) => {
-    if (!gone[p] && dist(data, p * 4, colour) < NEAR) {
+    if (!gone[p] && (dist(data, p * 4, colour) < NEAR || (keyColour && keyHue(p * 4)))) {
       gone[p] = 1;
       stack.push(p);
     }
@@ -62,16 +70,11 @@ export async function cutOutPlainBackground(buffer) {
   // black background only an exact match goes (white highlights inside a drawing must stay); on the magenta
   // "green screen" (8 Nov 2026) nothing in a drawing is near magenta, so the usual nearness applies — JPEG shifts
   // magenta more than white, and an exact match missed a whole hole
-  const keyColour = Math.max(...colour) - Math.min(...colour) > 120;
   // the edge is measured from the outside background; on the key colour from the closed-in holes too (on white or
   // black a closed-in exact match may be a highlight of the drawing, so its rim is left as it is)
   const edgeFrom = keyColour ? gone : Uint8Array.from(gone);
   const enclosed = keyColour ? NEAR : EXACT;
-  // on the key colour, a sliver blended with it (between a bucket's teeth, inside a letter) is background too:
-  // the key's hue, strongly — nothing a drawing uses, by the instruction the AI gets
-  const lowCh = colour.indexOf(Math.min(...colour));
-  const hi = [0, 1, 2].filter((k) => k !== lowCh);
-  const keyHue = (i) => data[i + hi[0]] > data[i + lowCh] + 90 && data[i + hi[1]] > data[i + lowCh] + 90 && (data[i + hi[0]] + data[i + hi[1]]) / 2 > 80;
+  // (closed-in slivers of the key's hue go too: keyHue, above)
   for (let p = 0; p < w * h; p++) if (!gone[p] && (dist(data, p * 4, colour) < enclosed || (keyColour && keyHue(p * 4)))) gone[p] = 1;
   for (let p = 0; p < w * h; p++) {
     const i = p * 4;

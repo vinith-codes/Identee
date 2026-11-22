@@ -40,7 +40,7 @@ import { accountChat, chatTitle, DRAFT_PREFIX, hashText, historyFor, keptChat, l
 import { AFTER_AI_SLOGANS, AFTER_DESIGN_CHIPS, BACK, CHANGE_IDEA, DRAW_MINE, PHOTO_AS_IS, PHOTO_CHOICES, PHOTO_CUT, PHOTO_REVERT, PROMPT_MAX, bot as botSays, checkMessages, chips as chipRow, firstMessages, firstState, smartPlan } from "./assistantScript";
 import { makeShareCard, shareTee } from "./shareTee";
 import { makeShareLink, shareMessage, whatsappUrl } from "../services/shareService";
-import { firstMessagesV2, isUntouchedStart, sheetsFromChat, nextConceptNumber, findConcept, piecesOf, pieceArea, pieceName, placementHint, shrinkForHint, partsAsSpots, aiPictureOnTee, ideaSheet, STARTER_CHIP, suggestionsFor } from "./assistantV2";
+import { firstMessagesV2, isUntouchedStart, sheetsFromChat, nextConceptNumber, findConcept, piecesOf, pieceArea, pieceName, placedWords, placementHint, shrinkForHint, partsAsSpots, sleeveAsSpot, aiPictureOnTee, ideaSheet, STARTER_CHIP, suggestionsFor } from "./assistantV2";
 import { styleIn } from "./styleInfo";
 import { costLine, makeSideBySide, noPhotoNote, photoDataUrl, planSides, printedSides, sideLabel, sideWords, skippedNote, tryOnSides, wornCaption } from "./wornPhotos";
 import TryOnPhotos from "./TryOnPhotos";
@@ -2399,7 +2399,10 @@ export default function DesignRoomPage() {
       const used = [...new Set(els.map((e) => e.position))].filter((k) => !aiPlaced[k]);
       const hints = {};
       for (const pc of pieces) {
-        hints[pc] = placementHint(concept[pc], positions); // "small left-chest badge" → the chest area, small; "nape logo" → Back Neck
+        // (21 Nov 2026, live test: a back with one tall print came out wherever the area put it) every front / back of a
+        // concept is drawn as that whole side, laid out as on the mockup, then cut into its prints and each one placed
+        // where it is on the concept the customer picked — one print or several. Sleeves keep their own reading.
+        hints[pc] = pc === "front" || pc === "back" ? { area: "whole", size: null } : placementHint(concept[pc], positions); // sleeves: "small sleeve logo" → small
         const pos = pieceArea(pc, positions, used, hints[pc]);
         if (!pos) continue;
         areasFor[pc] = pos;
@@ -2455,6 +2458,15 @@ export default function DesignRoomPage() {
           if (oldParts.some((id) => els.some((e) => e.id === id))) replacedParts.push(pieceName(pc.piece));
           els = els.filter((e) => e.id !== old && !oldParts.includes(e.id));
           dropLayout.add(pc.piece);
+          // (21 Nov 2026) a sleeve piece found on the concept: on its sleeve where the mockup has it
+          const onSleeve = pc.place && !pc.parts ? sleeveAsSpot(els, el, pc.place, pos, { positions, garment, size, maxPrint, piece: pc.piece, shape: pc.width / pc.height }) : null;
+          if (onSleeve) {
+            els = onSleeve.elements;
+            placed[onSleeve.key] = { url: pc.url, elId: el.id, layout: pc.piece };
+            splitInto[pc.piece] = [onSleeve.label];
+            focus = focus || onSleeve.key;
+            continue;
+          }
           const split = pc.parts?.length > 1 || pc.parts?.[0]?.at ? partsAsSpots(els, el, pc.parts, pos, { positions, garment, size, maxPrint, makeId }) : null;
           if (split) {
             els = split.elements;
@@ -2470,8 +2482,12 @@ export default function DesignRoomPage() {
         const redrawn = res.pieces.filter((pc) => pc.redrawn?.length);
         out.push(
           botSays(
-            `Concept ${n} “${concept.title}” is on your tee${res.pieces.length > 1 ? ` — ${andList(res.pieces.map((pc) => (splitInto[pc.piece] ? `the ${pieceName(pc.piece)} as ${splitInto[pc.piece].length} prints` : areasFor[pc.piece]?.label || pieceName(pc.piece))))}` : ""}.` +
-              (Object.keys(splitInto).length ? ` The ${andList(Object.keys(splitInto).map(pieceName))} is in ${andList(Object.values(splitInto).map((l) => `${l.length > 1 ? `${l.length} separate prints` : "a print of its own"} (${andList(l)})`))}, ${res.pieces.some((pc) => splitInto[pc.piece] && pc.parts?.some((p) => p.at)) ? "each where it is on the concept you picked" : "each where it sits on the tee"} — move, resize or remove any of them on its own.` : "") +
+            `Concept ${n} “${concept.title}” is on your tee` +
+              // (22 Nov 2026: each piece said once, with its prints — assistantV2.js placedWords)
+              placedWords(
+                res.pieces.map((pc) => ({ piece: pc.piece, prints: splitInto[pc.piece] || null, area: areasFor[pc.piece]?.label })),
+                res.pieces.some((pc) => splitInto[pc.piece] && (pc.place || pc.parts?.some((p) => p.at))),
+              ) +
               (replaced.length ? ` It took the place of the earlier print on ${andList(replaced)} — press Undo (↶) to bring that back, or say “put the old one on the back”.` : replacedParts.length ? ` It took the place of the earlier ${andList(replacedParts)} prints — press Undo (↶) to bring them back.` : " Tell me what to change, or press Undo (↶).") +
               (redrawn.length ? ` (I checked the spelling and drew the ${andList(redrawn.map((pc) => areasFor[pc.piece]?.label || pieceName(pc.piece)))} again so ${andList(redrawn.flatMap((pc) => pc.redrawn).map((w) => `“${w}”`))} reads right.)` : ""),
           ),

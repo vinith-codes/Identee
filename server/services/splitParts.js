@@ -17,12 +17,14 @@ const SPECK_SHARE = 0.0002; // ... and less than this share of all the ink
  * The parts of a laid-out picture.
  * @param buffer  a see-through PNG (the cut-out), its edges = the print area's edges
  * @param opts    { widthCm: the print area's width (to turn cm into pixels), gapCm: parts closer than this stay one,
- *                  maxParts: more parts than this → the gap is widened until they fit, else null }
+ *                  maxParts: more parts than this → the gap is widened until they fit, else null,
+ *                  minParts: fewer than this → null (1: a one-print side still comes back as its part, cut to its
+ *                  edges, so it can be placed where it is on the mockup — 21 Nov 2026, the back of a live test) }
  * @returns { parts: [{ buffer, mime, width, height, x, y, w, h }], dropped } with x / y / w / h as fractions of the
  *          picture (0–1), in reading order (top to bottom, then left to right); null when it is one part (or can't be
  *          split cleanly) — then the picture is used whole.
  */
-export async function splitParts(buffer, { widthCm = 35, gapCm = 2.5, maxParts = 8 } = {}) {
+export async function splitParts(buffer, { widthCm = 35, gapCm = 2.5, maxParts = 8, minParts = 2 } = {}) {
   const { data, info } = await sharp(buffer).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
   const W = info.width;
   const H = info.height;
@@ -92,7 +94,7 @@ export async function splitParts(buffer, { widthCm = 35, gapCm = 2.5, maxParts =
       break;
     }
   }
-  if (!groups || groups.length < 2) return null;
+  if (!groups || groups.length < Math.max(1, minParts)) return null;
   groups.sort((a, b) => a.y0 - b.y0 || a.x0 - b.x0);
   const pad = 2; // px of clear edge round each part
   const parts = await Promise.all(
@@ -145,4 +147,48 @@ export function mergeNear(bits, gap) {
     list = next;
   }
   return list;
+}
+
+/**
+ * (21 Nov 2026, the full-tee test) The picture AI sometimes draws a thin frame line round a laid-out side's picture
+ * (marking the print area's edge): it joined the chest logo, the strokes and the hem tag into one print, and it would
+ * be printed. A thin line along an edge of the picture — a row (or column) near the edge with ink across more than
+ * half of it, at most a few px thick — is taken out; art that runs along an edge is thicker and stays.
+ * @param cut  { buffer, mime, width, height, cut } a see-through PNG (cutOutPlainBackground)
+ * @returns the same shape (the same object when there is no frame)
+ */
+export async function dropFrame(cut) {
+  if (!cut?.cut || !cut.buffer) return cut;
+  const { data, info } = await sharp(cut.buffer).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  const { width: W, height: H, channels: C } = info;
+  const inkAt = (x, y) => data[(y * W + x) * C + 3] > 16;
+  const rowShare = (y) => { let n = 0; for (let x = 0; x < W; x += 2) n += inkAt(x, y); return n / Math.ceil(W / 2); };
+  const colShare = (x) => { let n = 0; for (let y = 0; y < H; y += 2) n += inkAt(x, y); return n / Math.ceil(H / 2); };
+  const thin = (len) => Math.max(6, Math.round(len * 0.012));
+  // the lines along one edge: indexes from the edge inwards (up to 6 % in) whose share is over half, in runs no thicker
+  // than `thin` (a thicker run is art)
+  const lines = (n, share, len) => {
+    const reach = Math.round(n * 0.06);
+    const hits = [];
+    for (let i = 0; i < reach; i++) if (share(i) > 0.5) hits.push(i);
+    const runs = [];
+    for (const i of hits) {
+      const last = runs[runs.length - 1];
+      if (last && i === last[1] + 1) last[1] = i;
+      else runs.push([i, i]);
+    }
+    // (a run reaching the end of the search, still ink just past it, is the edge of thicker art)
+    return runs.filter(([a, b]) => b - a + 1 <= thin(len) && !(share(b + 1) > 0.5));
+  };
+  const top = lines(H, (i) => rowShare(i), H);
+  const bottom = lines(H, (i) => rowShare(H - 1 - i), H).map(([a, b]) => [H - 1 - b, H - 1 - a]);
+  const left = lines(W, (i) => colShare(i), W);
+  const right = lines(W, (i) => colShare(W - 1 - i), W).map(([a, b]) => [W - 1 - b, W - 1 - a]);
+  if (!top.length && !bottom.length && !left.length && !right.length) return cut;
+  const pad = 2; // the line's soft edge
+  for (const [a, b] of [...top, ...bottom]) for (let y = Math.max(0, a - pad); y <= Math.min(H - 1, b + pad); y++) for (let x = 0; x < W; x++) data[(y * W + x) * C + 3] = 0;
+  for (const [a, b] of [...left, ...right]) for (let x = Math.max(0, a - pad); x <= Math.min(W - 1, b + pad); x++) for (let y = 0; y < H; y++) data[(y * W + x) * C + 3] = 0;
+  const buffer = await sharp(data, { raw: { width: W, height: H, channels: C } }).png().toBuffer();
+  console.log(`[ai:v2] a frame line round the picture taken out (${[top, bottom, left, right].map((l) => l.length).join("/")} lines top/bottom/left/right)`);
+  return { ...cut, buffer, mime: "image/png", width: W, height: H };
 }

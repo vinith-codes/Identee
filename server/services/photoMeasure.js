@@ -200,7 +200,7 @@ export function toTeeMeasure(answer, { width, height }, count, { seamPx = null, 
  * @param rgb   { data, width, height, channels } raw pixels
  * @param body  the AI's box round the whole tee, in px [y0, x0, y1, x1]
  */
-export function teeOutline(rgb, body) {
+export function teeOutline(rgb, body, collarX = null) {
   const { data, width, height, channels: c } = rgb;
   const padX = Math.round((body[3] - body[1]) * 0.03);
   const padY = Math.round((body[2] - body[0]) * 0.03);
@@ -236,36 +236,148 @@ export function teeOutline(rgb, body) {
   const span = X1 - X0;
   const hems = [];
   const tops = [];
-  for (let x = Math.round(midX - span * 0.3); x <= Math.round(midX + span * 0.3); x += 2) {
-    let t = Y0;
-    while (t < Y1 && !on(x, t)) t++;
-    if (t < Y1) tops.push(t);
-    if (Math.abs(x - midX) <= span * 0.2) {
-      let b = Y1;
-      while (b > Y0 && !on(x, b)) b--;
-      if (b > Y0) hems.push(b);
+  // (21 Nov 2026, the back of a live test: on a concept sheet the front tee hangs just above the back tee, and scanning
+  // down from above the box caught the front tee's hem — the back's top came out 46 px too high, its print 6 % low.)
+  // Each column is walked OUT from the middle of the box, through the tee, to where clear background starts (a gap of
+  // a few px, so a thin print line the colour of the background doesn't stop it): another tee above or below, or its
+  // shadow, is never reached.
+  const gap = Math.max(3, Math.round((Y1 - Y0) * 0.015));
+  const walk = (x, y, step) => {
+    let last = y;
+    for (let off = 0; y >= Y0 && y <= Y1; y += step) {
+      if (on(x, y)) {
+        last = y;
+        off = 0;
+      } else if (++off > gap) break;
     }
+    return last;
+  };
+  const midY = Math.round((Y0 + Y1) / 2);
+  for (let x = Math.round(midX - span * 0.3); x <= Math.round(midX + span * 0.3); x += 2) {
+    if (!on(x, midY)) continue; // (not on the tee here: between the sleeve and the body)
+    tops.push(walk(x, midY, -1));
+    if (Math.abs(x - midX) <= span * 0.2) hems.push(walk(x, midY, 1));
   }
   if (tops.length < 5 || hems.length < 5) return null;
   tops.sort((a, b) => a - b);
   const top = tops[Math.floor(tops.length * 0.05)]; // the highest point: the shoulders at the neck
-  const hem = median(hems);
+  let hem = median(hems);
   // the centre line and the body's half-width: half-way between / half of the body's two sides, from 60 % to 90 % of
   // the way down (below the sleeves, the oversized tee's narrowest — as our 3D tee's own `half` is measured)
-  const centres = [];
-  const halves = [];
-  for (let y = Math.round(top + (hem - top) * 0.6); y <= Math.round(top + (hem - top) * 0.9); y += 2) {
-    let l = X0;
-    while (l < X1 && !on(l, y)) l++;
-    let r = X1;
-    while (r > X0 && !on(r, y)) r--;
-    if (r - l > span * 0.3) {
-      centres.push((l + r) / 2);
-      halves.push((r - l) / 2);
+  // (21 Nov 2026, the full-tee test: on the sheet the "L" / "R" sleeve close-ups sit beside or over the tees' lower
+  // sides — scanning in from the box's edges took a close-up for the tee's side: the front came out 1.6x as wide as it
+  // is (every print on the 3D tee 40 % too narrow, too near the middle) and the back's centre line 55 px off, its
+  // centred print 4.7 cm to one side.) When the AI's collar box gives the centre (collarX — the collar ring is never
+  // covered), that is the centre line, and each row is walked OUT from it to the tee's own side, on a map of the tee:
+  // lighter than the sheet for a light tee (darker for a dark one — a shadow on the sheet is neither), or ink (on a dark
+  // tee also anything clearly lighter than the sheet: white strokes — a shadow is never lighter), with the
+  // holes inside it filled (a white tee's fold shadows are as grey as the sheet). A few px of sheet end the walk (the
+  // gap before a close-up). The half-width is the NEARER side's: a close-up lying over one side only makes that side
+  // look farther away.
+  const cx = collarX != null && collarX > X0 && collarX < X1 ? Math.round(collarX) : null;
+  let centre = null;
+  let half = null;
+  if (cx != null) {
+    const RW = X1 - X0 + 1;
+    const RH = Y1 - Y0 + 1;
+    const bgLum = (bg[0] + bg[1] + bg[2]) / 3;
+    const lumAt = (x, y) => {
+      const i = px(x, y);
+      return (data[i] + data[i + 1] + data[i + 2]) / 3 - bgLum;
+    };
+    // a light tee or a dark one: the sign of most of what stands out inside the box
+    let up = 0;
+    let down = 0;
+    for (let y = Y0 + padY * 2; y <= Y1 - padY * 2; y += 4)
+      for (let x = X0 + padX * 2; x <= X1 - padX * 2; x += 4) {
+        if (!on(x, y)) continue;
+        if (lumAt(x, y) > 0) up++;
+        else down++;
+      }
+    const sign = up >= down ? 1 : -1;
+    const tee = new Uint8Array(RW * RH); // 1: the tee (or ink on it)
+    for (let y = 0; y < RH; y++)
+      for (let x = 0; x < RW; x++) tee[y * RW + x] = sign * lumAt(X0 + x, Y0 + y) > 3 || dist(X0 + x, Y0 + y) > 60 || (sign < 0 && lumAt(X0 + x, Y0 + y) > 20) ? 1 : 0;
+    // the sheet: everything not the tee that the region's edge reaches (the rest is a hole in the tee: filled)
+    const seen = new Uint8Array(RW * RH);
+    const queue = new Int32Array(RW * RH);
+    let qh = 0;
+    let qt = 0;
+    const push = (i) => {
+      if (!tee[i] && !seen[i]) {
+        seen[i] = 1;
+        queue[qt++] = i;
+      }
+    };
+    for (let x = 0; x < RW; x++) push(x), push((RH - 1) * RW + x);
+    for (let y = 0; y < RH; y++) push(y * RW), push(y * RW + RW - 1);
+    while (qh < qt) {
+      const i = queue[qh++];
+      const x = i % RW;
+      if (x > 0) push(i - 1);
+      if (x < RW - 1) push(i + 1);
+      if (i >= RW) push(i - RW);
+      if (i < RW * (RH - 1)) push(i + RW);
     }
+    const gapX = Math.max(3, Math.round(span * 0.01));
+    const out = (y, step) => {
+      let last = cx;
+      for (let x = cx, off = 0; x >= X0 && x <= X1; x += step) {
+        if (!seen[(y - Y0) * RW + (x - X0)]) {
+          last = x;
+          off = 0;
+        } else if (++off > gapX) break;
+      }
+      return Math.abs(last - cx);
+    };
+    // the hem: a white tee's shaded bottom (as grey as the sheet) or big white strokes on a black tee stop the walk
+    // down early (all 6 sheets: 3 of 36 hems 5–25 % too high, their tall prints then "past the hem" and left as
+    // drawn); where the pixels gave one the AI's box agreed within 2.5 % — so more than 3 % above it, the AI's is used
+    if (body[2] - hem > (hem - top) * 0.03 && body[2] <= Y1) hem = body[2];
+    // (21 Nov 2026, all 6 laptop sheets read: on one sheet the L and R close-ups cover BOTH lower corners of the back
+    // tee, from 65 % of the way down) rows from just below the sleeves (45 %) to the hem; each side's width is that of
+    // its narrower rows (a tenth of the way up its sorted widths: there the sleeves reach 50 % down and the close-ups
+    // start at 62 %) — a close-up or a sleeve only ever widens a row
+    // A close-up over a side can make it look wider (its own picture continues the tee) or narrower (its grey inside
+    // ends the walk) — so a row is trusted when its two sides agree (a tee is the same both sides of its collar, within
+    // 10 %) and it isn't widened (within 15 % of the narrowest rows); the half-width is the middle of those rows' two
+    // sides, from the rows 60–95 % down when there are enough (as our 3D tee's own half-width is measured: below the
+    // pinch under the sleeves), else from all of them; none: the narrower side's narrow rows.
+    const rows = [];
+    for (let y = Math.round(top + (hem - top) * 0.45); y <= Math.round(top + (hem - top) * 0.95); y += 2) {
+      const l = out(y, -1);
+      const r = out(y, 1);
+      rows.push({ low: y >= top + (hem - top) * 0.6, m: (l + r) / 2, l, r, agree: Math.abs(l - r) <= 0.1 * Math.max(l, r) });
+    }
+    const tenth = (v) => [...v].sort((p, q) => p - q)[Math.floor(v.length * 0.1)];
+    let near = 0;
+    if (rows.length) {
+      const narrow = tenth(rows.map((w) => w.m));
+      const fit = rows.filter((w) => w.agree && w.m <= narrow * 1.15);
+      const lowFit = fit.filter((w) => w.low);
+      const use = lowFit.length >= 5 ? lowFit : fit;
+      near = use.length >= 3 ? median(use.map((w) => w.m)) : Math.min(tenth(rows.map((w) => w.l)), tenth(rows.map((w) => w.r)));
+    }
+    if (near > span * 0.1) {
+      centre = collarX;
+      half = near;
+    }
+  } else {
+    const centres = [];
+    const halves = [];
+    for (let y = Math.round(top + (hem - top) * 0.6); y <= Math.round(top + (hem - top) * 0.9); y += 2) {
+      let l = X0;
+      while (l < X1 && !on(l, y)) l++;
+      let r = X1;
+      while (r > X0 && !on(r, y)) r--;
+      if (r - l > span * 0.3) {
+        centres.push((l + r) / 2);
+        halves.push((r - l) / 2);
+      }
+    }
+    centre = median(centres);
+    half = median(halves);
   }
-  const centre = median(centres);
-  const half = median(halves);
   if (centre == null || hem - top < (Y1 - Y0) * 0.6) return null;
   return { top, hem, centre, half };
 }
@@ -326,13 +438,14 @@ export async function measureParts(picture, parts, side, { concept = null, layou
     const meta = await sharp(picture.data).metadata();
     const shown = await Promise.all(parts.map(partImage));
     const t0 = Date.now();
-    // (laptop checks only: AI_MOCK_MEASURE = a file with an answer saved from a real run — no AI call, no cost)
+    // (laptop checks only: AI_MOCK_MEASURE = a file with an answer saved from a real run — no AI call, no cost; the
+    // file may hold one answer for each side, { front: answer, back: answer }, so a whole tee can be replayed)
     const mockFile = process.env.AI_MOCK_MEASURE?.trim();
     // (40 s, then once more: the AI sometimes hangs — 21 Nov 2026, 2 of 4 real tries ran past 40 / 90 s, the others
     // answered in 9–12 s; a customer shouldn't wait long for nothing)
     const ask = () => askJsonWithImage(measurePrompt(side, parts.length, { concept, layout }), [picture, ...shown], 0.1, undefined, { timeoutMs: 40_000, thinking: "low" });
     const said = mockFile
-      ? JSON.parse(await (await import("fs/promises")).readFile(mockFile, "utf8"))
+      ? ((all) => all?.[side] || all)(JSON.parse(await (await import("fs/promises")).readFile(mockFile, "utf8")))
       : await ask().catch((err) => {
           if (err?.message !== "unreachable") throw err;
           console.log(`[ai:v2] the ${side}: no answer in 40 s — asking once more`);
@@ -353,7 +466,8 @@ export async function measureParts(picture, parts, side, { concept = null, layou
     const b = answer.body.map(Number);
     const bodyPx = [(b[0] / 1000) * meta.height, (b[1] / 1000) * meta.width, (b[2] / 1000) * meta.height, (b[3] / 1000) * meta.width];
     const rgb = await sharp(picture.data).removeAlpha().raw().toBuffer({ resolveWithObject: true });
-    const outline = teeOutline({ data: rgb.data, width: rgb.info.width, height: rgb.info.height, channels: rgb.info.channels }, bodyPx);
+    const cl = answer.collar.map(Number);
+    const outline = teeOutline({ data: rgb.data, width: rgb.info.width, height: rgb.info.height, channels: rgb.info.channels }, bodyPx, ((cl[1] + cl[3]) / 2 / 1000) * meta.width);
     if (outline) {
       const m = toTeeMeasure(answer, size, parts.length, { outline });
       if (m) return { ...m, how: "outline" };
@@ -366,6 +480,67 @@ export async function measureParts(picture, parts, side, { concept = null, layou
     return seamPx == null ? { ...first, how: "collar" } : { ...toTeeMeasure(answer, size, parts.length, { seamPx }), how: "seam" };
   } catch (err) {
     console.log(`[ai:v2] the ${side} could not be measured (${err.message})`);
+    return null;
+  }
+}
+
+/* ---------- a sleeve print on the concept sheet (21 Nov 2026) ---------- */
+// The sheet shows each sleeve print in a small close-up inset ("L", "R") that cuts the sleeve off above the print, so
+// boxes can't place it: the text AI is asked for its place ALONG the sleeve instead — top and bottom from the shoulder
+// seam (0) to the sleeve's hem (1) — and how much of the sleeve's width it covers (the owner: "the same mockup in the
+// 3D tee", sleeves included).
+const SLEEVE_WHICH = {
+  sleeve: (both) => (both ? "its LEFT sleeve's print (the inset marked L)" : "its sleeve print (the inset that shows a print, marked L or R)"),
+  sleeve2: () => "its RIGHT sleeve's print (the inset marked R)",
+};
+export const sleevePrompt = (piece, concept, both = false) =>
+  [
+    `Image 1 is a concept sheet: several t-shirt design concepts side by side, each labelled with a numeral in its top-left corner, each tee shown from the front and from the back, sleeve prints as small square close-up insets marked L (left sleeve) and R (right sleeve). Look ONLY at concept ${concept}: ${SLEEVE_WHICH[piece](both)}, in its inset and wherever it also shows on that concept's front or back view.`,
+    "Image 2 is that print drawn flat on its own (on grey); its colours or details may differ a little.",
+    "Say where it sits on the sleeve as it is worn: top and bottom are its top and bottom edges as shares of the sleeve's length, from the shoulder seam where the sleeve meets the body (0) to the sleeve's hem (1); width is how much of the sleeve's width (across the outside of the sleeve, at that height) it covers, from 0 to 1 (a band right round the sleeve: 1).",
+    'Answer JSON only: {"found": true|false, "top": number, "bottom": number, "width": number}. found: false when concept ' + concept + " has no such sleeve print.",
+  ].join("\n");
+
+/** The text AI's sleeve answer checked: { top, bottom, width } (0–1), or null. */
+export function toSleevePlace(answer) {
+  if (!answer || answer.found === false) return null;
+  const n = (v) => (Number.isFinite(Number(v)) ? Number(v) : null);
+  let [top, bottom, width] = [n(answer.top), n(answer.bottom), n(answer.width)];
+  if (top == null || bottom == null) return null;
+  top = Math.max(0, Math.min(1, top));
+  bottom = Math.max(0, Math.min(1, bottom));
+  if (!(bottom - top >= 0.03)) return null;
+  width = width == null ? null : Math.max(0.05, Math.min(1, width));
+  return { top: Math.round(top * 1000) / 1000, bottom: Math.round(bottom * 1000) / 1000, ...(width != null ? { width: Math.round(width * 1000) / 1000 } : {}) };
+}
+
+/**
+ * Where a sleeve piece sits on its sleeve on the sheet's concept: { top, bottom, width? } or null (then it goes on the
+ * sleeve's usual print area).
+ * @param picture  { data, mime } the concept sheet
+ * @param part     the drawn sleeve piece (cut out)
+ * @param piece    "sleeve" | "sleeve2"
+ */
+export async function measureSleeve(picture, part, piece, { concept = 1, both = false } = {}) {
+  if (!SLEEVE_WHICH[piece] || !part || !measureReady()) return null;
+  try {
+    const shown = await partImage(part);
+    const t0 = Date.now();
+    // (laptop checks only: AI_MOCK_MEASURE's "sleeves": { sleeve: answer, sleeve2: answer } — no AI call, no cost)
+    const mockFile = process.env.AI_MOCK_MEASURE?.trim();
+    const ask = () => askJsonWithImage(sleevePrompt(piece, concept, both), [picture, shown], 0.1, undefined, { timeoutMs: 40_000, thinking: "low" });
+    const said = mockFile
+      ? JSON.parse(await (await import("fs/promises")).readFile(mockFile, "utf8"))?.sleeves?.[piece] || null
+      : await ask().catch((err) => {
+          if (err?.message !== "unreachable") throw err;
+          console.log(`[ai:v2] the ${piece}: no answer in 40 s — asking once more`);
+          return ask();
+        });
+    const place = toSleevePlace(said);
+    console.log(`[ai:v2] the sheet's concept ${concept} ${piece}: ${JSON.stringify(said)} in ${Math.round((Date.now() - t0) / 1000)} s -> ${place ? JSON.stringify(place) : "not placed (stays on the sleeve's print area)"}`);
+    return place;
+  } catch (err) {
+    console.log(`[ai:v2] the ${piece} could not be measured (${err.message})`);
     return null;
   }
 }

@@ -5,7 +5,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import sharp from "sharp";
-import { seamBelow, teeOutline, toTeeMeasure, measurePrompt, matchLayout, layoutWords } from "../services/photoMeasure.js";
+import { seamBelow, teeOutline, toTeeMeasure, measurePrompt, matchLayout, layoutWords, sleevePrompt, toSleevePlace } from "../services/photoMeasure.js";
 
 const answer = JSON.parse(readFileSync(new URL("./fixtures/teePhotoMeasure.json", import.meta.url), "utf8"));
 const size = { width: 1313, height: 1198 };
@@ -157,4 +157,120 @@ test("the request tells the AI each part's size and spot in the copy", () => {
   assert.equal(layoutWords(copyLayout), "part 1: medium, top right; part 2: large, middle left; part 3: small, bottom right");
   assert.match(measurePrompt("front", 3, { concept: 1, layout: copyLayout }), /a large logo and a tiny copy of it are different parts/);
   assert.doesNotMatch(measurePrompt("front", 3, { concept: 1 }), /blown up/);
+});
+
+// (21 Nov 2026, the back of a live test) on a concept sheet the front tee hangs just above the back tee: the back's
+// outline must not run up into it (it did: the back's top 46 px too high, its print placed 6 % low)
+test("teeOutline: a tee just above the box (the sheet's front over its back) is not taken for this tee's top", () => {
+  const W = 400, H = 700, c = 3;
+  const data = Buffer.alloc(W * H * c, 212); // the sheet's grey
+  const fill = (x0, y0, x1, y1, v) => { for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) data.fill(v, (y * W + x) * c, (y * W + x) * c + c); };
+  fill(80, 20, 320, 280, 255); // the front tee, its hem at 280
+  fill(80, 300, 320, 640, 255); // the back tee: 20 px of grey between
+  fill(190, 320, 210, 630, 20); // its tall black print down the centre
+  const o = teeOutline({ data, width: W, height: H, channels: c }, [285, 70, 650, 330]); // a loose box, starting in the gap
+  near(o.top, 300, 2, "the back tee's own top");
+  near(o.hem, 639, 2, "its hem");
+});
+
+test("teeOutline on the live sheet's concept 1 back (laptop only)", async () => {
+  let sheet = null;
+  try {
+    const r = await sharp("E:/AI CUSTOMIZATION/test-pictures/live-back-21nov/sheet.jpg").removeAlpha().raw().toBuffer({ resolveWithObject: true });
+    sheet = { data: r.data, width: r.info.width, height: r.info.height, channels: r.info.channels };
+  } catch {
+    return;
+  }
+  const o = teeOutline(sheet, [808, 154, 1478, 784]);
+  near(o.top, 836, 5, "the back's top, not the front tee's hem above it");
+  near(o.hem, 1465, 6, "its hem");
+});
+
+test("teeOutline: a close-up over one side (the sheet's R inset over the back tee) doesn't move the centre line", () => {
+  const W = 400, H = 700, c = 3;
+  const data = Buffer.alloc(W * H * c, 212);
+  const fill = (x0, y0, x1, y1, v) => { for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) data.fill(v, (y * W + x) * c, (y * W + x) * c + c); };
+  fill(100, 60, 300, 660, 255); // the tee: centre 200, half 100
+  fill(170, 40, 230, 70, 150); // its collar ring
+  fill(40, 300, 130, 640, 90); // a close-up box over the tee's lower left edge
+  fill(45, 305, 125, 635, 240);
+  const rgb = { data, width: W, height: H, channels: c };
+  const plain = teeOutline(rgb, [60, 60, 660, 340]); // the AI's box takes in the sleeves: wider than the body
+  assert.ok(Math.abs(plain.centre - 200) > 20, "without the collar the close-up pulls the centre off (the old fault)");
+  const o = teeOutline(rgb, [60, 60, 660, 340], 200);
+  near(o.centre, 200, 0.5, "the collar's middle");
+  near(o.half, 100, 2, "the uncovered side's half-width");
+});
+
+test("live full-tee sheet: the back print centred on the mockup is measured centred (laptop only)", async () => {
+  let pic = null;
+  try {
+    pic = await sharp("E:/AI CUSTOMIZATION/test-pictures/fulltee-test/sheet-run1.jpg").removeAlpha().raw().toBuffer({ resolveWithObject: true });
+  } catch {
+    return;
+  }
+  const { width, height } = pic.info;
+  const answer = { found: true, collar: [66, 339, 90, 407], body: [66, 271, 513, 481], parts: [{ part: 1, box: [94, 356, 499, 388] }] };
+  const b = answer.body;
+  const o = teeOutline({ data: pic.data, width, height, channels: pic.info.channels }, [(b[0] / 1000) * height, (b[1] / 1000) * width, (b[2] / 1000) * height, (b[3] / 1000) * width], ((339 + 407) / 2 / 1000) * width);
+  const m = toTeeMeasure(answer, { width, height }, 1, { outline: o });
+  assert.ok(Math.abs(m.at[0].r) < 0.05, `centred (r ${m.at[0].r}; was 0.22 when the R close-up was taken for the tee's side)`);
+  near(o.half, 197, 8, "the back's half-width: the middle of its two sides (about 206 and 192 px) where the R close-up doesn't cover them");
+  // the front: the L and R close-ups beside it were taken for its sides (half 341 px, 1.6x) — the strokes came out
+  // 40 % too narrow on the 3D tee; they reach the side seam on the mockup
+  const front = { found: true, collar: [62, 137, 115, 202], body: [62, 53, 508, 287], parts: [{ part: 1, box: [178, 191, 224, 224] }, { part: 2, box: [239, 91, 506, 163] }, { part: 3, box: [479, 224, 506, 237] }] };
+  const fb = front.body;
+  const fo = teeOutline({ data: pic.data, width, height, channels: pic.info.channels }, [(fb[0] / 1000) * height, (fb[1] / 1000) * width, (fb[2] / 1000) * height, (fb[3] / 1000) * width], ((137 + 202) / 2 / 1000) * width);
+  near(fo.half, 208, 10, "the front's own half-width");
+  const fm = toTeeMeasure(front, { width, height }, 3, { outline: fo });
+  assert.ok(fm.at[1].w > 0.9 && fm.at[1].r - fm.at[1].w / 2 < -1.0, `the strokes reach the side seam (${JSON.stringify(fm.at[1])})`);
+});
+
+test("a sleeve print is read along its sleeve (the sheet's L / R inset), its answer checked", () => {
+  const p = sleevePrompt("sleeve2", 4, true);
+  assert.match(p, /concept 4/);
+  assert.match(p, /RIGHT sleeve's print \(the inset marked R\)/);
+  assert.match(p, /shoulder seam .*\(0\) to the sleeve's hem \(1\)/);
+  assert.match(sleevePrompt("sleeve", 2, true), /LEFT sleeve's print \(the inset marked L\)/);
+  assert.match(sleevePrompt("sleeve", 2, false), /its sleeve print \(the inset that shows a print/);
+  assert.deepEqual(toSleevePlace({ found: true, top: 0.55, bottom: 0.78, width: 1 }), { top: 0.55, bottom: 0.78, width: 1 });
+  assert.deepEqual(toSleevePlace({ found: true, top: -0.1, bottom: 1.4, width: 3 }), { top: 0, bottom: 1, width: 1 });
+  assert.deepEqual(toSleevePlace({ found: true, top: 0.4, bottom: 0.6 }), { top: 0.4, bottom: 0.6 });
+  assert.equal(toSleevePlace({ found: false, top: 0.4, bottom: 0.6 }), null);
+  assert.equal(toSleevePlace({ found: true, top: 0.6, bottom: 0.4 }), null, "upside down");
+  assert.equal(toSleevePlace({ found: true, top: "x", bottom: 0.4 }), null);
+  assert.equal(toSleevePlace(null), null);
+});
+
+// (21 Nov 2026) all 6 concept sheets on the laptop, every concept's front and back as the real text AI read them
+// (36 answers saved in test-pictures/all-mockups-check/results.json): each tee's outline is found, every print on it
+// is placed, and a sheet's fronts and backs come out about as wide as each other (the sleeve close-ups beside or over
+// the tees — both lower corners on one sheet — white strokes on a black tee and a white tee's shaded hem fooled it)
+test("all 6 laptop sheets: every tee measured, every print placed (laptop only)", async () => {
+  const fs = await import("fs");
+  const DIR = "E:/AI CUSTOMIZATION/Identee-like-this/server/uploads/ai-concepts/";
+  let saved = null;
+  try {
+    saved = JSON.parse(fs.readFileSync("E:/AI CUSTOMIZATION/test-pictures/all-mockups-check/results.json", "utf8"));
+  } catch {
+    return;
+  }
+  const halves = {};
+  for (const [key, { answer }] of Object.entries(saved)) {
+    const file = key.split("|")[0];
+    if (!fs.existsSync(DIR + file)) return;
+    const r = await sharp(DIR + file).removeAlpha().raw().toBuffer({ resolveWithObject: true });
+    const { width, height } = r.info;
+    const b = answer.body.map(Number);
+    const o = teeOutline({ data: r.data, width, height, channels: r.info.channels }, [(b[0] / 1000) * height, (b[1] / 1000) * width, (b[2] / 1000) * height, (b[3] / 1000) * width], ((Number(answer.collar[1]) + Number(answer.collar[3])) / 2 / 1000) * width);
+    assert.ok(o, `${key}: outline found`);
+    const parts = answer.prints.map((box, i) => ({ part: i + 1, box }));
+    const m = toTeeMeasure({ ...answer, parts }, { width, height }, parts.length, { outline: o });
+    assert.equal(m?.at.filter(Boolean).length, parts.length, `${key}: every print placed`);
+    (halves[file] ||= []).push(o.half);
+  }
+  for (const [file, hs] of Object.entries(halves)) {
+    const mid = [...hs].sort((p, q) => p - q)[hs.length >> 1];
+    for (const h of hs) assert.ok(Math.abs(h / mid - 1) < 0.12, `${file}: half-widths ${hs.map(Math.round)} agree`);
+  }
 });

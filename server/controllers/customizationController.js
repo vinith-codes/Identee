@@ -67,7 +67,7 @@ const cleanElement = (positionByKey) => (el, i) => {
       src: el.src,
       artDesignId: mongoose.isValidObjectId(el.artDesignId) ? el.artDesignId : undefined,
       // (21 Nov 2026) a part of the AI's laid-out side (the Assistant replaces these when that side is made again)
-      ...(el.aiLayout === "front" || el.aiLayout === "back" ? { aiLayout: el.aiLayout } : {}),
+      ...(AI_PIECES.includes(el.aiLayout) ? { aiLayout: el.aiLayout } : {}),
       // the 4K copy made for printing (the Studio's "Sharpen for print", 25 Oct 2026) and its width in px
       ...(el.printSrc && isOurImage(el.printSrc) ? { printSrc: el.printSrc, printW: clampNum(el.printW, 1, 20000, 0) || undefined } : {}),
     };
@@ -165,6 +165,8 @@ async function dropMockups(mockups, exceptId) {
 }
 
 /* ---------- prints in free places ("spots", 14 Nov 2026: data/panelModel.js, docs/FREE_PLACEMENT.md) ---------- */
+// the Assistant's pieces an element can be part of (aiLayout: placed as on the mockup — no print limits, 21 Nov 2026)
+const AI_PIECES = ["front", "back", "sleeve", "sleeve2"];
 const r1 = (n) => Math.round(n * 10) / 10;
 // One spot's box as sent (el.spot of its first element) -> the box to store, or a clear refusal.
 function cleanSpotBox(raw, key, sizes, elements) {
@@ -189,6 +191,9 @@ function cleanSpotBox(raw, key, sizes, elements) {
     hCm: r1(hCm),
     base: String(raw.base),
     scale: raw.scale === "F" ? "F" : "G",
+    // (21 Nov 2026) a print the Assistant placed as on its mockup has no print limits, only the tee itself: kept while
+    // the spot still holds one of the Assistant's parts
+    ...(raw.free === true && elements.some((e) => e?.position === key && e.type === "image" && AI_PIECES.includes(e.aiLayout)) ? { free: true } : {}),
   };
 }
 

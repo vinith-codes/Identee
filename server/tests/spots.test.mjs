@@ -253,3 +253,22 @@ test("the collar crop top: a print too high on the front is told the real line (
   const d = { ...clone(design), garmentType: crop.key, elements: [logo("spot-1", "Front 1", 10, 0)] };
   await refused(d, /^Front 1: it is too near the collar opening \(its top must be at least 16\.\d cm below the collar seam\)\. Please move or shrink it\.$/, crop);
 });
+
+// (21 Nov 2026, the owner: "the print limits should only be for design myself") a print the Assistant placed as on its
+// mockup (its element marked aiLayout) keeps `free` and is saved anywhere on the tee; a customer's own print isn't
+test("an Assistant print (aiLayout) is saved free of the print limits; free on a customer's own print is dropped", async () => {
+  const { panelFor } = await import("../data/panelModel.js");
+  const len = panelFor(garment, "M").front.len;
+  const nearHem = { downCm: Math.round((len - 9.5) * 10) / 10, acrossCm: 0 }; // the 9 cm logo 0.5 cm above the hem (the limit: 2 cm)
+  await refused(withBox(0, nearHem), /too near the hem/);
+  await refused(withBox(0, { ...nearHem, free: true }), /too near the hem/); // free asked for, but not the Assistant's
+  const ai = withBox(0, { ...nearHem, free: true });
+  ai.elements[0].aiLayout = "front";
+  const d = await save(ai);
+  assert.equal(d.elements[0].spot.free, true);
+  assert.equal(d.elements[0].spot.downCm, nearHem.downCm);
+  assert.equal(d.elements[0].aiLayout, "front");
+  // an old design (no free) keeps exactly its stored box
+  const plain = await save(clone(design));
+  assert.ok(plain.elements.every((e) => !("free" in e.spot)));
+});

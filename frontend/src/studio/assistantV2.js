@@ -34,6 +34,29 @@ export const PIECES = ["front", "back", "sleeve", "sleeve2"];
 // a piece in the chat's words: "sleeve2" is the right sleeve (21 Nov 2026)
 export const pieceName = (piece) => (piece === "sleeve2" ? "right sleeve" : piece);
 
+const listed = (words) => (words.length > 1 ? `${words.slice(0, -1).join(", ")} and ${words[words.length - 1]}` : words[0] || "");
+/**
+ * (22 Nov 2026) What the Assistant says about where a picked concept's pieces went — in plain words. The old sentence
+ * read "the back as 1 prints … The front, back, sleeve and right sleeve is in 2 separate prints (…), a print of its own
+ * (…)". Now each piece is said once, with its prints:
+ *   " — the front as 2 prints (Front 1 and Front 2), the back (Back 1), the left sleeve (Left sleeve 1) and the right
+ *     sleeve (Right sleeve 1). Each is where it is on the concept you picked — move, resize or remove any of them on
+ *     its own."
+ * @param pieces  [{ piece, prints: [labels] | null (not cut into prints: it is on a print area), area: its label }]
+ * @param measured  the prints were put where the concept sheet has them (else: where they sit in the drawing)
+ * @returns the words that follow "… is on your tee" (they start with " — " or ".", and end with a full stop)
+ */
+export function placedWords(pieces, measured) {
+  const both = pieces.some((p) => p.piece === "sleeve2");
+  const name = (piece) => (piece === "sleeve" && both ? "left sleeve" : pieceName(piece));
+  const said = pieces.map((p) => (p.prints?.length > 1 ? `the ${name(p.piece)} as ${p.prints.length} prints (${listed(p.prints)})` : p.prints?.length ? `the ${name(p.piece)} (${p.prints[0]})` : p.area || `the ${name(p.piece)}`));
+  const prints = pieces.flatMap((p) => p.prints || []);
+  const list = pieces.length > 1 || prints.length ? ` — ${listed(said)}.` : ".";
+  if (!prints.length) return list;
+  const where = measured ? "where it is on the concept you picked" : "where it sits on the tee";
+  return `${list} ${prints.length > 1 ? `Each is ${where} — move, resize or remove any of them on its own.` : `It is ${where} — move, resize or remove it.`}`;
+}
+
 // Round 6 (8 Nov 2026): a start with no typing — three taps make the brief; and the way to a person
 export const STARTER_CHIP = "Help me start (3 taps)";
 export const BROWSE_CHIP = "Browse ideas";
@@ -278,9 +301,21 @@ export const ideaSheet = (idea, numberFrom = 1) => ({
  * box, keeping its own shape, centred. One scale for every part (the side's length), so the layout keeps its shape.
  * null when the part wasn't found (it stays where the drawing put it).
  */
+export const CENTRE_SNAP = 0.1;
+// (22 Nov 2026, the Mountain trek test) A small part near the tee's side — a hem tag, a small logo — stays whole on the
+// tee's FACE. A mockup's tee is drawn flat, a straight rectangle; our 3D tee is worn-shaped: it narrows towards the hem
+// (frame.hemHalf) and turns away at its sides. "EST. 2026" near the hem ran round the side seam, its last figure on
+// the side. So a part narrower than SMALL_SHARE of the tee is moved in until its outer edge is at FACE_SHARE of the
+// tee's half-width at its own height (the tee narrows from NARROWS_FROM of the way down). A wide part — strokes that
+// run to the side on the mockup — is left exactly where the mockup has it.
+// (0.75: the 3D body is rounded like a barrel — at 0.85 of its half-width the last figure of the tag still curled
+// away, the first try of this fix; at 0.75 the tag reads whole from the front.)
+export const FACE_SHARE = 0.75;
+const SMALL_SHARE = 0.4;
+const NARROWS_FROM = 0.35;
 export function photoPlace(part, side, area, frame) {
   const at = part?.at;
-  const { len, drop, half, full } = frame || {};
+  const { len, drop, half, full, hemHalf } = frame || {};
   if (!at || at.inCollar || !len || !area?.w || !area?.h) return null;
   // "outline" (21 Nov 2026, the owner: "what we see in the mockup the same in the 3D tee"): a share of the tee as it
   // LOOKS — down from its top (the 3D tee's top is `drop` above its collar line) to its hem, across its body's
@@ -297,14 +332,25 @@ export function photoPlace(part, side, area, frame) {
   const boxW = at.w * across;
   const boxH = at.h * unit;
   const shape = (part.width || 1) / (part.height || 1);
-  // the part keeps its own shape, inside the box — and grows up to 15 % past it on its other side, so a mockup tee cut
-  // a little wider than ours (sheet 0.32 as wide as long, our 3D tee 0.28) doesn't squeeze a tall print: its top and
-  // bottom stay where the mockup has them (21 Nov 2026: gold strokes from the chest to the hem came out at 80 %)
+  // the part keeps its own shape, inside the box — and grows up to 30 % past it on its other side, so a mockup tee cut
+  // wider than ours (sheet 0.32 as wide as long, our 3D tee 0.28) doesn't squeeze a tall print: its top and bottom stay
+  // where the mockup has them (21 Nov 2026: gold strokes from the chest to the hem came out at 80 %; with 15 % the tall
+  // "IDENTEE" down the back of a live test still came out at 92 %, starting low — the tee's width difference and the
+  // part's own clear edge together)
   const fit = boxW / boxH > shape ? boxH * shape : boxW;
-  const grow = Math.min(1.15, Math.max(boxW / fit, boxH / (fit / shape)));
+  const grow = Math.min(1.3, Math.max(boxW / fit, boxH / (fit / shape)));
   const w = fit * grow;
   const h = w / shape;
-  const centreR = at.r * across; // viewer's right of the centre line
+  // (21 Nov 2026, the owner: "the back also should be in centre") a print the mockup has on the centre line — its
+  // middle within a tenth of the tee's half-width of it, about 2 cm — goes exactly on it: the reading of a box on the
+  // sheet is a little off (the full-tee test's tall back print came out 1 cm to one side)
+  let centreR = (Math.abs(at.r) < CENTRE_SNAP ? 0 : at.r) * across; // viewer's right of the centre line
+  if (outline && hemHalf > 0 && w < SMALL_SHARE * 2 * across) {
+    const down = Math.min(1, Math.max(0, ((top + boxH / 2) / len - NARROWS_FROM) / (1 - NARROWS_FROM)));
+    const here = across - Math.max(0, across - hemHalf) * down; // the tee's half-width at the part's own height
+    const most = here * FACE_SHARE - w / 2;
+    if (most > 0 && Math.abs(centreR) > most) centreR = Math.sign(centreR) * most;
+  }
   // the print area's left edge as the viewer sees it (the front: + across is the wearer's left = the viewer's right;
   // the back is seen from behind: the wearer's left is the viewer's left) — its file runs left to right the same way
   const areaLeft = (side === "back" ? -area.across : area.across) - area.w / 2;
@@ -337,11 +383,11 @@ export function partsAsSpots(els, el, allParts, pos, { positions, garment, size,
     side: pos.side,
     rotation: 0,
     zIndex: (el.zIndex || 1) + i,
-    ...(photoPlace(p, pos.side, area, { len, drop: panel?.[pos.side]?.drop, half: panel?.bodyHalf, full: panel?.length }) || { x: el.x + p.x * el.width, y: el.y + p.y * el.height, width: p.w * el.width, height: p.h * el.height }),
+    ...(photoPlace(p, pos.side, area, { len, drop: panel?.[pos.side]?.drop, half: panel?.bodyHalf, full: panel?.length, hemHalf: panel?.[pos.side]?.w / 2 }) || { x: el.x + p.x * el.width, y: el.y + p.y * el.height, width: p.w * el.width, height: p.h * el.height }),
     pxW: p.width,
   }));
   let next = [...els, ...partEls];
-  for (const pe of partEls) next = elementToSpot(next, pe.id, { positions, garment, size, maxPrint });
+  for (const pe of partEls) next = elementToSpot(next, pe.id, { positions, garment, size, maxPrint, free: true });
   const spots = partEls.map((pe, i) => {
     const now = next.find((e) => e.id === pe.id);
     return now && isSpotKey(now.position) ? { key: now.position, label: now.spot?.label || now.position, elId: pe.id, url: parts[i].url } : null;
@@ -352,4 +398,37 @@ export function partsAsSpots(els, el, allParts, pos, { positions, garment, size,
   const keys = new Set(spots.map((sp) => sp.key));
   next = next.map((e) => (keys.has(e.position) && e.spot && e.spot.scale !== "G" ? { ...e, spot: { ...e.spot, scale: "G" } } : e));
   return { elements: next, spots };
+}
+
+/**
+ * (21 Nov 2026) A sleeve piece put where it sits on the concept's sleeve on the sheet (photoMeasure.js measureSleeve:
+ * top / bottom along the sleeve from the shoulder seam (0) to the hem (1), width = the share of the sleeve it covers):
+ * a print of its own in a free place on that sleeve, with the Assistant's free lines (no print limits, only the sleeve).
+ * It keeps its shape: as tall as on the sheet, unless that makes it more than 30 % wider than the sheet shows (then
+ * as wide as that), and never wider than the sleeve.
+ * @param el     the piece as aiElement put it on the sleeve's print area `pos`
+ * @param place  { top, bottom, width? }
+ * @param shape  the piece's width / height
+ * @returns { elements, key, label } or null (no free place left, a turned piece, no sleeve) — it stays on `pos` then
+ */
+export function sleeveAsSpot(els, el, place, pos, { positions, garment, size, maxPrint = null, piece = "sleeve", shape = 1 }) {
+  if (!place || !(place.bottom > place.top) || el.rotation || !(shape > 0)) return null;
+  if (spotsIn(els).length + 1 > MAX_SPOTS) return null;
+  const sl = panelFor(garment, size)?.[pos.side];
+  if (!sl || !(pos.side === "left" || pos.side === "right")) return null;
+  const area = areaBoxCm(pos, size, garment);
+  if (!area?.w || !area?.h) return null;
+  let h = (place.bottom - place.top) * sl.len;
+  let w = h * shape;
+  const wide = place.width ? place.width * sl.w * 1.3 : sl.w;
+  if (w > Math.min(wide, sl.w)) {
+    w = Math.min(wide, sl.w);
+    h = w / shape;
+  }
+  const top = place.top * sl.len + ((place.bottom - place.top) * sl.len - h) / 2;
+  const put = { ...el, aiLayout: piece, x: ((area.w - w) / 2 / area.w) * 100, y: ((top - area.down) / area.h) * 100, width: (w / area.w) * 100, height: (h / area.h) * 100 };
+  const next = elementToSpot([...els, put], put.id, { positions, garment, size, maxPrint, free: true });
+  const now = next.find((e) => e.id === put.id);
+  if (!now || !isSpotKey(now.position)) return null;
+  return { elements: next, key: now.position, label: now.spot?.label || now.position };
 }

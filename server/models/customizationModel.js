@@ -24,6 +24,7 @@ const spotSchema = new mongoose.Schema(
     hCm: { type: Number },
     base: { type: String }, // the tee size it was measured on
     scale: { type: String, enum: ["G", "F"] }, // G grows with the tee size, F keeps the same cm
+    free: { type: Boolean }, // (21 Nov 2026) placed by the Assistant as on its mockup: no print limits, only the tee itself
   },
   { _id: false },
 );
@@ -69,7 +70,7 @@ const elementSchema = new mongoose.Schema(
     artDesignId: { type: mongoose.Schema.Types.ObjectId, ref: "ArtDesign" },
     // (21 Nov 2026) a part of the AI's laid-out side ("front" / "back"), cut out of one picture into a free place: making
     // that side again replaces every part marked so
-    aiLayout: { type: String, enum: ["front", "back"] },
+    aiLayout: { type: String, enum: ["front", "back", "sleeve", "sleeve2"] }, // (sleeves: a sleeve print placed as on the mockup)
 
     // text elements
     text: { type: String, maxlength: 200 },

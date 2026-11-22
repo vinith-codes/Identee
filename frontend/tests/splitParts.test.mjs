@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { maxPrintBySize, positionsForGarment } from "../../server/data/printPositions.js";
 import * as pm from "../src/studio/panelModel.js";
-import { partsAsSpots, photoPlace } from "../src/studio/assistantV2.js";
+import { partsAsSpots, photoPlace, FACE_SHARE, placedWords } from "../src/studio/assistantV2.js";
 
 const near = (a, b, tol, what) => assert.ok(Math.abs(a - b) <= tol, `${what}: ${a} vs ${b}`);
 const src = (path) => readFileSync(new URL(path, import.meta.url), "utf8");
@@ -193,7 +193,7 @@ test("a part measured as a share of the mockup's tee lands at the same share of 
   near(at.across, 0.477 * panel.bodyHalf, 0.6, "across");
 });
 
-test("a tall print keeps its mockup height when our tee is cut a little narrower (grows up to 15 % wider, not squeezed)", () => {
+test("a tall print keeps its mockup height when our tee is cut narrower (grows up to 30 % wider, not squeezed)", () => {
   const area = { down: -8.5, across: 0, w: 60, h: 90 };
   const frame = { len: 63.5, drop: 8.5, half: 20.2 }; // our 3D tee: 0.28 as wide as long
   // the sheet's gold strokes (its tee 0.32 as wide as long): 0.381 down, 0.625 of the length tall, 0.942 of the half wide
@@ -202,8 +202,131 @@ test("a tall print keeps its mockup height when our tee is cut a little narrower
   const unit = frame.drop + frame.len;
   near((p.height / 100) * area.h, 0.625 * unit, 0.05, "the full height, as on the mockup");
   near((p.y / 100) * area.h + area.down, 0.381 * unit - frame.drop, 0.05, "the same top");
-  assert.ok((p.width / 100) * area.w <= 0.942 * frame.half * 1.15 + 0.01, "at most 15 % wider than its box");
-  // far off (a part 2x the box's shape): fits inside, grown only 15 %
+  assert.ok((p.width / 100) * area.w <= 0.942 * frame.half * 1.3 + 0.01, "at most 30 % wider than its box");
+  // far off (a part 2x the box's shape): fits inside, grown only 30 %
   const odd = photoPlace({ width: 1000, height: 1000, at: { d: 0.2, r: 0, w: 0.2, h: 0.4, from: "outline" } }, "front", area, frame);
-  near((odd.width / 100) * area.w, 0.2 * frame.half * 1.15, 0.05, "grown only 15 %");
+  near((odd.width / 100) * area.w, 0.2 * frame.half * 1.3, 0.05, "grown only 30 %");
+});
+
+// (21 Nov 2026, the owner: "the assistant should not be restricted by any print limits, it can place anywhere on the
+// t-shirt; the print limits only for design myself") an Assistant-placed print keeps only the tee itself
+test("an Assistant part is a free print: no margins, no biggest-print limit — only the tee's edges, the hem and the collar line", () => {
+  const r = partsAsSpots([], whole, parts, fullFront, ctx);
+  for (const sp of r.spots) assert.equal(r.elements.find((e) => e.id === sp.elId).spot.free, true, `${sp.label} is free`);
+  const panel = pm.panelFor(garment, "M");
+  const q = panel.front;
+  // a print 0.3 cm from the hem, near the side: a customer's own is moved in, the Assistant's stays
+  const box = { key: "spot-1", side: "front", label: "Front 1", from: null, wCm: 8, hCm: 6, downCm: r1(q.len - 6.3), acrossCm: r1(q.free.half - 4.5), base: "M", scale: "F" };
+  const mine = pm.spotSizes(box, garment, { maxPrint }).M;
+  assert.ok(mine.clamped.includes("hem"), `design-myself print moved in: ${mine.clamped}`);
+  assert.ok(pm.spotProblem(box, garment, { maxPrint }), "design-myself print is refused there");
+  const ai = pm.spotSizes({ ...box, free: true }, garment, { maxPrint }).M;
+  assert.deepEqual(ai.clamped, [], "the Assistant's print stays where it is");
+  assert.equal(ai.down, box.downCm);
+  assert.equal(ai.across, box.acrossCm);
+  assert.equal(pm.spotProblem({ ...box, free: true }, garment, { maxPrint }), null, "and is saved as it is");
+  // bigger than the biggest print (35 x 52 at M): fine for the Assistant while it is on the tee
+  const big = { ...box, wCm: 36, hCm: 56, downCm: 2, acrossCm: 0, free: true };
+  assert.deepEqual(pm.spotSizes(big, garment, { maxPrint }).M.clamped, []);
+  assert.ok(pm.spotSizes({ ...big, free: undefined }, garment, { maxPrint }).M.clamped.includes("big"));
+  // still never past the tee: not above the collar line, not off the side or below the hem
+  const off = pm.spotSizes({ ...box, downCm: 0, acrossCm: r1(q.free.half + 2), free: true }, garment, { maxPrint }).M;
+  assert.ok(off.clamped.includes("side") && Math.abs(off.across) + off.w / 2 <= q.free.half + 1e-9, "kept on the tee");
+});
+const r1 = (n) => Math.round(n * 10) / 10;
+
+test("the tall back print of the live test (its sheet box 0.128 as wide as tall, the part 0.144): full mockup height, same top", () => {
+  const area = { down: -2, across: 0, w: 60, h: 90 };
+  const frame = { len: 63.5, drop: 2.1, half: 20.2 };
+  // the hand-measured box of the live sheet's concept 1 back (find_back.py): 74 x 579 px on a tee 440 px wide, 670 long
+  const part = { width: 381, height: 2652, at: { d: 0.066, r: 0, w: 0.336, h: 0.864, from: "outline" } };
+  const p = photoPlace(part, "back", area, frame);
+  const unit = frame.drop + frame.len;
+  near((p.height / 100) * area.h, 0.864 * unit, 0.05, "the mockup's height");
+  near((p.y / 100) * area.h + area.down, 0.066 * unit - frame.drop, 0.05, "the mockup's top");
+});
+
+// (21 Nov 2026) a sleeve print where the mockup has it: along the sleeve from the shoulder seam (0) to the hem (1)
+test("a sleeve piece goes on its sleeve where the mockup has it: a free print, its share of the sleeve's length, its shape kept", async () => {
+  const { sleeveAsSpot } = await import("../src/studio/assistantV2.js");
+  const leftSleeve = catalog.find((p) => p.key === "left-sleeve");
+  const sl = pm.panelFor(garment, "M").left;
+  const el = { id: "s1", type: "image", src: "/uploads/ai-designs/band.png", position: "left-sleeve", side: "left", rotation: 0, zIndex: 1, x: 4, y: 4, width: 92, height: 92 };
+  // the band: from 55 % to 78 % down the sleeve, right across it; drawn 3.2 : 1
+  const r = sleeveAsSpot([], el, { top: 0.55, bottom: 0.78, width: 1 }, leftSleeve, { ...ctx, piece: "sleeve2", shape: 3.2 });
+  assert.ok(r, "placed");
+  const put = r.elements.find((e) => e.id === "s1");
+  assert.equal(put.aiLayout, "sleeve2");
+  assert.equal(put.spot.free, true, "no print limits: only the sleeve");
+  assert.equal(put.spot.side, "left");
+  const t = pm.thingCm(put, put.spot.wCm, put.spot.hCm);
+  const at = pm.onTee(put.spot, t);
+  const { hw, hh } = pm.extentOf(t);
+  near(2 * hw, Math.min(sl.w, 0.23 * sl.len * 3.2), 0.2, "as wide as its shape allows, not past the sleeve");
+  near(2 * hw / (2 * hh), 3.2, 0.05, "its shape kept");
+  near(at.down, (0.55 + 0.78) / 2 * sl.len, 0.3, "its middle where the mockup has it");
+  // not placed: a turned piece, or no place
+  assert.equal(sleeveAsSpot([], { ...el, rotation: 90 }, { top: 0.5, bottom: 0.7 }, leftSleeve, { ...ctx, shape: 2 }), null);
+  assert.equal(sleeveAsSpot([], el, null, leftSleeve, { ...ctx, shape: 2 }), null);
+});
+
+test("a print the mockup has on the centre line goes exactly on it (within a tenth of the half-width); one further out keeps its place", () => {
+  const area = { down: -2, across: 0, w: 60, h: 90 };
+  const frame = { len: 63.5, drop: 2.1, half: 20.2 };
+  const at = (r) => ({ width: 400, height: 2600, at: { d: 0.07, r, w: 0.2, h: 0.9, from: "outline" } });
+  const mid = (p) => (p.x + p.width / 2) / 100 * area.w + (-area.across - area.w / 2);
+  near(mid(photoPlace(at(0.06), "back", area, frame)), 0, 0.01, "snapped to the centre");
+  near(mid(photoPlace(at(-0.09), "front", area, frame)), 0, 0.01, "snapped (other side)");
+  near(Math.abs(mid(photoPlace(at(0.3), "back", area, frame))), 0.3 * frame.half, 0.05, "a print off to one side stays there");
+});
+
+// (22 Nov 2026, the Mountain trek test) "EST. 2026" near the right hem ran round the side seam on the 3D tee: the
+// mockup's tee is a straight rectangle, ours narrows to the hem and turns away at its sides
+test("a small part near the side stays on the tee's face (a hem tag is moved in); a chest logo and wide strokes keep the mockup's place", () => {
+  const area = { down: -8.5, across: 0, w: 60, h: 90 };
+  const frame = { len: 63.5, drop: 8.5, half: 21.5, hemHalf: 20.06 };
+  const edges = (p) => {
+    const left = (p.x / 100) * area.w - area.w / 2;
+    return [left, left + (p.width / 100) * area.w];
+  };
+  // the hem tag as the real AI read it: its middle 0.69 of the half-width out, 0.35 of it wide, 93 % down
+  const tag = { width: 700, height: 150, at: { d: 0.93, r: 0.69, w: 0.35, h: 0.03, from: "outline" } };
+  const [, right] = edges(photoPlace(tag, "front", area, frame));
+  near(right, FACE_SHARE * frame.hemHalf, 0.2, "its outer edge at the face's edge for the hem");
+  const [, was] = edges(photoPlace(tag, "front", area, { ...frame, hemHalf: undefined }));
+  assert.ok(was > right + 1, `it was ${was} cm out before, now ${right}`);
+  const [leftSide] = edges(photoPlace({ ...tag, at: { ...tag.at, r: -0.69 } }, "front", area, frame));
+  near(leftSide, -FACE_SHARE * frame.hemHalf, 0.2, "the same on the other side");
+  // the chest badge (0.47 out, small, high up): nowhere near the side — exactly where the mockup has it
+  const badge = { width: 500, height: 520, at: { d: 0.3, r: 0.47, w: 0.39, h: 0.13, from: "outline" } };
+  const [bl, br] = edges(photoPlace(badge, "front", area, frame));
+  near((bl + br) / 2, 0.47 * frame.half, 0.05, "the badge keeps its place");
+  // wide strokes that run to the side on the mockup are left there
+  const strokes = { width: 482, height: 1000, at: { d: 0.381, r: -0.58, w: 0.942, h: 0.625, from: "outline" } };
+  const a = photoPlace(strokes, "front", area, frame);
+  const b = photoPlace(strokes, "front", area, { ...frame, hemHalf: undefined });
+  near(a.x, b.x, 0.001, "wide strokes are not moved");
+});
+
+test("what the Assistant says about a picked concept's pieces: each piece once, with its prints, in plain words", () => {
+  const all = placedWords(
+    [
+      { piece: "front", prints: ["Front 1", "Front 2"] },
+      { piece: "back", prints: ["Back 1"] },
+      { piece: "sleeve", prints: ["Left sleeve 1"] },
+      { piece: "sleeve2", prints: ["Right sleeve 1"] },
+    ],
+    true,
+  );
+  assert.equal(all, " — the front as 2 prints (Front 1 and Front 2), the back (Back 1), the left sleeve (Left sleeve 1) and the right sleeve (Right sleeve 1). Each is where it is on the concept you picked — move, resize or remove any of them on its own.");
+  assert.ok(!/1 prints|is in/.test(all), "no \"1 prints\", no \"is in\"");
+  // one piece, one print
+  assert.equal(placedWords([{ piece: "back", prints: ["Back 1"] }], true), " — the back (Back 1). It is where it is on the concept you picked — move, resize or remove it.");
+  // not measured on the sheet: where it sits in the drawing
+  assert.match(placedWords([{ piece: "front", prints: ["Front 1", "Front 2"] }], false), /Each is where it sits on the tee/);
+  // pieces on print areas (not cut into prints): only the list
+  assert.equal(placedWords([{ piece: "front", prints: null, area: "Full Front" }, { piece: "back", prints: null, area: "Full Back" }], false), " — Full Front and Full Back.");
+  assert.equal(placedWords([{ piece: "front", prints: null, area: "Full Front" }], false), ".");
+  // one sleeve only: just "the sleeve"
+  assert.match(placedWords([{ piece: "front", prints: null, area: "Full Front" }, { piece: "sleeve", prints: ["Left sleeve 1"] }], true), /Full Front and the sleeve \(Left sleeve 1\)\. It is where/);
 });

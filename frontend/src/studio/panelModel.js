@@ -176,10 +176,14 @@ export function panelFor(garment, size) {
   const modelW = 2 * kind.half * s * widen;
   // how wide the room really draws it (teeModel.js widenFor: may be narrower than modelled, down to 0.85)
   const drawn = kind.flatChestCm ? Math.round(Math.min(1.25, Math.max(0.85, flatW / kind.flatChestCm / s)) * 1000) / 1000 : 1;
-  const body = (len, top, drop) => ({ flatW, w: Math.min(flatW, modelW), len, top, bottom: len - SAFE_CM.hem, half: Math.min(flatW / 2 - SAFE_CM.sideSeam, modelW / 2 - MODEL_EDGE_CM), drop: drop != null ? drop * s : null });
+  // free: the only lines an Assistant-placed print keeps (21 Nov 2026, "no print limits for the assistant"): on the
+  // tee's body as the 3D tee shows it (out to its outline, lookHalf — not the narrowest point at the hem; never past
+  // the real tee's flat half-width), above the hem and below the collar line (nothing inside the collar: the neck label)
+  const freeHalf = Math.min(flatW / 2, kind.lookHalf ? kind.lookHalf * s * drawn : modelW / 2 - MODEL_EDGE_CM);
+  const body = (len, top, drop, freeTop = 0) => ({ flatW, w: Math.min(flatW, modelW), len, top, bottom: len - SAFE_CM.hem, half: Math.min(flatW / 2 - SAFE_CM.sideSeam, modelW / 2 - MODEL_EDGE_CM), drop: drop != null ? drop * s : null, free: { top: freeTop, bottom: len, half: freeHalf } });
   const sleeveLen = kind.sleeve[0] * s;
   const sleeveW = kind.sleeve[1] * s;
-  const sleeve = { flatW: sleeveW, w: sleeveW, len: sleeveLen, top: SAFE_CM.shoulder, bottom: Math.min(sleeveLen - SAFE_CM.sleeveHem, kind.sleeve3d * s - MODEL_EDGE_CM), half: sleeveW / 2 - SAFE_CM.sleeveSide };
+  const sleeve = { flatW: sleeveW, w: sleeveW, len: sleeveLen, top: SAFE_CM.shoulder, bottom: Math.min(sleeveLen - SAFE_CM.sleeveHem, kind.sleeve3d * s - MODEL_EDGE_CM), half: sleeveW / 2 - SAFE_CM.sleeveSide, free: { top: 0, bottom: Math.min(sleeveLen, kind.sleeve3d * s - MODEL_EDGE_CM), half: sleeveW / 2 } };
   return {
     kind: name,
     size,
@@ -188,7 +192,7 @@ export function panelFor(garment, size) {
     bodyHalf: kind.lookHalf ? kind.lookHalf * s * drawn : modelW / 2,
     sleeveStart: kind.sleeveStart * s,
     start: { front: kind.start.front * s, back: kind.start.back * s },
-    front: body(kind.front * s, Math.max(SAFE_CM.collar, (kind.frontTop || 0) * s), kind.drop?.front),
+    front: body(kind.front * s, Math.max(SAFE_CM.collar, (kind.frontTop || 0) * s), kind.drop?.front, (kind.frontTop || 0) * s),
     back: body(kind.back * s, SAFE_CM.collar, kind.drop?.back),
     left: sleeve,
     right: { ...sleeve },
@@ -206,17 +210,23 @@ export function maxPrintFor(maxPrint, size, side) {
   return isSleeve(side) ? (big ? [13, 14] : [10, 10]) : big ? [37, 54] : [35, 52];
 }
 
-// The lines one tee size puts on a print (safe zone + the biggest print).
-function limitsFor(garment, size, side, maxPrint) {
-  const [maxW, maxH] = maxPrintFor(maxPrint, size, side);
+// The lines one tee size puts on a print (safe zone + the biggest print). A free print (box.free: placed by the
+// Assistant as on its mockup — 21 Nov 2026: "the print limits should only be for design myself") has no print limits:
+// only the tee itself (its edges, the hem, the collar line), so it can be anywhere on the tee and as big as the tee.
+function limitsFor(garment, size, side, maxPrint, free = false) {
   const p = panelFor(garment, size);
+  if (free && p) {
+    const f = p[side].free;
+    return { top: f.top, bottom: f.bottom, half: f.half, maxW: 2 * f.half, maxH: f.bottom - f.top };
+  }
+  const [maxW, maxH] = maxPrintFor(maxPrint, size, side);
   if (!p) return { top: -Infinity, bottom: Infinity, half: Infinity, maxW, maxH };
   const q = p[side];
   return { top: q.top, bottom: q.bottom, half: q.half, maxW, maxH };
 }
 const tightest = (list) => list.reduce((a, b) => ({ top: Math.max(a.top, b.top), bottom: Math.min(a.bottom, b.bottom), half: Math.min(a.half, b.half), maxW: Math.min(a.maxW, b.maxW), maxH: Math.min(a.maxH, b.maxH) }));
 // one size group's lines: its tightest size, so every size of the group can print the same file
-const groupLimits = (group, garment, side, maxPrint) => tightest(groupMembers(group, garment).map((size) => limitsFor(garment, size, side, maxPrint)));
+const groupLimits = (group, garment, side, maxPrint, free = false) => tightest(groupMembers(group, garment).map((size) => limitsFor(garment, size, side, maxPrint, free)));
 
 /* ---------- where a print area sits ---------- */
 // Where a print area (a catalog one or a spot) sits for one tee size, in cm: its top edge below the collar seam
@@ -318,13 +328,13 @@ const growWidth = (group, garment, side) => panelFor(garment, groupMembers(group
  * it): each size group's lines taken back to `base` — "F" the same cm, "G" divided by how much it grows there (as
  * spotSizes grows it) — and the tightest of them. { top, bottom, half, maxW, maxH } in cm.
  */
-export function spotRoom(garment, base, side, scale = "F", maxPrint = null) {
+export function spotRoom(garment, base, side, scale = "F", maxPrint = null, free = false) {
   const baseGroup = groupOf(base, garment);
   const baseW = growWidth(baseGroup, garment, side);
   const groups = [...new Set([baseGroup, ...sizesOf(garment).map((s) => groupOf(s, garment))])];
   return tightest(
     groups.map((group) => {
-      const lim = groupLimits(group, garment, side, maxPrint);
+      const lim = groupLimits(group, garment, side, maxPrint, free);
       const k = scale === "G" && group !== baseGroup ? growWidth(group, garment, side) / baseW : 1;
       return { top: lim.top / k, bottom: lim.bottom / k, half: lim.half / k, maxW: lim.maxW / k, maxH: lim.maxH / k };
     }),
@@ -356,7 +366,7 @@ export function spotSizes(box, garment, { preset = null, maxPrint = null } = {})
     const group = groupOf(size, garment);
     if (!fit[group]) {
       const k = box.scale === "G" && group !== baseGroup ? growWidth(group, garment, side) / baseW : 1;
-      fit[group] = fitBox({ w: box.wCm * k, h: box.hCm * k, down: box.downCm * k, across: isSleeve(side) ? 0 : box.acrossCm * k }, groupLimits(group, garment, side, maxPrint));
+      fit[group] = fitBox({ w: box.wCm * k, h: box.hCm * k, down: box.downCm * k, across: isSleeve(side) ? 0 : box.acrossCm * k }, groupLimits(group, garment, side, maxPrint, !!box.free));
     }
     out[size] = fit[group];
   }
@@ -490,7 +500,7 @@ export const spotLimits = (garment, size, side, maxPrint = null) => groupLimits(
 export function spotProblem(box, garment, { preset = null, maxPrint = null } = {}) {
   if (presetKept(box, preset, garment)) return null;
   const words = isSleeve(box.side) ? WORDS.sleeve : WORDS.front;
-  const lim = groupLimits(groupOf(box.base, garment), garment, box.side, maxPrint);
+  const lim = groupLimits(groupOf(box.base, garment), garment, box.side, maxPrint, !!box.free);
   if (box.wCm > lim.maxW + TOUCH_CM || box.hCm > lim.maxH + TOUCH_CM) return `it is bigger than the biggest print (${lim.maxW} x ${lim.maxH} cm)`;
   if (box.downCm < lim.top - TOL_CM) return words.collar(lim.top);
   if (box.downCm + box.hCm > lim.bottom + TOL_CM) return words.hem;
@@ -611,7 +621,7 @@ export function reboxSpot(elements, box, { garment = null, preset = null, maxPri
   let w = sleeve ? 2 * Math.max(Math.abs(x0), Math.abs(x1)) + 2 * PAD_CM : x1 - x0 + 2 * PAD_CM;
   let h = y1 - y0 + 2 * PAD_CM;
   if (mine.some((e) => e.role)) {
-    const lim = groupLimits(groupOf(box.base, garment), garment, box.side, maxPrint);
+    const lim = groupLimits(groupOf(box.base, garment), garment, box.side, maxPrint, !!box.free);
     const presetW = preset ? areaBoxCm(preset, box.base, garment).w : NAME_MIN_CM;
     w = Math.max(w, Math.min(presetW, NAME_MIN_CM, Number.isFinite(lim.half) ? 2 * lim.half : Infinity));
   }
@@ -623,7 +633,7 @@ export function reboxSpot(elements, box, { garment = null, preset = null, maxPri
   // with its things on it (a name let go near the side seam landed 5 cm nearer the middle, phase 3 review).
   let across = (x0 + x1) / 2;
   let down = (y0 + y1) / 2 - h / 2;
-  const room = w > x1 - x0 + 2 * PAD_CM + TOUCH_CM || h > y1 - y0 + 2 * PAD_CM + TOUCH_CM ? spotRoom(garment, box.base, box.side, box.scale, maxPrint) : null;
+  const room = w > x1 - x0 + 2 * PAD_CM + TOUCH_CM || h > y1 - y0 + 2 * PAD_CM + TOUCH_CM ? spotRoom(garment, box.base, box.side, box.scale, maxPrint, !!box.free) : null;
   if (room && !sleeve) {
     const lo = Math.max(x1 + PAD_CM - w / 2, -room.half + w / 2);
     const hi = Math.min(x0 - PAD_CM + w / 2, room.half - w / 2);
@@ -721,15 +731,15 @@ export function mergeSpots(elements, keyA, keyB, { positions = [], garment = nul
 /**
  * One thing taken out of its print area (dragged away from Left Chest towards the middle): it becomes a new spot of
  * its own, boxed round it, keeping its cm size and place on the tee size `size` (the spot's base). A small thing keeps
- * the same cm on every size (F), a big one grows with the tee (G).
+ * the same cm on every size (F), a big one grows with the tee (G). `free`: an Assistant-placed print (spot box `free`).
  */
-export function elementToSpot(elements, elId, { positions = [], garment = null, size = "M", maxPrint = null } = {}) {
+export function elementToSpot(elements, elId, { positions = [], garment = null, size = "M", maxPrint = null, free = false } = {}) {
   const el = elements.find((e) => String(e.id) === String(elId));
   const from = el && positions.find((p) => p.key === el.position);
   if (!from || !SPOT_SIDES.includes(from.side)) return elements;
   const fb = areaBoxCm(from, size, garment);
   const key = nextSpotKey(elements);
-  const frame = { key, side: from.side, label: spotLabel(from.side, elements), from: from.spot ? from.spot.from ?? null : from.key, downCm: fb.down, acrossCm: fb.across, wCm: fb.w, hCm: fb.h, base: size, scale: "F" };
+  const frame = { key, side: from.side, label: spotLabel(from.side, elements), from: from.spot ? from.spot.from ?? null : from.key, downCm: fb.down, acrossCm: fb.across, wCm: fb.w, hCm: fb.h, base: size, scale: "F", ...(free ? { free: true } : {}) };
   const moved = { ...el, position: key, side: from.side, spot: frame };
   const done = reboxSpot(
     elements.map((e) => (e === el ? moved : e)),
@@ -778,7 +788,7 @@ export function boxThatFits(box, garment, size, { preset = null, maxPrint = null
   const baseGroup = groupOf(box.base, garment);
   const group = groupOf(size, garment);
   const k = box.scale === "G" && group !== baseGroup ? growWidth(group, garment, box.side) / growWidth(baseGroup, garment, box.side) : 1;
-  const fit = fitBox({ w: at.w / k, h: at.h / k, down: at.down / k, across: at.across / k }, groupLimits(baseGroup, garment, box.side, maxPrint));
+  const fit = fitBox({ w: at.w / k, h: at.h / k, down: at.down / k, across: at.across / k }, groupLimits(baseGroup, garment, box.side, maxPrint, !!box.free));
   let next = { ...box, wCm: fit.w, hCm: fit.h, downCm: fit.down, acrossCm: fit.across, from: box.from ?? null };
   // The base size's box is kept to 0.1 cm, and × the growth that can tip it back over a line on `size` (47.8 × 1.13 =
   // 54.01 > 54 cm: the fix never cleared the warning, 14 Nov 2026). Then it steps in by 0.1 cm until it fits there:

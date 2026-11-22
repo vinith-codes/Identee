@@ -166,3 +166,27 @@ test("cleanCutEdge leaves a picture with nothing see-through alone (a photo, a J
   assert.equal(cleanCutEdge(px, 20, 20), null);
   assert.ok(px.equals(before));
 });
+
+// (21 Nov 2026, a real back drawing: the picture AI shaded its magenta from (244, 11, 240) top-left to (255, 98, 255)
+// bottom-right — only 9 % of the edge was near the middle colour, the cut-out gave up and the back printed as a pink
+// square) a shaded magenta background is still cut away whole; the artwork stays
+test("a shaded magenta background (not one flat colour) is still cut out", async () => {
+  const W = 200, H = 200;
+  const raw = Buffer.alloc(W * H * 3);
+  for (let y = 0; y < H; y++)
+    for (let x = 0; x < W; x++) {
+      const i = (y * W + x) * 3;
+      const t = (x + y) / (W + H - 2);
+      const art = x >= 60 && x < 140 && y >= 60 && y < 140;
+      raw[i] = art ? 240 : Math.round(244 + 11 * t);
+      raw[i + 1] = art ? 140 : Math.round(11 + 87 * t);
+      raw[i + 2] = art ? 40 : Math.round(240 + 15 * t);
+    }
+  const jpg = await sharp(raw, { raw: { width: W, height: H, channels: 3 } }).jpeg({ quality: 92 }).toBuffer();
+  const c = await cutOutPlainBackground(jpg);
+  assert.equal(c.cut, true, "cut out");
+  const { data } = await sharp(c.buffer).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  const alpha = (x, y) => data[(y * W + x) * 4 + 3];
+  for (const [x, y] of [[2, 2], [197, 197], [100, 20], [180, 100], [20, 180]]) assert.equal(alpha(x, y), 0, `background at ${x},${y} cleared`);
+  assert.equal(alpha(100, 100), 255, "the artwork stays");
+});

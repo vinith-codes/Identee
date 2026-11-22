@@ -3,7 +3,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import sharp from "sharp";
-import { splitParts, mergeNear } from "../services/splitParts.js";
+import { splitParts, mergeNear, dropFrame } from "../services/splitParts.js";
 import { SPLIT_GAP_CM } from "../controllers/assistantController.js";
 
 // a see-through picture W × H with solid squares { x, y, w, h } (px)
@@ -95,4 +95,25 @@ test("mergeNear joins boxes within the gap, again and again", () => {
   );
   assert.equal(out.length, 2);
   assert.deepEqual([out[0].x0, out[0].x1, out[0].ink], [0, 30, 3]);
+});
+
+test("minParts 1: a side with one print still comes back as its one part, cut to its edges (placed as on the mockup)", async () => {
+  const r = await splitParts(await picture(1200, 1800, [{ x: 500, y: 200, w: 200, h: 1300 }]), { widthCm: 35, minParts: 1 });
+  assert.equal(r.parts.length, 1);
+  assert.ok(Math.abs(r.parts[0].x * 1200 - 500) <= 4 && Math.abs(r.parts[0].w * 1200 - 200) <= 6, "its own edges");
+  assert.equal(await splitParts(await picture(200, 300, []), { widthCm: 35, minParts: 1 }), null, "nothing: still null");
+});
+
+test("dropFrame: a thin frame line round a laid-out picture is taken out, so its parts split; art along an edge stays", async () => {
+  const W0 = 1200, H0 = 1800;
+  const frame = [{ x: 20, y: 20, w: 1160, h: 4 }, { x: 20, y: 1776, w: 1160, h: 4 }, { x: 20, y: 20, w: 4, h: 1760 }, { x: 1176, y: 20, w: 4, h: 1760 }];
+  const art = [{ x: 800, y: 300, w: 200, h: 150 }, { x: 40, y: 700, w: 400, h: 1000 }];
+  const buf = await picture(W0, H0, [...frame, ...art]);
+  assert.equal((await splitParts(buf, { widthCm: 35, minParts: 1 })).parts.length, 1, "the frame joins everything");
+  const c = await dropFrame({ buffer: buf, mime: "image/png", width: W0, height: H0, cut: true });
+  assert.equal((await splitParts(c.buffer, { widthCm: 35, minParts: 1 })).parts.length, 2, "without it: the two prints");
+  // a thick band along the bottom is art: kept
+  const band = await picture(W0, H0, [{ x: 0, y: 1500, w: 1200, h: 200 }, ...art]);
+  const kept = await dropFrame({ buffer: band, mime: "image/png", width: W0, height: H0, cut: true });
+  assert.equal(kept.buffer, band, "nothing taken out");
 });
