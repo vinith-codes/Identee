@@ -38,12 +38,18 @@ export const conceptWords = (c) =>
 // reference (21 Nov 2026): the attached image is a whole tee the customer wants one LIKE — its layout and look are
 // copied (each concept says how), within what we can print. inspired: the same picture only as inspiration — three
 // NEW designs with its feel, none a copy
-export function sheetPrompt({ concepts, garment = "t-shirt", teeColour = "white", teeIsDark = false, numberFrom = 1, logo = false, basis = false, pictures = 0, reference = false, inspired = false }) {
-  const list = concepts.map((c, i) => `${numberFrom + i}) "${clean(c.title, 50)}" — ${conceptWords(c)}`).join(" ");
+export function sheetPrompt({ concepts, garment = "t-shirt", teeColour = "white", teeIsDark = false, numberFrom = 1, logo = false, basis = false, pictures = 0, reference = false, inspired = false, backOnly = false }) {
+  // (a back-only sheet names only the back: "front: nothing" would draw an empty front view)
+  const wordsOf = (c) => (backOnly ? `back: ${c.back || "nothing"}` : conceptWords(c));
+  const list = concepts.map((c, i) => `${numberFrom + i}) "${clean(c.title, 50)}" — ${wordsOf(c)}`).join(" ");
   const twoSleeves = concepts.some((c) => c.sleeve2);
   return (
     `A clean product concept sheet on a plain light grey studio background, landscape, showing ${concepts.length} different t-shirt design concepts side by side as flat catalogue mockups. ` +
-    `Each concept shows the same ${clean(garment, 40)} in ${clean(teeColour, 30)} from the front and from the back, with ${twoSleeves ? "each sleeve print as a small inset (left sleeve, right sleeve)" : "the sleeve print as a small inset"} where the concept has one — each sleeve inset shown ONCE per concept, beside its front view, never repeated by the back view. ` +
+    // (backOnly, 23 Nov 2026: a trend's mockup — its front is the same fixed picture on every tee, so the sheet shows
+    // each concept ONCE, from the back, big; the first real GTA sheet also laid a back tee over a front tee)
+    (backOnly
+      ? `Each concept shows the same ${clean(garment, 40)} in ${clean(teeColour, 30)} ONCE, seen from the BACK only (no front view), the tees side by side and not overlapping. `
+      : `Each concept shows the same ${clean(garment, 40)} in ${clean(teeColour, 30)} from the front and from the back, with ${twoSleeves ? "each sleeve print as a small inset (left sleeve, right sleeve)" : "the sleeve print as a small inset"} where the concept has one — each sleeve inset shown ONCE per concept, beside its front view, never repeated by the back view. `) +
     // (21 Nov 2026 real test: insets drawn twice; a tiny neck label drawn inside the collar)
     `Draw no neck label, size tag, hem tag or brand tab on the tees — only the printed artwork the concept describes. ` +
     // (21 Nov 2026: the sheet used to give half its height to huge numerals over tiny tees)

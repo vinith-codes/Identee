@@ -43,7 +43,7 @@ export const myId = () => {
 /* ---------- what a chat is called, and whether it is worth keeping ---------- */
 
 // taps and short answers that say nothing about the tee (they never become a chat's name)
-const TAPS = /^(Stop|Try again|Try another one|Make it|Draw (it|them)|Help me start \(3 taps\)|Browse ideas|Ask the IDENTEE team|Something else|Log in|Sign in|More options|Show more|Continue to review|Not now|Cancel|← Back|Change my idea|Use my own words|Use the improved idea|✨ Improve my idea|\d+(\s*(,|and|&)\s*\d+)*)$/i;
+const TAPS = /^(Upload a photo|Choose a ready design|Show me 3 more|Stop|Try again|Try another one|Make it|Draw (it|them)|Help me start \(3 taps\)|Browse ideas|Ask the IDENTEE team|Something else|Log in|Sign in|More options|Show more|Continue to review|Not now|Cancel|← Back|Change my idea|Use my own words|Use the improved idea|✨ Improve my idea|\d+(\s*(,|and|&)\s*\d+)*)$/i;
 // the customer's first typed message (what the chat is about), else the given name
 export function chatTitle(chat, fallback = "My design") {
   const first = (chat || []).find((m) => m && m.from === "me" && typeof m.text === "string" && m.text.trim() && !TAPS.test(m.text.trim()));

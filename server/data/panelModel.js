@@ -729,6 +729,27 @@ export function mergeSpots(elements, keyA, keyB, { positions = [], garment = nul
 }
 
 /**
+ * (23 Nov 2026, the owner: "The designs at the back should be like the tee i uploaded … it is looking small") a trend's
+ * ready back design printed BIG, like a streetwear back print: as big as the print team's biggest print on this size
+ * (maxPrintFor: 35 x 52 cm on M) and the tee's back allows (its side seams and hem lines), keeping the picture's shape,
+ * centred, starting `topCm` below the collar seam. A tall phone-shaped picture (9:16) comes out 28.7 x 51 cm on M; a
+ * 3:4 one 34 x 45 cm (Full Back's 92 % fit made them 22 and 35 cm wide).
+ * @returns { down, across: 0, w, h } in cm, or null (no back on this garment)
+ */
+export function bigBackPrint(garment, size, maxPrint, shape, topCm = 5) {
+  const back = panelFor(garment, size)?.back;
+  if (!(shape > 0)) return null;
+  const [maxW, maxH] = maxPrintFor(maxPrint, size, "back");
+  const top = Math.max(topCm, back?.top ?? 0);
+  // (its print box is the picture + PAD_CM all round: that box must fit, or the print is shrunk on this size)
+  const wide = Math.min(maxW, back ? 2 * back.half : maxW) - 2 * PAD_CM;
+  const tall = Math.min(maxH, back ? back.bottom - top : maxH) - 2 * PAD_CM;
+  if (!(wide > 0 && tall > 0)) return null;
+  const w = Math.min(wide, tall * shape);
+  return { down: top, across: 0, w, h: w / shape };
+}
+
+/**
  * One thing taken out of its print area (dragged away from Left Chest towards the middle): it becomes a new spot of
  * its own, boxed round it, keeping its cm size and place on the tee size `size` (the spot's base). A small thing keeps
  * the same cm on every size (F), a big one grows with the tee (G). `free`: an Assistant-placed print (spot box `free`).

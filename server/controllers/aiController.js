@@ -40,6 +40,7 @@ import { GROK_BEST, xaiConfigured, xaiEditImage, xaiModel, xaiNewImage } from ".
 import { replicateConfigured, replicateModel, topazModel } from "../services/replicateService.js";
 import { AI_AREAS_MAX, spotWhereOf } from "../data/printPositions.js";
 import { AI_STYLES, PHOTO_STYLES, aiImageConfigured, aiImageModel, changeDesignPrompt, copyDesignPrompt, inspiredDesignPrompt, generateImage, nearestRatio, newDesignPrompt, photoArtPrompt, FIX_KINDS, fixPrompt, printPrompt, RATIO_VALUES } from "../services/aiImageService.js";
+import { listTrends, publicTrend } from "../services/trends.js";
 
 const CATEGORY = "ai";
 const DEFAULTS = {
@@ -230,7 +231,7 @@ export const getAiStatus = asyncHandler(async (req, res) => {
   const smart = settings.enabled && settings.smartChat && chatConfigured() && reason !== "cap";
   // v2: typed messages go to the Assistant v2 brain (steps, concept sheets); login needed (services/assistantBrain.js)
   const v2 = smart && settings.assistantV2 && brainConfigured();
-  res.json({ available: !reason, reason, text: aiTextConfigured() && settings.enabled, smart, v2, styles: Object.keys(AI_STYLES), photoStyles: Object.keys(PHOTO_STYLES) /* (the free art filters were taken away, 20 Oct 2026) */, dailyPerUser: settings.dailyPerUser, left, designAddOnInr: settings.designAddOnInr });
+  res.json({ available: !reason, reason, text: aiTextConfigured() && settings.enabled, smart, v2, styles: Object.keys(AI_STYLES), trends: (await listTrends({ all: Boolean(req.user?.isAdmin || req.user?.isSeller) }).catch(() => [])).map(publicTrend) /* "Trending now" (23 Nov 2026): the team also gets the switched-off ones, to try them */, photoStyles: Object.keys(PHOTO_STYLES) /* (the free art filters were taken away, 20 Oct 2026) */, dailyPerUser: settings.dailyPerUser, left, designAddOnInr: settings.designAddOnInr });
 });
 
 // POST /api/ai/chat  (login optional) — the smart Assistant: one typed message, answered by Google's text AI

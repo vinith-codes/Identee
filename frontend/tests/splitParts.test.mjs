@@ -330,3 +330,52 @@ test("what the Assistant says about a picked concept's pieces: each piece once, 
   // one sleeve only: just "the sleeve"
   assert.match(placedWords([{ piece: "front", prints: null, area: "Full Front" }, { piece: "sleeve", prints: ["Left sleeve 1"] }], true), /Full Front and the sleeve \(Left sleeve 1\)\. It is where/);
 });
+
+// (23 Nov 2026, the first real GTA mockup) the back poster, as measured on the sheet: centred, 1.52 half-widths wide,
+// three quarters of the tee tall. Grown to that height it came out 40.8 cm wide — side to side on our narrower tee.
+test("a whole picture (a trend's poster) stays as wide as the mockup shows; a cut-out part still grows", () => {
+  const fullBack = catalog.find((p) => p.key === "full-back");
+  const wholeBack = { ...whole, id: "wb", position: "full-back", side: "back" };
+  const at = { d: 0.166, r: -0.0025, w: 1.518, h: 0.75, from: "outline" };
+  const poster = { url: "/uploads/ai-designs/poster.jpg", width: 3584, height: 4800, x: 0, y: 0, w: 1, h: 1, at };
+  const sizeOf = (part) => {
+    const r = partsAsSpots([], wholeBack, [part], fullBack, ctx);
+    const el = r.elements.find((e) => e.id === r.spots[0].elId);
+    return { ...pm.thingCm(el, el.spot.wCm, el.spot.hCm), across: pm.onTee(el.spot, pm.thingCm(el, el.spot.wCm, el.spot.hCm)).across };
+  };
+  const half = pm.panelFor(garment, "M").bodyHalf;
+  const kept = sizeOf({ ...poster, whole: true });
+  near(kept.w, 1.518 * half, 0.4, "the poster's width: 1.52 of the body's half-width, as on the mockup");
+  near(kept.w / kept.h, 3584 / 4800, 0.01, "its own shape");
+  near(kept.across, 0, 0.05, "on the centre line");
+  const grown = sizeOf(poster);
+  assert.ok(grown.w > kept.w * 1.1, `a cut-out part of the same box grows to the mockup's height (${grown.w} vs ${kept.w})`);
+});
+
+// (23 Nov 2026, the owner: the ready back designs looked small) a trend's ready back is printed as big as the print
+// team's biggest back print, just under the collar, keeping its shape — and stays a print of its own on every size
+test("a ready back design is printed big: 9:16 → 28.7 x 51 cm, 3:4 → 34 x 45.3 cm on M", () => {
+  const tall = pm.bigBackPrint(garment, "M", maxPrint, 9 / 16);
+  near(tall.h, 51, 0.01, "tall picture height");
+  near(tall.w, 28.69, 0.01, "tall picture width");
+  near(tall.down, 5, 0.01, "starts under the collar");
+  const poster = pm.bigBackPrint(garment, "M", maxPrint, 3 / 4);
+  near(poster.w, 34, 0.01, "3:4 width");
+  near(poster.h, 45.33, 0.01, "3:4 height");
+  const wide = pm.bigBackPrint(garment, "S", maxPrint, 1.5);
+  assert.ok(wide.w <= 2 * pm.panelFor(garment, "S").back.half + 1e-9, "never past the side seam lines");
+  // put on the tee as the room does: a spot of its own with that box, inside the print limits on every size
+  const fullBack = catalog.find((p) => p.key === "full-back");
+  const area = pm.areaBoxCm(fullBack, "M", garment);
+  const el = { id: "rb", type: "image", src: "/uploads/trend-backs/b.webp", position: "full-back", side: "back", rotation: 0, zIndex: 2, aiLayout: "back", x: ((area.w - tall.w) / 2 / area.w) * 100, y: ((tall.down - area.down) / area.h) * 100, width: (tall.w / area.w) * 100, height: (tall.h / area.h) * 100 };
+  const out = pm.elementToSpot([el], "rb", { positions: catalog, garment, size: "M", maxPrint });
+  const now = out.find((e) => e.id === "rb");
+  assert.ok(pm.isSpotKey(now.position), "a print of its own");
+  near(now.spot.wCm, 29.7, 0.11, "spot width");
+  near(now.spot.hCm, 52, 0.11, "spot height");
+  assert.deepEqual(pm.spotSizes(now.spot, garment, { maxPrint }).M.clamped, [], "not shrunk on its own size");
+  for (const size of ["XS", "S", "M", "L", "XL", "2XL", "3XL"]) {
+    const at = pm.spotSizes(now.spot, garment, { maxPrint })[size];
+    if (at) assert.ok(at.w > 25, `${size}: still big (${at.w.toFixed(1)} cm)`);
+  }
+});

@@ -17,6 +17,7 @@ import { MAX_PHOTOS, roomFor, tooManyLine } from "./multiPhoto";
 import "./multiPhotos.css";
 import MyPictures from "./MyPictures";
 import SheetCard from "./SheetCard";
+import { TREND_MORE } from "./trends";
 import { assistAct, STARTER_CHIP, ASK_TEAM, STARTER, starterStep, starterOptions, starterBrief, BROWSE_CHIP } from "./assistantV2";
 import { speak, speechSupported, startListening, stopSpeaking, touchScreen, unlockVoice, voiceOutSupported } from "./voiceInput";
 import { PhotoError, shrinkPhoto } from "./shrinkPhoto";
@@ -24,12 +25,39 @@ import { GroupCard, OrdersCard, ReorderCard, SizeCard, SpotPicker } from "./Assi
 import { keepTyped, leftLine, MIC_LANGS, micError, nextMicLang, readMicLang, readReadAloud, readTyped, saveMicLang, saveReadAloud, spokenLine, spotName, SUGGEST, WAIT_TIPS } from "./assistantExtras";
 import { dropFile, keepFile, keptFile } from "./roomFiles";
 
+// A trend's ready-made backs (23 Nov 2026): a grid of pictures, a tap puts one on the back. The owner's first set is
+// 70 designs, so they come twelve at a time ("Show more designs") — a chat with 70 pictures in one go is a long scroll
+// on a phone and loads them all.
+const BACKS_STEP = 12;
+function BacksGrid({ backs, fabric, off, onPick }) {
+  const [shown, setShown] = useState(BACKS_STEP);
+  const list = backs.slice(0, shown);
+  return (
+    <div className="dr-backs">
+      {list.map((b) => (
+        <button key={b.url} type="button" className="dr-backpick" disabled={off} onClick={() => onPick(b)}>
+          <img src={imageUrl(b.url, 400)} alt={b.name || "A ready design for the back"} loading="lazy" style={{ background: fabric }} />
+          {b.name ? <span>{b.name}</span> : null}
+        </button>
+      ))}
+      {backs.length > shown && (
+        <button type="button" className="dr-mini dr-backsmore" onClick={() => setShown((n) => n + BACKS_STEP)}>
+          Show more designs ({backs.length - shown} more)
+        </button>
+      )}
+    </div>
+  );
+}
+
 const PICTURE_HINT = "Usually 20–40 seconds. You can look around the room meanwhile.";
 // the acts that take a while (an AI or the server): the chat waits for them with a wait card
-const SLOW = ["generate", "slogans", "edit", "improve", "drawPlan", "photoPlace", "photoUnderstand", "photoMake", "photosMake", "smart", "assist", "help", "ideas"];
+const SLOW = ["generate", "slogans", "edit", "improve", "drawPlan", "photoPlace", "photoUnderstand", "photoMake", "photosMake", "smart", "assist", "help", "ideas", "trendSheet"];
 // What the wait card says for an AI job: { label, expect (usual seconds), hint }
 const waitFor = (a) =>
-  a.type === "assist"
+  // (the GTA Studio's mockup, 23 Nov 2026: three tees drawn from the customer's photo)
+  a.type === "trendSheet"
+    ? { label: `Making your ${a.trendName || "trend"} mockup…`, expect: 30, hint: "Three back designs from your photo. Usually 20–40 seconds." }
+    : a.type === "assist"
     ? { label: a.steps ? "Making your pick…" : "Thinking…", expect: a.steps ? 30 : 8, hint: a.steps ? "Each piece is drawn from the sheet. Usually 20–40 seconds." : "" }
     : a.type === "smart"
     ? { label: "Thinking…", expect: 5 }
@@ -1006,7 +1034,7 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
           }
           if (m.sheet) {
             // Assistant v2: a concept sheet — tap a number to make that concept (a bare pick, no brain), More options for three more
-            return <SheetCard key={i} sheet={m.sheet} live={!thinking} last={i === lastSheet} onPick={(n) => say(String(n))} onMore={() => say("More options")} onSay={(text) => say(text)} />;
+            return <SheetCard key={i} sheet={m.sheet} live={!thinking} last={i === lastSheet && !m.sheet.trend} onPick={(n) => say(String(n))} onMore={() => (m.sheet.trend ? say(TREND_MORE, true) : say("More options"))} onSay={(text) => say(text)} />;
           }
           /* round 8: size from height and weight, orders, the same tee again, the group link */
           if (m.sizeAsk) return <SizeCard key={i} ask={m.sizeAsk} ctx={ctx} onUse={(size) => onAct({ type: "size", value: size })} />;
@@ -1017,6 +1045,9 @@ export default function Assistant({ messages, setMessages, state, setState, ctx,
           if (m.group) {
             return <GroupCard key={i} group={m.group} sheet={lastSheet >= 0 ? messages[lastSheet].sheet : null} ctx={ctx} live={!thinking} onPatch={(more) => patch(i, more)} onSay={(text) => say(text)} onMessages={(msgs) => setMessages((all) => [...all, ...msgs])} />;
           }
+          // a trend's ready-made backs (23 Nov 2026): a tap puts one on the back of the tee — free, swapped as often
+          // as they like (every row stays usable)
+          if (m.backs) return <BacksGrid key={i} backs={m.backs} fabric={fabric} off={!!thinking} onPick={(b) => run({ type: "trendBack", url: b.url, name: b.name }, { label: "Putting it on your tee…", expect: 3, hint: "Free. A few seconds." })} />;
           if (m.designs) {
             const areas = ctx().areas.filter((a) => a.free);
             return (

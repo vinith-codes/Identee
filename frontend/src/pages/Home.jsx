@@ -27,6 +27,7 @@ import {
   HomeOutlook,
   HomeFinal,
   HomePhoto,
+  HomeTrends,
   HomeCreate,
 } from "../components/home/HomeSections";
 import useReveal from "../components/home/useReveal";
@@ -235,6 +236,8 @@ export default function Home() {
 
       <HomeHero garment={garment} colours={colours.slice(0, 6)} printCm={printCm} shopOpen={shopOpen} />
       <HomeMarquee shopOpen={shopOpen} />
+      {/* "Trending now" (23 Nov 2026): the customer's photo in the look of the moment — shows only when a trend is on */}
+      <HomeTrends garment={garment} />
       {shopOpen && <HomeScene products={scene} total={sceneTotal} />}
       <HomeCreate colours={colours} />
       <HomePhoto />

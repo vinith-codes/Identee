@@ -337,8 +337,12 @@ export function photoPlace(part, side, area, frame) {
   // where the mockup has them (21 Nov 2026: gold strokes from the chest to the hem came out at 80 %; with 15 % the tall
   // "IDENTEE" down the back of a live test still came out at 92 %, starting low — the tee's width difference and the
   // part's own clear edge together)
+  // A whole picture (`part.whole`: a trend's poster, 23 Nov 2026) doesn't grow: it stays inside the mockup's box, so it
+  // is as WIDE as the mockup shows. (The first real GTA mockup: grown to the mockup's height, the back poster came out
+  // 40.8 cm wide on our narrower tee — side to side, round the 3D tee's edges; the mockup has it at three quarters of
+  // the body's width.)
   const fit = boxW / boxH > shape ? boxH * shape : boxW;
-  const grow = Math.min(1.3, Math.max(boxW / fit, boxH / (fit / shape)));
+  const grow = part.whole ? 1 : Math.min(1.3, Math.max(boxW / fit, boxH / (fit / shape)));
   const w = fit * grow;
   const h = w / shape;
   // (21 Nov 2026, the owner: "the back also should be in centre") a print the mockup has on the centre line — its

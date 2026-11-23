@@ -351,3 +351,27 @@
   .hm-way.custom:hover .photo { transform: none; }
   .hm-way.custom .art, .hm-way.custom::after { display: none; }
 }
+
+/* "Trending now" (23 Nov 2026): a card for each trend — its example picture beside three steps and one button */
+.hm-trend { padding-block: 72px; background: linear-gradient(180deg, #FBF6EA, #F3EBDA); }
+.hm-trend-head { max-width: 680px; margin-bottom: 32px; }
+.hm-trend-head h2 { font-size: clamp(28px, 3.8vw, 46px); line-height: 1.06; margin-top: 12px; }
+.hm-trend-head > p:not(.hm-eyebrow) { margin: 14px 0 0; color: var(--muted); font-size: 16px; line-height: 1.6; }
+.hm-trend-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 24px; }
+.hm-trend-card { display: grid; grid-template-columns: minmax(0, 1fr); border-radius: 24px; overflow: hidden; background: #fff; box-shadow: 0 30px 60px -44px rgba(20, 17, 16, .55); }
+.hm-trend-row.one .hm-trend-card { grid-template-columns: minmax(0, .82fr) minmax(0, 1fr); max-width: 980px; }
+.hm-trend-pic { aspect-ratio: 3 / 4; background: #141110; display: grid; place-items: center; color: #fff; font: 700 22px/1.2 var(--display); text-align: center; overflow: hidden; }
+.hm-trend-pic img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.hm-trend-copy { display: grid; align-content: center; justify-items: start; gap: 14px; padding: 28px; }
+.hm-trend-copy h3 { margin: 0; font: 700 clamp(24px, 3vw, 34px)/1.1 var(--display); }
+.hm-trend-copy ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.hm-trend-copy ol li { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 14.5px; }
+.hm-trend-copy ol b { display: grid; place-items: center; flex: none; width: 26px; height: 26px; border-radius: 50%; background: var(--gold); color: var(--ink); font-size: 13px; }
+.hm-trend-copy .hm-btn { min-height: 48px; }
+.hm-trend-copy small { color: var(--muted); font-size: 12.5px; }
+@media (max-width: 720px) {
+  .hm-trend { padding-block: 48px; }
+  .hm-trend-row.one .hm-trend-card { grid-template-columns: minmax(0, 1fr); }
+  .hm-trend-pic { aspect-ratio: 4 / 5; }
+  .hm-trend-copy { padding: 22px 18px 24px; }
+}

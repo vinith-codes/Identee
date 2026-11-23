@@ -27,6 +27,8 @@ import { aiTextConfigured, askJsonWithImage } from "../services/aiTextService.js
 import { PRINT_DPI, bleedEdges, runRecipe, unPaeth } from "../services/printRecipe.js";
 import { cleanCutEdge } from "../services/cutoutService.js";
 import { fitStoredCopy } from "../services/alignCopy.js";
+import { isSmallReadyBack, keepReadyBackPrint, readyBackPrint } from "../services/trends.js";
+import { uploadFile } from "../utils/imageStorage.js";
 import { fromAddress, isEmail, mailer } from "../utils/mailer.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -204,6 +206,22 @@ export const startPrintPicture = asyncHandler(async (req, res) => {
         log(`Could not check the print copy's shape (${err.message}) — used as it is`);
       }
     }
+    // (23 Nov 2026, the owner: "once the image is made 4K after the order, replace the old one in the shop with it")
+    // a trend's ready-made back whose 4K copy was made for an earlier order: that copy is used — nothing is paid again
+    if (srcUrl === el.src) {
+      const ready = await readyBackPrint(el.src).catch(() => null);
+      if (ready && isOurUpload(ready)) {
+        try {
+          const kept = await fetchOurImage(ready, ourReq);
+          srcUrl = ready;
+          stored = kept;
+          meta = await sharp(stored.data, { limitInputPixels: false }).rotate().metadata();
+          log(`A ready design: its 4K copy (${meta.width}×${meta.height}) was made for an earlier order — used again, no AI cost`);
+        } catch (err) {
+          log(`A ready design's saved 4K copy could not be fetched (${err.message}) — treated as a new picture`);
+        }
+      }
+    }
     if (srcUrl === el.src) {
       const underFourK = Math.max(meta.width, meta.height) < FOUR_K;
       const grok = underFourK && Boolean(await AiUsage.exists({ grokUrls: el.src }).catch(() => null));
@@ -218,6 +236,16 @@ export const startPrintPicture = asyncHandler(async (req, res) => {
           stored = await fetchOurImage(srcUrl, ourReq);
           meta = await sharp(stored.data, { limitInputPixels: false }).rotate().metadata();
           log(made.byGrok ? `Google refused, so Grok made the copy (${meta.width}×${meta.height}) — compare it with the original; Topaz enlarges that` : `4K copy made (${meta.width}×${meta.height}), Topaz enlarges that`);
+          // a trend's ready-made back: this copy (a file of its own) takes the small picture's place in the shop, so
+          // the next order of the same design needs no copy. A failure here never stops the print file.
+          try {
+            if (await isSmallReadyBack(el.src)) {
+              const own = await uploadFile(stored.data, stored.mime || "image/webp", "trend-backs", "back.webp");
+              if (await keepReadyBackPrint(el.src, own.url)) log(`A ready design: this ${made.byGrok ? "copy" : "4K copy"} now takes the small picture's place in the shop — later orders of it need no new copy`);
+            }
+          } catch (err) {
+            log(`The copy could not be saved back to the ready designs (${err.message}) — the print file is not affected`);
+          }
         } catch (err) {
           // the AI said no, or its budget is used up: the original is enlarged, as before
           log(`No 4K copy (${err.message}) — enlarging the uploaded picture instead`);

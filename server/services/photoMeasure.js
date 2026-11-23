@@ -351,15 +351,37 @@ export function teeOutline(rgb, body, collarX = null) {
     }
     const tenth = (v) => [...v].sort((p, q) => p - q)[Math.floor(v.length * 0.1)];
     let near = 0;
+    let shift = 0;
     if (rows.length) {
       const narrow = tenth(rows.map((w) => w.m));
       const fit = rows.filter((w) => w.agree && w.m <= narrow * 1.15);
       const lowFit = fit.filter((w) => w.low);
       const use = lowFit.length >= 5 ? lowFit : fit;
       near = use.length >= 3 ? median(use.map((w) => w.m)) : Math.min(tenth(rows.map((w) => w.l)), tenth(rows.map((w) => w.r)));
+      // (23 Nov 2026, the first real GTA mockup: a black back tee lying over the black front tee — the AI's collar box
+      // was 12 of 1000 to one side of the tee's middle. No row's sides agreed, so the nearer side was taken for the
+      // half-width: the tee 15 % too narrow, its centred poster 12 % too big and 3.7 cm off the centre.) No row
+      // agrees, yet nearly every row is the same width and off to the same side by the same amount, all the way
+      // down: it is the collar box that is off, not a close-up over one side (that widens or cuts only the rows it
+      // covers). The centre line is then the middle of the body's own two sides — but only when the AI's own box
+      // round the whole tee says so too: its middle is much nearer the new line than the collar's (two of the three
+      // agree). A soft shadow down one side of the tee makes the rows lean the same way (one of the 6 laptop sheets:
+      // all its tees 10 % wider on the left) — there the body box stays with the collar, and so does the centre.
+      if (use.length < 3) {
+        const same = rows.filter((w) => w.m <= narrow * 1.15);
+        const offs = same.map((w) => (w.r - w.l) / 2).sort((p, q) => p - q);
+        const mid = median(offs);
+        const spread = offs.length ? offs[Math.floor(offs.length * 0.9)] - offs[Math.floor(offs.length * 0.1)] : Infinity;
+        const boxMid = (body[1] + body[3]) / 2;
+        const boxAgrees = Math.abs(boxMid - (collarX + mid)) < Math.abs(boxMid - collarX) * 0.5;
+        if (boxAgrees && same.length >= rows.length * 0.7 && spread <= narrow * 0.06 && Math.abs(mid) <= narrow * 0.3) {
+          shift = mid;
+          near = median(same.map((w) => w.m));
+        }
+      }
     }
     if (near > span * 0.1) {
-      centre = collarX;
+      centre = collarX + shift;
       half = near;
     }
   } else {

@@ -9,6 +9,7 @@ import { SHOPS } from "../../utils/shopNames";
 import artDesignService from "../../services/artDesignService";
 import { wearerFor } from "../../utils/wearerFor";
 import { collectionInfo, collectionLink } from "../../utils/shopRules";
+import aiService from "../../services/aiService";
 
 const PRINTS = ["YOUR NAME", "TEAM 07", "BIRTHDAY SQUAD", "SAY IT LOUD"];
 const reduceMotion = () => typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
@@ -436,6 +437,82 @@ export function HomeWays({ garment, customPhoto, stackPhotos, custom, ready, sho
 
 /* ---------- three steps (the real Design Room order) ---------- */
 /* ---------- the Photo Studio, highlighted: the customer's photo as art, or print-ready ---------- */
+/* ---------- "Trending now" (23 Nov 2026): the customer's photo redrawn in a look that is going round ---------- */
+// The owner: "add the current trends as one feature — if the user uploads a photo it should give the GTA version of
+// that … it should be in home page itself". A card for each trend the team switched on (Admin → Design Studio →
+// Trends). "Try it with my photo": sign in → the Design Room: pick the tee's colour and size, then the trend's own
+// assistant: the trend's logo is on the front; for the back they send a photo (three designs made from it, they pick
+// one) or pick one of the trend's ready designs (studio/trends.js).
+// Nothing is made for a visitor who isn't signed in.
+// A trend without its own example picture shows ours for it, when there is one in public/home.
+const TREND_EXAMPLE = { gta: "/home/trend-gta.webp" };
+const signedIn = () => {
+  try {
+    return Boolean(JSON.parse(localStorage.getItem("userInfo") || "{}").token);
+  } catch {
+    return false;
+  }
+};
+export function HomeTrends({ garment }) {
+  const navigate = useNavigate();
+  const [trends, setTrends] = useState([]);
+  useEffect(() => {
+    let alive = true;
+    aiService
+      .trends()
+      .then((r) => alive && setTrends(Array.isArray(r?.trends) ? r.trends : []))
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, []);
+  if (!trends.length) return null;
+  const room = `/customize/${garment?.key || "oversized-tee"}`;
+  const start = (t) => {
+    if (!signedIn()) return navigate("/login", { state: { from: "/" } });
+    navigate(room, { state: { trend: { key: t.key, name: t.name, colours: t.colours || [] } } });
+  };
+  return (
+    <section className="hm-trend" aria-label="Trending now">
+      <div className="hm-wrap">
+        <div className="hm-trend-head" data-reveal>
+          <p className="hm-eyebrow">Trending now</p>
+          <h2>Your photo, the way everyone’s posting it</h2>
+          <p>Send a photo and we redraw it in the look of the moment. Pick the tee you like best, then wear it.</p>
+        </div>
+        <div className={`hm-trend-row${trends.length === 1 ? " one" : ""}`}>
+          {trends.map((t) => {
+            const shot = t.example ? imageUrl(t.example, 900) : TREND_EXAMPLE[t.key] || "";
+            return (
+              <article key={t.key} className="hm-trend-card" data-reveal>
+                <div className="hm-trend-pic">{shot ? <img src={shot} alt={`A photo redrawn in ${t.name}`} loading="lazy" /> : <span aria-hidden="true">{t.name}</span>}</div>
+                <div className="hm-trend-copy">
+                  <h3>{t.name}</h3>
+                  <ol>
+                    <li>
+                      <b>1</b> Pick your tee’s colour and size
+                    </li>
+                    <li>
+                      <b>2</b> Send your photo{t.backs?.length ? " — or pick a ready design" : ""}
+                    </li>
+                    <li>
+                      <b>3</b> Choose the back you like{t.front ? " — the logo is on the front" : ""}
+                    </li>
+                  </ol>
+                  <button type="button" className="hm-btn gold" onClick={() => start(t)}>
+                    Try it with my photo <span className="arr">→</span>
+                  </button>
+                  {!signedIn() && <small>You’ll sign in first — it takes a minute.</small>}
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export function HomePhoto() {
   // straight into the design room, which opens the Photo Studio (?photo=1)
   const href = `${SHOPS.create.to}?photo=1`; // choose the T-shirt first, then the room opens the Photo tab

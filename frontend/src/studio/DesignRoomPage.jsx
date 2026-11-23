@@ -17,6 +17,7 @@ import artDesignService from "../services/artDesignService";
 import { fetchCart } from "../redux/slices/cartWishlistSlice";
 import { createPortal } from "react-dom";
 import { useBackClose } from "../utils/backClose";
+import { TREND_MORE, TREND_UPLOAD, trendColours, trendFromLink, trendHello, trendState } from "./trends";
 import { imageUrl } from "../utils/imageUrl";
 import Room3D from "./Room3D";
 import AreaEditor from "./AreaEditor";
@@ -24,7 +25,7 @@ import PanelEditor from "./PanelEditor";
 import { AreaRenderer, cachedImage, imageSrcs, loadImage, measureText, playerElements, printThumb } from "./konvaRender";
 import { MAX_PLAYERS, NAME_MAX, NUMBER_MAX, filled, hasRoles, parsePlayers, playerLabel, rolesIn, sizeCounts } from "./teamOrder";
 import { areaCm, blockersOf, clashesIn, modelForGarment, placeArea, pointToCm, widenFor } from "./teeModel";
-import { JOIN_CM, MAX_SPOTS, SPOT_SIDES, applySpotFix, areaBoxCm, isSpotKey, normaliseSpots, reboxChanged, reboxSpot, spotPosition, spotsIn, spotWhere, withSpotBoxes } from "./panelModel";
+import { JOIN_CM, MAX_SPOTS, SPOT_SIDES, applySpotFix, areaBoxCm, bigBackPrint, elementToSpot, isSpotKey, normaliseSpots, reboxChanged, reboxSpot, spotPosition, spotsIn, spotWhere, withSpotBoxes } from "./panelModel";
 import { CAP_MSG, dropThing, keepInside, movedThing, panelBox, panelView, scaledThing, snapLines, spotCount, startBox } from "./panelDrag";
 import AreaThumb from "./AreaThumb";
 import { AREA_GROUPS, groupOfSide, listOrder } from "./areaGroups";
@@ -239,6 +240,14 @@ export default function DesignRoomPage() {
   const [fromLink] = useState(() => params.get("from") || "");
   const [ideaLink] = useState(() => (typeof location.state?.idea === "string" ? location.state.idea.trim().slice(0, PROMPT_MAX) : ""));
   const [chatAuto, setChatAuto] = useState(""); // the idea, waiting for the chat to send it
+  // "Trending now" from the home page (23 Nov 2026): the trend the customer tapped there. Once they are in the room
+  // its own assistant opens (the GTA Studio — studio/trends.js). Used once: a reload doesn't start it again.
+  const [trendLink] = useState(() => trendFromLink(location.state));
+  const trendStarted = useRef(false);
+  // … and until its assistant has opened, the colour-and-size screen shows ONE way in — to that assistant (the owner,
+  // 23 Nov 2026: "after selecting the size and colour only upload a photo in the assistant is enough; Design it
+  // myself and Start with my photo are not needed")
+  const [trendWaiting, setTrendWaiting] = useState(() => Boolean(trendFromLink(location.state)));
   // was the room opened from another page of the site? (read once: tidying the address below changes location.key)
   const [cameFromSite] = useState(() => location.key !== "default");
   // how the room was opened: by the browser's Back / Forward ("POP") or a link
@@ -524,7 +533,22 @@ export default function DesignRoomPage() {
 
   /* ---------- derived ---------- */
   // (a "Shop your IDENTEE only" colour is not offered here, except the one a copied Studio tee is already in)
-  const colours = useMemo(() => (garment?.colors || []).filter((c) => !c.shopOnly || c.slug === colourSlug), [garment, colourSlug]);
+  // (23 Nov 2026, the owner: "only the black and [white] colours should be given") in a trend's studio — on its first
+  // screen and in its chat — only the trend's tee colours are offered (studio/trends.js trendColours)
+  const studioTrend = useMemo(() => {
+    const key = chatState.studio || (trendWaiting ? trendLink?.key : null);
+    return key ? (ai.trends || []).find((t) => t.key === key) || (trendLink?.key === key ? trendLink : null) : null;
+  }, [chatState.studio, trendWaiting, trendLink, ai.trends]);
+  const colours = useMemo(() => trendColours((garment?.colors || []).filter((c) => !c.shopOnly || c.slug === colourSlug), studioTrend), [garment, colourSlug, studioTrend]);
+  // (the studio chat's own list of ready designs follows the trend: new ones the team added, one swapped for its 4K copy)
+  useEffect(() => {
+    const now = chatState.studio ? (ai.trends || []).find((t) => t.key === chatState.studio) : null;
+    if (!now || !Array.isArray(now.backs)) return undefined;
+    const fresh = trendState(now).studioBacks;
+    if (JSON.stringify(fresh) === JSON.stringify(chatState.studioBacks || [])) return undefined;
+    const t = setTimeout(() => setChatState((st) => (st.studio === now.key ? { ...st, studioBacks: fresh } : st)), 0); // (once the page is up)
+    return () => clearTimeout(t);
+  }, [ai.trends, chatState.studio]); // eslint-disable-line react-hooks/exhaustive-deps
   const colour = colours.find((c) => c.slug === colourSlug) || colours[0];
   const sizes = garment?.sizes?.length ? garment.sizes : ["XS", "S", "M", "L", "XL", "2XL", "3XL"];
   const sizeNow = sizes.includes(size) ? size : sizes.includes("M") ? "M" : sizes[0];
@@ -830,9 +854,10 @@ export default function DesignRoomPage() {
   };
   /* ---------- Chats: this conversation and its tee, saved as the customer goes (studio/chatStore.js) ---------- */
   // (13 Nov 2026: the whole chat — slimForSaving keeps a long one under the server's limit — and whose it is)
+  // (a trend's own chat — the GTA Studio — is named after the trend, not after its first button)
   const chatRecord = () => {
     const body = slimForSaving({ chat, chatState, aiPlaced, memory: chatMemory, design: teeOf({ elements, colour: colour?.slug, size: sizeNow, designId, name: designName, dirty: unsaved.current, locked, players: players.filter(filled).map(({ name, number, size: sz }) => ({ name, number, size: sz })) }) });
-    return { id: chatId, type, title: chatTitle(body.chat, designName || `${garment?.label || "My"} design`), colour: colour?.slug || "", designId, owner: chatOwner.current || myId(), updatedAt: Date.now(), body };
+    return { id: chatId, type, title: chatTitle(body.chat, body.chatState?.studioName || designName || `${garment?.label || "My"} design`), colour: colour?.slug || "", designId, owner: chatOwner.current || myId(), updatedAt: Date.now(), body };
   };
   const recordNow = useRef(chatRecord);
   // a chat just put in the room that is saved already (opened from Chats, brought in from the account): as it is
@@ -969,7 +994,7 @@ export default function DesignRoomPage() {
     }
     // (one above any stamp used: the copy sent with that stamp may differ from this one)
     const at = Math.max(Number(was.at) || 0, Number(was.sentAt) || 0) + 1;
-    const rec = { id: archivedId.current, type, title: chatTitle(body.chat, d.name || "My design"), colour: body.design.colour || "", designId: body.design.designId, owner: was.owner || myId(), updatedAt: Date.now(), at, body };
+    const rec = { id: archivedId.current, type, title: chatTitle(body.chat, body.chatState?.studioName || d.name || "My design"), colour: body.design.colour || "", designId: body.design.designId, owner: was.owner || myId(), updatedAt: Date.now(), at, body };
     archived.current = { at, hash: sig, taken: false, known: Boolean(was.chatId) };
     archiving.current = saveChat(rec)
       .then((r) => {
@@ -1260,7 +1285,7 @@ export default function DesignRoomPage() {
       wantHash.current = true;
       syncRef.current(id, { continued: true });
     }
-    setAssist(Boolean(room.assist) || !earlier.elements.length || Boolean(ideaLink)); // (a chat-only room opens on the chat)
+    setAssist(Boolean(room.assist) || !earlier.elements.length || Boolean(ideaLink) || Boolean(trendLink)); // (a chat-only room opens on the chat)
     chatDesign.current = earlier.designId || null;
     setEarlier(null);
     setStep("design");
@@ -2358,6 +2383,71 @@ export default function DesignRoomPage() {
       return [botSays(err.response?.data?.message || "The concept sheet couldn’t be made just now."), { failed: true }];
     }
   };
+  // A ready-made back of the trend, tapped in the chat (23 Nov 2026, the owner: "or we should provide many options for
+  // the back"): on Full Back, in place of the back the studio made or put there before. No AI, no cost. It is marked
+  // as the laid-out back (aiLayout), so a design made from a photo later replaces it the same way.
+  const chatTrendBack = async (a) => {
+    const pos = positions.find((p) => p.key === "full-back") || positions.find((p) => p.side === "back" && p.main) || positions.find((p) => p.side === "back");
+    if (!pos || !a.url) return [botSays("This garment has no print area on the back.")];
+    let cut = aiCuts.current.get(a.url);
+    if (!cut) {
+      try {
+        const img = await loadImage(a.url, { full: true });
+        cut = { path: a.url, w: img.naturalWidth, h: img.naturalHeight };
+        aiCuts.current.set(a.url, cut);
+      } catch {
+        return [botSays("That design couldn’t be loaded. Check your connection and tap it again."), { failed: true }];
+      }
+    }
+    const isBack = (key) => positions.find((p) => p.key === key)?.side === "back";
+    const gone = [...elements.filter((e) => e.aiLayout === "back").map((e) => e.id), ...Object.entries(aiPlaced).filter(([key]) => isBack(key)).map(([, put]) => put.elId)];
+    const kept = elements.filter((e) => !gone.includes(e.id));
+    const blockedBy = blockersOf(pos.key, positions, [...new Set(kept.map((e) => e.position))].filter((k) => k !== pos.key));
+    if (blockedBy.length || kept.some((e) => e.position === pos.key)) return [botSays(`The back already has ${blockedBy.length ? andList(blockedBy.map((b) => b.label)) : "a print of yours"} on it. Remove that first, then tap the design again.`)];
+    // (23 Nov 2026, the owner: "it is looking small") printed big — as big as the print team's biggest back print
+    // (bigBackPrint), a print of its own just under the collar — not fitted inside Full Back (a tall picture came out
+    // 22 cm wide); Full Back as before when that can't be
+    let el = { ...aiElement(pos, cut, kept.length + 1), aiLayout: "back" };
+    let next = [...kept, el];
+    let key = pos.key;
+    const big = bigBackPrint(garment, sizeNow, maxPrint, cut.w / cut.h);
+    const area = big && areaBoxCm(pos, sizeNow, garment);
+    if (big && area?.w && area?.h) {
+      const put = { ...el, rotation: 0, x: ((area.w - big.w) / 2 / area.w) * 100, y: ((big.down - area.down) / area.h) * 100, width: (big.w / area.w) * 100, height: (big.h / area.h) * 100 };
+      const spotted = elementToSpot([...kept, put], put.id, { positions, garment, size: sizeNow, maxPrint });
+      const now = spotted.find((e) => e.id === put.id);
+      if (now && isSpotKey(now.position)) {
+        el = now;
+        next = spotted;
+        key = now.position;
+      }
+    }
+    commit(() => next);
+    setAiPlaced((cur) => ({ ...Object.fromEntries(Object.entries(cur).filter(([k]) => !isBack(k))), [key]: { url: a.url, elId: el.id, layout: "back" } }));
+    openArea(key, { force: true });
+    setSelectedId(null);
+    return [botSays(`${a.name ? `“${a.name}”` : "That design"} is on the back of your tee. Tap another to swap it, or tell me what to change.`), chipRow([TREND_UPLOAD, "Check my design"])];
+  };
+  // The GTA Studio's mockup (23 Nov 2026): one sheet with three tees made from the customer's photo in the trend's
+  // look (the server has the three options and the look: services/trends.js). It counts as one picture. Picking one
+  // goes through developPicks like any concept — the sheet carries the trend and the photo for it.
+  const chatTrendSheet = async (a, progress) => {
+    const photo = a.photo || chatState.photo;
+    const name = a.trendName || chatState.studioName || "your trend";
+    if (!photo) return [botSays("Send me your photo first."), chipRow([TREND_UPLOAD])];
+    if (!isLoggedIn()) return [botSays("Log in and I’ll make them. Your design stays here."), chipRow(["Log in"])];
+    if (!ai.available) return [botSays("Pictures can’t be made right now. Please try again in a little while.")];
+    if (ai.left === 0) return [botSays("You’ve made today’s pictures. They come back tomorrow.")];
+    const numberFrom = nextConceptNumber(sheetsFromChat(chat));
+    progress?.({ label: `Making your ${name} mockup…`, expect: 30, hint: "Three back designs from your photo. Usually 20–40 seconds." });
+    try {
+      const res = await aiService.concepts({ trend: a.trend, photoUrl: photo.url, garment: garment?.label || "t-shirt", teeColour: colour?.name || "white", teeIsDark: lum(fabricHex) < 0.55, numberFrom });
+      if (res.left != null) setAi((cur) => ({ ...cur, left: res.left }));
+      return [botSays(`Here are three ${name} designs for the back, made from your photo. Tap the one you like and I’ll make it — or tap “${TREND_MORE}”.`), { sheet: { ...res.sheet, brief: `${name} from your photo`, developed: [] } }];
+    } catch (err) {
+      return [botSays(err.response?.data?.message || "The mockup couldn’t be made just now."), { failed: true }, chipRow([TREND_MORE])];
+    }
+  };
   // picked concepts → their artwork pieces from the sheet; the first pick goes on the tee, the others wait with Add to tee
   const developPicks = async (step, progress, run) => {
     if (!ai.available) return [botSays("Pictures can’t be made right now."), chipRow(["Open the art library", "Upload a picture"])];
@@ -2420,7 +2510,7 @@ export default function DesignRoomPage() {
         // the print area's width (cm) and how many free places are left (the earlier AI parts are replaced, so free)
         const layoutCm = Object.fromEntries(layout.map((pc) => [pc, areaBoxCm(areasFor[pc], size, garment).w]));
         const freePlaces = Math.max(0, MAX_SPOTS - spotsIn(els).filter((b) => !aiPlaced[b.key]?.layout).length);
-        res = await aiService.develop({ sheetUrl: sheet.url, n, concept, pieces, teeColour: colour?.name || "white", teeIsDark: lum(fabricHex) < 0.55, ratios, ...(layout.length ? { layout, layoutCm, freePlaces } : {}), ...(sheet.logoUrls?.length > 1 ? { logoUrls: sheet.logoUrls } : sheet.logoUrl ? { logoUrl: sheet.logoUrl } : sheet.refUrl && !sheet.inspired ? { refUrl: sheet.refUrl } : {}), ...(step.change ? { change: step.change } : {}) });
+        res = await aiService.develop({ sheetUrl: sheet.url, n, concept, pieces, teeColour: colour?.name || "white", teeIsDark: lum(fabricHex) < 0.55, ratios, ...(layout.length ? { layout, layoutCm, freePlaces } : {}), ...(sheet.logoUrls?.length > 1 ? { logoUrls: sheet.logoUrls } : sheet.logoUrl ? { logoUrl: sheet.logoUrl } : sheet.refUrl && !sheet.inspired ? { refUrl: sheet.refUrl } : {}), ...(sheet.trend && sheet.photoUrl ? { trend: sheet.trend, photoUrl: sheet.photoUrl } : {}), ...(step.change ? { change: step.change } : {}) });
       } catch (err) {
         out.push(botSays(err.response?.data?.message || `Concept ${n} couldn’t be made just now.`));
         continue;
@@ -3293,6 +3383,11 @@ export default function DesignRoomPage() {
   // one photo uploaded: what happens next (17 Nov 2026: also when only one of several photos got through)
   const photoArrived = (photo, text) => {
     const a = { text };
+    // a trend's own assistant (the GTA Studio): any photo sent there is the one to make the mockup from
+    if (chatState.studio) {
+      setChatState((st) => ({ ...st, photosOpen: false, photo, photoUrl: null, wait: null, photoAreaKey: null, photoAreaKeys: [] }));
+      return [{ photoSent: photo }, { next: { type: "trendSheet", trend: chatState.studio, trendName: chatState.studioName, photo } }];
+    }
     // Assistant v2 (round 2, 7 Nov 2026): the picture goes to the brain with the words — a logo for the concepts, or a
     // photo to redraw (the brain opens Photo to art). It stays on file in this chat as the customer's logo.
     if (ai?.v2) {
@@ -3489,8 +3584,12 @@ export default function DesignRoomPage() {
       const placed = putOn(first.url);
       const onWhere = placed.where || pos.label;
       const left = res.left == null ? "" : ` ${res.left} request${res.left === 1 ? "" : "s"} left today.`;
-      const said =
-        a.job === "copy"
+      // (23 Nov 2026) made, but its print area is covered by another print: said plainly — it used to read "on Centre
+      // Front. (Centre Front is covered by another print, so I left it out.)"
+      const notOn = `, but ${pos.label} is covered by another print, so it isn’t on the tee yet. Tap “Other area…” under the picture to choose where it goes.${left}`;
+      const said = !placed.on.length
+        ? `${a.job === "copy" ? "Here’s the design from your photo" : a.job === "inspired" ? "Here’s your new design" : `Here’s your photo as ${String(a.style || "art").toLowerCase()}`}${notOn}`
+        : a.job === "copy"
           ? `Here’s the design from your photo, on ${onWhere}.${placed.missed}${left} Not quite the same? Tap Try another, or Change to fix a part.`
           : a.job === "inspired"
             ? `Here’s your new design, on ${onWhere}.${placed.missed}${left}`
@@ -3589,6 +3688,10 @@ export default function DesignRoomPage() {
   };
   // the home page's ways in, on entering the room: the idea to the assistant, or straight to a tool
   const startWith = () => {
+    if (trendLink && !trendStarted.current) {
+      trendStarted.current = true;
+      return startTrend(trendLink);
+    }
     if (ideaLink) {
       openAiTab("chat");
       return setChatAuto(ideaLink);
@@ -3599,6 +3702,42 @@ export default function DesignRoomPage() {
       setAddTab(startLink);
     }
   };
+  // A trend's own assistant, the "GTA Studio" (23 Nov 2026 — studio/trends.js): a chat of its own, with its own tee
+  // (the chat and tee the customer had are kept in Chats, as with New chat), opening with one line and "Upload a
+  // photo". The address is left plain, so a reload doesn't start it again (applyChat).
+  // (23 Nov 2026, the owner: "in the front side of the t-shirt the logo I am giving is fixed for all tees … if they
+  // want they can change") the trend's own front picture is on the tee from the start — an ordinary picture on Centre
+  // Front, so the customer can still move, resize, swap or remove it. A picture that can't be loaded: no front.
+  const trendFront = async (t) => {
+    const pos = positions.find((p) => p.key === "centre-front") || positions.find((p) => p.side === "front" && p.main) || positions.find((p) => p.side === "front");
+    if (!t?.front || !pos) return null;
+    try {
+      const img = await loadImage(t.front, { full: true });
+      const cut = { path: t.front, w: img.naturalWidth, h: img.naturalHeight };
+      aiCuts.current.set(t.front, cut);
+      return { ...aiElement(pos, cut, 1), trendFront: t.key };
+    } catch {
+      return null;
+    }
+  };
+  const startTrend = async (link) => {
+    setChatsOpen(false);
+    await saveChatNow({ asKept: syncing.current });
+    // the whole trend (its colours, front picture and ready backs): from the AI's status, or asked for now
+    const known = (ai.trends || []).find((x) => x.key === link.key);
+    const t = known || (await aiService.trends().then((r) => (r?.trends || []).find((x) => x.key === link.key)).catch(() => null)) || link;
+    const front = await trendFront(t);
+    setTrendWaiting(false);
+    applyChat({ id: makeId(), body: { chat: trendHello(t), chatState: { ...firstState(), ...trendState(t) }, design: { colour: trendColours(colours, t).find((c) => c.slug === colour?.slug)?.slug || trendColours(colours, t)[0]?.slug, size: sizeNow, elements: front ? [front] : [] } } });
+    setAiTab("chat");
+  };
+  // "Trending now" into a room that is already open (a design in progress — there is no first screen to press, so
+  // startWith is never called): the trend starts once the room is up. Found on the first on-screen run, 23 Nov 2026.
+  useEffect(() => {
+    if (!trendLink || trendStarted.current || step !== "design" || !garment || !positions.length) return undefined;
+    const t = setTimeout(() => startWith(), 1200);
+    return () => clearTimeout(t);
+  }, [step, garment, positions.length]); // eslint-disable-line react-hooks/exhaustive-deps
   // the team page's way in: the Team jersey layout, then the assistant asks for the players
   // withAssistant: "Design with the Assistant" opens it; "Design it myself" doesn't (the editor opens on the layout,
   // and the assistant's note about the list is there if they open it later — or they fill the list in Review)
@@ -3647,6 +3786,8 @@ export default function DesignRoomPage() {
     if (a.type === "photosMake") return chatPhotosMake(a, progress, run);
     if (a.type === "photoUnderstand") return chatPhotoUnderstand(a, run);
     if (a.type === "photoMake") return chatPhotoMake(a, progress);
+    if (a.type === "trendSheet") return chatTrendSheet(a, progress);
+    if (a.type === "trendBack") return chatTrendBack(a);
     if (a.type === "photoPlace") return chatPhotoPlace(a, progress);
     if (a.type === "edit") return chatEdit(a, progress, run);
     if (a.type === "smart") return chatSmart(a, progress, run);
@@ -4574,9 +4715,14 @@ export default function DesignRoomPage() {
             <header>
               <div>
                 <div className="eyebrow">AI design</div>
-                <h2>Tell me what you want</h2>
+                {/* (a trend's own assistant — the GTA Studio, 23 Nov 2026 — says what it is, not "Tell me what you want") */}
+                <h2>{chatState.studio ? chatState.studioName || "Trending now" : "Tell me what you want"}</h2>
                 <div className="sub">
-                  {activePos ? `Working on ${activePos.label}. You can still change anything by hand.` : "Describe your tee, send a photo, or pick a starting point."}
+                  {chatState.studio
+                    ? "The logo is on the front. For the back, send your photo or pick a ready design."
+                    : activePos
+                      ? `Working on ${activePos.label}. You can still change anything by hand.`
+                      : "Describe your tee, send a photo, or pick a starting point."}
                 </div>
               </div>
               <div className="dr-assisthead">
@@ -5249,6 +5395,7 @@ export default function DesignRoomPage() {
             size={sizeNow}
             onSize={setSize}
             onFindSize={garment.sizeChart?.length ? () => setFinder("fit") : null}
+            trend={trendWaiting ? trendLink?.name || null : null}
             onEnter={() => {
               setEarlier(null);
               enterRoom();
@@ -5427,7 +5574,8 @@ function FindSizeLink({ onClick }) {
 // the unfinished design's words on the first screen: its items, or (13 Nov 2026) a chat with nothing on the tee yet
 const unfinishedWords = (e) => (e.elements.length ? `${e.elements.length} item${e.elements.length === 1 ? "" : "s"}${e.name ? ` · ${e.name}` : ""}` : "your chat with the Assistant");
 
-function Fitting({ garment, colours, colour, onColour, sizes, size, onSize, onFindSize, onEnter: enter, onAssistant: assistant, onPhoto: photo, credit, earlier, onContinue }) {
+// trend ("Trending now", 23 Nov 2026): the customer came for a trend ("GTA style") — one way in, to its own assistant
+function Fitting({ garment, colours, colour, onColour, sizes, size, onSize, onFindSize, onEnter: enter, onAssistant: assistant, onPhoto: photo, credit, earlier, onContinue, trend = null }) {
   // with an unfinished design waiting, starting a new one replaces it — so ask first
   const [asking, setAsking] = useState(null); // the way in that was pressed
   const guard = (go) => () => (earlier ? setAsking(() => go) : go());
@@ -5477,27 +5625,46 @@ function Fitting({ garment, colours, colour, onColour, sizes, size, onSize, onFi
           </div>
           {onFindSize && <FindSizeLink onClick={onFindSize} />}
         </div>
-        {/* the highlighted way in: the customer's own photo, as art or print-ready */}
-        <button type="button" className="dr-photoenter" onClick={onPhoto}>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <path d={ICON_PHOTO} />
-          </svg>
-          <span>
-            <b>Start with my photo</b>
-            <small>Copy a design from it, put it on as it is, or turn it into art</small>
-          </span>
-          <i aria-hidden="true">→</i>
-        </button>
-        <div className="dr-ways">
-          <button type="button" className="dr-enter" onClick={onEnter}>Design it myself →</button>
-          <button type="button" className="dr-enter alt" onClick={onAssistant}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <path d={ICON_AI} />
-            </svg>
-            Design with the Assistant
-          </button>
-        </div>
-        <p className="dr-waysnote">Either way, you can switch at any time and change everything by hand.</p>
+        {trend ? (
+          // a trend: one way in — its own assistant (the logo is on the front; the back is their photo or a ready design)
+          <>
+            <button type="button" className="dr-photoenter" onClick={onAssistant}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d={ICON_PHOTO} />
+              </svg>
+              <span>
+                <b>Continue</b>
+                <small>{trend}: its logo on the front. For the back, send your photo or pick a ready design.</small>
+              </span>
+              <i aria-hidden="true">→</i>
+            </button>
+            <p className="dr-waysnote">You can change the colour and size later too.</p>
+          </>
+        ) : (
+          <>
+            {/* the highlighted way in: the customer's own photo, as art or print-ready */}
+            <button type="button" className="dr-photoenter" onClick={onPhoto}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d={ICON_PHOTO} />
+              </svg>
+              <span>
+                <b>Start with my photo</b>
+                <small>Copy a design from it, put it on as it is, or turn it into art</small>
+              </span>
+              <i aria-hidden="true">→</i>
+            </button>
+            <div className="dr-ways">
+              <button type="button" className="dr-enter" onClick={onEnter}>Design it myself →</button>
+              <button type="button" className="dr-enter alt" onClick={onAssistant}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d={ICON_AI} />
+                </svg>
+                Design with the Assistant
+              </button>
+            </div>
+            <p className="dr-waysnote">Either way, you can switch at any time and change everything by hand.</p>
+          </>
+        )}
         <div className="dr-fitfoot">
           {garment.basePrice > 0 && <PriceTag price={garment.basePrice} was={garment.comparePrice} size={14} offer />}
           {credit && <a href={credit.href} target="_blank" rel="noopener noreferrer">{credit.text}</a>}

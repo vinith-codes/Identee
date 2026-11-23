@@ -56,6 +56,7 @@ export const ADMIN_MENU = [
       { to: "/admin/studio", label: "Studio (design a tee)" },
       { to: "/admin/test-mode", label: "Test as a customer" },
       { to: "/admin/design-help", label: "Help requests" },
+      { to: "/admin/trends", label: "Trends" }, // "Trending now": the looks a photo is redrawn in (23 Nov 2026)
     ],
   },
   {

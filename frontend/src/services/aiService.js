@@ -71,6 +71,19 @@ const help = async (body) => (await axios.post(`${API_URL}/help`, body, { ...aut
 // { photo, image, side?, ref?, backPhoto?, garment, teeColour } -> { url, width, height, side, from: "photo"|"ai", left } (17 Nov 2026)
 const tryOn = async (body) => (await axios.post(`${API_URL}/tryon`, body, { ...auth(), timeout: 200000 })).data;
 const ideas = async () => (await axios.get(`${API_URL}/ideas`, { timeout: 20000 })).data;
+// "Trending now" (23 Nov 2026): the trends a photo can be redrawn in. Public: { trends: [{ key, name, example, before, scene }] };
+// the team's page gets the whole rows and adds, changes and removes them (Admin → Design Studio → Trends)
+const trends = async () => (await axios.get(`${API_URL}/trends`, { timeout: 20000 })).data;
+const trendsAll = async () => (await axios.get(`${API_URL}/trends/all`, auth())).data;
+const addTrend = async (body) => (await axios.post(`${API_URL}/trends`, body, auth())).data;
+const saveTrend = async (id, body) => (await axios.put(`${API_URL}/trends/${id}`, body, auth())).data;
+const dropTrend = async (id) => (await axios.delete(`${API_URL}/trends/${id}`, auth())).data;
+// a trend's own picture (example, front logo, ready design): { path } — not added to the admin's My pictures
+const trendPicture = async (file) => {
+  const form = new FormData();
+  form.append("design", file);
+  return (await axios.post(`${API_URL}/trends/picture`, form, auth())).data;
+};
 const setIdea = async (id, featured) => (await axios.put(`${API_URL}/ideas/${id}`, { featured }, auth())).data;
 
-export default { status, design, slogans, edit, improve, photoPlan, removeBg, chat, assist, concepts, develop, match, worn, help, tryOn, ideas, setIdea, getAdmin, saveAdmin, getOlderRequests, printPicture, dropPrintPicture };
+export default { status, design, slogans, edit, improve, photoPlan, removeBg, chat, assist, concepts, develop, match, worn, help, tryOn, ideas, setIdea, trends, trendsAll, addTrend, saveTrend, dropTrend, trendPicture, getAdmin, saveAdmin, getOlderRequests, printPicture, dropPrintPicture };

@@ -26,6 +26,7 @@ import { developPrompt, matchPrompt, mockSheet, piecesOf, SHEET_COST_FACTOR, SHE
 import User from "../models/userModel.js";
 import { DESIGN_SIZE, designPictureCost, googleCapped, grokCapped, isOurUpload, noPicturesLeft, readSettings, usedToday, whyOff } from "./aiController.js";
 import { expectedWords, missingWords, readWords, wordCheckReady } from "../services/wordCheck.js";
+import { findTrend, trendConcepts, trendLikenessLine, trendPiecePrompt, trendSheetLine } from "../services/trends.js";
 import { AI_AREAS_MAX, spotWhereOf } from "../data/printPositions.js";
 
 const PROMPT_MAX = 2000;
@@ -252,9 +253,22 @@ async function withGrok(settings, googleJob, grokJob, what) {
 // -> { sheet: { url, width, height, numberFrom, concepts }, left }
 export const makeConcepts = asyncHandler(async (req, res) => {
   const { s, used } = await mayDraw(req, res);
-  const concepts = (Array.isArray(req.body?.concepts) ? req.body.concepts : []).map(conceptIn).filter((c) => c.title && (c.front || c.back || c.sleeve)).slice(0, CONCEPTS_PER_SHEET);
+  // "Trending now" (23 Nov 2026): the GTA Studio's mockup — { trend, photoUrl } instead of concepts. The three
+  // options are the trend's own (services/trends.js trendConcepts) and the customer's photo goes to the picture AI
+  // with the instruction, to be redrawn in the trend's look on each tee.
+  const trend = req.body?.trend ? await findTrend(req.body.trend, { team: Boolean(req.user?.isAdmin || req.user?.isSeller) }) : null;
+  if (req.body?.trend && !trend) {
+    res.status(400);
+    throw new Error("That trend isn’t available any more.");
+  }
+  const trendPhoto = trend && req.body?.photoUrl && isOurUpload(String(req.body.photoUrl)) ? String(req.body.photoUrl) : null;
+  if (trend && !trendPhoto) {
+    res.status(400);
+    throw new Error("Send your photo first.");
+  }
+  const concepts = (trend ? trendConcepts(trend) : Array.isArray(req.body?.concepts) ? req.body.concepts : []).map(conceptIn).filter((c) => c.title && (c.front || c.back || c.sleeve)).slice(0, CONCEPTS_PER_SHEET);
   // (21 Nov 2026) refUrl: the customer's picture of a whole tee, the concepts made LIKE it — the reference picture
-  const refUrl = req.body?.refUrl && isOurUpload(String(req.body.refUrl)) ? String(req.body.refUrl) : null;
+  const refUrl = !trend && req.body?.refUrl && isOurUpload(String(req.body.refUrl)) ? String(req.body.refUrl) : null;
   // inspired: NEW designs with that picture's feel, not a copy of it ("new inspired designs")
   const inspired = Boolean(refUrl) && req.body?.inspired === true;
   if (concepts.length < 2) {
@@ -268,14 +282,18 @@ export const makeConcepts = asyncHandler(async (req, res) => {
   // the customer's own logo / artwork (one of our uploads): sent with the instruction, printed exactly as it is
   // (17 Nov 2026) logoUrls: several of the customer's pictures mixed into one design — all sent, numbered in order
   // (a reference tee is the one picture sent: no logo, no other basis with it)
-  const logoUrls = refUrl ? [] : ourUrls(req.body?.logoUrls);
-  const logoUrl = refUrl || logoUrls.length > 1 ? null : logoUrls[0] || (req.body?.logoUrl && isOurUpload(String(req.body.logoUrl)) ? String(req.body.logoUrl) : null);
+  // (a trend's sheet is made from the customer's photo alone: no logo, no other pictures, no basis)
+  const logoUrls = refUrl || trend ? [] : ourUrls(req.body?.logoUrls);
+  const logoUrl = refUrl || trend || logoUrls.length > 1 ? null : logoUrls[0] || (req.body?.logoUrl && isOurUpload(String(req.body.logoUrl)) ? String(req.body.logoUrl) : null);
   // colourways / variations (round 5): the picture already on the tee goes as the reference instead
-  const basisUrl = !refUrl && !logoUrl && logoUrls.length < 2 && req.body?.basisUrl && isOurUpload(String(req.body.basisUrl)) ? String(req.body.basisUrl) : null;
+  const basisUrl = !trend && !refUrl && !logoUrl && logoUrls.length < 2 && req.body?.basisUrl && isOurUpload(String(req.body.basisUrl)) ? String(req.body.basisUrl) : null;
   const logos = logoUrls.length > 1 ? await Promise.all(logoUrls.map(async (u) => smallCopy(await fetchOurImage(u, req), 1024))) : [];
-  const one = refUrl || logoUrl || basisUrl;
-  const logo = logos[0] || (one ? await smallCopy(await fetchOurImage(one, req), refUrl ? 1536 : 1024) : null);
-  const prompt = sheetPrompt({ concepts, garment, teeColour, teeIsDark, numberFrom, logo: Boolean(logoUrl), basis: Boolean(basisUrl), pictures: logos.length, reference: Boolean(refUrl), inspired });
+  const one = trendPhoto || refUrl || logoUrl || basisUrl;
+  const logo = logos[0] || (one ? await smallCopy(await fetchOurImage(one, req), refUrl || trendPhoto ? 1536 : 1024) : null);
+  // (a trend: the sheet's "no people" means no models wearing the tees — the artwork itself shows the customer)
+  const prompt = trend
+    ? sheetPrompt({ concepts, garment, teeColour, teeIsDark, numberFrom, backOnly: true }).replace("no people, no hangers", "no models wearing the tees, no hangers") + trendSheetLine(trend)
+    : sheetPrompt({ concepts, garment, teeColour, teeIsDark, numberFrom, logo: Boolean(logoUrl), basis: Boolean(basisUrl), pictures: logos.length, reference: Boolean(refUrl), inspired });
   const { made, byGrok } = mockImages()
     ? { made: await mockSheet(concepts, { teeColour, numberFrom }), byGrok: false }
     : await withGrok(
@@ -289,15 +307,15 @@ export const makeConcepts = asyncHandler(async (req, res) => {
   await AiUsage.create({
     user: req.user._id,
     kind: "sheet",
-    prompt: text(req.body?.brief, PROMPT_MAX) || concepts.map((c) => c.title).join(", "),
+    prompt: (trend ? `${trend.name}: three tees from your photo` : text(req.body?.brief, PROMPT_MAX)) || concepts.map((c) => c.title).join(", "),
     images: 1,
     costInr: Math.round((byGrok ? s.grokPricePerImageInr : s.pricePerImageInr * SHEET_COST_FACTOR) * 100) / 100,
     model: byGrok ? xaiModel() : aiImageModel(),
     // the sheet itself, so the admin can feature it in Browse ideas (round 7)
-    sheet: { url: stored.url, width: meta.width || 1536, height: meta.height || 864, brief: text(req.body?.brief, 400), concepts, teeColour, teeIsDark, logo: Boolean(logoUrl || basisUrl || refUrl || logos.length) },
+    sheet: { url: stored.url, width: meta.width || 1536, height: meta.height || 864, brief: text(req.body?.brief, 400), concepts, teeColour, teeIsDark, logo: Boolean(logoUrl || basisUrl || refUrl || trendPhoto || logos.length) },
   });
   res.status(201).json({
-    sheet: { url: stored.url, width: meta.width || 1536, height: meta.height || 864, numberFrom, concepts: concepts.map((c, i) => ({ n: numberFrom + i, ...c })), byGrok, logoUrl: logoUrl || null, ...(logos.length ? { logoUrls } : {}), ...(refUrl ? { refUrl, ...(inspired ? { inspired: true } : {}) } : {}) },
+    sheet: { url: stored.url, width: meta.width || 1536, height: meta.height || 864, numberFrom, concepts: concepts.map((c, i) => ({ n: numberFrom + i, ...c })), byGrok, ...(trend ? { trend: trend.key, trendName: trend.name, photoUrl: trendPhoto } : {}), logoUrl: logoUrl || null, ...(logos.length ? { logoUrls } : {}), ...(refUrl ? { refUrl, ...(inspired ? { inspired: true } : {}) } : {}) },
     left: Math.max(0, s.dailyPerUser - used - 1),
   });
 });
@@ -342,6 +360,13 @@ export const makeDevelop = asyncHandler(async (req, res) => {
   const ratios = req.body?.ratios && typeof req.body.ratios === "object" ? req.body.ratios : {};
   const change = text(req.body?.change, 300); // "with the text in gold" — asked together with the pick
   const image = await smallCopy(await fetchOurImage(sheetUrl, req), 2048);
+  // "Trending now" (23 Nov 2026): a piece of a trend's option is drawn from the sheet AND the customer's photo (their
+  // face is small on the sheet). A POSTER piece — the whole picture, people and scene — is kept whole: not cut out,
+  // not split; it is found on the sheet as one print and goes where the mockup has it. (services/trends.js)
+  const trend = req.body?.trend ? await findTrend(req.body.trend, { team: Boolean(req.user?.isAdmin || req.user?.isSeller) }) : null;
+  const trendPhotoUrl = trend && req.body?.photoUrl && isOurUpload(String(req.body.photoUrl)) ? String(req.body.photoUrl) : null;
+  const trendPhoto = trendPhotoUrl ? await smallCopy(await fetchOurImage(trendPhotoUrl, req), 1536) : null;
+  const posters = trend && trendPhoto ? (trendConcepts(trend).find((c) => c.title === concept.title)?.poster || []).filter((p) => pieces.includes(p)) : [];
   // (17 Nov 2026) a sheet that mixed several of the customer's pictures: all of them go along again, in order
   const logoUrls = ourUrls(req.body?.logoUrls);
   const logoUrl = logoUrls.length ? null : req.body?.logoUrl && isOurUpload(String(req.body.logoUrl)) ? String(req.body.logoUrl) : null;
@@ -355,6 +380,20 @@ export const makeDevelop = asyncHandler(async (req, res) => {
   const drawPiece = (piece, extraChange = null) => {
     const saved = mockPieceFile(piece); // (laptop checks only — see mockPieceFile)
     if (saved) return replayPiece(saved);
+    if (trend && trendPhoto) {
+      // (a poster: its own instruction, tall; the people alone: the usual one plus the likeness line)
+      const poster = posters.includes(piece);
+      const words = poster
+        ? trendPiecePrompt({ trend, concept, n, piece, poster: true })
+        : developPrompt({ concept, n, piece, teeColour, teeIsDark, layout: layout.includes(piece), change: [change, extraChange].filter(Boolean).join(". ") || null }) + trendLikenessLine(trend);
+      const ratio = poster ? "3:4" : ratioOf[piece];
+      return withGrok(
+        s,
+        () => generateImage({ prompt: words, image, images: [trendPhoto], ratio, size: DESIGN_SIZE }),
+        () => xaiEditImage({ prompt: words, image, ratio, resolution: GROK_BEST }),
+        `${piece} of ${trend.name} option ${n}`,
+      );
+    }
     const prompt = developPrompt({ concept, n, piece, teeColour, teeIsDark, logo: Boolean(logo) && logos.length < 2, pictures: logos.length > 1 ? logos.length : 0, reference: Boolean(ref), layout: layout.includes(piece), change: [change, extraChange].filter(Boolean).join(". ") || null });
     return withGrok(
       s,
@@ -401,7 +440,10 @@ export const makeDevelop = asyncHandler(async (req, res) => {
   // around the artwork so the piece is only the artwork (its size on the tee, and "make it bigger", follow the artwork)
   const cut = await Promise.all(
     made.map((m) =>
-      cutOutPlainBackground(m.made.buffer)
+      // (a trend's poster is the whole picture: kept as it is)
+      posters.includes(m.piece)
+        ? sharp(m.made.buffer).metadata().then((md) => ({ buffer: m.made.buffer, mime: m.made.mime, width: md.width || 1024, height: md.height || 1365, cut: false }))
+        : cutOutPlainBackground(m.made.buffer)
         // (a laid-out side keeps its empty space: it IS the layout, the picture's edges are the print area's — 21 Nov 2026)
         .then((c) => (layout.includes(m.piece) ? dropFrame(c) : trimClearEdges(c)))
         .catch(() => ({ buffer: m.made.buffer, mime: m.made.mime, width: 1024, height: 1024, cut: false })),
@@ -415,6 +457,15 @@ export const makeDevelop = asyncHandler(async (req, res) => {
   let measured = 0;
   const split = await Promise.all(
     made.map(async (m, i) => {
+      // (a poster is ONE print: found on the sheet whole, so it sits where the mockup has it and at that size)
+      if (posters.includes(m.piece)) {
+        if (!layout.includes(m.piece) || freePlaces < 1) return null;
+        const place = await measureParts(image, [cut[i].buffer], m.piece, { concept: n, layout: [{ x: 0, y: 0, w: 1, h: 1 }], aspect: cut[i].width / cut[i].height }).finally(() => measured++);
+        const at = place?.at[0] && !place.at[0].inCollar ? place.at[0] : null;
+        console.log(`[ai:v2] ${trend.name} option ${n} ${m.piece}: the poster ${at ? `found on the sheet (${place.how})` : "not found on the sheet — it goes on the print area"}`);
+        // (`whole`: a full picture, not a cut-out — the page keeps it as wide as the mockup shows: photoPlace)
+        return at ? [{ url: stored[i].url, width: cut[i].width, height: cut[i].height, x: 0, y: 0, w: 1, h: 1, at, whole: true }] : null;
+      }
       // (a side with one print is measured too: the back of a live test, one tall print, wasn't — 21 Nov 2026)
       if (!layout.includes(m.piece) || !cut[i].cut || freePlaces < 1) return null;
       const widthCm = Math.max(5, Math.min(80, Number(layoutCm[m.piece]) || 35));

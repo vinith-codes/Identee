@@ -274,3 +274,34 @@ test("all 6 laptop sheets: every tee measured, every print placed (laptop only)"
     for (const h of hs) assert.ok(Math.abs(h / mid - 1) < 0.12, `${file}: half-widths ${hs.map(Math.round)} agree`);
   }
 });
+
+// (23 Nov 2026, the first real GTA mockup: a black back tee lying over the black front tee) the AI's collar box was to
+// one side of the tee's middle — no row's two sides agreed, the nearer side was taken: the tee 15 % too narrow, its
+// centred poster too big and 3.7 cm off the centre. The AI's box round the whole tee had the right middle.
+test("teeOutline: a collar box to one side — the rows and the body box agree on the tee's own middle", () => {
+  const W = 400, H = 700, c = 3;
+  const data = Buffer.alloc(W * H * c, 212);
+  const fill = (x0, y0, x1, y1, v) => { for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) data.fill(v, (y * W + x) * c, (y * W + x) * c + c); };
+  fill(100, 60, 300, 660, 20); // a black tee: centre 200, half 100
+  const rgb = { data, width: W, height: H, channels: c };
+  const o = teeOutline(rgb, [60, 100, 660, 300], 185); // the collar read 15 px to the left; the body box is right
+  near(o.centre, 200, 1, "the centre line is the body's own middle");
+  near(o.half, 100, 2, "the whole half-width, not the nearer side's");
+  // a body box that sides with the collar (a soft shadow down one side makes the rows lean): the collar is kept
+  const kept = teeOutline(rgb, [60, 85, 660, 285], 185);
+  near(kept.centre, 185, 0.5, "the collar's middle");
+});
+
+test("the real GTA sheet: the back poster is measured on the centre line, three quarters of the body wide (laptop only)", async () => {
+  const fs = await import("fs");
+  const file = "E:/AI CUSTOMIZATION/Identee-like-this/server/uploads/ai-concepts/1795407721425-0918f8f9e8.jpg";
+  if (!fs.existsSync(file)) return;
+  const answer = { found: true, collar: [471, 483, 497, 529], body: [473, 381, 931, 656], parts: [{ part: 1, box: [538, 453, 891, 584] }] };
+  const r = await sharp(file).removeAlpha().raw().toBuffer({ resolveWithObject: true });
+  const { width, height } = r.info;
+  const b = answer.body;
+  const o = teeOutline({ data: r.data, width, height, channels: r.info.channels }, [(b[0] / 1000) * height, (b[1] / 1000) * width, (b[2] / 1000) * height, (b[3] / 1000) * width], ((483 + 529) / 2 / 1000) * width);
+  const m = toTeeMeasure(answer, { width, height }, 1, { outline: o });
+  near(m.at[0].r, 0, 0.03, "on the centre line (it was 0.17 to one side)");
+  near(m.at[0].w, 1.52, 0.05, "1.52 half-widths wide (it was 1.78)");
+});

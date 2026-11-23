@@ -4,12 +4,21 @@ import { listIdeas, makeAssist, makeConcepts, makeDevelop, makeMatch, makeTryOn,
 import { listHelp, requestHelp, setHelpStatus } from "../controllers/designHelpController.js";
 import { dropPrintPicture, getAiAdmin, getAiRequests, getAiStatus, makeAiDesign, makeBackgroundRemoval, makeChat, makeEdit, makeImprovedIdea, makePhotoPlan, makePrintPicture, makeSlogans, saveAiAdmin } from "../controllers/aiController.js";
 import { protect, adminOnly, adminOrSeller } from "../middleware/authMiddleware.js";
+import { addTrend, dropTrend, getAllTrends, getTrends, saveTrend, uploadTrendPicture } from "../controllers/trendController.js";
+import { uploadDesignFile } from "../multer/multer.js";
 import optionalAuth from "../middleware/optionalAuthMiddleware.js";
 import rateLimit from "../middleware/rateLimit.js";
 
 const router = express.Router();
 
 router.get("/status", optionalAuth, getAiStatus);
+// "Trending now" (23 Nov 2026): the trends a photo can be redrawn in (controllers/trendController.js)
+router.get("/trends", getTrends);
+router.get("/trends/all", protect, adminOrSeller, getAllTrends);
+router.post("/trends/picture", protect, adminOnly, uploadDesignFile, uploadTrendPicture);
+router.post("/trends", protect, adminOnly, addTrend);
+router.put("/trends/:id", protect, adminOnly, saveTrend);
+router.delete("/trends/:id", protect, adminOnly, dropTrend);
 // each request costs money: on top of the per-customer daily limit, no more than 6 a minute from one address
 router.post("/design", protect, rateLimit({ windowMs: 60_000, max: 6, message: "Slow down a little — try again in a minute." }), makeAiDesign);
 // slogans cost almost nothing, so no login — but no more than 20 a minute from one address

@@ -20,6 +20,7 @@
 // "Make a design" is the one paid part: the page asks the server, which asks
 // the image AI (act type "generate"). Everything else here is free.
 import { SLOGANS, TONES, occasionIn, personalLines, slogansFor, toneIn } from "./assistantSlogans";
+import { TREND_MORE, TREND_READY, TREND_UPLOAD, trendSheetAct } from "./trends";
 import { TEMPLATES } from "./designTemplates";
 import { parsePlayers, playerLabel } from "./teamOrder";
 import { styleIn } from "./styleInfo";
@@ -149,7 +150,7 @@ const ideaPlan = (ctx, idea, opts) =>
    typed message when the smart chat is off or fails. */
 
 // the words of a button: typed exactly, they get that button's own answer (not the smart chat)
-const BUTTON_WORDS = new Set([...MENU, ...MORE, TEAM_ORDER, ADD_PLAYERS, BACK, CHANGE_IDEA, CANCEL, NOT_NOW, DRAW_THIS, DRAW_MINE, IN_DRAW_TAB, KEEP_DESIGN, KEEP_EDITING, OUT, ...PHOTO_CHOICES, PHOTO_REVERT, ...AFTER_SLOGANS, "Make more", "What can you do?", "Log in", "Continue to review", "Start fresh", "Add to my design", "Check again", "Upload a photo", "Use the picture on my tee", ...TEMPLATES.map((x) => x.label)]);
+const BUTTON_WORDS = new Set([...MENU, ...MORE, TEAM_ORDER, ADD_PLAYERS, BACK, CHANGE_IDEA, CANCEL, NOT_NOW, DRAW_THIS, DRAW_MINE, IN_DRAW_TAB, KEEP_DESIGN, KEEP_EDITING, OUT, ...PHOTO_CHOICES, PHOTO_REVERT, ...AFTER_SLOGANS, "Make more", "What can you do?", "Log in", "Continue to review", "Start fresh", "Add to my design", "Check again", "Upload a photo", TREND_READY, "Use the picture on my tee", ...TEMPLATES.map((x) => x.label)]);
 
 /** Whether a TYPED message goes to the smart chat (taps never do). */
 export function smartCanAnswer(text, ctx, st) {
@@ -160,7 +161,7 @@ export function smartCanAnswer(text, ctx, st) {
   // the answer to its own question
   if (st?.wait) return false;
   if (t.startsWith(IMPROVE)) return false; // the ✨ button
-  if (BUTTON_WORDS.has(t) || /^(use size \S+|open .+)$/i.test(t)) return false;
+  if (BUTTON_WORDS.has(t) || /^(use size \S+|open .+)$/i.test(t) || t === TREND_MORE || t === TREND_READY) return false;
   if (wantsMyPictures(t)) return false; // (the pictures they made before: shown straight away, no AI needed)
   // a pasted player list: one tee per player (the script reads names, numbers and sizes exactly)
   const list = parsePlayers(t, ctx.sizes || [], ctx.sizeNow);
@@ -361,6 +362,22 @@ export function replyTo(text, ctx, st, { tapped = false } = {}) {
     if (t === "Change tone" && st.ask) return done([bot("Which tone?"), orOut(TONES)], { wait: "sloganTone" });
     if (wait === "sloganTone" && TONES.includes(t)) return ask(st.ask, t, false);
     if (t === MENU[0]) return done([bot("What is it about? Say it in your own words, or pick one."), orOut(["My mother", "Our cricket team", "A birthday", "A college farewell", "A family trip"])], { wait: "sloganTopic" });
+  }
+
+  /* ----- a trend's own assistant, the "GTA Studio" (23 Nov 2026, studio/trends.js): another mockup from the same photo ----- */
+  if (st.studio && t === TREND_MORE) {
+    if (!ctx.ai.loggedIn) return done([bot("Log in and I’ll make them. Your design stays here."), orOut(["Log in"])]);
+    if (!ctx.ai.available || ctx.ai.left === 0)
+      return done([bot(ctx.ai.left === 0 ? "You’ve made today’s pictures, so this has to wait until tomorrow." : "The picture maker is resting right now. Please try again in a little while.")]);
+    if (!st.photo) return done([bot("Send me your photo first — tap “Upload a photo”."), chips([TREND_UPLOAD])], { wait: "trendPhoto" });
+    return done([act(trendSheetAct(st, st.photo))]);
+  }
+
+  // ... or one of the trend's ready-made backs instead of a photo: the row of pictures, a tap puts one on the back
+  if (st.studio && t === TREND_READY) {
+    const backs = Array.isArray(st.studioBacks) ? st.studioBacks : [];
+    if (!backs.length) return done([bot("There are no ready designs yet — send me your photo and I’ll make one from it."), chips([TREND_UPLOAD])], { wait: "trendPhoto" });
+    return done([bot("Tap one and I’ll put it on the back of your tee. You can swap it as often as you like."), { backs }, chips([TREND_UPLOAD])]);
   }
 
   /* ----- a photo sent with 📎 (st.photo): on the tee as it is, without its background (both free), or as art ----- */
