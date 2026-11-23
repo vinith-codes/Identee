@@ -87,3 +87,26 @@ test("a trend carries its tee colours, its fixed front picture and its ready-mad
   assert.equal(pub.front, "/uploads/designs/logo.png");
   assert.deepEqual(pub.backs, [{ url: "/uploads/designs/b1.png", name: "Duo" }]);
 });
+
+// (23 Nov 2026, the owner: "More options" gave the same three layouts again) each new mockup gets the next round
+test("More options: each mockup round has three new layouts, then it starts again", async () => {
+  const { trendConcepts, trendPosterOf, trendRounds } = await import("../services/trends.js");
+  const titles = (n) => trendConcepts(FIRST_TREND, n).map((c) => c.title);
+  assert.deepEqual(titles(1), ["The poster", "Just you", "The cover"]);
+  assert.deepEqual(titles(4), ["Night lights", "Comic art", "Sun circle"]);
+  assert.deepEqual(titles(7), ["Daytime", "Retro 80s", "On the road"]);
+  assert.deepEqual(titles(10), titles(1), "then round 1 again");
+  assert.deepEqual(titles(undefined), titles(1));
+  const all = trendRounds(FIRST_TREND).flat();
+  assert.equal(new Set(all.map((c) => c.title)).size, all.length, "every title is different (a pick finds its layout by title)");
+  for (const c of all) {
+    assert.ok(c.back.length < 300, `${c.title}: under the 300 letters the sheet keeps`);
+    assert.equal(c.front, "", `${c.title}: back only`);
+  }
+  assert.deepEqual(trendPosterOf(FIRST_TREND, "Comic art"), ["back"], "a round-2 poster is kept whole when picked");
+  assert.deepEqual(trendPosterOf(FIRST_TREND, "Sun circle"), [], "the people and the sun are cut out");
+  assert.deepEqual(trendPosterOf(FIRST_TREND, "Nope"), []);
+  const plain = { ...FIRST_TREND, setting: "" };
+  assert.ok(trendConcepts(plain, 4).every((c) => !c.poster.length), "a trend without a scene never has a poster");
+  assert.notDeepEqual(trendConcepts(plain, 4).map((c) => c.title), trendConcepts(plain, 1).map((c) => c.title));
+});

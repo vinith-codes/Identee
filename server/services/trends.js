@@ -78,36 +78,66 @@ const RECOGNISABLE = "clearly recognisable as them — the same face, features, 
  * The three options on a trend's mockup — three BACK designs (the front is the trend's own picture, the same on every
  * tee): [{ title, front: "", back, style, poster: [pieces kept whole] }].
  * A trend with no scene of its own has no poster: its options are the people alone, three ways.
+ * (23 Nov 2026, the owner: "if I give more options the next three mocks also [come] in the same layout") each new
+ * mockup of the same chat — "More options" — gets the next round of three layouts (numberFrom 1 → round 1, 4 → round
+ * 2, 7 → round 3, then round 1 again). The titles are different in every round (a pick finds its layout by title).
  */
-export function trendConcepts(trend) {
+export function trendConcepts(trend, numberFrom = 1) {
+  const rounds = trendRounds(trend);
+  const round = Math.max(0, Math.floor((Math.max(1, Number(numberFrom) || 1) - 1) / 3)) % rounds.length;
+  return rounds[round];
+}
+
+/** Every round of a trend's layouts (all its options, for finding a picked one by its title). */
+export function trendRounds(trend) {
   const style = trend.name;
   const alone = `${PEOPLE}, only them with no background`;
+  const opt = (title, back, poster) => ({ title, front: "", back, style, poster: poster ? ["back"] : [] });
   if (!trend.setting)
     return [
-      { title: "Big on the back", front: "", back: `${alone}, seen from the waist up, large and centred`, style, poster: [] },
-      { title: "Close-up", front: "", back: `${alone}, a close portrait of the head and shoulders, large and centred`, style, poster: [] },
-      { title: "Head to toe", front: "", back: `${alone}, their whole figure standing, tall and centred`, style, poster: [] },
+      [
+        opt("Big on the back", `${alone}, seen from the waist up, large and centred`),
+        opt("Close-up", `${alone}, a close portrait of the head and shoulders, large and centred`),
+        opt("Head to toe", `${alone}, their whole figure standing, tall and centred`),
+      ],
+      [
+        opt("Over the shoulder", `${alone}, turned away and looking back over the shoulder, seen from the waist up, large and centred`),
+        opt("Sticker", `${alone}, seen from the waist up with a thick white outline all round them like a sticker, large and centred`),
+        opt("In action", `${alone}, their whole figure in a bold, dynamic pose, tall and centred`),
+      ],
     ];
-  // (the scene itself is said once for the whole sheet — trendSheetLine — so each option's words stay short)
+  // (the scene itself is said once for the whole sheet — trendSheetLine — so each option's words stay short; each
+  // option's words are kept under the 300 letters the sheet keeps)
+  const tall = "a tall poster picture with sharp straight edges";
   return [
-    { title: "The poster", front: "", back: `a tall poster picture with sharp straight edges: ${PEOPLE} large in the foreground, seen from the knees or the waist up, in the scene, large across the back`, style, poster: ["back"] },
-    { title: "Just you", front: "", back: `${alone}, seen from the waist up, large and centred on the back`, style, poster: [] },
-    {
-      title: "The cover",
-      front: "",
-      // (kept under the 300 letters the sheet keeps of an option's words)
-      back: `a tall poster with sharp straight edges made of five picture panels with thin white gaps, like a game's cover: each panel shows ${PEOPLE} in another moment in the scene (a close portrait, walking, by the car, the skyline), large across the back`,
-      style,
-      poster: ["back"],
-    },
+    [
+      opt("The poster", `${tall}: ${PEOPLE} large in the foreground, seen from the knees or the waist up, in the scene, large across the back`, true),
+      opt("Just you", `${alone}, seen from the waist up, large and centred on the back`),
+      opt("The cover", `a tall poster with sharp straight edges made of five picture panels with thin white gaps, like a game's cover: each panel shows ${PEOPLE} in another moment in the scene (a close portrait, walking, by the car, the skyline), large across the back`, true),
+    ],
+    // (round 2 and 3: really different from round 1 — the owner: "the 1st three and next three mockups are almost
+    // similar". Another time of day, another drawing style, another shape — not the same sunset poster again.)
+    [
+      opt("Night lights", `${tall}: ${PEOPLE} large in the foreground in the same place at NIGHT: neon signs glowing, a rain-wet street reflecting the lights, deep blue and pink, large across the back`, true),
+      opt("Comic art", `${tall}: ${PEOPLE} drawn as a bold flat-colour comic illustration with thick black outlines, on a plain single-colour background with no scene, seen from the waist up, large across the back`, true),
+      opt("Sun circle", `${PEOPLE} in front of a huge round sunset sun with palm tree silhouettes inside the circle: only them and the round sun, no other background, large and centred on the back`),
+    ],
+    [
+      opt("Daytime", `${tall}: ${PEOPLE} in the same place on a bright sunny DAY: clear blue sky, turquoise sea, white boats, seen from the knees up, large across the back`, true),
+      opt("Retro 80s", `${tall}: ${PEOPLE} in a retro 1980s synthwave world instead: a glowing purple grid floor, a big striped setting sun, chrome shine, large across the back`, true),
+      opt("On the road", `${tall}: ${PEOPLE} speeding along a coast road in an open classic car, wind in the hair, motion streaks, seen from a low front angle, large across the back`, true),
+    ],
   ];
 }
+
+/** The pieces kept whole (the poster) of a trend's option, found by its title in any round. */
+export const trendPosterOf = (trend, title) => trendRounds(trend).flat().find((c) => c.title === title)?.poster || [];
 
 /** Added to the concept sheet's instruction: the attached picture is the customer's photo, drawn in the trend's look. */
 export const trendSheetLine = (trend) =>
   ` The attached image is the customer's own photo. Every concept's artwork shows the people in that photo, ${RECOGNISABLE}, redrawn as ${trend.look}. ` +
   `They appear ONLY inside the printed artwork on the tees — never as a model wearing a tee. No words, titles or logos in the artwork.` +
-  (trend.setting ? ` The scene of every poster picture: ${trend.setting}.` : "");
+  (trend.setting ? ` The scene of every poster picture, unless its concept says another time of day, another style or another place: ${trend.setting}.` : "");
 
 /**
  * The instruction for one piece of the picked option, drawn from the sheet (the first attached image) and the
@@ -120,7 +150,7 @@ export function trendPiecePrompt({ trend, concept, n, piece, poster }) {
     return (
       `The attached image is a concept sheet with numbered t-shirt designs. Reproduce ONLY the picture printed on the ${side} of concept ${n} ("${String(concept?.title || "").slice(0, 50)}") as a finished poster: ` +
       `the picture alone, filling the whole frame edge to edge as a clean rectangle — the same composition, pose, setting, light and colours as on the sheet, with sharper, richer detail. ` +
-      (trend.setting ? `The setting: ${trend.setting}. ` : "") +
+      (trend.setting ? `The setting, unless the concept on the sheet shows another time of day, style or place (then as on the sheet): ${trend.setting}. ` : "") +
       `No t-shirt, no mockup, no numerals, no sheet, no frame, no border, and no text, title or logo anywhere.` +
       likeness
     );

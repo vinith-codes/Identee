@@ -26,7 +26,7 @@ import { developPrompt, matchPrompt, mockSheet, piecesOf, SHEET_COST_FACTOR, SHE
 import User from "../models/userModel.js";
 import { DESIGN_SIZE, designPictureCost, googleCapped, grokCapped, isOurUpload, noPicturesLeft, readSettings, usedToday, whyOff } from "./aiController.js";
 import { expectedWords, missingWords, readWords, wordCheckReady } from "../services/wordCheck.js";
-import { findTrend, trendConcepts, trendLikenessLine, trendPiecePrompt, trendSheetLine } from "../services/trends.js";
+import { findTrend, trendConcepts, trendLikenessLine, trendPiecePrompt, trendPosterOf, trendSheetLine } from "../services/trends.js";
 import { AI_AREAS_MAX, spotWhereOf } from "../data/printPositions.js";
 
 const PROMPT_MAX = 2000;
@@ -266,7 +266,7 @@ export const makeConcepts = asyncHandler(async (req, res) => {
     res.status(400);
     throw new Error("Send your photo first.");
   }
-  const concepts = (trend ? trendConcepts(trend) : Array.isArray(req.body?.concepts) ? req.body.concepts : []).map(conceptIn).filter((c) => c.title && (c.front || c.back || c.sleeve)).slice(0, CONCEPTS_PER_SHEET);
+  const concepts = (trend ? trendConcepts(trend, req.body?.numberFrom) : Array.isArray(req.body?.concepts) ? req.body.concepts : []).map(conceptIn).filter((c) => c.title && (c.front || c.back || c.sleeve)).slice(0, CONCEPTS_PER_SHEET);
   // (21 Nov 2026) refUrl: the customer's picture of a whole tee, the concepts made LIKE it — the reference picture
   const refUrl = !trend && req.body?.refUrl && isOurUpload(String(req.body.refUrl)) ? String(req.body.refUrl) : null;
   // inspired: NEW designs with that picture's feel, not a copy of it ("new inspired designs")
@@ -366,7 +366,7 @@ export const makeDevelop = asyncHandler(async (req, res) => {
   const trend = req.body?.trend ? await findTrend(req.body.trend, { team: Boolean(req.user?.isAdmin || req.user?.isSeller) }) : null;
   const trendPhotoUrl = trend && req.body?.photoUrl && isOurUpload(String(req.body.photoUrl)) ? String(req.body.photoUrl) : null;
   const trendPhoto = trendPhotoUrl ? await smallCopy(await fetchOurImage(trendPhotoUrl, req), 1536) : null;
-  const posters = trend && trendPhoto ? (trendConcepts(trend).find((c) => c.title === concept.title)?.poster || []).filter((p) => pieces.includes(p)) : [];
+  const posters = trend && trendPhoto ? (trendPosterOf(trend, concept.title)).filter((p) => pieces.includes(p)) : [];
   // (17 Nov 2026) a sheet that mixed several of the customer's pictures: all of them go along again, in order
   const logoUrls = ourUrls(req.body?.logoUrls);
   const logoUrl = logoUrls.length ? null : req.body?.logoUrl && isOurUpload(String(req.body.logoUrl)) ? String(req.body.logoUrl) : null;

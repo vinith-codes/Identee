@@ -470,7 +470,9 @@ export function HomeTrends({ garment }) {
   const room = `/customize/${garment?.key || "oversized-tee"}`;
   const start = (t) => {
     if (!signedIn()) return navigate("/login", { state: { from: "/" } });
-    navigate(room, { state: { trend: { key: t.key, name: t.name, colours: t.colours || [] } } });
+    // (?new=1, like "Start designing": the colour-and-size screen always comes first — with a design in progress the
+    // room opened straight on it, 23 Nov 2026 live; that design and its chat go to Chats first)
+    navigate(`${room}?new=1`, { state: { trend: { key: t.key, name: t.name, colours: t.colours || [] } } });
   };
   return (
     <section className="hm-trend" aria-label="Trending now">

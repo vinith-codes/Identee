@@ -5417,7 +5417,8 @@ export default function DesignRoomPage() {
               openPhotoStudio();
             }}
             credit={model?.credit}
-            earlier={earlier}
+            // (a trend's first screen: no "Continue it" — the trend starts a new tee; the one in progress is in Chats)
+            earlier={trendWaiting ? null : earlier}
             onContinue={continueEarlier}
           />
         )}
