@@ -8,6 +8,7 @@ import Product from "../models/productModel.js";
 import { changeDesign, cleanBrief, garmentInfos, partsOf, makeBrief, markStale, redoPicture, runCollection, LANGUAGES, LAYOUTS, PLACES, MAX_AI_PICTURES, MAX_BUDGET, MAX_PARTS, MAX_TEES, SOURCES } from "../services/collectionService.js";
 import { cleanDesign, storeMockups } from "./customizationController.js";
 import { readSettings } from "./aiController.js";
+import { applyShopHidden } from "../services/studioService.js";
 import { xaiConfigured } from "../services/xaiImageService.js";
 
 const notFound = (res, what = "Not found") => {
@@ -185,8 +186,9 @@ const setStatus = (to, from) =>
     design.status = to;
     design.publishedAt = to === "published" ? new Date() : design.publishedAt;
     await design.save();
-    // a Studio tee's product in the shop is shown / hidden with it (26 Oct 2026)
-    if (design.productGroupId) await Product.updateMany({ readyDesign: design._id }, { $set: { isHidden: to !== "published" } });
+    // a Studio tee's product in the shop is shown / hidden with it (26 Oct 2026) — not its colours taken out, nor an old
+    // colour kept only for its orders (24 Nov 2026)
+    if (design.productGroupId) await applyShopHidden(design);
     res.json(design);
   });
 export const publishDesign = setStatus("published", ["ready"]);

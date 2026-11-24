@@ -3,6 +3,9 @@
 // One collection of Shop your IDENTEE (the client, 30 Oct 2026): a card per style (Oversized, Round Neck), then that
 // style's tees with Unisex / Men / Women to filter by (components/shop/ShopGrid). The heading says what every tee
 // here comes with: it can be customized, and it ships free.
+// (24 Nov 2026, the owner: "think as a user and implement proper navigation") the tees show straight away, with
+// All styles · Oversized · Round Neck tabs over them (no card per style to tap through first), and a chip per
+// collection under the heading goes to another collection in one tap.
 import { useEffect, useState } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
 import shopService from "../services/shopService";
@@ -14,6 +17,7 @@ import { SHOPS } from "../utils/shopNames";
 import { collectionInfo } from "../utils/shopRules";
 import TrendBanner from "../components/shop/TrendBanner";
 import useTrend from "../utils/useTrend";
+import { Crumbs, CollectionSwitch } from "../components/shop/ShopTrail";
 
 const C = { ink: "#15130F", gold: "#C9A24B" };
 
@@ -82,12 +86,19 @@ export default function CollectionPage() {
     <div style={{ minHeight: "100vh", background: "#fff" }}>
       <div style={{ background: `linear-gradient(120deg, ${C.ink} 0%, #2A2620 60%, ${C.gold} 140%)` }}>
         <div style={{ maxWidth: 1280, margin: "0 auto", padding: "40px 20px 28px", color: "#fff" }}>
-          <nav aria-label="Breadcrumb" style={{ fontSize: 12, letterSpacing: "0.16em", textTransform: "uppercase", fontWeight: 700, opacity: 0.85 }}>
-            <Link to="/" style={{ color: "inherit", textDecoration: "none" }}>Home</Link> /{" "}
-            <Link to="/ready-made" style={{ color: "inherit", textDecoration: "none" }}>{SHOPS.shop.name}</Link>
-          </nav>
+          <Crumbs
+            dark
+            items={[
+              { label: "Home", to: "/" },
+              { label: SHOPS.shop.name, to: "/ready-made" },
+              { label: found ? info.name : "…" },
+            ]}
+          />
           <h1 style={{ margin: "6px 0 4px", fontSize: "clamp(28px, 4vw, 38px)", fontWeight: 800 }}>{found ? info.name : "…"}</h1>
           {info.text && <p style={{ margin: 0, fontSize: 14.5, opacity: 0.88, maxWidth: 620 }}>{info.text}</p>}
+          <div style={{ marginTop: 18 }}>
+            <CollectionSwitch current={key} dark />
+          </div>
         </div>
       </div>
 
@@ -117,7 +128,7 @@ export default function CollectionPage() {
             }
           />
         ) : (
-          found && <ShopGrid key={key} collection={key} collectionName={info.name} />
+          found && <ShopGrid key={key} collection={key} collectionName={info.name} allTab />
         )}
       </div>
     </div>

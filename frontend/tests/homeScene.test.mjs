@@ -99,3 +99,20 @@ test("a dark row has no White tee: a Black + White tee shows in Black, a White-o
   assert.deepEqual(row.map((p) => `${short(p)} ${p.shownColour.name}`), ["Sun Rider Black", "Tiger Black", "Darshanam Black"]);
   assert.ok(pickSceneTees(cards, 6).some((p) => p.shownColour.name === "White"), "the SCENE row still mixes in White");
 });
+
+// (24 Nov 2026) the same Ayyappa back picture with two front logos is two tees but one picture: shown once
+test("tees that share their picture (art) are shown once on a row", () => {
+  const art = (p, a) => ({ ...p, art: a });
+  const row = pickSceneTees(
+    [
+      art(tee("Darshanam – English Saranam", "Oversized", "Unisex", ["Black"]), "d"),
+      art(tee("Darshanam – Tiger Saranam", "Round Neck", "Men", ["Black"]), "d"),
+      art(tee("Guardian Fire – Tiger Saranam", "Round Neck", "Men", ["Black"]), "g"),
+      art(tee("Guardian Fire – Tamil Saranam", "Oversized", "Unisex", ["Black"]), "g"),
+      art(tee("Purple Lotus – Thathwamasi", "Oversized", "Unisex", ["Black"]), "p"),
+    ],
+    10,
+    { dark: true },
+  );
+  assert.deepEqual(row.map(short), ["Darshanam – English Saranam", "Guardian Fire – Tiger Saranam", "Purple Lotus – Thathwamasi"]);
+});

@@ -27,6 +27,9 @@ export function pickSceneTees(cards, count = 10, { dark = false } = {}) {
   const asCard = (p) => (both.has(id(p)) ? { ...men.get(id(p)), gender: "Men & Women" } : p);
   const queues = STYLES.map((s) => cards.filter((p) => styleOf(p) === s).map(asCard));
 
+  // a design: its name — or, when the shop says which picture it sells by (art, 24 Nov 2026), that picture, so the
+  // same Ayyappa back with two front logos is shown once
+  const design = (p) => p.art || p.brandname;
   const shown = new Set(); // designs already on a card
   const used = new Map(); // colour name -> cards in it so far
   const out = [];
@@ -36,8 +39,8 @@ export function pickSceneTees(cards, count = 10, { dark = false } = {}) {
     let best = null;
     const seen = new Set();
     queue.forEach((p) => {
-      if (shown.has(p.brandname) || seen.has(p.brandname)) return;
-      seen.add(p.brandname);
+      if (shown.has(design(p)) || seen.has(design(p))) return;
+      seen.add(design(p));
       const green = out.filter((c) => c.shownColour.name === "Bottle Green").length;
       const colours = (p.colors || []).filter((c) => (c.name !== "Bottle Green" || green < MAX_GREEN) && !(dark && /^white$/i.test(c.name || "")));
       const colour = colours.sort((a, b) => cost(a.name) - cost(b.name) || rank(a.name) - rank(b.name))[0];
@@ -50,7 +53,7 @@ export function pickSceneTees(cards, count = 10, { dark = false } = {}) {
   for (let turn = 0; out.length < count; turn += 1) {
     const card = next(queues[turn % STYLES.length]) || next(queues[(turn + 1) % STYLES.length]);
     if (!card) break;
-    shown.add(card.brandname);
+    shown.add(design(card));
     used.set(card.shownColour.name, (used.get(card.shownColour.name) || 0) + 1);
     out.push(card);
   }

@@ -12,7 +12,21 @@ const COLLECTIONS = {
   ayyappa: { name: "Ayyappa", text: "Swamiye Saranam Ayyappa — the words big on the front, Ayyappa printed big on the back." },
   none: { name: "More IDENTEE tees", text: "Finished designs, ready to wear." },
 };
-export const collectionInfo = (key, ownName = "") => COLLECTIONS[key] || { name: ownName || key, text: "" };
+// the admin's own name / text for a collection (Admin → Shop your IDENTEE → Manage the shop, 24 Nov 2026): they come
+// with the shop's collection list (services/shopService.js keeps them here) and win over the words above
+const custom = {};
+export function keepCollectionSettings(list = []) {
+  for (const c of list || []) {
+    if (!c?.key) continue;
+    if (c.custom) custom[c.key] = { name: c.name, text: c.text };
+    else delete custom[c.key];
+  }
+}
+export const collectionInfo = (key, ownName = "") => {
+  const base = COLLECTIONS[key] || { name: ownName || key, text: "" };
+  const mine = custom[key];
+  return mine ? { name: mine.name || base.name, text: mine.text || base.text } : base;
+};
 export const collectionLink = (key) => `/ready-made/${key}`;
 // "GTA · Vinewood" → "gta" (the same as the server's collectionOf): a tee's collection, from its name
 export const collectionOf = (name) => {

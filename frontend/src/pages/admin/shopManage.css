@@ -1,0 +1,117 @@
+/* Admin → Shop your IDENTEE → Manage the shop (24 Nov 2026) */
+.sm-page { display: grid; gap: 18px; max-width: 1180px; min-width: 0; color: #15130F; font-size: 14px; }
+.sm-page *, .sm-page *::before, .sm-page *::after { box-sizing: border-box; }
+.sm-head h1 { margin: 2px 0 6px; font-size: clamp(24px, 3vw, 30px); font-weight: 800; }
+.sm-kicker { margin: 0; font-size: 11.5px; font-weight: 800; letter-spacing: .18em; text-transform: uppercase; color: #A07E2C; }
+.sm-lead { margin: 0; max-width: 760px; color: #5B544A; line-height: 1.55; }
+.sm-note { margin: 0 0 12px; color: #71695B; font-size: 13.5px; line-height: 1.5; }
+.sm-error { color: #A3301F; font-weight: 600; }
+
+.sm-card { min-width: 0; padding: 18px 20px; border-radius: 16px; background: #fff; border: 1px solid #ECE4D2; box-shadow: 0 1px 2px rgba(0, 0, 0, .04); }
+.sm-card h2 { margin: 0 0 4px; font-size: 19px; font-weight: 800; }
+.sm-card h3 { margin: 0 0 8px; font-size: 13px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: #71695B; }
+
+.sm-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; }
+.sm-gap { flex: 1 1 auto; }
+.sm-btn { min-height: 38px; padding: 0 14px; border-radius: 999px; border: 1.5px solid #15130F; background: #fff; color: #15130F; font: inherit;
+  font-size: 13px; font-weight: 700; cursor: pointer; white-space: nowrap; }
+.sm-btn:hover:not(:disabled) { background: #FBF7EE; }
+.sm-btn:disabled { opacity: .4; cursor: default; }
+.sm-btn-dark { background: #15130F; color: #F0D585; }
+.sm-btn-dark:hover:not(:disabled) { background: #2A2620; }
+.sm-btn-danger { border-color: #B3412E; color: #B3412E; }
+.sm-btn-danger-solid { border-color: #B3412E; background: #B3412E; color: #fff; }
+.sm-btn-danger-solid:hover:not(:disabled) { background: #922F1F; }
+.sm-btn-link { border-color: transparent; text-decoration: underline; text-underline-offset: 3px; }
+.sm-btn:focus-visible, .sm-page input:focus-visible, .sm-page select:focus-visible { outline: 2px solid #C9A24B; outline-offset: 2px; }
+
+.sm-field { display: grid; gap: 4px; min-width: 0; font-size: 12px; font-weight: 700; color: #71695B; }
+.sm-field input, .sm-field select, .sm-filters select, .sm-search { min-height: 38px; width: 100%; padding: 0 11px; border-radius: 10px; border: 1px solid #DDD3BE;
+  background: #fff; color: #15130F; font: inherit; font-size: 13.5px; font-weight: 500; }
+.sm-scope { width: min(100%, 260px); margin-bottom: 12px; }
+.sm-check { display: inline-flex; align-items: center; gap: 8px; font-size: 13.5px; font-weight: 600; cursor: pointer; }
+.sm-check input { width: 18px; height: 18px; accent-color: #15130F; }
+
+.sm-busy { position: sticky; top: 8px; z-index: 5; overflow: hidden; padding: 12px 16px; border-radius: 12px; background: #15130F; color: #F0D585; font-weight: 700; }
+.sm-busy span { position: absolute; left: 0; bottom: 0; height: 4px; background: #C9A24B; transition: width .3s; }
+.sm-failed { padding: 12px 16px; border-radius: 12px; background: #FCEDEA; color: #7E2414; }
+.sm-failed ul { margin: 6px 0 0; padding-left: 18px; }
+
+/* collections */
+.sm-colls { display: grid; gap: 10px; margin: 0 0 14px; padding: 0; list-style: none; }
+.sm-coll { display: grid; grid-template-columns: auto 84px minmax(0, 1fr); gap: 14px; align-items: start; padding: 12px; border-radius: 14px; background: #FBF9F4; border: 1px solid #F0E9DA; }
+.sm-coll-move { display: grid; gap: 4px; }
+.sm-coll-move button { width: 34px; height: 34px; border-radius: 10px; border: 1px solid #DDD3BE; background: #fff; font-size: 16px; cursor: pointer; }
+.sm-coll-move button:disabled { opacity: .35; cursor: default; }
+.sm-coll-pic { aspect-ratio: 4 / 5; border-radius: 10px; overflow: hidden; background: #EDEAE3; display: grid; place-items: center; color: #9A917F; }
+.sm-coll-pic img { width: 100%; height: 100%; object-fit: cover; }
+.sm-coll-body { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr); gap: 8px 12px; min-width: 0; }
+.sm-coll-top, .sm-coll-foot, .sm-delete { grid-column: 1 / -1; }
+.sm-coll-top { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+.sm-coll-top b { font-size: 16px; }
+.sm-coll-top small { color: #71695B; font-weight: 600; }
+.sm-coll-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+
+.sm-delete { display: grid; gap: 10px; margin-top: 6px; padding: 14px; border-radius: 12px; background: #FCEDEA; border: 1px solid #F1C4BA; }
+.sm-delete p { margin: 0; line-height: 1.5; color: #4A1E14; }
+.sm-delete .sm-field { max-width: 260px; }
+
+/* quick switches */
+.sm-switch-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
+.sm-switches { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.sm-switch { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; padding: 8px 10px; border-radius: 12px; background: #FBF9F4; border: 1px solid #F0E9DA; }
+.sm-switch-name { font-weight: 800; }
+.sm-switch small { color: #71695B; font-weight: 600; }
+.sm-switch .sm-btn { min-height: 34px; padding: 0 12px; font-size: 12.5px; }
+.sm-dot { display: inline-block; flex: none; width: 16px; height: 16px; border-radius: 50%; border: 1px solid rgba(0, 0, 0, .2); }
+.sm-dot.off { opacity: .35; background-image: linear-gradient(135deg, transparent 45%, #B3412E 45%, #B3412E 55%, transparent 55%) !important; }
+
+/* prices */
+.sm-now { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 0 0 12px; color: #5B544A; }
+.sm-now s { margin-left: 4px; color: #9A917F; }
+.sm-price-row .sm-field { width: min(100%, 220px); }
+
+/* every tee */
+.sm-filters { display: grid; grid-template-columns: minmax(0, 2fr) repeat(5, minmax(0, 1fr)); gap: 8px; margin: 10px 0 12px; }
+.sm-listbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 8px; }
+.sm-tees { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.sm-tee { display: grid; grid-template-columns: auto 56px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 8px 12px 8px 8px; border-radius: 12px;
+  border: 1px solid #F0E9DA; background: #fff; }
+.sm-tee.on { border-color: #15130F; background: #FBF7EE; }
+.sm-tee.is-out .sm-tee-pic, .sm-tee.is-out .sm-tee-body { opacity: .55; }
+.sm-tee-tick { display: grid; place-items: center; width: 34px; height: 34px; cursor: pointer; }
+.sm-tee-tick input { width: 18px; height: 18px; accent-color: #15130F; }
+.sm-tee-pic { width: 56px; aspect-ratio: 4 / 5; border-radius: 8px; overflow: hidden; background: #EDEAE3; }
+.sm-tee-pic img { width: 100%; height: 100%; object-fit: cover; }
+.sm-tee-body { display: grid; gap: 2px; min-width: 0; }
+.sm-tee-body b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sm-tee-body small { color: #71695B; }
+.sm-tee-colours { display: flex; gap: 4px; margin-top: 2px; }
+.sm-tee-colours .sm-dot { width: 13px; height: 13px; }
+.sm-tee-end { display: grid; justify-items: end; gap: 4px; font-size: 13px; }
+.sm-tee-price { font-weight: 800; }
+.sm-tee-price s { margin-left: 6px; color: #9A917F; font-weight: 500; }
+.sm-badge { padding: 3px 9px; border-radius: 999px; background: #F3EFE5; color: #71695B; font-size: 11.5px; font-weight: 800; }
+.sm-badge.in { background: #E4F2E6; color: #1F6B2F; }
+.sm-see { color: #7A5B12; font-weight: 700; font-size: 12.5px; }
+.sm-more { justify-self: center; display: block; margin: 14px auto 0; }
+.sm-actions { position: sticky; bottom: 10px; z-index: 5; display: grid; gap: 10px; margin-top: 14px; padding: 14px 16px; border-radius: 14px;
+  background: #fff; border: 1.5px solid #15130F; box-shadow: 0 12px 30px -12px rgba(0, 0, 0, .35); }
+
+@media (max-width: 1100px) {
+  .sm-filters { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .sm-search { grid-column: 1 / -1; }
+  .sm-switch-grid { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 640px) {
+  .sm-card { padding: 14px; border-radius: 14px; }
+  .sm-coll { grid-template-columns: auto 64px; gap: 10px; padding: 10px; }
+  .sm-coll-body { grid-column: 1 / -1; grid-template-columns: minmax(0, 1fr); } /* (the admin's side bar leaves little room) */
+  .sm-coll-move { grid-auto-flow: column; }
+  .sm-btn { white-space: normal; text-align: center; }
+  .sm-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .sm-tee { grid-template-columns: auto 48px minmax(0, 1fr); gap: 8px; }
+  .sm-tee-pic { width: 48px; }
+  .sm-tee-end { grid-column: 2 / -1; display: flex; flex-wrap: wrap; justify-content: flex-start; align-items: center; gap: 8px; }
+  .sm-actions .sm-row .sm-btn { flex: 1 1 calc(50% - 10px); }
+}

@@ -652,7 +652,7 @@ export async function syncStudioProduct(design, garment, userId) {
         stockBySize: sizes.map((size) => ({ size, stock: POD_STOCK })),
       },
       readyDesign: design._id,
-      isHidden: design.status !== "published",
+      isHidden: design.status !== "published" || (design.hiddenColours || []).includes(c.slug),
       retired: false,
     };
     const doc = existing.find((x) => x.productGroupId === groupId && x.productdetails?.color === colour.name);
@@ -676,6 +676,16 @@ export async function syncStudioProduct(design, garment, userId) {
   design.productGroups = groups;
   design.markModified("productGroups");
   return groups[places[0].category];
+}
+// which of a tee's products show in the shop (24 Nov 2026): none while the tee is out of the shop; a colour the admin
+// took out (hiddenColours) stays hidden; an old colour kept only for its orders (retired) stays hidden
+export async function applyShopHidden(design) {
+  const out = design.status !== "published";
+  const slugs = new Set(design.hiddenColours || []);
+  const garment = !out && slugs.size ? await GarmentType.findOne({ key: design.garmentType }).lean() : null;
+  const names = (garment?.colors || []).filter((c) => slugs.has(c.slug)).map((c) => c.name);
+  await Product.updateMany({ readyDesign: design._id, retired: { $ne: true } }, { $set: { isHidden: out } });
+  if (names.length) await Product.updateMany({ readyDesign: design._id, "productdetails.color": { $in: names } }, { $set: { isHidden: true } });
 }
 // shown / hidden with the tee
 export const setStudioProductHidden = (designId, hidden) => Product.updateMany({ readyDesign: designId }, { $set: { isHidden: hidden } });

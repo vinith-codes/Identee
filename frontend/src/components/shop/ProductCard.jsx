@@ -10,20 +10,17 @@ import { Link } from "react-router-dom";
 import { imageUrl } from "../../utils/imageUrl";
 import { colourHex, isLight } from "../../utils/colours";
 import { money } from "../../utils/money";
-import { wearerFor } from "../../utils/wearerFor";
+import { teeHref } from "../../utils/shopNav";
 
 const MAX_DOTS = 5;
 
-// a Studio tee (printed to order) opens the design's own page (sizes, colours, Edit this design)
-// (the category's wearer goes along, so the design page shows a man's photos from the men's category, a woman's
-// from the women's)
-const hrefFor = (p, colour) => {
-  const who = p.readyDesignSlug ? wearerFor(`${p.category?.name || ""} ${p.category?.slug || ""}`) : null;
-  return p.readyDesignSlug ? `/ready-made/design/${p.readyDesignSlug}${who ? `?for=${who}` : ""}` : `/product/${colour?._id || p._id}`;
-};
+// a Studio tee (printed to order) opens the design's own page (utils/shopNav.js teeHref)
+const hrefFor = teeHref;
 
 // p.pair (utils/shopPairs.js): the design is sold for men and for women — one card, with Men / Women to open each
-export default function ProductCard({ p, from = null }) {
+// replace: the tee page takes this page's place in the history (a tee page's "More from" row, 24 Nov 2026), so Back still
+// goes to the grid the customer came from
+export default function ProductCard({ p, from = null, replace = false }) {
   const [pick, setPick] = useState(null); // colour chosen on the card
   const colour = pick || p.colors?.find((c) => c._id === p._id) || null;
   const photo = pick?.image || p.images?.[0];
@@ -36,7 +33,7 @@ export default function ProductCard({ p, from = null }) {
 
   return (
     <article className={`sh-card${p.inStock ? "" : " is-out"}`}>
-      <Link to={href} state={from ? { from } : undefined} className="sh-card-img" aria-label={label}>
+      <Link to={href} state={from ? { from } : undefined} replace={replace} className="sh-card-img" aria-label={label}>
         {photo ? (
           <>
             <img src={imageUrl(photo, 600)} alt="" loading="lazy" onError={(e) => (e.currentTarget.style.visibility = "hidden")} />
@@ -50,14 +47,14 @@ export default function ProductCard({ p, from = null }) {
         {p.customisable && <span className="sh-tag">✎ Customizable</span>}
       </Link>
       <div className="sh-card-body">
-        <Link to={href} state={from ? { from } : undefined} className="sh-card-name">
+        <Link to={href} state={from ? { from } : undefined} replace={replace} className="sh-card-name">
           {p.brandname}
         </Link>
         <p className="sh-card-sub">{[p.garmentStyle, p.pair ? "Men & Women" : p.gender, p.colors?.length > 1 ? `${p.colors.length} colours` : colour?.name].filter(Boolean).join(" · ")}</p>
         {p.pair && (
           <div className="sh-pair" role="group" aria-label="Choose men's or women's">
             {p.pair.map(({ gender, p: v }) => (
-              <Link key={gender} to={hrefFor(v, v.colors?.find((c) => c._id === v._id))} state={from ? { from } : undefined} className="sh-pair-btn" aria-label={`${p.brandname}, ${gender}`}>
+              <Link key={gender} to={hrefFor(v, v.colors?.find((c) => c._id === v._id))} state={from ? { from } : undefined} replace={replace} className="sh-pair-btn" aria-label={`${p.brandname}, ${gender}`}>
                 {gender}
               </Link>
             ))}

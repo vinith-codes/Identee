@@ -48,5 +48,11 @@ const removeModelPhoto = async (id, body) => (await axios.delete(`${API}/designs
 // publish | unpublish | reject | restore — the same buttons as the Collection maker's tees
 const act = async (id, action) => (await axios.post(`${COLLECTIONS}/designs/${id}/${action}`, {}, auth())).data;
 
-const studioService = { getSetup, makePicture, changePicture, improve, plan, printCheck, printPack, enlarge, listDesigns, getDesign, saveDesign, publish, modelPhotos, removeModelPhoto, removeDesign, act };
+// Manage Shop your IDENTEE (24 Nov 2026): every shop tee + the collections' settings; one action on many tees
+// (out | back | delete | colourOut | colourBack | price) -> { done, failed }; the collections' names, order, home page
+const shopTees = async () => (await axios.get(`${API}/shop`, auth())).data;
+const shopBulk = async (body) => (await axios.post(`${API}/shop/bulk`, body, { ...auth(), timeout: 300000 })).data;
+const saveShopCollections = async (body) => (await axios.put(`${API}/shop/collections`, body, auth())).data;
+
+const studioService = { shopTees, shopBulk, saveShopCollections, getSetup, makePicture, changePicture, improve, plan, printCheck, printPack, enlarge, listDesigns, getDesign, saveDesign, publish, modelPhotos, removeModelPhoto, removeDesign, act };
 export default studioService;

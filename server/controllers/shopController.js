@@ -6,6 +6,7 @@
 // storefront category are shown — the same rule as the category pages.
 // Shop your IDENTEE (the client, 30 Oct 2026): no Men / Women split — a Studio tee listed in both is ONE card
 // (Unisex), grouped into collections ("SCENE · …"), filtered by Unisex / Men / Women; only dark colours and White.
+import crypto from "crypto";
 import asyncHandler from "express-async-handler";
 import Product, { LIVE } from "../models/productModel.js";
 import Category from "../models/categoryModel.js";
@@ -14,6 +15,7 @@ import GarmentType from "../models/garmentTypeModel.js";
 import { applySubscriptionPrice } from "../utils/applySubscriptionPrice.js";
 import { collectionOf, collectionTitle, shownInShop } from "../utils/shopRules.js";
 import { backFirst, studioPrice, wearerFor } from "../services/studioService.js";
+import { readCollections, withSettings } from "../utils/shopCollections.js";
 
 const SIZE_ORDER = ["XXS", "XS", "S", "M", "L", "XL", "XXL", "2XL", "3XL", "4XL", "5XL", "FREE SIZE"];
 const sizeRank = (s) => {
@@ -76,10 +78,18 @@ export const listShopProducts = asyncHandler(async (req, res) => {
   // a Studio tee (printed to order) opens its own page: its slug goes on the card. Its price is worked out here from
   // its garment (Round Neck ₹499, Oversized ₹699), so a tee saved before a price change shows the right price.
   const designIds = [...new Set(all.filter((d) => d.readyDesign).map((d) => String(d.readyDesign)))];
-  const designs = designIds.length ? await ReadyDesign.find({ _id: { $in: designIds } }).select("slug priceInr garmentType product.oldPrice elements.side elements.fixed").lean() : [];
+  const designs = designIds.length ? await ReadyDesign.find({ _id: { $in: designIds } }).select("slug priceInr garmentType product.oldPrice elements.side elements.fixed elements.type elements.src").lean() : [];
   const garments = designs.length ? await GarmentType.find({ key: { $in: [...new Set(designs.map((r) => r.garmentType))] } }).select("key basePrice comparePrice").lean() : [];
   const designOf = new Map();
-  for (const r of designs) designOf.set(String(r._id), { slug: r.slug, back: backFirst(r), ...(await studioPrice(r, garments.find((g) => g.key === r.garmentType))) });
+  // art: which picture the tee sells by (a short key of its big back picture, else its first picture) — tees that
+  // share it (the same Ayyappa back with another front logo) are told apart, so a card or a row doesn't show it twice
+  const artOf = (r) => {
+    const pics = (r.elements || []).filter((e) => e.type === "image" && e.src);
+    const main = (backFirst(r) && pics.find((e) => e.side === "back")) || pics[0];
+    return main ? crypto.createHash("sha1").update(String(main.src)).digest("hex").slice(0, 10) : null;
+  };
+  for (const r of designs) designOf.set(String(r._id), { slug: r.slug, back: backFirst(r), art: artOf(r), ...(await studioPrice(r, garments.find((g) => g.key === r.garmentType))) });
+  const artOfDoc = (d) => (d.readyDesign && designOf.get(String(d.readyDesign))?.art) || null;
   // (24 Nov 2026, the owner on the Ayyappa collection: "make the front 4 with black tees") how well a colour shows a
   // collection off: a dark tee before a White one, and a tee sold by its big back picture before a words-only one
   const showcase = (d) => (norm(d.productdetails?.color) === "white" ? 0 : 2) + (d.readyDesign && designOf.get(String(d.readyDesign))?.back ? 1 : 0);
@@ -201,12 +211,18 @@ export const listShopProducts = asyncHandler(async (req, res) => {
       featured: !!rep.isFeatured,
       customisable: !!rep.readyDesign, // a Studio tee: the customer can change it in the design room
       readyDesignSlug: rep.readyDesign ? designOf.get(String(rep.readyDesign))?.slug || null : null,
+      art: artOfDoc(rep),
     };
   });
   cards.sort(SORTS[sort]);
   if (anyWord && q) cards.sort((a, b) => (wordHits.get(b.key) || 0) - (wordHits.get(a.key) || 0));
   // one collection, newest first: its black picture tees lead (the owner, 24 Nov 2026 — see showcase)
-  if (collection && collection !== "none" && sort === "newest" && !q) cards.sort((a, b) => (shownBy.get(b.key) || 0) - (shownBy.get(a.key) || 0));
+  // (and each picture once before its other front logos: Darshanam, Guardian Fire … then the second Darshanam)
+  if (collection && collection !== "none" && sort === "newest" && !q) {
+    const seenArt = new Set();
+    const again = new Map(cards.map((c) => [c.key, c.art ? (seenArt.has(c.art) ? 1 : (seenArt.add(c.art), 0)) : 0]));
+    cards.sort((a, b) => (shownBy.get(b.key) || 0) - (shownBy.get(a.key) || 0) || again.get(a.key) - again.get(b.key));
+  }
   // in-stock first, keeping the chosen order within each part
   cards.sort((a, b) => Number(b.inStock) - Number(a.inStock));
   // a collection's "Make your own" tee (the plain GTA tee a customer puts their own photo on, 23 Nov 2026) comes first
@@ -236,8 +252,10 @@ export const listShopProducts = asyncHandler(async (req, res) => {
     const c = collections.get(key);
     c.docs.push(d);
     if (d.productdetails?.garmentStyle) c.styles.add(d.productdetails.garmentStyle);
-    if (!c.tees.has(norm(d.brandname)) && d.images?.[0] && c.photos.length < 4) {
+    const art = artOfDoc(d);
+    if (!c.tees.has(norm(d.brandname)) && !(art && c.tees.has(art)) && d.images?.[0] && c.photos.length < 4) {
       c.tees.add(norm(d.brandname));
+      if (art) c.tees.add(art);
       c.photos.push(d.images[0]);
     }
   }
@@ -252,7 +270,11 @@ export const listShopProducts = asyncHandler(async (req, res) => {
         : categories
             .map((c) => ({ name: c.name, slug: c.slug, count: countCards(facetDocs.filter((d) => categoryOf(d)?.slug === c.slug)) }))
             .filter((c) => c.count > 0),
-      collections: [...collections.values()].map((c) => ({ key: c.key, name: c.name, count: countCards(c.docs), styles: [...c.styles].sort(), photos: c.photos })),
+      // (the admin's names, text, order and home page picks: Manage the shop, 24 Nov 2026)
+      collections: withSettings(
+        [...collections.values()].map((c) => ({ key: c.key, name: c.name, count: countCards(c.docs), styles: [...c.styles].sort(), photos: c.photos })),
+        await readCollections(),
+      ),
       styles: [...new Set(facetDocs.map((d) => d.productdetails?.garmentStyle).filter(Boolean))].sort(),
       genders: ["Unisex", "Men", "Women"]
         .map((name) => ({ name, count: countCards(styleDocs.filter((d) => genderOf(d) === name)) }))

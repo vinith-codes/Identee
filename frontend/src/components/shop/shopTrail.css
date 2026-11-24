@@ -1,0 +1,41 @@
+/* components/shop/ShopTrail.jsx — breadcrumbs + the collection chips (24 Nov 2026) */
+.st-crumbs ol { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 0; margin: 0; padding: 0; list-style: none; font-size: 13px; font-weight: 600; color: #71695B; }
+.st-crumbs li { display: inline-flex; align-items: center; min-width: 0; }
+.st-crumbs li + li::before { content: "›"; margin: 0 8px; color: #B8AE99; font-weight: 700; }
+.st-crumbs a { color: #7A5B12; text-decoration: none; padding: 6px 0; }
+.st-crumbs a:hover { text-decoration: underline; text-underline-offset: 3px; }
+.st-crumbs [aria-current="page"] { color: #15130F; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 46ch; }
+.st-crumbs.dark ol { color: rgba(255, 255, 255, .75); letter-spacing: .02em; }
+.st-crumbs.dark li + li::before { color: rgba(255, 255, 255, .45); }
+.st-crumbs.dark a { color: rgba(255, 255, 255, .92); }
+.st-crumbs.dark [aria-current="page"] { color: #fff; }
+
+.st-switch { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.st-switch-label { flex: none; font-size: 11.5px; font-weight: 800; letter-spacing: .18em; text-transform: uppercase; color: #71695B; }
+.st-switch ul { display: flex; gap: 8px; margin: 0; padding: 2px; list-style: none; overflow-x: auto; scrollbar-width: none; min-width: 0; }
+.st-switch ul::-webkit-scrollbar { display: none; }
+.st-switch li { flex: none; }
+.st-switch a { display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 4px 14px 4px 4px; border-radius: 999px; background: #fff;
+  box-shadow: inset 0 0 0 1px #ECE4D2; color: #15130F; font-size: 14px; font-weight: 700; text-decoration: none; white-space: nowrap;
+  transition: box-shadow .2s, transform .2s; }
+.st-switch a:not(:has(img)) { padding-left: 14px; }
+.st-switch img { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; background: #EDEAE3; }
+.st-switch small { font-size: 12px; font-weight: 600; color: #71695B; }
+.st-switch a:hover { box-shadow: inset 0 0 0 1.5px #15130F; transform: translateY(-1px); }
+.st-switch a.on { background: #15130F; color: #fff; box-shadow: none; }
+.st-switch a.on small { color: #E6C978; }
+.st-switch a:focus-visible { outline: 2px solid #C9A24B; outline-offset: 2px; }
+.st-switch.dark .st-switch-label { color: rgba(255, 255, 255, .7); }
+.st-switch.dark a { background: rgba(255, 255, 255, .1); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .22); color: #fff; }
+.st-switch.dark a small { color: rgba(255, 255, 255, .7); }
+.st-switch.dark a:hover { box-shadow: inset 0 0 0 1.5px #fff; }
+.st-switch.dark a.on { background: #fff; color: #15130F; }
+.st-switch.dark a.on small { color: #7A5B12; }
+
+@media (max-width: 640px) {
+  .st-crumbs li.st-wide { display: none; } /* Home and the shop's name: the phone keeps the last steps */
+  .st-crumbs li.st-wide + li::before { display: none; }
+  .st-crumbs [aria-current="page"] { max-width: 22ch; }
+  .st-switch-label { display: none; }
+  .st-switch ul { margin-inline: -16px; padding-inline: 16px; }
+}

@@ -40,7 +40,7 @@ const notFound = (res, what = "Not found") => {
 };
 const designOr404 = async (req, res) => {
   if (!mongoose.isValidObjectId(req.params.id)) notFound(res, "Design not found");
-  const doc = await ReadyDesign.findOne({ _id: req.params.id, source: "studio" });
+  const doc = await ReadyDesign.findOne({ _id: req.params.id, source: "studio", status: { $ne: "removed" } }); // (deleted for good: Manage the shop)
   if (!doc) notFound(res, "Design not found");
   return doc;
 };
@@ -135,7 +135,8 @@ export const changePicture = asyncHandler(async (req, res) => {
 
 // GET /api/studio/designs  (admin) — the Studio's tees, newest first
 export const listStudioDesigns = asyncHandler(async (req, res) => {
-  res.json(await ReadyDesign.find({ source: "studio" }).sort({ updatedAt: -1 }).limit(500).lean());
+  // (not the tees deleted for good in Manage the shop, 24 Nov 2026; up to 2000 — the shop has several hundred)
+  res.json(await ReadyDesign.find({ source: "studio", status: { $ne: "removed" } }).sort({ updatedAt: -1 }).limit(2000).lean());
 });
 
 // GET /api/studio/designs/:id  (admin)

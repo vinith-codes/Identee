@@ -4,6 +4,9 @@
 // cart / Buy now the customer gets their own copy of the design (readyDesignService.copy), and that copy goes
 // through the same cart, checkout and print sheets as a tee designed in the design room. "Customize this tee" opens
 // their copy in the design room. It costs the garment's price and ships free (the client, 30 Oct 2026).
+// (24 Nov 2026, the owner: "think as a user and implement proper navigation") it says where it is (Home › Shop your
+// IDENTEE › Ayyappa › Oversized), ‹ › walk to the tee before / after it in the grid it was opened from (3 of 45), and
+// "More from Ayyappa" under it shows the next tees — all without going back to the grid.
 import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { useDispatch } from "react-redux";
@@ -16,7 +19,12 @@ import ShopComingSoon from "../components/ShopComingSoon";
 import { useShopOpen } from "../utils/shopOpen";
 import { SHOPS } from "../utils/shopNames";
 import { photosFor } from "../utils/wearerFor";
-import { collectionOf } from "../utils/shopRules";
+import { collectionInfo, collectionLink, collectionOf } from "../utils/shopRules";
+import shopService from "../services/shopService";
+import { gridQuery, isOwnTee, moreFrom, neighbours, teeHref, walkList } from "../utils/shopNav";
+import { Crumbs } from "../components/shop/ShopTrail";
+import ProductCard from "../components/shop/ProductCard";
+import { SHOP_CSS } from "../components/shop/shopStyles";
 import TrendPhotoBox from "../components/shop/TrendPhotoBox";
 import useTrend from "../utils/useTrend";
 import "./readyDesign.css";
@@ -35,6 +43,27 @@ const token = () => {
   } catch {
     return null;
   }
+};
+// the tees of one grid, in the grid's order (kept for the visit: walking ‹ › asks for them once)
+const lists = new Map();
+const gridTees = (query) => {
+  const k = JSON.stringify(query);
+  if (!lists.has(k)) {
+    const load = async () => {
+      const items = [];
+      for (let page = 1; page <= 4; page += 1) {
+        const d = await shopService.listProducts({ ...query, limit: 48, page });
+        items.push(...(d.items || []));
+        if (page >= (d.pages || 1)) break;
+      }
+      return items;
+    };
+    lists.set(k, load().catch((e) => {
+      lists.delete(k);
+      throw e;
+    }));
+  }
+  return lists.get(k);
 };
 const apiError = (err) => err?.response?.data?.message || "That didn't work. Please try again.";
 // a white page, as /ready-made (the site's own background is dark)
@@ -68,6 +97,10 @@ export default function ReadyDesignPage() {
       .get(slug)
       .then((d) => {
         if (!alive) return;
+        // (another tee, from ‹ › or More from: its own colour, side and message)
+        setSide(null);
+        setColourSlug(null);
+        setMsg(null);
         setDesign(d);
         setQtys({ [d.sizes.includes("M") ? "M" : d.sizes[0]]: 1 });
       })
@@ -77,9 +110,33 @@ export default function ReadyDesignPage() {
     };
   }, [slug]);
 
+  // the grid this tee is walked through: the one it was opened from (same style, Men / Women, colour, sort …), else
+  // its collection's tees of its style
+  const from = location.state?.from;
+  const key = collectionOf(design?.name);
+  const fromGrid = gridQuery(from?.to);
+  const query = !design || !key ? null : fromGrid?.collection === key ? fromGrid : { collection: key, ...(design.style ? { style: design.style } : {}) };
+  const queryKey = query ? JSON.stringify(query) : "";
+  const [walk, setWalk] = useState({ key: "", items: [] });
+  useEffect(() => {
+    if (!queryKey) return undefined;
+    let alive = true;
+    gridTees(JSON.parse(queryKey))
+      .then((items) => alive && setWalk({ key: queryKey, items }))
+      .catch(() => alive && setWalk({ key: queryKey, items: [] }));
+    return () => {
+      alive = false;
+    };
+  }, [queryKey]);
+
   // back to the page the tee was opened from (Men's T-shirts · Oversized), else the shop's start page; a real step
   // back when there is one, so the phone's back button and this link agree (28 Oct 2026)
-  const from = location.state?.from;
+  const goBack = (e) => {
+    if (window.history.state?.idx > 0) {
+      e.preventDefault();
+      navigate(-1);
+    }
+  };
   const backLink = from ? (
     <Link
       className="rd-back"
@@ -180,11 +237,49 @@ export default function ReadyDesignPage() {
       const copy = await myCopy();
       if (copy) navigate(`/customize/${copy.garmentType}?design=${copy.customizationId}`, { state: { trend: { key: trend.key, name: trend.name, colours: trend.colours || [] } } });
     });
-  const ownTee = /·\s*make your own\s*$/i.test(design.name || "");
+  const ownTee = isOwnTee(design);
+
+  // where it is: Home › Shop your IDENTEE › Ayyappa › Oversized › the tee — the step it was opened from goes back
+  // there (same filters, same place on the page)
+  const info = collectionInfo(key);
+  const fromIsHere = Boolean(fromGrid && key && fromGrid.collection === key);
+  const crumbs = [
+    { label: "Home", to: "/", wide: true },
+    { label: SHOPS.shop.name, to: "/ready-made", wide: true },
+    ...(key ? [{ label: info.name, ...(fromIsHere && !fromGrid.style ? { to: from.to, onClick: goBack } : { to: collectionLink(key) }) }] : []),
+    ...(key && design.style
+      ? [{ label: design.style, ...(fromIsHere && fromGrid.style ? { to: from.to, onClick: goBack } : { to: `${collectionLink(key)}?style=${encodeURIComponent(design.style)}` }) }]
+      : []),
+    // (the phone leaves the tee's name out here: it is the big heading just under)
+    { label: key ? String(design.name || "").replace(/^[^·]*·\s*/, "") : design.name, wide: Boolean(key) },
+  ];
+  // ‹ 3 of 45 › and More from: the grid's tees (a Men's + Women's pair is one, as on the grid). Walking takes this
+  // page's place in the history, so Back (and the step above) still go to the grid.
+  const cards = walk.key === queryKey ? walkList(walk.items, { keepOwn: ownTee }) : [];
+  const near = neighbours(cards, design.slug || slug);
+  const more = moreFrom(cards, design.slug || slug, 8);
+  const hrefOf = (c) => teeHref(c, c.colors?.find((x) => x._id === c._id));
+  const nameOf = (c) => String(c.brandname || "").replace(/^[^·]*·\s*/, "");
 
   return (
     <Page>
-      {backLink}
+      <div className="rd-top">
+        <Crumbs items={crumbs} />
+        {near.prev && (
+          <div className="rd-walk" role="group" aria-label="Other tees">
+            <Link className="rd-walk-btn" to={hrefOf(near.prev)} state={from ? { from } : undefined} replace title={nameOf(near.prev)} aria-label={`Previous tee: ${nameOf(near.prev)}`}>
+              <span aria-hidden="true">‹</span> <em>Previous</em>
+            </Link>
+            <span className="rd-walk-count">
+              {near.index + 1} of {near.total}
+            </span>
+            <Link className="rd-walk-btn" to={hrefOf(near.next)} state={from ? { from } : undefined} replace title={nameOf(near.next)} aria-label={`Next tee: ${nameOf(near.next)}`}>
+              <em>Next</em> <span aria-hidden="true">›</span>
+            </Link>
+          </div>
+        )}
+      </div>
+      {from && !fromIsHere && backLink}
       <div className="rd-main">
         <div>
           <div className="rd-gallery-big">{bigSrc && <img src={imageUrl(bigSrc, 1000)} alt={`${design.name}, ${shown.startsWith("photo:") ? "worn" : shown}, ${picked.name}`} />}</div>
@@ -279,6 +374,22 @@ export default function ReadyDesignPage() {
           </p>
         </div>
       </div>
+      {more.length > 0 && (
+        <section className="rd-more sh-wrap" aria-label={`More from ${info.name}`}>
+          <style>{SHOP_CSS}</style>
+          <div className="rd-more-head">
+            <h2>More from {info.name}</h2>
+            <Link to={fromIsHere ? from.to : collectionLink(key)} onClick={fromIsHere ? goBack : undefined}>
+              See them all →
+            </Link>
+          </div>
+          <div className="sh-grid">
+            {more.map((p) => (
+              <ProductCard key={p.groupId || p.key} p={p} from={from} replace />
+            ))}
+          </div>
+        </section>
+      )}
     </Page>
   );
 }

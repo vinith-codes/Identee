@@ -94,6 +94,14 @@ export const SHOP_CSS = `
   .sh-ready-head h2 { margin: 0 0 4px; font-size: clamp(24px, 3vw, 32px); font-weight: 800; color: var(--ink); }
   .sh-ready-head p { margin: 0; font-size: 14.5px; line-height: 1.5; color: #5b554b; max-width: 640px; }
   .sh-tabs .sh-chip { font-size: 15px; padding: 10px 20px; font-weight: 700; }
+  /* a collection's styles as tabs over its tees (24 Nov 2026) */
+  .sh-styletabs { display: flex; gap: 2px; margin: 0 0 16px; border-bottom: 1px solid var(--line); overflow-x: auto; scrollbar-width: none; }
+  .sh-styletabs::-webkit-scrollbar { display: none; }
+  .sh-styletabs button { flex: none; margin-bottom: -1px; padding: 12px 18px 10px; border: 0; border-bottom: 3px solid transparent; background: none;
+    color: var(--muted); font: inherit; font-size: 15.5px; font-weight: 700; white-space: nowrap; cursor: pointer; }
+  .sh-styletabs button:hover { color: var(--ink); }
+  .sh-styletabs button.on { color: var(--ink); border-bottom-color: var(--ink); }
+  .sh-styletabs button:focus-visible { outline: 2px solid var(--gold); outline-offset: -2px; }
   .sh-collections { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr)); gap: 20px; }
   .sh-collection { position: relative; display: grid; grid-template-rows: auto 1fr; border-radius: 20px; overflow: hidden; text-decoration: none;
     color: #fff; background: var(--ink); transition: transform .3s ease, box-shadow .3s ease; }

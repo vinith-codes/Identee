@@ -29,7 +29,8 @@ const coloursOf = (design, garment) => {
   const list = design.colours?.length ? design.colours : [{ slug: design.color, mockups: design.mockups }];
   return list
     .map((c) => ({ slug: c.slug, name: colourOf(garment, c.slug)?.name || c.slug, hex: colourOf(garment, c.slug)?.hex || "#1C1C1D", mockups: c.mockups, photos: c.photos || [] }))
-    .filter((c) => shownInShop(c.name, `${design.product?.style || ""} ${garment?.label || ""}`));
+    .filter((c) => shownInShop(c.name, `${design.product?.style || ""} ${garment?.label || ""}`))
+    .filter((c) => !(design.hiddenColours || []).includes(c.slug)); // (a colour the admin took out of the shop, 24 Nov 2026)
 };
 const sizesOf = (design, garment) => {
   const all = garment.sizes?.length ? garment.sizes : ["S", "M", "L", "XL", "2XL", "3XL"];

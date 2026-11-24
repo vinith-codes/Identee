@@ -17,6 +17,7 @@ import shopService from "../services/shopService";
 import { pickSceneTees } from "../utils/homeScene";
 
 // the collections that get a row on the home page next to SCENE's (24 Nov 2026)
+// the collections on the "Pick your story" stage: the admin picks them (Manage the shop, 24 Nov 2026); these until then
 const HOME_ROWS = ["gta", "ayyappa"];
 import subVideo1 from "../assets/videos/sub-video1.mp4";
 import hoodieVideo from "../assets/videos/hoodie.mp4";
@@ -137,8 +138,11 @@ export default function Home() {
       shopService.listProducts({ collection: "scene", featured: 1, limit: 12 }).catch(() => ({ items: [] })),
       shopService.listProducts({ collection: "scene", limit: 48 }).catch(() => ({ items: [] })),
       shopService.listProducts({ limit: 1 }).catch(() => ({ items: [] })),
-      ...HOME_ROWS.map((key) => shopService.listProducts({ collection: key, limit: 48 }).catch(() => ({ items: [] }))),
-    ]).then(([f, n, all, ...more]) => {
+    ]).then(async ([f, n, all]) => {
+      if (!alive) return;
+      // the stage's collections: the ones the admin ticked for the home page (in the shop's order)
+      const keys = all.facets?.collections ? all.facets.collections.filter((c) => c.home && c.key !== "none").map((c) => c.key) : HOME_ROWS;
+      const more = await Promise.all(keys.map((key) => shopService.listProducts({ collection: key, limit: 48 }).catch(() => ({ items: [] }))));
       if (!alive) return;
       setCollections(all.facets?.collections || []);
       // only tees that have a photo: online, or on our own server (/uploads/..., since the move from Cloudinary on 6 Nov 2026)
@@ -147,7 +151,7 @@ export default function Home() {
       // (24 Nov 2026, the owner: "in the home page the gta and ayyappa tees should be visible what we made for scene")
       // a row each like SCENE's, black tees only, picture tees first (the shop's own order); the plain "Make your own"
       // GTA tee stays in the shop
-      setRows(Object.fromEntries(HOME_ROWS.map((key, i) => [key, pickSceneTees(withPhoto(more[i].items).filter((p) => !/·\s*make your own\s*$/i.test(p.brandname || "")), 10, { dark: true })])));
+      setRows(Object.fromEntries(keys.map((key, i) => [key, pickSceneTees(withPhoto(more[i].items).filter((p) => !/·\s*make your own\s*$/i.test(p.brandname || "")), 10, { dark: true })])));
     });
     return () => {
       alive = false;
@@ -192,7 +196,7 @@ export default function Home() {
   useReveal(root, [scene.length, colours.length, rows]);
   const sceneTotal = collections.find((c) => c.key === "scene")?.count || 0;
   // the GTA and Ayyappa rows, in the shop's order of collections (the newest first)
-  const homeRows = HOME_ROWS.map((key) => ({ key, products: rows[key] || [], total: collections.find((c) => c.key === key)?.count || 0, at: collections.findIndex((c) => c.key === key) })).sort((a, b) => (a.at < 0 ? 99 : a.at) - (b.at < 0 ? 99 : b.at));
+  const homeRows = Object.keys(rows).map((key) => ({ key, products: rows[key] || [], total: collections.find((c) => c.key === key)?.count || 0, at: collections.findIndex((c) => c.key === key) })).sort((a, b) => (a.at < 0 ? 99 : a.at) - (b.at < 0 ? 99 : b.at));
 
   return (
     <div className="hm" ref={root}>

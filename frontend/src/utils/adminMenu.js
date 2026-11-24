@@ -38,6 +38,7 @@ export const ADMIN_MENU = [
     icon: "readymade",
     to: "/admin/products",
     children: [
+      { to: "/admin/shop-manage", label: "Manage the shop" }, // styles, colours, prices, collections (24 Nov 2026)
       { to: "/admin/products", label: "All products" },
       // (the Collection maker — many tees from one prompt — is parked since 25 Oct 2026: the Studio does the job;
       //  its code stays in pages/admin/CollectionMakerPage.jsx for a later "rough drafts" feature)

@@ -129,8 +129,11 @@ function StyleCard({ style, query, onOpen }) {
  * the designs show straight away, starting with defaultStyle, with a tab per style instead of a card per style; the
  * "Make your own" tees stay out of this grid (the banner above it is for them); every page is loaded so the count is
  * right (a Men's + Women's pair split over two pages counted twice).
+ *
+ * allTab (a collection's page, 24 Nov 2026 — the owner: "think as a user and implement proper navigation"): no card per
+ * style to tap through first; the tees show straight away with All · Oversized · Round Neck tabs over them.
  */
-export default function ShopGrid({ category = null, collection = null, collectionName = "", id = "shop", defaultStyle = "", hideOwn = false, heading = null }) {
+export default function ShopGrid({ category = null, collection = null, collectionName = "", id = "shop", defaultStyle = "", hideOwn = false, heading = null, allTab = false }) {
   const location = useLocation();
   const [params, setParams] = useSearchParams();
   const f = Object.fromEntries(KEYS.map((k) => [k, params.get(k) || ""]));
@@ -155,14 +158,14 @@ export default function ShopGrid({ category = null, collection = null, collectio
   const list = useProductPages(query);
   const { data, loading, error } = list;
   const style = f.style || defaultStyle;
-  const tabs = Boolean(defaultStyle);
+  const tabs = Boolean(defaultStyle) || allTab;
   // a Men's + Women's pair is one card, so it counts once (and the "Make your own" tees left out are not counted)
   const ownShown = hideOwn ? data.items.filter(isOwnTee).length : 0;
   const shownTotal = data.total - ownShown - (data.items.length - ownShown - pairMenWomen(hideOwn ? data.items.filter((p) => !isOwnTee(p)) : data.items).length);
   // tabs: load every page (54 Round Neck tees = 27 Men's + Women's pairs, more than one page of 48)
   useEffect(() => {
-    if (tabs && !loading && !list.more && data.page > 0 && data.page < data.pages) list.loadMore();
-  }, [tabs, loading, list, data.page, data.pages]);
+    if (defaultStyle && !loading && !list.more && data.page > 0 && data.page < data.pages) list.loadMore();
+  }, [defaultStyle, loading, list, data.page, data.pages]);
 
   // search box → address, after a short pause
   useEffect(() => {
@@ -225,7 +228,7 @@ export default function ShopGrid({ category = null, collection = null, collectio
   // Unisex / Men / Women (only when the tees shown are for more than one of them)
   const genders = facets?.genders || [];
 
-  if (byStyle && !style) {
+  if (byStyle && !style && !allTab) {
     return (
       <section id={id} className="sh-wrap" aria-label="Styles">
         <style>{SHOP_CSS}</style>
@@ -263,10 +266,10 @@ export default function ShopGrid({ category = null, collection = null, collectio
       {heading}
 
       {byStyle && tabs && (
-        <div className="sh-cats sh-tabs" role="group" aria-label="Tee">
-          {styles.map((s) => (
-            <button key={s} type="button" className={`sh-chip${s === style ? " on" : ""}`} onClick={() => pickTab(s)} aria-pressed={s === style}>
-              {s}
+        <div className={allTab ? "sh-styletabs" : "sh-cats sh-tabs"} role="group" aria-label="Style">
+          {(allTab ? ["", ...styles] : styles).map((s) => (
+            <button key={s || "all"} type="button" className={`${allTab ? "" : "sh-chip"}${s === style ? " on" : ""}`} onClick={() => pickTab(s)} aria-pressed={s === style}>
+              {s || (allTab ? "All styles" : "All")}
             </button>
           ))}
         </div>

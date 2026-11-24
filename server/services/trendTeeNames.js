@@ -41,7 +41,7 @@ export function renamesOf(key, before = [], after = []) {
 export async function renameTrendTees(renames) {
   let tees = 0;
   for (const { from, to } of renames) {
-    if (await ReadyDesign.exists({ source: "studio", name: exactly(to) })) continue; // that name is taken: leave both
+    if (await ReadyDesign.exists({ source: "studio", status: { $ne: "removed" }, name: exactly(to) })) continue; // that name is taken: leave both
     const designs = await ReadyDesign.find({ source: "studio", name: exactly(from) }, { _id: 1 }).lean();
     if (!designs.length) continue;
     const ids = designs.map((d) => d._id);

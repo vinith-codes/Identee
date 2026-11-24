@@ -303,3 +303,34 @@
 .rd-customize b { font-size: 15px; }
 .rd-customize span { color: #4a4337; }
 .rd-customize .rd-btn { margin-top: 4px; padding: 11px 18px; font-size: 14px; }
+
+/* finding your way (24 Nov 2026): where the tee is, ‹ 3 of 45 ›, and More from the collection */
+.rd-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; margin-bottom: 16px; }
+.rd-top .st-crumbs { min-width: 0; flex: 1 1 320px; }
+.rd-walk { display: inline-flex; align-items: center; gap: 4px; flex: none; margin-left: auto; }
+.rd-walk-btn { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 14px; border-radius: 999px; border: 1px solid #ece4d2;
+  background: #fff; color: #15130f; font-size: 13.5px; font-weight: 700; text-decoration: none; transition: border-color .2s, background .2s; }
+.rd-walk-btn span { font-size: 20px; line-height: 1; margin-top: -2px; }
+.rd-walk-btn em { font-style: normal; }
+.rd-walk-btn:hover { border-color: #15130f; background: #fbf7ee; }
+.rd-walk-btn:focus-visible { outline: 2px solid #c9a24b; outline-offset: 2px; }
+.rd-walk-count { min-width: 64px; padding: 0 6px; text-align: center; font-size: 13px; font-weight: 600; color: #71695b; white-space: nowrap; }
+
+.rd-more { margin-top: 56px; padding-top: 30px; border-top: 1px solid #ece4d2; }
+.rd-more-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 16px; margin-bottom: 18px; }
+.rd-more-head h2 { margin: 0; font-size: clamp(22px, 2.6vw, 28px); font-weight: 800; color: #15130f; }
+.rd-more-head a { color: #7a5b12; font-size: 14px; font-weight: 700; text-decoration: none; }
+.rd-more-head a:hover { text-decoration: underline; text-underline-offset: 3px; }
+
+@media (max-width: 720px) {
+  .rd-more .sh-grid { display: flex; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory; margin-inline: -14px; padding: 0 14px 8px; scrollbar-width: none; }
+  .rd-more .sh-grid::-webkit-scrollbar { display: none; }
+  .rd-more .sh-grid > * { flex: 0 0 46%; min-width: 0; scroll-snap-align: start; }
+}
+@media (max-width: 480px) {
+  .rd-top { margin-bottom: 12px; }
+  .rd-walk-btn { padding: 0 12px; }
+  .rd-walk-btn em { display: none; } /* ‹ 3 of 45 › */
+  .rd-walk-btn span { font-size: 22px; }
+  .rd-more { margin-top: 40px; padding-top: 24px; }
+}

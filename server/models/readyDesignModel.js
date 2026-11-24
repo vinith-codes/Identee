@@ -61,6 +61,8 @@ const readyDesignSchema = new mongoose.Schema(
     // photos: AI pictures of a person wearing the tee in that colour (26 Oct 2026) — [{ wearer: man|woman, side: front|back, url }]
     colours: { type: [new mongoose.Schema({ slug: String, mockups: { front: String, back: String, left: String, right: String }, photos: { type: [new mongoose.Schema({ wearer: String, side: String, url: String }, { _id: false })], default: [] } }, { _id: false })], default: [] },
     priceInr: { type: Number, default: 0 },
+    // colours the admin took out of the shop (Manage Shop your IDENTEE, 24 Nov 2026): kept on the tee, not sold
+    hiddenColours: { type: [String], default: [] },
     // the product details the shop needs (26 Oct 2026, the same as Add a product): style, description, gender, fabric,
     // oldPrice, subcategory, sku, hsnCode, ageRange, type, washCare[], featured, shipping { weight, length, width, height }
     product: { type: mongoose.Schema.Types.Mixed, default: {} },
@@ -68,11 +70,12 @@ const readyDesignSchema = new mongoose.Schema(
     productGroups: { type: mongoose.Schema.Types.Mixed, default: {} }, // { categorySlug: productGroupId } — one group per category (27 Oct 2026)
     // the Studio's earlier saves of this tee, newest last (Step 3, 25 Oct 2026): Restore brings one back
     versions: { type: [new mongoose.Schema({ at: Date, note: String, color: String, size: String, elements: [mongoose.Schema.Types.Mixed] }, { _id: false })], default: [] },
-    status: { type: String, enum: ["planned", "drafted", "ready", "published", "rejected", "failed"], default: "planned", index: true },
+    status: { type: String, enum: ["planned", "drafted", "ready", "published", "rejected", "failed", "removed"], default: "planned", index: true },
     error: { type: String, default: "" },
     costInr: { type: Number, default: 0 },
     order: { type: Number, default: 0 }, // its place in the collection
     publishedAt: { type: Date, default: null },
+    removedAt: { type: Date, default: null }, // deleted for good in Manage the shop (24 Nov 2026): hidden everywhere
   },
   { timestamps: true },
 );

@@ -39,6 +39,7 @@ const StudioPage = lazy(() => import("../pages/admin/studio/StudioPage"));
 const TestModePage = lazy(() => import("../pages/admin/TestModePage")); // Design Studio → Test as a customer (5 Nov 2026)
 const DesignHelpPage = lazy(() => import("../pages/admin/DesignHelpPage")); // Design Studio → Help requests (8 Nov 2026)
 const TrendsPage = lazy(() => import("../pages/admin/TrendsPage")); // Design Studio → Trends (23 Nov 2026)
+const ShopManagePage = lazy(() => import("../pages/admin/ShopManagePage")); // Shop your IDENTEE → Manage the shop (24 Nov 2026)
 // Review moderation
 const AdminReviewsPage = lazy(() => import("../pages/admin/AdminReviewsPage"));
 // Settings module
@@ -136,6 +137,7 @@ export function adminRoutes() {
         <Route path="studio" element={<StudioPage />} />
         <Route path="studio/:id" element={<StudioPage />} />
         <Route path="test-mode" element={<TestModePage />} />
+        <Route path="shop-manage" element={<ShopManagePage />} />
         <Route path="design-help" element={<DesignHelpPage />} />
         <Route path="trends" element={<TrendsPage />} />
         <Route path="invoices/:orderId" element={<InvoicePreviewPage />} />
