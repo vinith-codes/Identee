@@ -98,8 +98,8 @@ export default function MockupCamera({ job, onDone }) {
           colour={job.colourHex}
           areas={areas}
           interactive={false}
-          onLit={() => {
-            lit.current = true;
+          onDrawn={() => {
+            lit.current = true; // the tee is drawn (onLit only comes in the shop's boutique room, not this studio room)
           }}
         />
       )}

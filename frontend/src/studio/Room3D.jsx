@@ -1018,7 +1018,7 @@ function Bottoms({ part, teeCentre, colour, areas, hotspots, glowKey, glowSpot, 
 
 const onBottoms = (spot) => spot?.side === "shorts";
 
-function Tee({ model, colour, areas, onPickArea, interactive, still, spotsRef, turntable, spin, face, spinSpeed, unfoldKey, onLit, hotspots, glowKey, activeKey, onHoverArea, popKey, showcase, twirlKey, handKey, neckLabel, tapMode = false, onTapPoint, widen = 1 }) {
+function Tee({ model, colour, areas, onPickArea, interactive, still, spotsRef, turntable, spin, face, spinSpeed, unfoldKey, onLit, onDrawn, hotspots, glowKey, activeKey, onHoverArea, popKey, showcase, twirlKey, handKey, neckLabel, tapMode = false, onTapPoint, widen = 1 }) {
   const { geo, probe, map, normalMap, centre } = useTeeGeometry(model, widen);
   // a full turn that eases out: on stepping into the room and when the tee's colour is changed there
   const twirl = useRef({ key: twirlKey, t: 9, from: 0 });
@@ -1125,6 +1125,7 @@ function Tee({ model, colour, areas, onPickArea, interactive, still, spotsRef, t
   // frames drawn since the dressing room appeared: the first few are slow the first time (the room is being
   // built), so the reveal and the "lights on" wait for them
   const roomFrames = useRef(0);
+  const drawnFrames = useRef(0); // (24 Nov 2026) frames drawn with the tee in it, in any room — for onDrawn
   const shadow = useMemo(() => {
     const m = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking });
     m.onBeforeCompile = foldable;
@@ -1160,6 +1161,9 @@ function Tee({ model, colour, areas, onPickArea, interactive, still, spotsRef, t
     roomFrames.current = turntable ? roomFrames.current + 1 : 0;
     const settled = roomFrames.current > 4;
     if (roomFrames.current === 5) onLit?.();
+    // the tee itself has been drawn a few frames (its model is in): MockupCamera only takes pictures after this
+    drawnFrames.current += 1;
+    if (drawnFrames.current === 5) onDrawn?.();
     if (u.on && settled) u.s += Math.min(dt, 0.05);
     if (u.on && (!turntable || u.s > UNFOLD.end)) u.on = false;
     if (u.on) {
@@ -1600,7 +1604,7 @@ function CameraRig({ request, getSpot, apiRef, wakeKey, room, dark, setNearest }
 // tapMode + onTapPoint ("Anywhere", free placement phase 3): while on, a tap (not a drag to turn) on the tee says where
 // it landed — onTapPoint({ raw: [x, y, z] model metres, side }) — instead of picking a print area
 // widen: how much wider the tee is drawn for the size picked, so its shape is the size chart's (teeModel.js widenFor)
-const Room3D = forwardRef(function Room3D({ model, colour, areas, onPickArea, camRequest, interactive = true, still = false, room = "studio", spin = false, face = null, spinSpeed = 1.6, unfoldKey = 0, onLit, hotspots, glowKey = null, activeKey = null, onHoverArea, popKey = 0, showcase = false, twirlKey = 0, dark = false, neckLabel = null, tapMode = false, onTapPoint, widen = 1 }, ref) {
+const Room3D = forwardRef(function Room3D({ model, colour, areas, onPickArea, camRequest, interactive = true, still = false, room = "studio", spin = false, face = null, spinSpeed = 1.6, unfoldKey = 0, onLit, onDrawn, hotspots, glowKey = null, activeKey = null, onHoverArea, popKey = 0, showcase = false, twirlKey = 0, dark = false, neckLabel = null, tapMode = false, onTapPoint, widen = 1 }, ref) {
   const boutique = room === "boutique";
   const spotsRef = useRef(() => null);
   // the camera's nearest distance: 1, or nearer only while the neck label is shown close up on a small view
@@ -1618,7 +1622,7 @@ const Room3D = forwardRef(function Room3D({ model, colour, areas, onPickArea, ca
       <Studio visible={!boutique} colour={colour} />
       <Suspense fallback={null}>
         <Boutique visible={boutique} model={model} colour={colour} />
-        <Tee model={model} colour={colour} areas={areas} onPickArea={onPickArea} interactive={interactive} still={still} spotsRef={spotsRef} turntable={boutique} handKey={camRequest?.n} spin={spin} face={face} spinSpeed={spinSpeed} unfoldKey={unfoldKey} onLit={onLit} hotspots={hotspots} glowKey={glowKey} activeKey={activeKey} onHoverArea={onHoverArea} popKey={popKey} showcase={showcase} twirlKey={twirlKey} neckLabel={neckLabel} tapMode={tapMode} onTapPoint={onTapPoint} widen={widen} />
+        <Tee model={model} colour={colour} areas={areas} onPickArea={onPickArea} interactive={interactive} still={still} spotsRef={spotsRef} turntable={boutique} handKey={camRequest?.n} spin={spin} face={face} spinSpeed={spinSpeed} unfoldKey={unfoldKey} onLit={onLit} onDrawn={onDrawn} hotspots={hotspots} glowKey={glowKey} activeKey={activeKey} onHoverArea={onHoverArea} popKey={popKey} showcase={showcase} twirlKey={twirlKey} neckLabel={neckLabel} tapMode={tapMode} onTapPoint={onTapPoint} widen={widen} />
       </Suspense>
       <OrbitControls
         makeDefault
