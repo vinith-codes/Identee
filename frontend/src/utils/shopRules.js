@@ -8,6 +8,8 @@ const COLLECTIONS = {
   // (23 Nov 2026, the owner: GTA moves from the home page into Shop your IDENTEE — the logo fixed on the front, the back
   // one of our designs or the customer's own photo in the GTA look; the tees are made in Admin → Trends)
   gta: { name: "GTA Style", text: "The GTA logo on the front. On the back, one of our designs — or your own photo, redrawn in the GTA look." },
+  // (24 Nov 2026, the owner's Ayyappa pictures: a card of its own; the tees are made in Admin → Studio from a list)
+  ayyappa: { name: "Ayyappa", text: "Swamiye Saranam Ayyappa — the words big on the front, Ayyappa printed big on the back." },
   none: { name: "More IDENTEE tees", text: "Finished designs, ready to wear." },
 };
 export const collectionInfo = (key, ownName = "") => COLLECTIONS[key] || { name: ownName || key, text: "" };

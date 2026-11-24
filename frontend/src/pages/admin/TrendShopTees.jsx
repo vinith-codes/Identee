@@ -16,17 +16,11 @@ import { toast } from "react-toastify";
 import studioService from "../../services/studioService";
 import customizationService from "../../services/customizationService";
 import MockupCamera from "../../studio/MockupCamera";
-import { loadImage } from "../../studio/konvaRender";
+import { GARMENTS, listingOf, sizeOf } from "../../studio/shopTeeMaker";
 import { trendColours } from "../../studio/trends";
 import { trendShopTee } from "../../studio/trendTee";
 import { THEME as theme } from "../../theme/theme";
 
-// the garments the shop tees are made on, and how a garment is listed when there is no SCENE tee of it to copy
-const GARMENTS = [
-  { key: "oversized-tee", listings: [{ category: "t-shirts", style: "Oversized" }], gender: "Unisex", fit: "Oversized fit" },
-  { key: "boys-round-neck", listings: [{ category: "t-shirts", style: "Round Neck" }], gender: "Men", fit: "Regular round-neck fit" },
-  { key: "girls-round-neck", listings: [{ category: "womens-t-shirts", style: "Round Neck" }], gender: "Women", fit: "Regular round-neck fit" },
-];
 const OWN = "Make your own";
 const prefixOf = (trend) => String(trend.key || "").toUpperCase();
 const why = (err) => err?.response?.data?.message || err?.message || "That didn’t work.";
@@ -50,29 +44,6 @@ function wantedTees(trend, garments) {
   }
   return out;
 }
-
-// how the tee is listed in the shop: as a SCENE tee of the same garment (its categories, style, fabric, care …), else
-// as GARMENTS says
-const listingOf = (designs, plan) => {
-  const scene = designs.find((d) => d.garmentType === plan.key && (d.status === "published" || (d.status === "ready" && d.publishedAt)) && /^scene\s·/i.test(d.name || "") && d.product?.listings?.length);
-  const p = scene?.product || {};
-  return {
-    listings: p.listings?.length ? p.listings.map(({ category, style }) => ({ category, style })) : plan.listings,
-    gender: p.gender || plan.gender,
-    fabric: p.fabric || "100% Cotton",
-    washCare: p.washCare || [],
-    hsnCode: p.hsnCode || "6109",
-    oldPrice: p.oldPrice || 0,
-    type: p.type || "Casual",
-    ageRange: p.ageRange || "Adult",
-    shipping: p.shipping || {},
-  };
-};
-
-const sizeOf = async (url) => {
-  const img = await loadImage(url, { full: true });
-  return { url, w: img.naturalWidth, h: img.naturalHeight };
-};
 
 export default function TrendShopTees({ trend }) {
   const [state, setState] = useState(null); // null | { making, done, total, failed: [], note }

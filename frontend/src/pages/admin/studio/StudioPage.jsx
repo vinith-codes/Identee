@@ -12,6 +12,7 @@ import { modelForGarment } from "../../../studio/teeModel";
 import { hasWebGL } from "../../../studio/webgl";
 import { imageUrl } from "../../../utils/imageUrl";
 import { shopHref } from "../../../utils/siteUrls";
+import ListShopTees from "./ListShopTees";
 import StudioRoom from "./StudioRoom";
 import { clearDraft, readDraft } from "./studioBits";
 import "./studio.css";
@@ -262,10 +263,13 @@ export default function StudioPage() {
             {!garments.length && <p className="st-note">No live products. Make one live in Admin → Create your IDENTEE first.</p>}
           </div>
 
+          <h2 className="st-h2">Collections in the shop</h2>
+          <div className="st-list" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 280px), 1fr))" }}>
+            <ListShopTees onMade={load} />
+          </div>
           {collections.length > 0 && (
             <>
-              <h2 className="st-h2">Collections in the shop</h2>
-              <div className="st-list" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 280px), 1fr))" }}>
+              <div className="st-list" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 280px), 1fr))", marginTop: 12 }}>
                 {collections.map((c) => (
                   <article key={c.key} className="st-tee" style={{ display: "grid", gap: 8, padding: 14 }}>
                     <b>{c.key}</b>

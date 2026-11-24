@@ -43,10 +43,14 @@ export function putBigBack(kept, el, { positions, garment, size, maxPrint, shape
  * the "Make your own" tee, which has only the logo). positions: the catalog with the back's free place added — what
  * the 3D mockup camera needs.
  */
-export function trendShopTee({ garment, catalog, maxPrint = null, size = "M", logo, back = null }) {
+// (24 Nov 2026, the Ayyappa collection — "make it big") logoAt "top": the logo at the top of the area, not in its
+// middle; fill: how much of the area's width / height it may take (the Ayyappa logos: the whole 28 cm).
+export function trendShopTee({ garment, catalog, maxPrint = null, size = "M", logo, back = null, logoAt = "middle", fill = 92 }) {
   const front = frontArea(catalog);
   if (!front || !logo?.url) return null;
-  const elements = [{ id: "trend-logo", type: "image", src: logo.url, position: front.key, side: front.side, zIndex: 1, pxW: logo.w, fixed: true, ...wholeFit(front, size, logo.w, logo.h) }];
+  const fit = wholeFit(front, size, logo.w, logo.h, fill);
+  if (logoAt === "top") fit.y = 0;
+  const elements = [{ id: "trend-logo", type: "image", src: logo.url, position: front.key, side: front.side, zIndex: 1, pxW: logo.w, fixed: true, ...fit }];
   let out = elements;
   if (back?.url) {
     const area = backArea(catalog);
