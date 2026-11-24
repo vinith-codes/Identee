@@ -25,7 +25,7 @@ const CSS = `
 .tb-go{display:inline-flex;align-items:center;gap:8px;padding:13px 22px;border-radius:999px;background:linear-gradient(90deg,#f6c453,#ff9a3d);color:#1a0f2e;font-weight:800;font-size:15px;text-decoration:none;box-shadow:0 8px 22px rgba(255,154,61,.35);transition:transform .15s ease}
 .tb-go:hover{transform:translateY(-2px)}
 .tb-go:focus-visible{outline:3px solid #fff;outline-offset:3px}
-.tb-more{font-size:13px;color:#e3d6ee}
+.tb-more{padding:0;border:0;background:none;font:inherit;font-size:14px;font-weight:700;color:#fff;text-decoration:underline;text-underline-offset:3px;cursor:pointer}
 .tb-pic{position:relative;justify-self:center;width:min(100%,330px);aspect-ratio:3/4}
 .tb-pic img.tb-main{width:100%;height:100%;object-fit:cover;border-radius:18px;box-shadow:0 16px 40px rgba(0,0,0,.4);transform:rotate(2.5deg)}
 .tb-before{position:absolute;left:-14px;bottom:18px;display:grid;justify-items:center;gap:4px;font-size:10.5px;font-weight:800;letter-spacing:.1em}
@@ -70,7 +70,11 @@ export default function TrendBanner({ trend, starts }) {
             </Link>
           ))}
         </div>
-        {ready > 0 && <span className="tb-more">Or scroll down for our ready GTA designs · Free shipping</span>}
+        {ready > 0 && (
+          <button type="button" className="tb-more" onClick={() => document.getElementById("designs")?.scrollIntoView({ block: "start", behavior: "smooth" })}>
+            Or see our {ready} ready GTA designs ↓
+          </button>
+        )}
       </div>
       {trend.example && (
         <div className="tb-pic" aria-hidden="true">

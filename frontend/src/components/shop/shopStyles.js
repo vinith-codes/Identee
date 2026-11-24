@@ -90,6 +90,10 @@ export const SHOP_CSS = `
   .sh-perks span { display: inline-flex; gap: 6px; align-items: center; font-weight: 600; }
   .sh-perks a { color: #7A5B12; font-weight: 700; }
 
+  .sh-ready-head { margin: 8px 0 14px; scroll-margin-top: 200px; }
+  .sh-ready-head h2 { margin: 0 0 4px; font-size: clamp(24px, 3vw, 32px); font-weight: 800; color: var(--ink); }
+  .sh-ready-head p { margin: 0; font-size: 14.5px; line-height: 1.5; color: #5b554b; max-width: 640px; }
+  .sh-tabs .sh-chip { font-size: 15px; padding: 10px 20px; font-weight: 700; }
   .sh-collections { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr)); gap: 20px; }
   .sh-collection { position: relative; display: grid; grid-template-rows: auto 1fr; border-radius: 20px; overflow: hidden; text-decoration: none;
     color: #fff; background: var(--ink); transition: transform .3s ease, box-shadow .3s ease; }

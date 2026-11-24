@@ -5,6 +5,7 @@ import asyncHandler from "express-async-handler";
 import Trend from "../models/trendModel.js";
 import { listTrends, publicTrend } from "../services/trends.js";
 import { isOurUpload } from "./aiController.js";
+import { renameTrendTees, renamesOf } from "../services/trendTeeNames.js";
 
 const words = (v, max) => String(v ?? "").replace(/\s+/g, " ").trim().slice(0, max);
 const keyFrom = (v) => words(v, 40).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
@@ -66,16 +67,20 @@ export const saveTrend = asyncHandler(async (req, res) => {
     throw new Error("A trend needs a name, and its look in a sentence.");
   }
   // (a ready back that was swapped for its 4K copy keeps the small pictures it remembers — see services/trends.js)
+  let renames = [];
   if (set.backs) {
-    const now = await Trend.findById(req.params.id, { backs: 1 }).lean();
+    const now = await Trend.findById(req.params.id, { backs: 1, key: 1 }).lean();
     set.backs = set.backs.map((b) => ({ ...b, small: now?.backs?.find((x) => x.url === b.url)?.small || [] }));
+    // (24 Nov 2026) a ready design with a new name: its shop tees ("GTA · <name>") get the new name too
+    if (now) renames = renamesOf(now.key, now.backs || [], set.backs);
   }
   const row = await Trend.findByIdAndUpdate(req.params.id, set, { new: true }).lean();
   if (!row) {
     res.status(404);
     throw new Error("That trend is gone.");
   }
-  res.json({ trend: row });
+  const renamed = renames.length ? await renameTrendTees(renames) : 0;
+  res.json({ trend: row, renamed });
 });
 
 // POST /api/ai/trends/picture  (admin)  form field "design" -> { path }

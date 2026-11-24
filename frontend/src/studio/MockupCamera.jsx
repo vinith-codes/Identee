@@ -61,16 +61,18 @@ export default function MockupCamera({ job, onDone }) {
     };
   }, [job, model, lengthCm]);
 
-  // 2. once the 3D tee is drawn (or 8 s pass), the four pictures
+  // 2. once the 3D tee is drawn, the four pictures. (24 Nov 2026: it used to take them after 8 s even when the tee
+  // wasn't there yet — on a slow line the round-neck model hadn't arrived and a live GTA tee got four pictures of the
+  // empty stand. Now it waits up to 60 s for the tee, and without it there are no pictures: null, "couldn't be taken".)
   useEffect(() => {
     if (!areas) return undefined;
     let alive = true;
     (async () => {
-      for (let t = 0; t < 40 && alive && !(lit.current && roomApi.current); t++) await wait(200);
+      for (let t = 0; t < 300 && alive && !(lit.current && roomApi.current); t++) await wait(200);
       await wait(600); // the decals settle
       const api = roomApi.current;
       if (!alive) return;
-      if (!api) return doneRef.current(null);
+      if (!api || !lit.current) return doneRef.current(null);
       const pictures = {};
       for (const side of SIDES) pictures[side] = await cropMockup(api.snapshot(side));
       if (alive) doneRef.current(pictures.front && pictures.back ? pictures : null);

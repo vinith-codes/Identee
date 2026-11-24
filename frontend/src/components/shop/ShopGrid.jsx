@@ -71,10 +71,13 @@ function useProductPages(query) {
   return { data, loading: data.key !== key, error, more, loadMore };
 }
 
-function ProductGrid({ list, skeletons = 8, from = null }) {
+// a collection's "Make your own" tee (GTA · Make your own): the plain tee a customer puts their own photo on
+const isOwnTee = (p) => /·\s*make your own\s*$/i.test(p.brandname || "");
+
+function ProductGrid({ list, skeletons = 8, from = null, hideOwn = false }) {
   const { data, loading, more, loadMore } = list;
   // a design sold as Men's and as Women's is one card with Men / Women on it (utils/shopPairs.js)
-  const cards = useMemo(() => pairMenWomen(data.items), [data.items]);
+  const cards = useMemo(() => pairMenWomen(hideOwn ? data.items.filter((p) => !isOwnTee(p)) : data.items), [data.items, hideOwn]);
   return (
     <>
       <div className={`sh-grid${loading ? " is-loading" : ""}`}>
@@ -103,7 +106,7 @@ function StyleCard({ style, query, onOpen }) {
   if (loading) return <div className="sh-skel sh-style-skel" />;
   if (!data.total) return null;
   // (a collection's "Make your own" tee comes first but is the plain one: a designed tee's picture shows the style better)
-  const photo = (data.items.find((p) => !/·\s*make your own\s*$/i.test(p.brandname || "")) || data.items[0])?.images?.[0];
+  const photo = (data.items.find((p) => !isOwnTee(p)) || data.items[0])?.images?.[0];
   const who = forWhom(data.facets?.genders);
   const total = data.total - (data.items.length - pairMenWomen(data.items).length);
   return (
@@ -121,7 +124,13 @@ function StyleCard({ style, query, onOpen }) {
   );
 }
 
-export default function ShopGrid({ category = null, collection = null, collectionName = "", id = "shop" }) {
+/**
+ * defaultStyle + hideOwn (a trend's collection, GTA, 24 Nov 2026 — the owner: "the ready designs are not seen big"):
+ * the designs show straight away, starting with defaultStyle, with a tab per style instead of a card per style; the
+ * "Make your own" tees stay out of this grid (the banner above it is for them); every page is loaded so the count is
+ * right (a Men's + Women's pair split over two pages counted twice).
+ */
+export default function ShopGrid({ category = null, collection = null, collectionName = "", id = "shop", defaultStyle = "", hideOwn = false, heading = null }) {
   const location = useLocation();
   const [params, setParams] = useSearchParams();
   const f = Object.fromEntries(KEYS.map((k) => [k, params.get(k) || ""]));
@@ -132,7 +141,7 @@ export default function ShopGrid({ category = null, collection = null, collectio
     () => ({
       category: category || f.cat || undefined,
       collection: collection || undefined,
-      style: f.style || undefined,
+      style: f.style || defaultStyle || undefined,
       gender: f.gender || undefined,
       size: f.size || undefined,
       color: f.color || undefined,
@@ -141,12 +150,19 @@ export default function ShopGrid({ category = null, collection = null, collectio
       sort: f.sort || undefined,
       limit: PAGE_SIZE,
     }),
-    [category, collection, f.cat, f.style, f.gender, f.size, f.color, f.maxPrice, f.q, f.sort],
+    [category, collection, defaultStyle, f.cat, f.style, f.gender, f.size, f.color, f.maxPrice, f.q, f.sort],
   );
   const list = useProductPages(query);
   const { data, loading, error } = list;
-  // a Men's + Women's pair is one card, so it counts once
-  const shownTotal = data.total - (data.items.length - pairMenWomen(data.items).length);
+  const style = f.style || defaultStyle;
+  const tabs = Boolean(defaultStyle);
+  // a Men's + Women's pair is one card, so it counts once (and the "Make your own" tees left out are not counted)
+  const ownShown = hideOwn ? data.items.filter(isOwnTee).length : 0;
+  const shownTotal = data.total - ownShown - (data.items.length - ownShown - pairMenWomen(hideOwn ? data.items.filter((p) => !isOwnTee(p)) : data.items).length);
+  // tabs: load every page (54 Round Neck tees = 27 Men's + Women's pairs, more than one page of 48)
+  useEffect(() => {
+    if (tabs && !loading && !list.more && data.page > 0 && data.page < data.pages) list.loadMore();
+  }, [tabs, loading, list, data.page, data.pages]);
 
   // search box → address, after a short pause
   useEffect(() => {
@@ -172,6 +188,15 @@ export default function ShopGrid({ category = null, collection = null, collectio
     setParams(next, { preventScrollReset: true });
     document.getElementById(id)?.scrollIntoView({ block: "start", behavior: "smooth" });
   }
+  // a tab (defaultStyle) — Men / Women is chosen inside a style, so it starts again
+  function pickTab(s) {
+    const next = new URLSearchParams(params);
+    if (s && s !== defaultStyle) next.set("style", s);
+    else next.delete("style");
+    next.delete("gender");
+    setParams(next, { replace: true, preventScrollReset: true });
+    setTimeout(() => document.getElementById("designs")?.scrollIntoView({ block: "start" }), 60); // stay at the designs
+  }
   const clearAll = () => {
     const next = new URLSearchParams(params);
     KEYS.filter((k) => k !== "sort").forEach((k) => next.delete(k));
@@ -182,7 +207,7 @@ export default function ShopGrid({ category = null, collection = null, collectio
   const facets = data.facets;
   const active = [
     !category && f.cat && ["cat", facets?.categories.find((c) => c.slug === f.cat)?.name || f.cat],
-    f.style && ["style", f.style],
+    f.style && !tabs && ["style", f.style],
     f.gender && ["gender", f.gender.charAt(0).toUpperCase() + f.gender.slice(1)],
     f.size && ["size", `Size ${f.size}`],
     f.color && ["color", f.color],
@@ -196,11 +221,11 @@ export default function ShopGrid({ category = null, collection = null, collectio
   const byStyle = oneCategory && styles.length > 1;
   // where a product card was opened from, for the product page's back link ("SCENE Movie Products · Oversized")
   const catName = collectionName || (oneCategory ? oneCategoryName(data.items[0]?.category?.name) : "");
-  const from = { to: location.pathname + location.search, label: [catName || "Shop your IDENTEE", f.style].filter(Boolean).join(" · ") };
+  const from = { to: location.pathname + location.search, label: [catName || "Shop your IDENTEE", style].filter(Boolean).join(" · ") };
   // Unisex / Men / Women (only when the tees shown are for more than one of them)
   const genders = facets?.genders || [];
 
-  if (byStyle && !f.style) {
+  if (byStyle && !style) {
     return (
       <section id={id} className="sh-wrap" aria-label="Styles">
         <style>{SHOP_CSS}</style>
@@ -235,7 +260,19 @@ export default function ShopGrid({ category = null, collection = null, collectio
     <section id={id} className="sh-wrap" aria-label="Products">
       <style>{SHOP_CSS}</style>
 
-      {byStyle && (
+      {heading}
+
+      {byStyle && tabs && (
+        <div className="sh-cats sh-tabs" role="group" aria-label="Tee">
+          {styles.map((s) => (
+            <button key={s} type="button" className={`sh-chip${s === style ? " on" : ""}`} onClick={() => pickTab(s)} aria-pressed={s === style}>
+              {s}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {byStyle && !tabs && (
         <div className="sh-stylebar">
           <button type="button" className="sh-back" onClick={() => pickStyle("")}>
             ← All styles
@@ -253,7 +290,7 @@ export default function ShopGrid({ category = null, collection = null, collectio
             const on = f.gender.toLowerCase() === g.name.toLowerCase();
             return (
               <button key={g.name} type="button" className={`sh-chip${on ? " on" : ""}`} onClick={() => set("gender", on ? "" : g.name.toLowerCase())} aria-pressed={on}>
-                {g.name} <span className="sh-count">{g.count}</span>
+                {g.name} {!hideOwn && <span className="sh-count">{g.count}</span>}
               </button>
             );
           })}
@@ -354,7 +391,7 @@ export default function ShopGrid({ category = null, collection = null, collectio
 
       {error && <p className="sh-error">{error}</p>}
 
-      <ProductGrid list={list} from={from} />
+      <ProductGrid list={list} from={from} hideOwn={hideOwn} />
 
       {!loading && data.total === 0 && (
         <div className="sh-empty">

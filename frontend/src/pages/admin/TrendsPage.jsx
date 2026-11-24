@@ -88,8 +88,9 @@ function TrendCard({ row, first, last, onChanged, onMove }) {
   const save = async (body, done) => {
     setBusy("save");
     try {
-      await aiService.saveTrend(row._id, body);
-      toast.success(done);
+      const r = await aiService.saveTrend(row._id, body);
+      // (24 Nov 2026) a ready design's new name also goes on its shop tees
+      toast.success(r?.renamed ? `${done} ${r.renamed} shop tee${r.renamed === 1 ? "" : "s"} renamed too.` : done);
       onChanged();
     } catch (err) {
       toast.error(why(err));
