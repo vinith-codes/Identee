@@ -5,6 +5,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import studioService from "../../../services/studioService";
+import customizationService from "../../../services/customizationService";
+import MockupCamera from "../../../studio/MockupCamera";
+import { withSpots } from "../../../studio/panelModel";
 import { modelForGarment } from "../../../studio/teeModel";
 import { hasWebGL } from "../../../studio/webgl";
 import { imageUrl } from "../../../utils/imageUrl";
@@ -129,6 +132,76 @@ export default function StudioPage() {
     setBulk(null);
   };
 
+  // (24 Nov 2026, the owner: "make the front image like this for all the tees in Shop your IDENTEE" — the SCENE tees on
+  // a wooden hanger) a collection's tees in the shop get new pictures, the way Review takes them now: each print on the
+  // garment's hanger photo, true to size. Every colour on sale is taken again; the design, price and details stay.
+  const [shotJob, setShotJob] = useState(null);
+  const shotDone = useRef(null);
+  const shoot = (job) =>
+    new Promise((resolve) => {
+      shotDone.current = resolve;
+      setShotJob({ ...job, id: `pic${Date.now()}${Math.random()}` });
+    });
+  const onShots = (pictures) => {
+    setShotJob(null);
+    const done = shotDone.current;
+    shotDone.current = null;
+    done?.(pictures);
+  };
+  const repicture = async (c) => {
+    const list = c.live;
+    if (!list.length || !window.confirm(`Make new pictures for the ${list.length} ${c.key} tees in the shop (on the hanger photo, every colour)? Keep this page open — about ${Math.max(1, Math.round((list.length * 6) / 60))} minutes.`)) return;
+    setBulk({ key: c.key, done: 0, total: list.length });
+    const where = new Map();
+    const failed = [];
+    let done = 0;
+    for (const d of list) {
+      try {
+        const garment = garments.find((g) => g.key === d.garmentType);
+        if (!garment) throw new Error("its product is not live");
+        const full = await studioService.getDesign(d._id);
+        if (!where.has(garment.key)) where.set(garment.key, await customizationService.getPrintPositions(garment.key));
+        const { positions: catalog, maxPrint } = where.get(garment.key);
+        const positions = withSpots(catalog, full.elements || [], garment, maxPrint);
+        const slugs = (full.colours?.length ? full.colours.map((x) => x.slug) : [full.color]).filter((s) => garment.colours.some((x) => x.slug === s));
+        const colours = [];
+        for (const slug of slugs) {
+          const colour = garment.colours.find((x) => x.slug === slug);
+          const job = { garment, positions, size: full.size || "M", colourHex: colour.hex, colourSlug: slug, elements: full.elements || [] };
+          const pics = (await shoot(job)) || (await shoot(job));
+          if (!pics) throw new Error(`the pictures in ${colour.name} couldn't be taken`);
+          colours.push({ slug, mockups: pics });
+        }
+        const doc = await studioService.saveDesign(
+          {
+            garmentType: full.garmentType,
+            color: full.color,
+            size: full.size,
+            name: full.name,
+            blurb: full.blurb,
+            elements: full.elements,
+            issues: full.issues,
+            costInr: full.costInr,
+            service: full.service,
+            category: full.category,
+            sizes: full.sizes,
+            priceInr: full.priceInr,
+            product: full.product,
+            colours,
+          },
+          full._id,
+        );
+        setDesigns((cur) => cur.map((x) => (x._id === doc._id ? doc : x)));
+      } catch (err) {
+        failed.push(`${d.name}: ${apiError(err)}`);
+      }
+      done += 1;
+      setBulk({ key: c.key, done, total: list.length });
+    }
+    setBulk(null);
+    setError(failed.length ? `${failed.length} tee${failed.length === 1 ? "" : "s"} kept the old pictures — ${failed.slice(0, 5).join(" · ")}` : "");
+  };
+
   if (room) return <StudioRoom key={`${room.garment.key}:${room.design?._id || "new"}`} setup={setup} garment={room.garment} colourSlug={room.colourSlug} design={room.design} draft={room.draft} onLeave={leave} />;
 
   const draftGarment = draft && !draft.designId && garments.find((g) => g.key === draft.garment);
@@ -213,6 +286,11 @@ export default function StudioPage() {
                             Put back in the shop
                           </button>
                         )}
+                        {c.live.length > 0 && (
+                          <button type="button" className="st-btn st-btn-small" disabled={Boolean(bulk)} onClick={() => repicture(c)}>
+                            New pictures (hanger photo)
+                          </button>
+                        )}
                       </div>
                     )}
                   </article>
@@ -221,6 +299,7 @@ export default function StudioPage() {
             </>
           )}
 
+          {shotJob && <MockupCamera key={shotJob.id} job={shotJob} onDone={onShots} />}
           <h2 className="st-h2">Tees made in the Studio</h2>
           {!designs.length && <p className="st-note">Nothing yet. Open the studio above and design your first tee.</p>}
           <div className="st-list">

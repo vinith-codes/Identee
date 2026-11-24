@@ -26,6 +26,7 @@ import { ICON_ADD, ICON_AI, ICON_AREAS, isNarrow, writeDraft } from "./studioBit
 import PictureAssistant from "./PictureAssistant";
 import { DTF_RULES, dtfFixes, dtfIssues, softPictures } from "./studioCheck";
 import { PICTURES_CHANGED } from "../../../studio/pictureHelpers";
+import { withSpots } from "../../../studio/panelModel";
 import "../../../studio/designRoom.css";
 import "./studio.css";
 
@@ -632,7 +633,9 @@ export default function StudioRoom({ setup, garment, colourSlug: firstColour, de
   const takeMockups = (colourHex) =>
     new Promise((resolve) => {
       jobDone.current = resolve;
-      setJob({ id: `job${nextReq()}`, garment, positions, size, colourHex, elements: elRef.current });
+      // (24 Nov 2026) with the prints in free places too ("spot-1": the big GTA back) — the room's own areas don't have
+      // them, so a GTA tee's Review took a Back picture without its design
+      setJob({ id: `job${nextReq()}`, garment, positions: withSpots(positions, elRef.current, garment), size, colourHex, elements: elRef.current });
     });
   const onShots = (pictures) => {
     setJob(null);

@@ -4,6 +4,8 @@
 // — for the admin's Collection maker (25 Oct 2026). The 3D tee is drawn off screen in a 4:5 frame (so the pictures
 // never get black side bars), each print area painted with the same renderer as the design room, then the
 // same studio snapshots as the design room's Review are taken.
+// Since 24 Nov 2026 the pictures are made on the garment's hanger photo when it has one (hangerPhoto.js); the 3D tee
+// is only for a garment or colour without a photo.
 //
 // <MockupCamera job={{ id, garment, positions, size, colourHex, elements }} onDone={(pictures | null) => …} />
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -13,6 +15,7 @@ import { modelForGarment, placeArea, widenFor } from "./teeModel";
 import { cropMockup } from "./mockupCrop";
 import { areaPx } from "./designFinish";
 import { fontsReady } from "./fonts";
+import { hangerPictures } from "./hangerPhoto";
 
 const SIDES = ["front", "back", "left", "right"];
 const FRAME = { w: 640, h: 800 };
@@ -21,6 +24,7 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 export default function MockupCamera({ job, onDone }) {
   const roomApi = useRef(null);
   const [areas, setAreas] = useState(null); // the painted areas, once fonts and pictures are in
+  const [use3D, setUse3D] = useState(false); // no hanger photo for this garment / colour: the 3D tee's pictures
   const lit = useRef(false);
   const doneRef = useRef(onDone);
   useEffect(() => {
@@ -61,11 +65,28 @@ export default function MockupCamera({ job, onDone }) {
     };
   }, [job, model, lengthCm]);
 
-  // 2. once the 3D tee is drawn, the four pictures. (24 Nov 2026: it used to take them after 8 s even when the tee
+  // 2. the pictures on the garment's hanger photo (24 Nov 2026, the owner: "make the front image like this for all the
+  // tees" — the SCENE tees on a wooden hanger); without a photo for this garment and colour, the 3D tee's
+  useEffect(() => {
+    if (!areas) return undefined;
+    let alive = true;
+    hangerPictures(job, model, areas)
+      .catch(() => null)
+      .then((pictures) => {
+        if (!alive) return;
+        if (pictures?.front && pictures?.back) doneRef.current(pictures);
+        else setUse3D(true);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [areas, job, model]);
+
+  // 3. (no hanger photo) once the 3D tee is drawn, the four pictures. (24 Nov 2026: it used to take them after 8 s even when the tee
   // wasn't there yet — on a slow line the round-neck model hadn't arrived and a live GTA tee got four pictures of the
   // empty stand. Now it waits up to 60 s for the tee, and without it there are no pictures: null, "couldn't be taken".)
   useEffect(() => {
-    if (!areas) return undefined;
+    if (!areas || !use3D) return undefined;
     let alive = true;
     (async () => {
       for (let t = 0; t < 300 && alive && !(lit.current && roomApi.current); t++) await wait(200);
@@ -80,7 +101,7 @@ export default function MockupCamera({ job, onDone }) {
     return () => {
       alive = false;
     };
-  }, [areas]);
+  }, [areas, use3D]);
 
   // (no 3D model for this garment: nothing to take)
   useEffect(() => {
@@ -90,7 +111,7 @@ export default function MockupCamera({ job, onDone }) {
   if (!model) return null;
   return (
     <div aria-hidden="true" style={{ position: "fixed", left: -10000, top: 0, width: FRAME.w, height: FRAME.h, pointerEvents: "none" }}>
-      {areas && (
+      {areas && use3D && (
         <Room3D
           ref={roomApi}
           model={model}
