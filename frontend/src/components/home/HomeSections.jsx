@@ -596,10 +596,12 @@ export function HomeSteps() {
 
 /* ---------- featured ready-made products ---------- */
 /* ---------- SCENE Movie Products: Shop your IDENTEE's tees, just before "Create your IDENTEE" (30 Oct 2026) ---------- */
-export function HomeScene({ products, total }) {
+// (24 Nov 2026) the GTA and Ayyappa collections get the same row: collection = its key; its name's first word stands out
+export function HomeScene({ products, total, collection = "scene" }) {
   if (products.length < 3) return null; // too few to look like a collection
-  const link = collectionLink("scene");
-  const info = collectionInfo("scene");
+  const link = collectionLink(collection);
+  const info = collectionInfo(collection);
+  const [first, ...rest] = String(info.name).split(" ");
   const styles = [...new Set(products.map((p) => p.garmentStyle).filter(Boolean))].sort().map((name) => {
     return { name, from: Math.min(...products.filter((p) => p.garmentStyle === name).map((p) => p.price)) };
   });
@@ -610,7 +612,15 @@ export function HomeScene({ products, total }) {
           <div>
             <p className="hm-eyebrow">{SHOPS.shop.name} · Collection</p>
             <h2>
-              <span className="word">SCENE</span> Movie Products
+              {collection === "scene" ? (
+                <>
+                  <span className="word">SCENE</span> Movie Products
+                </>
+              ) : (
+                <>
+                  <span className="word">{first}</span> {rest.join(" ")}
+                </>
+              )}
             </h2>
             <p>{info.text} Every one can be customized: add a name, change the colour, make it yours.</p>
           </div>
@@ -641,7 +651,7 @@ export function HomeScene({ products, total }) {
                   {p.customisable && <span className="badge">✎ Customizable</span>}
                   <span className="quick">View tee</span>
                 </div>
-                <h3>{p.brandname.replace(/^SCENE\s*·\s*/i, "")}</h3>
+                <h3>{p.brandname.replace(/^[^·]*·\s*/, "")}</h3>
                 {/* a Men & Women card (utils/homeScene.js) leaves the colour out, so the line fits a phone card */}
                 <small className="st">{[p.garmentStyle, p.gender, p.gender === "Men & Women" ? null : shown.name].filter(Boolean).join(" · ")}</small>
                 <div className="pr">
@@ -665,6 +675,147 @@ export function HomeScene({ products, total }) {
             See all {total || products.length} tees <span className="arr">→</span>
           </Link>
         </div>
+      </div>
+    </section>
+  );
+}
+
+/* ---------- the collections stage: GTA, Ayyappa … in one section (24 Nov 2026) ---------- */
+// The owner: "in the home page the gta and ayyappa tees should be visible what we made for scene" — then, on two rows
+// like SCENE's: "not like this combine both and make it. show your innovation". So one stage: a tab per collection,
+// each in its own colours; a big tee that turns round (the big back picture, then the front words) and eight more.
+const STAGE = {
+  ayyappa: { tag: "Devotional", bg: "radial-gradient(120% 95% at 88% 8%, #8a4510 0%, #3a1c07 42%, #140b04 100%)", accent: "#F3B749", glow: "rgba(243, 183, 73, .32)" },
+  gta: { tag: "Game art", bg: "radial-gradient(120% 95% at 88% 8%, #c64a62 0%, #4b2068 44%, #140a22 100%)", accent: "#FFB86B", glow: "rgba(255, 128, 160, .32)" },
+  scene: { tag: "Movie art", bg: "radial-gradient(120% 95% at 88% 8%, #4a4a52 0%, #1d1d22 45%, #0d0d10 100%)", accent: "#E6D3A3", glow: "rgba(230, 211, 163, .28)" },
+};
+const teeHref = (p, shown) => {
+  const who = wearerFor(`${p.category?.name || ""} ${p.category?.slug || ""}`);
+  const ask = new URLSearchParams({ ...(who ? { for: who } : {}), colour: String(shown.name || "").toLowerCase().replace(/\s+/g, "-") });
+  return p.readyDesignSlug ? `/ready-made/design/${p.readyDesignSlug}?${ask}` : `/product/${p._id}`;
+};
+const teeName = (p) => String(p.brandname || "").replace(/^[^·]*·\s*/, "");
+const shownOf = (p) => p.shownColour || { name: p.color, image: p.images?.[0] };
+
+export function HomeCollections({ rows }) {
+  const [on, setOn] = useState(0);
+  const [turned, setTurned] = useState(false); // the big tee shows its other side
+  const [hold, setHold] = useState(false); // a hand on the stage: the tee stops turning by itself
+  const row = rows[Math.min(on, Math.max(0, rows.length - 1))];
+  const hero = row?.products[0];
+  const other = hero && shownOf(hero).name === hero.color ? hero.images?.[1] : null; // its other side, when known
+  // the big tee turns round every few seconds (not for visitors who ask for less motion)
+  useEffect(() => {
+    if (!other || hold || reduceMotion()) return undefined;
+    const t = setInterval(() => setTurned((x) => !x), 3800);
+    return () => clearInterval(t);
+  }, [other, hold, on]);
+  if (!row || !hero) return null;
+  const look = STAGE[row.key] || STAGE.scene;
+  const info = collectionInfo(row.key);
+  const link = collectionLink(row.key);
+  const shown = shownOf(hero);
+  const more = row.products.slice(1, 9);
+  const styles = [...new Set(row.products.map((p) => p.garmentStyle).filter(Boolean))].sort().map((name) => ({ name, from: Math.min(...row.products.filter((p) => p.garmentStyle === name).map((p) => p.price)) }));
+  const pick = (i) => {
+    setOn(i);
+    setTurned(false);
+  };
+  const onKeys = (e) => {
+    const step = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
+    if (!step) return;
+    e.preventDefault();
+    const i = (on + step + rows.length) % rows.length;
+    pick(i);
+    e.currentTarget.querySelectorAll("[role=tab]")[i]?.focus();
+  };
+  return (
+    <section className="hm-sec hm-cx" aria-label="Our collections">
+      <div className="hm-wrap">
+        <div className="hm-cx-head" data-reveal>
+          <div>
+            <p className="hm-eyebrow">{SHOPS.shop.name} · Collections</p>
+            <h2>
+              Pick your <span className="word">story</span>
+            </h2>
+            <p>Finished tees from our collections, printed big and true to size. Every one can be customized: add a name or a photo, make it yours.</p>
+          </div>
+          <div className="hm-cx-tabs" role="tablist" aria-label="Collections" onKeyDown={onKeys}>
+            {rows.map((r, i) => {
+              const l = STAGE[r.key] || STAGE.scene;
+              const pic = shownOf(r.products[0]).image;
+              return (
+                <button key={r.key} type="button" role="tab" id={`cx-tab-${r.key}`} aria-controls="cx-stage" aria-selected={i === on} tabIndex={i === on ? 0 : -1} className={`hm-cx-tab${i === on ? " on" : ""}`} style={{ "--cx-accent": l.accent, "--cx-bg": l.bg }} onClick={() => pick(i)}>
+                  {pic && <img src={imageUrl(pic, 160)} alt="" loading="lazy" />}
+                  <span>
+                    <b>{collectionInfo(r.key).name}</b>
+                    <small>
+                      {l.tag} · {r.total || r.products.length} tees
+                    </small>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div id="cx-stage" role="tabpanel" aria-labelledby={`cx-tab-${row.key}`} key={row.key} className="hm-cx-stage" style={{ "--cx-bg": look.bg, "--cx-accent": look.accent, "--cx-glow": look.glow }} onMouseEnter={() => setHold(true)} onMouseLeave={() => setHold(false)} onFocus={() => setHold(true)} onBlur={() => setHold(false)}>
+          <div className="hm-cx-hero">
+            <Link className="hm-cx-flip-link" to={teeHref(hero, shown)} aria-label={`${teeName(hero)} — see the tee`}>
+              <div className={`hm-cx-flip${turned && other ? " turned" : ""}`}>
+                <img className="face" src={imageUrl(shown.image, 900)} alt="" />
+                {other && <img className="face rear" src={imageUrl(other, 900)} alt="" />}
+              </div>
+            </Link>
+            <div className="hm-cx-hero-foot">
+              <div>
+                <b>{teeName(hero)}</b>
+                <small>
+                  {[hero.garmentStyle, hero.gender].filter(Boolean).join(" · ")} · {money(hero.price)}
+                </small>
+              </div>
+              {other && (
+                <button type="button" className="hm-cx-turn" onClick={() => setTurned((x) => !x)} aria-pressed={turned}>
+                  <span aria-hidden="true">↻</span> {turned ? "See the back" : "See the front"}
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div className="hm-cx-side">
+            <p className="hm-cx-tag">{look.tag} collection</p>
+            <h3>{info.name}</h3>
+            {info.text && <p className="hm-cx-text">{info.text}</p>}
+            <div className="hm-cx-styles">
+              {styles.map((s) => (
+                <Link key={s.name} to={`${link}?style=${encodeURIComponent(s.name)}`}>
+                  <b>{s.name}</b> from {money(s.from)} <i aria-hidden="true">→</i>
+                </Link>
+              ))}
+            </div>
+            <div className="hm-cx-grid">
+              {more.map((p) => {
+                const sh = shownOf(p);
+                return (
+                  <Link key={p.key || p.groupId} className="hm-cx-mini" to={teeHref(p, sh)}>
+                    <span className="ph">
+                      {sh.image && <img src={imageUrl(sh.image, 400)} alt="" loading="lazy" onError={(e) => (e.currentTarget.style.visibility = "hidden")} />}
+                      {sh.name === p.color && p.images?.[1] && <img className="alt" src={imageUrl(p.images[1], 400)} alt="" loading="lazy" />}
+                    </span>
+                    <b>{teeName(p)}</b>
+                    <small>
+                      {p.garmentStyle} · {money(p.price)}
+                    </small>
+                  </Link>
+                );
+              })}
+            </div>
+            <Link className="hm-btn hm-cx-all" to={link}>
+              See all {row.total || row.products.length} {info.name} tees <span className="arr">→</span>
+            </Link>
+          </div>
+        </div>
+        <p className="hm-cx-foot">✎ Customize any tee · Free shipping on {SHOPS.shop.name} orders</p>
       </div>
     </section>
   );

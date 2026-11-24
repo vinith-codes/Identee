@@ -15,6 +15,9 @@ import { coverPhoto, isSellable } from "../utils/garments";
 import { imageUrl } from "../utils/imageUrl";
 import shopService from "../services/shopService";
 import { pickSceneTees } from "../utils/homeScene";
+
+// the collections that get a row on the home page next to SCENE's (24 Nov 2026)
+const HOME_ROWS = ["gta", "ayyappa"];
 import subVideo1 from "../assets/videos/sub-video1.mp4";
 import hoodieVideo from "../assets/videos/hoodie.mp4";
 import polosVideo from "../assets/videos/polos.mp4";
@@ -24,6 +27,7 @@ import {
   HomeWays,
   HomeSteps,
   HomeScene,
+  HomeCollections,
   HomeOutlook,
   HomeFinal,
   HomePhoto,
@@ -115,6 +119,7 @@ export default function Home() {
   // "Shop your IDENTEE" open (Admin → Settings → General), else Coming soon: no featured products, the card says so
   const shopOpen = publicSettings?.["general.shopOpen"] === true;
   const [scene, setScene] = useState([]); // SCENE Movie Products: featured first, topped up with the newest
+  const [rows, setRows] = useState({}); // the GTA and Ayyappa tees: { gta: [...], ayyappa: [...] }
   const [collections, setCollections] = useState([]); // Shop your IDENTEE's collections (SCENE Movie Products…)
   const root = useRef(null);
 
@@ -132,12 +137,17 @@ export default function Home() {
       shopService.listProducts({ collection: "scene", featured: 1, limit: 12 }).catch(() => ({ items: [] })),
       shopService.listProducts({ collection: "scene", limit: 48 }).catch(() => ({ items: [] })),
       shopService.listProducts({ limit: 1 }).catch(() => ({ items: [] })),
-    ]).then(([f, n, all]) => {
+      ...HOME_ROWS.map((key) => shopService.listProducts({ collection: key, limit: 48 }).catch(() => ({ items: [] }))),
+    ]).then(([f, n, all, ...more]) => {
       if (!alive) return;
       setCollections(all.facets?.collections || []);
       // only tees that have a photo: online, or on our own server (/uploads/..., since the move from Cloudinary on 6 Nov 2026)
-      const pool = [...f.items, ...n.items].filter((p, i, a) => /^(https?:\/\/|\/uploads\/)/.test(p.images?.[0] || "") && a.findIndex((x) => x.key === p.key) === i);
-      setScene(pickSceneTees(pool)); // the newest designs first, White and dark in turn, at most two green (utils/homeScene.js)
+      const withPhoto = (list) => list.filter((p, i, a) => /^(https?:\/\/|\/uploads\/)/.test(p.images?.[0] || "") && a.findIndex((x) => x.key === p.key) === i);
+      setScene(pickSceneTees(withPhoto([...f.items, ...n.items]))); // the newest designs first, White and dark in turn, at most two green (utils/homeScene.js)
+      // (24 Nov 2026, the owner: "in the home page the gta and ayyappa tees should be visible what we made for scene")
+      // a row each like SCENE's, black tees only, picture tees first (the shop's own order); the plain "Make your own"
+      // GTA tee stays in the shop
+      setRows(Object.fromEntries(HOME_ROWS.map((key, i) => [key, pickSceneTees(withPhoto(more[i].items).filter((p) => !/·\s*make your own\s*$/i.test(p.brandname || "")), 10, { dark: true })])));
     });
     return () => {
       alive = false;
@@ -179,8 +189,10 @@ export default function Home() {
   // the ready-made card shows three garment photos (always clean, same backdrop)
   const stackPhotos = colours.slice(2, 5).map((c) => c.front);
 
-  useReveal(root, [scene.length, colours.length]);
+  useReveal(root, [scene.length, colours.length, rows]);
   const sceneTotal = collections.find((c) => c.key === "scene")?.count || 0;
+  // the GTA and Ayyappa rows, in the shop's order of collections (the newest first)
+  const homeRows = HOME_ROWS.map((key) => ({ key, products: rows[key] || [], total: collections.find((c) => c.key === key)?.count || 0, at: collections.findIndex((c) => c.key === key) })).sort((a, b) => (a.at < 0 ? 99 : a.at) - (b.at < 0 ? 99 : b.at));
 
   return (
     <div className="hm" ref={root}>
@@ -238,6 +250,8 @@ export default function Home() {
       {/* ("Trending now" — the GTA card — left the home page on 23 Nov 2026: the owner moved GTA into Shop your IDENTEE
           as a collection of its own; HomeTrends stays in HomeSections.jsx, not shown) */}
       {shopOpen && <HomeScene products={scene} total={sceneTotal} />}
+      {/* GTA, Ayyappa … together: one stage, a tab per collection (24 Nov 2026, the owner: "combine both") */}
+      {shopOpen && <HomeCollections rows={homeRows.filter((r) => r.products.length >= 3)} />}
       <HomeCreate colours={colours} />
       <HomePhoto />
       <HomeWays garment={garment} customPhoto={garment ? coverPhoto(garment, garmentImages) : null} stackPhotos={stackPhotos} custom={custom} ready={ready} shopOpen={shopOpen} />

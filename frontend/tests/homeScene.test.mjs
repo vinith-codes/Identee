@@ -83,3 +83,19 @@ test("never more than asked for, and nothing from nothing", () => {
   assert.equal(pickSceneTees(cards).length, 9);
   assert.deepEqual(pickSceneTees([]), []);
 });
+
+// (24 Nov 2026) the GTA and Ayyappa rows: black tees only — "make the front 4 with black tees"
+test("a dark row has no White tee: a Black + White tee shows in Black, a White-only tee is left out", () => {
+  const row = pickSceneTees(
+    [
+      tee("Words White", "Oversized", "Unisex", ["White"]),
+      tee("Sun Rider", "Oversized", "Unisex", ["Black", "White"]),
+      tee("Tiger", "Round Neck", "Men", ["White", "Black"]),
+      tee("Darshanam", "Oversized", "Unisex", ["Black"]),
+    ],
+    10,
+    { dark: true },
+  );
+  assert.deepEqual(row.map((p) => `${short(p)} ${p.shownColour.name}`), ["Sun Rider Black", "Tiger Black", "Darshanam Black"]);
+  assert.ok(pickSceneTees(cards, 6).some((p) => p.shownColour.name === "White"), "the SCENE row still mixes in White");
+});

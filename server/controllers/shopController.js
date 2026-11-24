@@ -13,7 +13,7 @@ import ReadyDesign from "../models/readyDesignModel.js";
 import GarmentType from "../models/garmentTypeModel.js";
 import { applySubscriptionPrice } from "../utils/applySubscriptionPrice.js";
 import { collectionOf, collectionTitle, shownInShop } from "../utils/shopRules.js";
-import { studioPrice, wearerFor } from "../services/studioService.js";
+import { backFirst, studioPrice, wearerFor } from "../services/studioService.js";
 
 const SIZE_ORDER = ["XXS", "XS", "S", "M", "L", "XL", "XXL", "2XL", "3XL", "4XL", "5XL", "FREE SIZE"];
 const sizeRank = (s) => {
@@ -76,10 +76,13 @@ export const listShopProducts = asyncHandler(async (req, res) => {
   // a Studio tee (printed to order) opens its own page: its slug goes on the card. Its price is worked out here from
   // its garment (Round Neck ₹499, Oversized ₹699), so a tee saved before a price change shows the right price.
   const designIds = [...new Set(all.filter((d) => d.readyDesign).map((d) => String(d.readyDesign)))];
-  const designs = designIds.length ? await ReadyDesign.find({ _id: { $in: designIds } }).select("slug priceInr garmentType product.oldPrice").lean() : [];
+  const designs = designIds.length ? await ReadyDesign.find({ _id: { $in: designIds } }).select("slug priceInr garmentType product.oldPrice elements.side elements.fixed").lean() : [];
   const garments = designs.length ? await GarmentType.find({ key: { $in: [...new Set(designs.map((r) => r.garmentType))] } }).select("key basePrice comparePrice").lean() : [];
   const designOf = new Map();
-  for (const r of designs) designOf.set(String(r._id), { slug: r.slug, ...(await studioPrice(r, garments.find((g) => g.key === r.garmentType))) });
+  for (const r of designs) designOf.set(String(r._id), { slug: r.slug, back: backFirst(r), ...(await studioPrice(r, garments.find((g) => g.key === r.garmentType))) });
+  // (24 Nov 2026, the owner on the Ayyappa collection: "make the front 4 with black tees") how well a colour shows a
+  // collection off: a dark tee before a White one, and a tee sold by its big back picture before a words-only one
+  const showcase = (d) => (norm(d.productdetails?.color) === "white" ? 0 : 2) + (d.readyDesign && designOf.get(String(d.readyDesign))?.back ? 1 : 0);
   for (const d of all) {
     const r = d.readyDesign && designOf.get(String(d.readyDesign));
     if (!r?.price) continue;
@@ -165,11 +168,13 @@ export const listShopProducts = asyncHandler(async (req, res) => {
     });
   };
 
+  const shownBy = new Map(); // card -> showcase() of the colour it shows
   const cards = [...matchedCards.entries()].map(([key, hits]) => {
     const docs = byCard.get(key);
     const colours = oneEach(docs).sort((a, b) => a.createdAt - b.createdAt);
     // the card shows the first matching colour (the one you filtered for)
     const rep = [...hits].sort(byRank)[0];
+    shownBy.set(key, showcase(rep));
     const priced = applySubscriptionPrice(rep, req.user);
     const cat = categoryOf(rep);
     return {
@@ -200,6 +205,8 @@ export const listShopProducts = asyncHandler(async (req, res) => {
   });
   cards.sort(SORTS[sort]);
   if (anyWord && q) cards.sort((a, b) => (wordHits.get(b.key) || 0) - (wordHits.get(a.key) || 0));
+  // one collection, newest first: its black picture tees lead (the owner, 24 Nov 2026 — see showcase)
+  if (collection && collection !== "none" && sort === "newest" && !q) cards.sort((a, b) => (shownBy.get(b.key) || 0) - (shownBy.get(a.key) || 0));
   // in-stock first, keeping the chosen order within each part
   cards.sort((a, b) => Number(b.inStock) - Number(a.inStock));
   // a collection's "Make your own" tee (the plain GTA tee a customer puts their own photo on, 23 Nov 2026) comes first
@@ -222,7 +229,8 @@ export const listShopProducts = asyncHandler(async (req, res) => {
   const prices = facetDocs.map((d) => d.price).filter((p) => p > 0);
   // the collections ("none" = tees with no collection name): how many tees, its styles, and a few tees' pictures for its card
   const collections = new Map();
-  for (const d of all.filter((x) => categoryOf(x)).sort((a, b) => b.createdAt - a.createdAt)) {
+  // (the card's four pictures: the newest designs, black picture tees first — showcase)
+  for (const d of all.filter((x) => categoryOf(x)).sort((a, b) => showcase(b) - showcase(a) || b.createdAt - a.createdAt)) {
     const key = collectionOf(d.brandname) || "none";
     if (!collections.has(key)) collections.set(key, { key, name: collectionTitle(d.brandname), docs: [], styles: new Set(), photos: [], tees: new Set() });
     const c = collections.get(key);

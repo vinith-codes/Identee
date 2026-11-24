@@ -16,7 +16,9 @@ const LATER = 0.1; // how much a tee further down the newest-first list counts a
 // card before is in it), so Black, White and other colours mix. At most two green. When one style runs out the other
 // fills the row. A design sold for men and for women is one card (the men's tee, marked "Men & Women").
 // Returns up to `count` cards, each with `shownColour` ({ name, image }).
-export function pickSceneTees(cards, count = 10) {
+// dark (24 Nov 2026, the GTA and Ayyappa rows — the owner: "make the front 4 with black tees"): no White tee on the row;
+// a tee sold only in White is left out.
+export function pickSceneTees(cards, count = 10, { dark = false } = {}) {
   const rank = (name) => SCENE_COLOURS.indexOf(name) + 1 || 99;
   const styleOf = (p) => (STYLES.includes(p.garmentStyle) ? p.garmentStyle : STYLES[0]);
   const id = (p) => `${p.brandname}|${styleOf(p)}`;
@@ -37,7 +39,7 @@ export function pickSceneTees(cards, count = 10) {
       if (shown.has(p.brandname) || seen.has(p.brandname)) return;
       seen.add(p.brandname);
       const green = out.filter((c) => c.shownColour.name === "Bottle Green").length;
-      const colours = (p.colors || []).filter((c) => c.name !== "Bottle Green" || green < MAX_GREEN);
+      const colours = (p.colors || []).filter((c) => (c.name !== "Bottle Green" || green < MAX_GREEN) && !(dark && /^white$/i.test(c.name || "")));
       const colour = colours.sort((a, b) => cost(a.name) - cost(b.name) || rank(a.name) - rank(b.name))[0];
       if (!colour) return;
       const score = cost(colour.name) + seen.size * LATER;
