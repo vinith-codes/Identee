@@ -549,6 +549,11 @@ const PanelEditor = forwardRef(function PanelEditor({ view, prints, openBox = nu
         printsG.add(pg);
         const byId = buildNodes(pg, pr.elements, pr.W, pr.H);
         byId.forEach((g, id) => {
+          // a shop collection's locked logo (`fixed`, the GTA tees, 23 Nov 2026): drawn, but not picked or moved
+          if (pr.elements.some((e) => String(e.id) === String(id) && e.fixed)) {
+            g.listening(false);
+            return;
+          }
           s.groups.set(id, g);
           s.printOf.set(id, pr);
           g.draggable(true);

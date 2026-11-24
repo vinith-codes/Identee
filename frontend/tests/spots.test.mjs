@@ -547,7 +547,7 @@ test("Bigger / the chat's 'make it bigger' on a print in a free place: it grows,
   assert.ok(room.includes("const fontSizePct = Math.min(isSpotKey(e.position) ? 100 : 60, Math.max(2, e.fontSizePct * f));"));
   assert.ok(room.includes("max={isSpotKey(sel.position) ? 100 : 60}"));
   // (phase 3: the first thing put in a new "Anywhere" print takes its box in between: panelDrag.test.mjs)
-  assert.ok(room.includes('let made = normaliseSpots(typeof next === "function" ? next(prev) : next, prev);'));
+  assert.ok(room.includes('let made = normaliseSpots(keepFixed(typeof next === "function" ? next(prev) : next, prev), prev);'));
   assert.ok(room.includes("const value = reboxChanged(made, prev, spotCtx.current);"));
 });
 

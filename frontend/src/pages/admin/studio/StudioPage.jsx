@@ -94,6 +94,41 @@ export default function StudioPage() {
     }
   };
 
+  // (24 Nov 2026, the owner: "remove all the SCENE t-shirts from the shop") a whole collection out of the shop — or back
+  // in — in one press: each of its tees is unpublished (kept here, its orders untouched) / published again. "Back in"
+  // only takes tees that were in the shop before (publishedAt), never a draft.
+  const collections = useMemo(() => {
+    const map = new Map();
+    for (const d of designs) {
+      const parts = String(d.name || "").split(" · ");
+      if (parts.length < 2) continue;
+      const key = parts[0].trim();
+      if (!map.has(key)) map.set(key, { key, live: [], out: [] });
+      if (d.status === "published") map.get(key).live.push(d);
+      else if (d.status === "ready" && d.publishedAt) map.get(key).out.push(d);
+    }
+    return [...map.values()];
+  }, [designs]);
+  const [bulk, setBulk] = useState(null); // { key, done, total }
+  const bulkAct = async (c, action) => {
+    const list = action === "unpublish" ? c.live : c.out;
+    const words = action === "unpublish" ? `Take all ${list.length} ${c.key} tees out of the shop? They stay here and can be put back.` : `Put ${list.length} ${c.key} tees back in the shop?`;
+    if (!list.length || !window.confirm(words)) return;
+    setBulk({ key: c.key, done: 0, total: list.length });
+    let done = 0;
+    for (const d of list) {
+      try {
+        const doc = await studioService.act(d._id, action);
+        setDesigns((cur) => cur.map((x) => (x._id === doc._id ? doc : x)));
+      } catch (err) {
+        setError(`${d.name}: ${apiError(err)}`);
+      }
+      done += 1;
+      setBulk({ key: c.key, done, total: list.length });
+    }
+    setBulk(null);
+  };
+
   if (room) return <StudioRoom key={`${room.garment.key}:${room.design?._id || "new"}`} setup={setup} garment={room.garment} colourSlug={room.colourSlug} design={room.design} draft={room.draft} onLeave={leave} />;
 
   const draftGarment = draft && !draft.designId && garments.find((g) => g.key === draft.garment);
@@ -153,6 +188,38 @@ export default function StudioPage() {
             })}
             {!garments.length && <p className="st-note">No live products. Make one live in Admin → Create your IDENTEE first.</p>}
           </div>
+
+          {collections.length > 0 && (
+            <>
+              <h2 className="st-h2">Collections in the shop</h2>
+              <div className="st-list" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 280px), 1fr))" }}>
+                {collections.map((c) => (
+                  <article key={c.key} className="st-tee" style={{ display: "grid", gap: 8, padding: 14 }}>
+                    <b>{c.key}</b>
+                    <small className="st-note">
+                      {c.live.length} in the shop{c.out.length ? ` · ${c.out.length} taken out` : ""}
+                    </small>
+                    {bulk?.key === c.key ? (
+                      <small className="st-note">Working… {bulk.done} / {bulk.total}</small>
+                    ) : (
+                      <div className="st-row">
+                        {c.live.length > 0 && (
+                          <button type="button" className="st-btn st-btn-small" disabled={Boolean(bulk)} onClick={() => bulkAct(c, "unpublish")}>
+                            Take all out of the shop
+                          </button>
+                        )}
+                        {c.out.length > 0 && (
+                          <button type="button" className="st-btn st-btn-small st-btn-primary" disabled={Boolean(bulk)} onClick={() => bulkAct(c, "publish")}>
+                            Put back in the shop
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </article>
+                ))}
+              </div>
+            </>
+          )}
 
           <h2 className="st-h2">Tees made in the Studio</h2>
           {!designs.length && <p className="st-note">Nothing yet. Open the studio above and design your first tee.</p>}

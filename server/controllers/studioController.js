@@ -135,7 +135,7 @@ export const changePicture = asyncHandler(async (req, res) => {
 
 // GET /api/studio/designs  (admin) — the Studio's tees, newest first
 export const listStudioDesigns = asyncHandler(async (req, res) => {
-  res.json(await ReadyDesign.find({ source: "studio" }).sort({ updatedAt: -1 }).limit(200).lean());
+  res.json(await ReadyDesign.find({ source: "studio" }).sort({ updatedAt: -1 }).limit(500).lean());
 });
 
 // GET /api/studio/designs/:id  (admin)

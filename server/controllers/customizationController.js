@@ -58,6 +58,8 @@ const cleanElement = (positionByKey) => (el, i) => {
     ...(el.opacity != null && Number(el.opacity) < 1 ? { opacity: clampNum(el.opacity, 0.05, 1, 1) } : {}),
     ...(el.flipH ? { flipH: true } : {}),
     ...(el.flipV ? { flipV: true } : {}),
+    // a shop collection's own logo, locked in place (the GTA tees, 23 Nov 2026); left out on everything else
+    ...(el.fixed === true ? { fixed: true } : {}),
   };
 
   if (el.type === "image") {

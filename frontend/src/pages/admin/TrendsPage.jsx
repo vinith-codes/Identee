@@ -1,4 +1,7 @@
 // Admin → Design Studio → Trends ("Trending now", 23 Nov 2026)
+// (later the same day the owner moved GTA from the home page into Shop your IDENTEE: the home card is gone; a trend is
+// now a shop collection — "Make GTA shop tees" below makes its tees, and its look, logo and ready backs drive the
+// "Put my photo on it" assistant on them. Keep it switched ON: OFF hides the photo box.)
 // The looks a customer's photo can be redrawn in — "GTA style" is the first. The shop's home page shows a card for
 // each trend that is switched on; tapping it opens the trend's own assistant in the Design Room (pick the tee, send a
 // photo, choose one of three tees made from it). A new trend needs no release: add it here, then switch it on.
@@ -18,6 +21,7 @@ import { toast } from "react-toastify";
 import aiService from "../../services/aiService";
 import { THEME as theme } from "../../theme/theme";
 import { imageUrl } from "../../utils/imageUrl";
+import TrendShopTees from "./TrendShopTees";
 
 const btn = (kind = "light", off = false) => ({
   minHeight: 40,
@@ -135,7 +139,7 @@ function TrendCard({ row, first, last, onChanged, onMove }) {
       </div>
       <div style={{ minWidth: 0, display: "grid", gap: 12, alignContent: "start" }}>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-          <span style={{ padding: "4px 10px", borderRadius: 999, fontSize: 12, fontWeight: 700, background: row.active ? "#E4F3E7" : "#F1ECE1", color: row.active ? "#1F6B34" : theme.textMuted }}>{row.active ? "ON — customers see it" : "OFF — only the team can try it"}</span>
+          <span style={{ padding: "4px 10px", borderRadius: 999, fontSize: 12, fontWeight: 700, background: row.active ? "#E4F3E7" : "#F1ECE1", color: row.active ? "#1F6B34" : theme.textMuted }}>{row.active ? "ON — in Shop your IDENTEE" : "OFF — its shop tees can't be made with a photo"}</span>
           <button type="button" style={btn(row.active ? "light" : "dark", Boolean(busy))} disabled={Boolean(busy)} onClick={() => save({ active: !row.active }, row.active ? "Switched off." : "Switched on.")}>
             {row.active ? "Switch off" : "Switch on"}
           </button>
@@ -161,7 +165,7 @@ function TrendCard({ row, first, last, onChanged, onMove }) {
           <input style={field} maxLength={300} value={form.colours} onChange={(e) => setForm((f) => ({ ...f, colours: e.target.value }))} placeholder="Black, White" />
         </label>
         <div style={{ display: "grid", gap: 6 }}>
-          <span style={{ ...label, display: "block" }}>Front logo — on the front of every tee of this trend (the customer can still change it). Use a large, sharp picture; a see-through PNG prints best.</span>
+          <span style={{ ...label, display: "block" }}>Front logo — on the front of every tee of this trend, locked (the customer can’t move or remove it). Use a large, sharp picture; a see-through PNG prints best.</span>
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
             {row.front ? <img src={imageUrl(row.front, 300)} alt="" style={{ ...thumb, width: 96, aspectRatio: "1" }} /> : <span style={{ fontSize: 12.5, color: theme.textMuted }}>No front logo yet — the front is left empty.</span>}
             <input ref={frontRef} type="file" accept="image/png,image/jpeg,image/webp" hidden onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; uploadFront(f); }} />
@@ -197,6 +201,8 @@ function TrendCard({ row, first, last, onChanged, onMove }) {
             </button>
           </div>
         </div>
+        {/* (23 Nov 2026) the trend's ready designs as shop tees in Shop your IDENTEE */}
+        <TrendShopTees trend={row} />
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           <button type="button" style={btn("dark", !dirty || Boolean(busy))} disabled={!dirty || Boolean(busy)} onClick={() => save({ name: form.name, look: form.look, setting: form.setting, colours: form.colours.split(",") }, "Saved.")}>
             {busy === "save" ? "Saving…" : "Save changes"}

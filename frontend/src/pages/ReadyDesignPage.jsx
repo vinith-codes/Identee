@@ -16,6 +16,9 @@ import ShopComingSoon from "../components/ShopComingSoon";
 import { useShopOpen } from "../utils/shopOpen";
 import { SHOPS } from "../utils/shopNames";
 import { photosFor } from "../utils/wearerFor";
+import { collectionOf } from "../utils/shopRules";
+import TrendPhotoBox from "../components/shop/TrendPhotoBox";
+import useTrend from "../utils/useTrend";
 import "./readyDesign.css";
 
 const SIDES = [
@@ -56,6 +59,8 @@ export default function ReadyDesignPage() {
   const [qtys, setQtys] = useState({});
   const [busy, setBusy] = useState("");
   const [msg, setMsg] = useState(null); // { text, bad }
+  // a trend's tee ("GTA · …", 23 Nov 2026): the customer can put their own photo on the back in the trend's look
+  const trend = useTrend(collectionOf(design?.name));
 
   useEffect(() => {
     let alive = true;
@@ -169,6 +174,13 @@ export default function ReadyDesignPage() {
       const copy = await myCopy();
       if (copy) navigate(`/customize/${copy.garmentType}?design=${copy.customizationId}`);
     });
+  // "Put my photo on it": their copy, with the trend's assistant asking for the photo (DesignRoomPage startTrend)
+  const photoIt = () =>
+    run("photo", async () => {
+      const copy = await myCopy();
+      if (copy) navigate(`/customize/${copy.garmentType}?design=${copy.customizationId}`, { state: { trend: { key: trend.key, name: trend.name, colours: trend.colours || [] } } });
+    });
+  const ownTee = /·\s*make your own\s*$/i.test(design.name || "");
 
   return (
     <Page>
@@ -192,6 +204,8 @@ export default function ReadyDesignPage() {
         <div className="rd-info">
           <h1>{design.name}</h1>
           {design.blurb && <p className="rd-blurb">{design.blurb}</p>}
+          {/* ("Make your own": the photo is the point of this tee — its box comes first) */}
+          {ownTee && <TrendPhotoBox trend={trend} own onGo={photoIt} busy={busy === "photo"} addOn={design.pictureAddOn} />}
           <p className="rd-note" style={{ margin: "0 0 10px", display: "flex", alignItems: "center", gap: 6 }}>
             <span className="rd-dot" style={{ background: picked.hex }} />
             {design.garmentLabel} · {picked.name}
@@ -240,6 +254,8 @@ export default function ReadyDesignPage() {
               {msg.text} {!msg.bad && <Link to="/cart">See your cart →</Link>}
             </p>
           )}
+          {/* (23 Nov 2026) a GTA tee: their own photo on the back, in the GTA look */}
+          {!ownTee && <TrendPhotoBox trend={trend} onGo={photoIt} busy={busy === "photo"} addOn={design.pictureAddOn} />}
           {/* the client, 30 Oct 2026: the customer should know they can make this tee their own */}
           <div className="rd-customize">
             <b>✎ Make it yours</b>

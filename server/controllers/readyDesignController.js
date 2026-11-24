@@ -9,6 +9,7 @@ import GarmentType from "../models/garmentTypeModel.js";
 import Setting from "../models/settingModel.js";
 import { shownInShop } from "../utils/shopRules.js";
 import { aiDesignAddOn } from "../utils/aiPricing.js";
+import { backFirst } from "../services/studioService.js";
 
 const shopOpen = async () => (await Setting.findOne({ key: "general.shopOpen" }).select("value").lean())?.value === true;
 const SLUG = /^[a-z0-9-]{3,60}$/;
@@ -37,7 +38,8 @@ const sizesOf = (design, garment) => {
 };
 const colourOf = (garment, slug) => garment?.colors?.find((c) => c.slug === slug) || null;
 // the side the picture is printed on (the shop shows that side first)
-const heroOf = (design) => (design.elements || []).find((e) => e.type === "image")?.side === "back" ? "back" : "front";
+// (a GTA tee — the locked logo on the front, its design on the back — shows the back: services/studioService.js backFirst)
+const heroOf = (design) => (backFirst(design) || (design.elements || []).find((e) => e.type === "image")?.side === "back" ? "back" : "front");
 
 // GET /api/ready-designs  (public) -> { open, designs: [...] }
 export const listReadyDesigns = asyncHandler(async (req, res) => {

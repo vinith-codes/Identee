@@ -586,6 +586,9 @@ export async function studioPrice(design, garment) {
   return { price, oldPrice: was };
 }
 
+/** A tee shown back first: its front is a collection's locked logo (the GTA tees, 23 Nov 2026) and it has a back print. */
+export const backFirst = (design) => (design.elements || []).some((e) => e.fixed && e.side === "front") && (design.elements || []).some((e) => e.side === "back");
+
 /**
  * Makes or refreshes the tee's product(s) in the shop — one per colour on sale — and returns the group id.
  * design: a saved ReadyDesign (mongoose doc); garment: from studioGarments(); userId: the admin.
@@ -618,7 +621,11 @@ export async function syncStudioProduct(design, garment, userId) {
     const photos = (c.photos || []).filter((p) => p.url);
     const first = who ? photos.filter((p) => p.wearer === who) : photos;
     const rest = photos.filter((p) => !first.includes(p));
-    const images = [c.mockups?.front, ...first.map((p) => p.url), c.mockups?.back, c.mockups?.left, c.mockups?.right, ...rest.map((p) => p.url)].filter(Boolean).slice(0, 8);
+    // (23 Nov 2026) a tee whose front is its collection's locked logo (the GTA tees) sells by its back: the back first
+    const images = (backFirst(design)
+      ? [c.mockups?.back, c.mockups?.front, ...first.map((p) => p.url), c.mockups?.left, c.mockups?.right, ...rest.map((p) => p.url)]
+      : [c.mockups?.front, ...first.map((p) => p.url), c.mockups?.back, c.mockups?.left, c.mockups?.right, ...rest.map((p) => p.url)]
+    ).filter(Boolean).slice(0, 8);
     const fields = {
       brandname: design.name,
       description: d.description || design.blurb || `${design.name} — printed to order on the ${garment.label}.`,

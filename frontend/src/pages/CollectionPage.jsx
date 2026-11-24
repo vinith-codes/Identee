@@ -12,6 +12,8 @@ import { SHOP_CSS } from "../components/shop/shopStyles";
 import { useShopOpen } from "../utils/shopOpen";
 import { SHOPS } from "../utils/shopNames";
 import { collectionInfo } from "../utils/shopRules";
+import TrendBanner from "../components/shop/TrendBanner";
+import useTrend from "../utils/useTrend";
 
 const C = { ink: "#15130F", gold: "#C9A24B" };
 
@@ -20,6 +22,26 @@ export default function CollectionPage() {
   const shop = useShopOpen();
   const [found, setFound] = useState(null); // the collection from the shop's list; false = not in the shop
   const info = collectionInfo(key, found?.name);
+  // a trend's collection (GTA, 23 Nov 2026): "Make your own" first — which tee to start from (its "Make your own" tees)
+  const trend = useTrend(key);
+  const [starts, setStarts] = useState(null);
+  useEffect(() => {
+    if (!trend || !shop.open) return undefined;
+    let alive = true;
+    shopService
+      .listProducts({ collection: key, q: "make your own", limit: 12 })
+      .then((d) => {
+        if (!alive) return;
+        const own = (d.items || []).filter((p) => /·\s*make your own\s*$/i.test(p.brandname || "") && p.readyDesignSlug);
+        const label = (p) => (p.garmentStyle === "Oversized" ? "Oversized tee" : `${p.garmentStyle || "Tee"}${p.gender && p.gender !== "Unisex" ? ` · ${p.gender}` : ""}`);
+        const order = (p) => (p.garmentStyle === "Oversized" ? 0 : p.gender === "Men" ? 1 : 2);
+        setStarts([...own].sort((a, b) => order(a) - order(b)).map((p) => ({ label: label(p), to: `/ready-made/design/${p.readyDesignSlug}` })));
+      })
+      .catch(() => alive && setStarts([]));
+    return () => {
+      alive = false;
+    };
+  }, [trend, key, shop.open]);
 
   useEffect(() => {
     if (!shop.open) return undefined;
@@ -67,6 +89,7 @@ export default function CollectionPage() {
           <span>✎ Every tee can be customized: change the words, add your name or a photo.</span>
           <span>Free shipping on {SHOPS.shop.name} tees</span>
         </p>
+        {found && trend && starts?.length > 0 && <TrendBanner trend={trend} starts={starts} />}
         {found && <ShopGrid key={key} collection={key} collectionName={info.name} />}
       </div>
     </div>

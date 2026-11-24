@@ -133,7 +133,13 @@ export default function AreaEditor({ elements, W, H, fabric, selectedId, onSelec
       if (!alive) return;
       layer.destroyChildren();
       const byId = buildNodes(layer, elements, W, H);
+      // a shop collection's locked logo (`fixed`, the GTA tees, 23 Nov 2026): drawn, but not picked, moved or resized
+      const locked = new Set(elements.filter((e) => e.fixed).map((e) => String(e.id)));
       byId.forEach((g) => {
+        if (locked.has(g.id())) {
+          g.listening(false);
+          return;
+        }
         g.draggable(true);
         g.on("pointerdown", () => st.current.props.onSelect(g.id()));
         g.on("dragmove", () => {
@@ -167,7 +173,7 @@ export default function AreaEditor({ elements, W, H, fabric, selectedId, onSelec
         g.on("transform", () => liveFrom(g));
         g.on("transformend", () => commitFrom(g));
       });
-      const sel = selectedId != null ? byId.get(String(selectedId)) : null;
+      const sel = selectedId != null && !locked.has(String(selectedId)) ? byId.get(String(selectedId)) : null;
       st.current.selGroup = sel || null;
       tr.nodes(sel ? [sel] : []);
       layer.draw();

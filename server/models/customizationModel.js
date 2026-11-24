@@ -101,6 +101,11 @@ const elementSchema = new mongoose.Schema(
     // changing one in the Design Room changes the others with the same link.
     link: { type: String, enum: ["team", "solo"] }, // solo = was linked, now changed on its own (can be switched back)
 
+    // (23 Nov 2026, the owner: "the front side is fixed and the remaining all they can customize") a shop collection's
+    // own logo (the GTA logo on the front of every GTA tee): the customer can't move, resize or remove it. No default,
+    // so every other element is stored and read back exactly as before.
+    fixed: { type: Boolean, default: undefined },
+
     // placement
     spot: { type: spotSchema, default: undefined }, // only on an element in a free place
     x: { type: Number, required: true },

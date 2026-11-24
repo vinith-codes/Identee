@@ -25,7 +25,8 @@ import PanelEditor from "./PanelEditor";
 import { AreaRenderer, cachedImage, imageSrcs, loadImage, measureText, playerElements, printThumb } from "./konvaRender";
 import { MAX_PLAYERS, NAME_MAX, NUMBER_MAX, filled, hasRoles, parsePlayers, playerLabel, rolesIn, sizeCounts } from "./teamOrder";
 import { areaCm, blockersOf, clashesIn, modelForGarment, placeArea, pointToCm, widenFor } from "./teeModel";
-import { JOIN_CM, MAX_SPOTS, SPOT_SIDES, applySpotFix, areaBoxCm, bigBackPrint, elementToSpot, isSpotKey, normaliseSpots, reboxChanged, reboxSpot, spotPosition, spotsIn, spotWhere, withSpotBoxes } from "./panelModel";
+import { JOIN_CM, MAX_SPOTS, SPOT_SIDES, applySpotFix, areaBoxCm, isSpotKey, normaliseSpots, reboxChanged, reboxSpot, spotPosition, spotsIn, spotWhere, withSpotBoxes } from "./panelModel";
+import { keepFixed, putBigBack } from "./trendTee";
 import { CAP_MSG, dropThing, keepInside, movedThing, panelBox, panelView, scaledThing, snapLines, spotCount, startBox } from "./panelDrag";
 import AreaThumb from "./AreaThumb";
 import { AREA_GROUPS, groupOfSide, listOrder } from "./areaGroups";
@@ -296,7 +297,7 @@ export default function DesignRoomPage() {
   const [panelZoomed, setPanelZoomed] = useState(false);
   const [nudged, setNudged] = useState(0); // a nudge (arrow keys, Centre): the panel says the new size and place
   const panelRef = useRef(null);
-  const told = useRef({ edge: false, left: false }); // the "Move anywhere" hint and the first "Moved outside" note, once a visit
+  const told = useRef({ edge: false, left: false, fixed: false }); // the "Move anywhere" hint and the first "Moved outside" note, once a visit
   // (the pending box is listed only until the design has a print with its key: never twice)
   const positions = useMemo(() => withSpotBoxes(catalog, pending && !spotBoxes.some((b) => b.key === pending.key) ? [...spotBoxes, pending] : spotBoxes, garment, maxPrint), [catalog, spotBoxes, pending, garment, maxPrint]);
   const [active, setActive] = useState(null); // print area key being edited
@@ -694,7 +695,8 @@ export default function DesignRoomPage() {
     const prev = elementsRef.current;
     // (every thing in a free place carries its spot's box: a new picture or words there take it; a thing made bigger,
     // copied or added past the box's edge grows the box round it, so nothing is cut off — panelModel.js)
-    let made = normaliseSpots(typeof next === "function" ? next(prev) : next, prev);
+    // (a shop tee's locked logo stays as it was, whatever the change — studio/trendTee.js keepFixed)
+    let made = normaliseSpots(keepFixed(typeof next === "function" ? next(prev) : next, prev), prev);
     // the first thing put in a new free place ("Anywhere", phase 3) takes its box, boxed round it from then on (also
     // when it comes with the box already: the Assistant's words carry their place's box)
     const wait = pendingRef.current;
@@ -1433,7 +1435,12 @@ export default function DesignRoomPage() {
     clearTimeout(hoverCam.current.timer);
     hoverCam.current.side = null;
     setAreasOpen(false);
-    setSelectedId((cur) => (elements.some((e) => e.id === cur && e.position === key) ? cur : elements.filter((e) => e.position === key).at(-1)?.id ?? null));
+    setSelectedId((cur) => (elements.some((e) => e.id === cur && e.position === key && !e.fixed) ? cur : elements.filter((e) => e.position === key && !e.fixed).at(-1)?.id ?? null));
+    // (a shop tee's locked logo here: said once a visit — it can't be picked, the customer adds their own things round it)
+    if (elements.some((e) => e.position === key && e.fixed) && !told.current.fixed) {
+      told.current.fixed = true;
+      say("🔒 The logo stays as it is on this tee. Add your own words or pictures around it, and change anything else.");
+    }
     // the editor is a column beside the 3D view (not on top of it), so the area can fill the view
     setCamRequest({ area: key, side: pos.side, sleeve: pos.side === "left" || pos.side === "right", narrow, overlayPx: 0, fill: 0.74, lift: 0.03, keep: true, n: nextReq() });
   };
@@ -1859,6 +1866,7 @@ export default function DesignRoomPage() {
     );
   };
   const removeSel = () => {
+    if (elements.find((e) => e.id === selectedId)?.fixed) return say("🔒 The logo stays as it is on this tee.");
     commit((prev) => prev.filter((e) => e.id !== selectedId));
     setSelectedId(null);
     say("Deleted.", { label: "Undo", onClick: undo });
@@ -2407,21 +2415,8 @@ export default function DesignRoomPage() {
     // (23 Nov 2026, the owner: "it is looking small") printed big — as big as the print team's biggest back print
     // (bigBackPrint), a print of its own just under the collar — not fitted inside Full Back (a tall picture came out
     // 22 cm wide); Full Back as before when that can't be
-    let el = { ...aiElement(pos, cut, kept.length + 1), aiLayout: "back" };
-    let next = [...kept, el];
-    let key = pos.key;
-    const big = bigBackPrint(garment, sizeNow, maxPrint, cut.w / cut.h);
-    const area = big && areaBoxCm(pos, sizeNow, garment);
-    if (big && area?.w && area?.h) {
-      const put = { ...el, rotation: 0, x: ((area.w - big.w) / 2 / area.w) * 100, y: ((big.down - area.down) / area.h) * 100, width: (big.w / area.w) * 100, height: (big.h / area.h) * 100 };
-      const spotted = elementToSpot([...kept, put], put.id, { positions, garment, size: sizeNow, maxPrint });
-      const now = spotted.find((e) => e.id === put.id);
-      if (now && isSpotKey(now.position)) {
-        el = now;
-        next = spotted;
-        key = now.position;
-      }
-    }
+    // (the same rules as the shop's GTA tees: studio/trendTee.js)
+    const { elements: next, el, key } = putBigBack(kept, { ...aiElement(pos, cut, kept.length + 1), aiLayout: "back" }, { positions, garment, size: sizeNow, maxPrint, shape: cut.w / cut.h });
     commit(() => next);
     setAiPlaced((cur) => ({ ...Object.fromEntries(Object.entries(cur).filter(([k]) => !isBack(k))), [key]: { url: a.url, elId: el.id, layout: "back" } }));
     openArea(key, { force: true });
@@ -3689,6 +3684,7 @@ export default function DesignRoomPage() {
   // the home page's ways in, on entering the room: the idea to the assistant, or straight to a tool
   const startWith = () => {
     if (trendLink && !trendStarted.current) {
+      if (openId && onScreenId.current !== openId) return undefined; // (the shop tee's copy is still loading: it starts then)
       trendStarted.current = true;
       return startTrend(trendLink);
     }
@@ -3715,29 +3711,37 @@ export default function DesignRoomPage() {
       const img = await loadImage(t.front, { full: true });
       const cut = { path: t.front, w: img.naturalWidth, h: img.naturalHeight };
       aiCuts.current.set(t.front, cut);
-      return { ...aiElement(pos, cut, 1), trendFront: t.key };
+      // (locked in place: "the front side is fixed", the owner, 23 Nov 2026 — the customer can't move or remove it)
+      return { ...aiElement(pos, cut, 1), trendFront: t.key, fixed: true };
     } catch {
       return null;
     }
   };
   const startTrend = async (link) => {
     setChatsOpen(false);
+    // (23 Nov 2026, GTA in Shop your IDENTEE) the customer's own copy of a GTA shop tee, opened by "Put my photo on it"
+    // on its page: the trend's assistant starts ON that tee — its locked logo, its back, its shop price and free
+    // shipping stay (it is the same saved design); the chat it had goes to Chats
+    const copy = shopTee && designId && shopTee.id === designId ? { designId, name: designName, elements: elementsRef.current, colour: colour?.slug, size: sizeNow } : null;
     await saveChatNow({ asKept: syncing.current });
     // the whole trend (its colours, front picture and ready backs): from the AI's status, or asked for now
     const known = (ai.trends || []).find((x) => x.key === link.key);
     const t = known || (await aiService.trends().then((r) => (r?.trends || []).find((x) => x.key === link.key)).catch(() => null)) || link;
-    const front = await trendFront(t);
+    const front = copy ? null : await trendFront(t);
     setTrendWaiting(false);
-    applyChat({ id: makeId(), body: { chat: trendHello(t), chatState: { ...firstState(), ...trendState(t) }, design: { colour: trendColours(colours, t).find((c) => c.slug === colour?.slug)?.slug || trendColours(colours, t)[0]?.slug, size: sizeNow, elements: front ? [front] : [] } } });
+    applyChat({ id: makeId(), body: { chat: trendHello(t), chatState: { ...firstState(), ...trendState(t) }, design: copy || { colour: trendColours(colours, t).find((c) => c.slug === colour?.slug)?.slug || trendColours(colours, t)[0]?.slug, size: sizeNow, elements: front ? [front] : [] } } });
     setAiTab("chat");
   };
   // "Trending now" into a room that is already open (a design in progress — there is no first screen to press, so
   // startWith is never called): the trend starts once the room is up. Found on the first on-screen run, 23 Nov 2026.
+  // (a GTA shop tee's copy opened by its address — "Put my photo on it", 23 Nov 2026: not before that tee is on screen,
+  // so the trend starts on it, not on the tee this browser had)
   useEffect(() => {
     if (!trendLink || trendStarted.current || step !== "design" || !garment || !positions.length) return undefined;
+    if (openId && onScreenId.current !== openId) return undefined;
     const t = setTimeout(() => startWith(), 1200);
     return () => clearTimeout(t);
-  }, [step, garment, positions.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [step, garment, positions.length, shopTee]); // eslint-disable-line react-hooks/exhaustive-deps
   // the team page's way in: the Team jersey layout, then the assistant asks for the players
   // withAssistant: "Design with the Assistant" opens it; "Design it myself" doesn't (the editor opens on the layout,
   // and the assistant's note about the list is there if they open it later — or they fill the list in Review)
@@ -4310,7 +4314,7 @@ export default function DesignRoomPage() {
     );
   }
 
-  const sel = elements.find((e) => e.id === selectedId) || null;
+  const sel = elements.find((e) => e.id === selectedId && !e.fixed) || null; // (a locked logo has no settings: studio/trendTee.js)
   // The editor always gets the committed design: feeding it the live drag
   // state would rebuild its items mid-drag (that made dragging slow / jumpy).
   const activeEls = elements.filter((e) => e.position === active);

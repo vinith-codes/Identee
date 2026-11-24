@@ -202,6 +202,9 @@ export const listShopProducts = asyncHandler(async (req, res) => {
   if (anyWord && q) cards.sort((a, b) => (wordHits.get(b.key) || 0) - (wordHits.get(a.key) || 0));
   // in-stock first, keeping the chosen order within each part
   cards.sort((a, b) => Number(b.inStock) - Number(a.inStock));
+  // a collection's "Make your own" tee (the plain GTA tee a customer puts their own photo on, 23 Nov 2026) comes first
+  const ownTee = (c) => Number(/·\s*make your own\s*$/i.test(c.brandname || ""));
+  cards.sort((a, b) => ownTee(b) - ownTee(a));
 
   const total = cards.length;
   const items = cards.slice((page - 1) * limit, page * limit).map((c) => ({ ...c, createdAt: new Date(c.createdAt) }));

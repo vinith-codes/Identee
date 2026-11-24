@@ -15,6 +15,8 @@ import ShopAsk from "../components/shop/ShopAsk";
 import { SHOP_CSS } from "../components/shop/shopStyles";
 import { imageUrl } from "../utils/imageUrl";
 import { collectionInfo, collectionLink } from "../utils/shopRules";
+import useTrend from "../utils/useTrend";
+import TrendCollectionCard from "../components/shop/TrendCollectionCard";
 
 // one collection: four of its tees, its name, how many tees and in which styles
 function CollectionCard({ c }) {
@@ -37,6 +39,12 @@ function CollectionCard({ c }) {
       </span>
     </Link>
   );
+}
+
+// a trend's collection (GTA, 24 Nov 2026): same-size card that says "your photo → GTA version" — the others as before
+function AnyCollection({ c }) {
+  const trend = useTrend(c.key);
+  return trend ? <TrendCollectionCard trend={trend} c={c} /> : <CollectionCard c={c} />;
 }
 
 export default function ReadyMadePage() {
@@ -81,7 +89,7 @@ export default function ReadyMadePage() {
         <div className="sh-collections">
           {collections === null && !error
             ? [0, 1].map((i) => <div key={i} className="sh-skel" style={{ aspectRatio: "5 / 5.4", borderRadius: 20 }} />)
-            : (collections || []).map((c) => <CollectionCard key={c.key} c={c} />)}
+            : (collections || []).map((c) => <AnyCollection key={c.key} c={c} />)}
         </div>
         {collections?.length === 0 && <p style={{ color: "#71695B" }}>New collections are coming soon.</p>}
       </main>

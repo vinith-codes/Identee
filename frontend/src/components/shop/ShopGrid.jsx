@@ -102,7 +102,8 @@ function StyleCard({ style, query, onOpen }) {
   const { data, loading } = useProductPages({ ...query, style, limit: 48 });
   if (loading) return <div className="sh-skel sh-style-skel" />;
   if (!data.total) return null;
-  const photo = data.items[0]?.images?.[0];
+  // (a collection's "Make your own" tee comes first but is the plain one: a designed tee's picture shows the style better)
+  const photo = (data.items.find((p) => !/·\s*make your own\s*$/i.test(p.brandname || "")) || data.items[0])?.images?.[0];
   const who = forWhom(data.facets?.genders);
   const total = data.total - (data.items.length - pairMenWomen(data.items).length);
   return (

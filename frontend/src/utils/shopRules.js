@@ -5,7 +5,15 @@
 // a collection's name and words on its card (a collection not listed here shows its own name, e.g. "SCENE")
 const COLLECTIONS = {
   scene: { name: "SCENE Movie Products", text: "Tees made from movie scenes and posters." },
+  // (23 Nov 2026, the owner: GTA moves from the home page into Shop your IDENTEE — the logo fixed on the front, the back
+  // one of our designs or the customer's own photo in the GTA look; the tees are made in Admin → Trends)
+  gta: { name: "GTA Style", text: "The GTA logo on the front. On the back, one of our designs — or your own photo, redrawn in the GTA look." },
   none: { name: "More IDENTEE tees", text: "Finished designs, ready to wear." },
 };
 export const collectionInfo = (key, ownName = "") => COLLECTIONS[key] || { name: ownName || key, text: "" };
 export const collectionLink = (key) => `/ready-made/${key}`;
+// "GTA · Vinewood" → "gta" (the same as the server's collectionOf): a tee's collection, from its name
+export const collectionOf = (name) => {
+  const parts = String(name || "").split(" · ");
+  return parts.length > 1 ? parts[0].trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") : "";
+};
