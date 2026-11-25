@@ -22,6 +22,7 @@ import { chunks, collectionRows, collectionsBody, colourGroups, filterTees, grou
 import MockupCamera from "../../studio/MockupCamera";
 import ListShopTees from "./shop/ListShopTees";
 import { minutesFor, remakePictures } from "./shop/newPictures";
+import TeeViewer from "./shop/TeeViewer";
 import "./shopManage.css";
 
 const apiError = (err) => err?.response?.data?.message || err?.message || "That didn't work. Please try again.";
@@ -454,6 +455,8 @@ function TeeList({ tees, busy, run }) {
   const [ticked, setTicked] = useState(() => new Set());
   const [shown, setShown] = useState(PAGE);
   const [panel, setPanel] = useState(""); // "price" | "colour" | "delete"
+  // (25 Nov 2026) a tee clicked: big front + back (shop/TeeViewer); ‹ › walk the list as filtered at that moment
+  const [view, setView] = useState(null); // { id, order }
   const list = useMemo(() => filterTees(tees, f), [tees, f]);
   // (a tee deleted or no longer there leaves the ticks)
   const ids = new Set(tees.map((t) => t._id));
@@ -539,9 +542,13 @@ function TeeList({ tees, busy, run }) {
             <label className="sm-tee-tick">
               <input type="checkbox" checked={ticked.has(t._id)} onChange={() => tick(t._id)} aria-label={`Tick ${t.name}`} />
             </label>
-            <div className="sm-tee-pic">{t.picture ? <img src={imageUrl(t.picture, 160)} alt="" loading="lazy" /> : null}</div>
+            <button type="button" className="sm-tee-pic" onClick={() => setView({ id: t._id, order: list.map((x) => x._id) })} aria-label={`See ${nameOf(t)} big`} title="See it big">
+              {t.picture ? <img src={imageUrl(t.picture, 160)} alt="" loading="lazy" /> : null}
+            </button>
             <div className="sm-tee-body">
-              <b>{nameOf(t)}</b>
+              <button type="button" className="sm-tee-name" onClick={() => setView({ id: t._id, order: list.map((x) => x._id) })} title="See it big">
+                {nameOf(t)}
+              </button>
               <small>
                 {collectionInfo(t.collection, t.collectionName).name} · {t.style || "—"} · {t.gender}
               </small>
@@ -618,6 +625,7 @@ function TeeList({ tees, busy, run }) {
           {panel === "delete" && <DeleteBox count={picked.length} what={`the ${plural(picked.length, "ticked tee")}`} onCancel={() => setPanel("")} onDelete={() => act("Delete for good", { action: "delete" })} />}
         </div>
       )}
+      {view && <TeeViewer key={view.order.join()} order={view.order} startId={view.id} tees={tees} busy={busy} run={run} ticked={ticked} onTick={tick} onClose={() => setView(null)} />}
     </section>
   );
 }
