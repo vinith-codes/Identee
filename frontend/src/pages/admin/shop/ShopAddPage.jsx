@@ -8,7 +8,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import studioService from "../../../services/studioService";
 import customizationService from "../../../services/customizationService";
-import { BACK_SPOTS, FRONT_SPOTS, buildShopTee, fullName, printDpi, shopSize, shopStyles, styleLabel } from "../../../studio/shopTeeBuilder";
+import { BACK_SPOTS, FRONT_SPOTS, SLEEVE_SPOTS, buildShopTee, fullName, printDpi, shopSize, shopStyles, spotNote, styleLabel } from "../../../studio/shopTeeBuilder";
 import { imageUrl } from "../../../utils/imageUrl";
 import useTeeMaker, { familyFor, uploadPicture, why } from "./useTeeMaker";
 import { PictureBox, SpotPicker, StylesPicker } from "./shopAddParts";
@@ -32,9 +32,11 @@ export default function ShopAddPage() {
   // 2. pictures: { file, preview, w, h } | null
   const [front, setFront] = useState(null);
   const [back, setBack] = useState(null);
+  const [sleeve, setSleeve] = useState(null); // optional: a small picture for one arm or both
   // 3. where they print
   const [frontSpot, setFrontSpot] = useState("centre-front");
   const [backSpot, setBackSpot] = useState("full-back");
+  const [sleeveSpot, setSleeveSpot] = useState("left-sleeve");
   const [lockFront, setLockFront] = useState(false);
   // 4–6. styles, their colours and prices: { [garmentKey]: { on, colours: [slugs], price, oldPrice } }
   const [picks, setPicks] = useState({});
@@ -77,7 +79,8 @@ export default function ShopAddPage() {
   const setPick = (key, patch) => setPicks((p) => ({ ...p, [key]: { ...p[key], ...patch } }));
   const dpiOf = (pic, spot, side) => {
     if (!pic || !first || spot === "none") return null;
-    const pos = (first.positions || []).find((p) => p.key === spot) || (first.positions || []).find((p) => p.side === side && p.main);
+    const key = spot === "both-sleeves" ? "left-sleeve" : spot;
+    const pos = (first.positions || []).find((p) => p.key === key) || (first.positions || []).find((p) => p.side === side && p.main);
     return printDpi(pic, pos, shopSize(first), spot === "full-back" ? 92 : 100);
   };
 
@@ -85,10 +88,11 @@ export default function ShopAddPage() {
     chosen
       .filter((g) => !taken.includes(g))
       .map((g) => ({
-        t: { name: full, label: name.trim(), about: about.trim() || collectionName, frontSpot: front ? frontSpot : "none", backSpot: back ? backSpot : "none", lockFront, price: Number(picks[g.key].price) || 0, oldPrice: Number(picks[g.key].oldPrice) || 0, description, featured, family },
+        t: { name: full, label: name.trim(), about: about.trim() || collectionName, frontSpot: front ? frontSpot : "none", backSpot: back ? backSpot : "none", sleeveSpot: sleeve ? sleeveSpot : "none", lockFront, price: Number(picks[g.key].price) || 0, oldPrice: Number(picks[g.key].oldPrice) || 0, description, featured, family },
         garment: g,
         front,
         back,
+        sleeve,
         colours: g.colours.filter((c) => picks[g.key].colours.includes(c.slug)),
       }));
 
@@ -107,12 +111,13 @@ export default function ShopAddPage() {
     try {
       const f = await uploadPicture(front, maker.uploads.current);
       const b = await uploadPicture(back, maker.uploads.current);
+      const sl = await uploadPicture(sleeve, maker.uploads.current);
       const { positions: catalog, maxPrint } = await customizationService.getPrintPositions(first.key);
-      const tee = buildShopTee({ garment: first, catalog, maxPrint, size: shopSize(first), front: f, back: b, frontSpot: front ? frontSpot : "none", backSpot: back ? backSpot : "none", lockFront });
+      const tee = buildShopTee({ garment: first, catalog, maxPrint, size: shopSize(first), front: f, back: b, sleeve: sl, frontSpot: front ? frontSpot : "none", backSpot: back ? backSpot : "none", sleeveSpot: sleeve ? sleeveSpot : "none", lockFront });
       const colour = first.colours.find((c) => c.slug === picks[first.key].colours[0]) || first.colours[0];
       const pics = await maker.shoot({ garment: first, positions: tee.positions, size: shopSize(first), colourHex: colour.hex, colourSlug: colour.slug, elements: tee.elements });
       if (!pics) throw new Error("The pictures couldn’t be taken. Try again.");
-      setPreview({ front: pics.front, back: pics.back, style: styleLabel(first), colour: colour.name, notes: tee.notes });
+      setPreview({ front: pics.front, back: pics.back, left: sl ? pics.left : null, right: sl ? pics.right : null, style: styleLabel(first), colour: colour.name, notes: tee.notes });
     } catch (err) {
       setPreview({ error: why(err) });
     }
@@ -122,6 +127,7 @@ export default function ShopAddPage() {
     setName("");
     setFront(null);
     setBack(null);
+    setSleeve(null);
     setDescription("");
     setPreview(null);
     maker.setState(null);
@@ -195,6 +201,7 @@ export default function ShopAddPage() {
             <div className="sa-pics">
               <PictureBox label="Front picture" pic={front} onPick={setFront} dpi={dpiOf(front, frontSpot, "front")} disabled={making} />
               <PictureBox label="Back picture" pic={back} onPick={setBack} dpi={dpiOf(back, backSpot, "back")} disabled={making} />
+              <PictureBox label="Sleeve picture (optional)" pic={sleeve} onPick={setSleeve} dpi={dpiOf(sleeve, sleeveSpot, "left")} disabled={making} />
             </div>
           </section>
 
@@ -202,8 +209,9 @@ export default function ShopAddPage() {
             <h2 id="sa-3">
               <span className="sa-n">3</span>Where it prints
             </h2>
-            <SpotPicker title="Front" side="front" spots={FRONT_SPOTS} value={front ? frontSpot : "none"} onChange={setFrontSpot} disabled={!front || making} empty={!front && "Add a front picture first"} />
-            <SpotPicker title="Back" side="back" spots={BACK_SPOTS} value={back ? backSpot : "none"} onChange={setBackSpot} disabled={!back || making} empty={!back && "Add a back picture first"} />
+            <SpotPicker title="Front" side="front" spots={FRONT_SPOTS} noteOf={(k) => spotNote(k, chosen)} value={front ? frontSpot : "none"} onChange={setFrontSpot} disabled={!front || making} empty={!front && "Add a front picture first"} />
+            <SpotPicker title="Back" side="back" spots={BACK_SPOTS} noteOf={(k) => spotNote(k, chosen)} value={back ? backSpot : "none"} onChange={setBackSpot} disabled={!back || making} empty={!back && "Add a back picture first"} />
+            <SpotPicker title="Sleeves" side="sleeve" spots={SLEEVE_SPOTS} noteOf={(k) => spotNote(k, chosen)} value={sleeve ? sleeveSpot : "none"} onChange={setSleeveSpot} disabled={!sleeve || making} empty={!sleeve && "Add a sleeve picture first (optional)"} />
             {front && frontSpot !== "none" && (
               <label className="sm-check sa-lock">
                 <input type="checkbox" checked={lockFront} onChange={(e) => setLockFront(e.target.checked)} disabled={making} />
@@ -249,6 +257,8 @@ export default function ShopAddPage() {
               <div className="sa-preview">
                 <img src={imageUrl(preview.front)} alt="Front preview" />
                 <img src={imageUrl(preview.back)} alt="Back preview" />
+                {preview.left && <img src={imageUrl(preview.left)} alt="Left side preview" />}
+                {preview.right && <img src={imageUrl(preview.right)} alt="Right side preview" />}
               </div>
               <p className="sm-note">
                 {preview.style}, {preview.colour}

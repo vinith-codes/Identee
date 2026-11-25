@@ -62,8 +62,8 @@ export default function useTeeMaker() {
   };
 
   /**
-   * jobs: [{ t: { name, label, about, frontSpot, backSpot, lockFront, price, oldPrice, description, featured, family },
-   *          garment (Studio setup, with .shop), front, back (picked pictures), colours: [{ slug, hex, name }] }]
+   * jobs: [{ t: { name, label, about, frontSpot, backSpot, sleeveSpot, lockFront, price, oldPrice, description, featured, family },
+   *          garment (Studio setup, with .shop), front, back, sleeve (picked pictures), colours: [{ slug, hex, name }] }]
    * existing: the Studio's tees (a tee with the same name on the same style is skipped).
    * -> { made: [design], failed, skipped }
    */
@@ -84,9 +84,10 @@ export default function useTeeMaker() {
       try {
         const front = await uploadPicture(j.front, uploads.current);
         const back = await uploadPicture(j.back, uploads.current);
+        const sleeve = await uploadPicture(j.sleeve, uploads.current);
         if (!where.has(j.garment.key)) where.set(j.garment.key, await customizationService.getPrintPositions(j.garment.key));
         const { positions: catalog, maxPrint } = where.get(j.garment.key);
-        const tee = buildShopTee({ garment: j.garment, catalog, maxPrint, size: shopSize(j.garment), front, back, frontSpot: j.t.frontSpot, backSpot: j.t.backSpot, lockFront: j.t.lockFront });
+        const tee = buildShopTee({ garment: j.garment, catalog, maxPrint, size: shopSize(j.garment), front, back, sleeve, frontSpot: j.t.frontSpot, backSpot: j.t.backSpot, sleeveSpot: j.t.sleeveSpot || "none", lockFront: j.t.lockFront });
         const colours = [];
         for (const c of j.colours) {
           if (stop.current) break;
@@ -97,7 +98,7 @@ export default function useTeeMaker() {
           colours.push({ slug: c.slug, mockups: pics });
         }
         if (stop.current && colours.length < j.colours.length) break;
-        const body = shopTeeBody({ ...j.t, hasFront: Boolean(front), hasBack: Boolean(back) }, j.garment, tee, colours);
+        const body = shopTeeBody({ ...j.t, hasFront: Boolean(front), hasBack: Boolean(back), hasSleeve: Boolean(sleeve) }, j.garment, tee, colours);
         made.push(await studioService.saveDesign(body));
       } catch (err) {
         failed.push({ name: label(j), message: why(err) });

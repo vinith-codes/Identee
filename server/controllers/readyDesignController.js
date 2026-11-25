@@ -139,8 +139,9 @@ export const getReadyDesign = asyncHandler(async (req, res) => {
     blurb: design.blurb,
     description: design.product?.description || "", // the product page text given when publishing (26 Oct 2026)
     style: design.product?.style || "",
-    // which sides the tee page shows: "front-back" (Oversized) or "all" — the style's own setting (utils/shopStyles.js)
-    sides: styleOf(garment)?.sides || "all",
+    // which sides the tee page shows: "front-back" (Oversized) or "all" — the style's own setting (utils/shopStyles.js);
+    // a tee with a sleeve print always shows its sides too, or the customer wouldn't see the sleeve (26 Nov 2026)
+    sides: (design.elements || []).some((e) => e.side === "left" || e.side === "right") ? "all" : styleOf(garment)?.sides || "all",
     fabric: design.product?.fabric || "",
     washCare: design.product?.washCare || [],
     garmentType: design.garmentType,

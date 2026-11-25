@@ -201,11 +201,12 @@ export default function ShopDraftsPage() {
   );
 }
 
-/** One draft big: front and back, in each of its colours. */
+/** One draft big: front and back (and both sides when it has a sleeve print), in each of its colours. */
 function BigTee({ tee, label, garment, onClose }) {
   const [at, setAt] = useState(0);
   const colours = tee.colours?.length ? tee.colours : [{ slug: tee.color, mockups: tee.mockups }];
   const c = colours[at] || colours[0];
+  const sleeve = (tee.elements || []).some((e) => e.side === "left" || e.side === "right");
   useEffect(() => {
     const key = (e) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", key);
@@ -222,8 +223,8 @@ function BigTee({ tee, label, garment, onClose }) {
             Close
           </button>
         </div>
-        <div className="sd-big-pics">
-          {["front", "back"].map((side) => c.mockups?.[side] && <img key={side} src={imageUrl(c.mockups[side])} alt={`${side} — ${c.slug}`} />)}
+        <div className={`sd-big-pics${sleeve ? " is-four" : ""}`}>
+          {(sleeve ? ["front", "back", "left", "right"] : ["front", "back"]).map((side) => c.mockups?.[side] && <img key={side} src={imageUrl(c.mockups[side])} alt={`${side} — ${c.slug}`} />)}
         </div>
         <div className="se-swatches">
           {colours.map((x, i) => {

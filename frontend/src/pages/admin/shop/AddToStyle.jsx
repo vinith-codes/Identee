@@ -1,7 +1,7 @@
 // pages/admin/shop/AddToStyle.jsx — Manage the shop → "+ Add to a style" (25 Nov 2026)
 //
 // The ticked tees (or one tee's "+ style") made again in another style — a Polo, or Round Neck for a tee only sold
-// as Oversized: the same front and back pictures in the same places (studio/shopTeeBuilder.js picturesOf), that
+// as Oversized: the same front, back and sleeve pictures in the same places (studio/shopTeeBuilder.js picturesOf), that
 // style's colours and price, the same family. They are made as drafts; Check and show puts them in the shop.
 import { Link } from "react-router-dom";
 import { useMemo, useState } from "react";
@@ -51,6 +51,7 @@ export default function AddToStyle({ tees, picked, garments, busy, onClose }) {
             about: parts.length > 1 ? parts[0] : "",
             frontSpot: p.frontSpot,
             backSpot: p.backSpot,
+            sleeveSpot: p.sleeveSpot,
             lockFront: p.lockFront,
             price: 0,
             oldPrice: 0,
@@ -62,6 +63,7 @@ export default function AddToStyle({ tees, picked, garments, busy, onClose }) {
           garment,
           front: p.front,
           back: p.back,
+          sleeve: p.sleeve,
           colours: same.length ? same : sold,
         });
       }

@@ -91,27 +91,53 @@ export function PictureBox({ label, pic, onPick, dpi, disabled }) {
   );
 }
 
-// a small drawing of each print place
+// a small drawing of each print place: [x, y, w, h] boxes on a tee seen from the front (the wearer's left is on the
+// right of the drawing) or from the back; a sleeve box is turned with the arm
+const LEFT_ARM = [77, 22, 10, 10, 40];
+const RIGHT_ARM = [13, 22, 10, 10, -40];
 const BOX = {
-  "left-chest": [56, 30, 14, 12],
-  "centre-front": [38, 28, 24, 18],
-  "full-front": [34, 24, 32, 44],
-  "full-back": [33, 22, 34, 44],
-  nape: [44, 15, 12, 6],
+  "left-chest": [[56, 30, 12, 10]],
+  "right-chest": [[32, 30, 12, 10]],
+  "centre-front": [[38, 28, 24, 18]],
+  "chest-line": [[32, 28, 36, 7]],
+  "mid-front": [[38, 46, 24, 18]],
+  "full-front": [[34, 24, 32, 44]],
+  "vertical-front": [[45, 26, 10, 46]],
+  "front-left-vertical": [[59, 28, 8, 40]],
+  "front-right-vertical": [[33, 28, 8, 40]],
+  "lower-left": [[56, 74, 12, 12]],
+  "lower-right": [[32, 74, 12, 12]],
+  "full-back": [[33, 22, 34, 44]],
+  nape: [[44, 15, 12, 6]],
+  "top-back": [[35, 19, 30, 10]],
+  "centre-back": [[38, 30, 24, 18]],
+  "mid-back": [[38, 44, 24, 18]],
+  "lower-back": [[36, 72, 28, 12]],
+  "vertical-back": [[45, 22, 10, 48]],
+  "left-sleeve": [LEFT_ARM],
+  "right-sleeve": [RIGHT_ARM],
+  "both-sleeves": [LEFT_ARM, RIGHT_ARM],
 };
 function Spot({ spot, side }) {
-  const b = BOX[spot];
-  const neck = side === "front" ? "Q50,24 62,8" : "Q50,13 62,8";
+  const boxes = BOX[spot];
+  const neck = side === "back" ? "Q50,13 62,8" : "Q50,24 62,8";
   return (
     <svg viewBox="0 0 100 100" width="54" height="54" aria-hidden="true">
       <path d={`M30,12 L38,8 ${neck} L70,12 L92,30 L80,42 L72,36 L72,94 L28,94 L28,36 L20,42 L8,30 Z`} fill="#F4F1EA" stroke="#8B8273" strokeWidth="2" />
-      {b ? <rect x={b[0]} y={b[1]} width={b[2]} height={b[3]} rx="2" fill="#C9A24B" /> : <path d="M38,50 L62,74 M62,50 L38,74" stroke="#B3412E" strokeWidth="3" />}
+      {boxes ? (
+        boxes.map(([x, y, w, h, turn = 0]) => <rect key={`${x},${y}`} x={x} y={y} width={w} height={h} rx="2" fill="#C9A24B" transform={turn ? `rotate(${turn} ${x + w / 2} ${y + h / 2})` : undefined} />)
+      ) : (
+        <path d="M38,50 L62,74 M62,50 L38,74" stroke="#B3412E" strokeWidth="3" />
+      )}
     </svg>
   );
 }
 
-/** The print place choices for one side, as pictures. */
-export function SpotPicker({ title, side, spots, value, onChange, disabled, empty }) {
+/**
+ * The print place choices for one side, as pictures. noteOf(spotKey): a small note under a choice not every ticked style
+ * has ("Oversized only") — that style prints it on its nearest area.
+ */
+export function SpotPicker({ title, side, spots, value, onChange, disabled, empty, noteOf }) {
   return (
     <fieldset className="sa-spots" disabled={disabled}>
       <legend>
@@ -119,13 +145,17 @@ export function SpotPicker({ title, side, spots, value, onChange, disabled, empt
         {empty && <small> — {empty}</small>}
       </legend>
       <div className="sa-spot-row">
-        {spots.map((s) => (
-          <label key={s.key} className={`sa-spot${value === s.key ? " is-on" : ""}`} title={s.hint}>
-            <input type="radio" name={`spot-${side}`} value={s.key} checked={value === s.key} onChange={() => onChange(s.key)} />
-            <Spot spot={s.key} side={side} />
-            <span>{s.label}</span>
-          </label>
-        ))}
+        {spots.map((s) => {
+          const note = noteOf?.(s.key);
+          return (
+            <label key={s.key} className={`sa-spot${value === s.key ? " is-on" : ""}`} title={s.hint}>
+              <input type="radio" name={`spot-${side}`} value={s.key} checked={value === s.key} onChange={() => onChange(s.key)} />
+              <Spot spot={s.key} side={side} />
+              <span>{s.label}</span>
+              {note && <small className="sa-spot-note">{note}</small>}
+            </label>
+          );
+        })}
       </div>
     </fieldset>
   );

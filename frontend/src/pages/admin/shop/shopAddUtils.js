@@ -41,7 +41,7 @@ export function sharpness(dpi) {
 }
 
 
-const SIDE = /(^|[\s._-]+)(front|back)$/i; // a separator before it: "feedback.png" is not a back
+const SIDE = /(^|[\s._-]+)(front|back|sleeve)$/i; // a separator before it: "feedback.png" is not a back
 /** A file's tee name: "tiger-saranam_front.png" -> "Tiger Saranam" (words already in capitals stay so). */
 export function teeNameOf(fileName) {
   const base = String(fileName || "").replace(/\.[a-z0-9]+$/i, "").replace(SIDE, "");
@@ -53,16 +53,16 @@ export function teeNameOf(fileName) {
     .map((w) => (w === w.toUpperCase() ? w : w.charAt(0).toUpperCase() + w.slice(1)))
     .join(" ");
 }
-/** "front", "back" or "" from the end of a file's name. */
+/** "front", "back", "sleeve" or "" from the end of a file's name. */
 export function sideOf(fileName) {
   const m = String(fileName || "").replace(/\.[a-z0-9]+$/i, "").match(SIDE);
   return m ? m[2].toLowerCase() : "";
 }
 
 /**
- * Many files -> tees: "tiger-front.png" + "tiger-back.png" make one tee "Tiger". A file without -front / -back in its
- * name, or a second front for the same name, is loose: the admin says what it is.
- * files: [{ file, ... }] (readPicture results) -> { rows: [{ name, front, back }], loose: [pic] }
+ * Many files -> tees: "tiger-front.png" + "tiger-back.png" (+ "tiger-sleeve.png") make one tee "Tiger". A file without
+ * -front / -back / -sleeve in its name, or a second front for the same name, is loose: the admin says what it is.
+ * files: [{ file, ... }] (readPicture results) -> { rows: [{ name, front, back, sleeve }], loose: [pic] }
  */
 export function pairPictures(pics) {
   const rows = new Map();
@@ -75,7 +75,7 @@ export function pairPictures(pics) {
       loose.push(pic);
       continue;
     }
-    if (!rows.has(key)) rows.set(key, { name, front: null, back: null });
+    if (!rows.has(key)) rows.set(key, { name, front: null, back: null, sleeve: null });
     const row = rows.get(key);
     if (row[side]) loose.push(pic);
     else row[side] = pic;

@@ -2,12 +2,12 @@
 //
 // A whole collection at once. The settings are chosen once (collection, where it prints, styles, colours, prices),
 // then all the pictures are dropped in together. Files named "tiger-front.png" and "tiger-back.png" become one tee
-// "Tiger"; a file without -front / -back waits in the loose tray until the admin says what it is. Every name can be
+// "Tiger" ("tiger-sleeve.png" goes on its sleeves); a file without -front / -back / -sleeve waits in the loose tray until the admin says what it is. Every name can be
 // changed in the list. "Make all" makes each tee in each ticked style as drafts — Check and show puts them in the shop.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import studioService from "../../../services/studioService";
-import { BACK_SPOTS, FRONT_SPOTS, fullName, printDpi, shopSize, shopStyles, styleLabel } from "../../../studio/shopTeeBuilder";
+import { BACK_SPOTS, FRONT_SPOTS, SLEEVE_SPOTS, fullName, printDpi, shopSize, shopStyles, spotNote, styleLabel } from "../../../studio/shopTeeBuilder";
 import useTeeMaker, { familyFor, why } from "./useTeeMaker";
 import { SpotPicker, StylesPicker } from "./shopAddParts";
 import { collectionTitles, pairPictures, readPicture, sideOf, teeNameOf } from "./shopAddUtils";
@@ -30,9 +30,10 @@ export default function ShopAddManyPage() {
   const [newCollection, setNewCollection] = useState("");
   const [frontSpot, setFrontSpot] = useState("centre-front");
   const [backSpot, setBackSpot] = useState("full-back");
+  const [sleeveSpot, setSleeveSpot] = useState("left-sleeve");
   const [lockFront, setLockFront] = useState(false);
   const [picks, setPicks] = useState({});
-  // the tees: [{ id, name, front, back, on }] — front/back: { file, preview, w, h } | null
+  // the tees: [{ id, name, front, back, sleeve, on }] — front/back/sleeve: { file, preview, w, h } | null
   const [rows, setRows] = useState([]);
   const [loose, setLoose] = useState([]); // [{ id, pic }]
   const [refused, setRefused] = useState([]); // words about files that couldn't be used
@@ -69,7 +70,7 @@ export default function ShopAddManyPage() {
   const addFiles = async (fileList) => {
     const files = [...fileList];
     if (!files.length || making) return;
-    const room = MAX_FILES - rows.reduce((n, r) => n + (r.front ? 1 : 0) + (r.back ? 1 : 0), 0) - loose.length;
+    const room = MAX_FILES - rows.reduce((n, r) => n + (r.front ? 1 : 0) + (r.back ? 1 : 0) + (r.sleeve ? 1 : 0), 0) - loose.length;
     const bad = files.length > room ? [`Only ${MAX_FILES} pictures at a time — ${files.length - Math.max(0, room)} were left out. Make these first, then add the rest.`] : [];
     setReading(true);
     const pics = [];
@@ -88,10 +89,10 @@ export default function ShopAddManyPage() {
     for (const p of paired.rows) {
       const same = nextRows.find((r) => r.name.trim().toLowerCase() === p.name.toLowerCase());
       if (!same) {
-        nextRows.push({ id: newId(), name: p.name, front: p.front, back: p.back, on: true });
+        nextRows.push({ id: newId(), name: p.name, front: p.front, back: p.back, sleeve: p.sleeve, on: true });
         continue;
       }
-      for (const side of ["front", "back"]) {
+      for (const side of ["front", "back", "sleeve"]) {
         if (!p[side]) continue;
         if (same[side]) nextLoose.push({ id: newId(), pic: p[side] });
         else same[side] = p[side];
@@ -116,13 +117,14 @@ export default function ShopAddManyPage() {
     setLoose((ls) => ls.filter((l) => l.id !== item.id));
     if (where === "bin") return;
     const [side, target] = where.split(":");
-    if (target === "new") setRows((rs) => [...rs, { id: newId(), name: teeNameOf(item.pic.file.name), front: side === "front" ? item.pic : null, back: side === "back" ? item.pic : null, on: true }]);
+    if (target === "new") setRows((rs) => [...rs, { id: newId(), name: teeNameOf(item.pic.file.name), front: side === "front" ? item.pic : null, back: side === "back" ? item.pic : null, sleeve: null, on: true }]);
     else setRow(target, { [side]: item.pic });
   };
 
   const dpiOf = (pic, spot, side) => {
     if (!pic || !first || spot === "none") return null;
-    const pos = (first.positions || []).find((p) => p.key === spot) || (first.positions || []).find((p) => p.side === side && p.main);
+    const key = spot === "both-sleeves" ? "left-sleeve" : spot;
+    const pos = (first.positions || []).find((p) => p.key === key) || (first.positions || []).find((p) => p.side === side && p.main);
     return printDpi(pic, pos, shopSize(first), spot === "full-back" ? 92 : 100);
   };
   const names = rows.map((r) => fullName(collectionName, r.name).toLowerCase());
@@ -135,13 +137,15 @@ export default function ShopAddManyPage() {
     else if (names.filter((n) => n === full.toLowerCase()).length > 1) stop.push("the same name as another tee here");
     const usesFront = r.front && frontSpot !== "none";
     const usesBack = r.back && backSpot !== "none";
-    if (!usesFront && !usesBack) stop.push(r.front || r.back ? "its picture's side is set to print nowhere" : "no picture");
+    const usesSleeve = r.sleeve && sleeveSpot !== "none";
+    if (!usesFront && !usesBack) stop.push(r.front || r.back ? "its picture's side is set to print nowhere" : r.sleeve ? "needs a front or a back picture too" : "no picture");
     for (const [pic, spot, side] of [
       [usesFront && r.front, frontSpot, "front"],
       [usesBack && r.back, backSpot, "back"],
+      [usesSleeve && r.sleeve, sleeveSpot, "left"],
     ]) {
       const dpi = pic ? dpiOf(pic, spot, side) : null;
-      if (dpi && dpi < 150) warn.push(`${side} picture small (about ${dpi} dots per inch) — may print soft`);
+      if (dpi && dpi < 150) warn.push(`${side === "left" ? "sleeve" : side} picture small (about ${dpi} dots per inch) — may print soft`);
     }
     const taken = chosen.filter((g) => designs.some((d) => d.status !== "removed" && d.garmentType === g.key && d.name.trim().toLowerCase() === full.toLowerCase()));
     if (chosen.length && taken.length === chosen.length) stop.push("already made in every ticked style");
@@ -165,10 +169,11 @@ export default function ShopAddManyPage() {
     const jobs = ready.flatMap((c) => {
       const family = familyFor(c.full, designs);
       return c.styles.map((g) => ({
-        t: { name: c.full, label: c.r.name.trim(), about: collectionName, frontSpot: c.r.front ? frontSpot : "none", backSpot: c.r.back ? backSpot : "none", lockFront, price: Number(picks[g.key].price) || 0, oldPrice: Number(picks[g.key].oldPrice) || 0, description: "", featured: false, family },
+        t: { name: c.full, label: c.r.name.trim(), about: collectionName, frontSpot: c.r.front ? frontSpot : "none", backSpot: c.r.back ? backSpot : "none", sleeveSpot: c.r.sleeve ? sleeveSpot : "none", lockFront, price: Number(picks[g.key].price) || 0, oldPrice: Number(picks[g.key].oldPrice) || 0, description: "", featured: false, family },
         garment: g,
         front: c.r.front,
         back: c.r.back,
+        sleeve: c.r.sleeve,
         colours: g.colours.filter((x) => picks[g.key].colours.includes(x.slug)),
       }));
     });
@@ -232,9 +237,10 @@ export default function ShopAddManyPage() {
             <h2 id="am-2">
               <span className="sa-n">2</span>Where they print
             </h2>
-            <p className="sm-note">The same places for every tee here. A tee with only a front (or only a back) picture prints only there.</p>
-            <SpotPicker title="Front pictures" side="front" spots={FRONT_SPOTS} value={frontSpot} onChange={setFrontSpot} disabled={making} />
-            <SpotPicker title="Back pictures" side="back" spots={BACK_SPOTS} value={backSpot} onChange={setBackSpot} disabled={making} />
+            <p className="sm-note">The same places for every tee here. A tee with only a front (or only a back) picture prints only there; a sleeve picture is optional.</p>
+            <SpotPicker title="Front pictures" side="front" spots={FRONT_SPOTS} noteOf={(k) => spotNote(k, chosen)} value={frontSpot} onChange={setFrontSpot} disabled={making} />
+            <SpotPicker title="Back pictures" side="back" spots={BACK_SPOTS} noteOf={(k) => spotNote(k, chosen)} value={backSpot} onChange={setBackSpot} disabled={making} />
+            <SpotPicker title="Sleeve pictures (files named …-sleeve)" side="sleeve" spots={SLEEVE_SPOTS} noteOf={(k) => spotNote(k, chosen)} value={sleeveSpot} onChange={setSleeveSpot} disabled={making} />
             {frontSpot !== "none" && (
               <label className="sm-check sa-lock">
                 <input type="checkbox" checked={lockFront} onChange={(e) => setLockFront(e.target.checked)} disabled={making} />
@@ -256,7 +262,7 @@ export default function ShopAddManyPage() {
               <span className="sa-n">4</span>Pictures
             </h2>
             <p className="sm-note">
-              Name the files <b>tiger-front.png</b> and <b>tiger-back.png</b> — they become one tee called &quot;Tiger&quot;. PNG, JPG or WebP, full size (never made smaller), up to {MAX_FILES} at a time.
+              Name the files <b>tiger-front.png</b> and <b>tiger-back.png</b> — they become one tee called &quot;Tiger&quot;. A <b>tiger-sleeve.png</b> goes on its sleeves. PNG, JPG or WebP, full size (never made smaller), up to {MAX_FILES} at a time.
             </p>
             <div
               className={`am-drop${over ? " is-over" : ""}`}
@@ -300,7 +306,7 @@ export default function ShopAddManyPage() {
             {loose.length > 0 && (
               <div className="am-loose" aria-label="Loose pictures">
                 <b>
-                  {plural(loose.length, "loose picture")} — {loose.length === 1 ? "its" : "their"} name doesn&apos;t end in -front or -back. What {loose.length === 1 ? "is it" : "are they"}?
+                  {plural(loose.length, "loose picture")} — {loose.length === 1 ? "its" : "their"} name doesn&apos;t end in -front, -back or -sleeve. What {loose.length === 1 ? "is it" : "are they"}?
                 </b>
                 <ul>
                   {loose.map((l) => (
@@ -312,11 +318,11 @@ export default function ShopAddManyPage() {
                         <option value="front:new">Front of a new tee “{teeNameOf(l.pic.file.name) || "?"}”</option>
                         <option value="back:new">Back of a new tee “{teeNameOf(l.pic.file.name) || "?"}”</option>
                         {rows.map((r) =>
-                          ["front", "back"].map(
+                          ["front", "back", "sleeve"].map(
                             (side) =>
                               !r[side] && (
                                 <option key={`${side}${r.id}`} value={`${side}:${r.id}`}>
-                                  {side === "front" ? "Front" : "Back"} of “{r.name || "no name"}”
+                                  {side === "front" ? "Front" : side === "back" ? "Back" : "Sleeve"} of “{r.name || "no name"}”
                                 </option>
                               ),
                           ),
@@ -356,7 +362,7 @@ export default function ShopAddManyPage() {
                     <li key={r.id} className={`am-row${r.on ? "" : " is-off"}${stop.length ? " is-bad" : ""}`}>
                       <input type="checkbox" checked={r.on} onChange={(e) => setRow(r.id, { on: e.target.checked })} aria-label={`Make ${r.name || "this tee"}`} disabled={making} />
                       <div className="am-pics">
-                        {["front", "back"].map((side) => (
+                        {["front", "back", ...(r.sleeve ? ["sleeve"] : [])].map((side) => (
                           <figure key={side} className={r[side] ? "" : "is-empty"}>
                             {r[side] ? <img src={r[side].preview} alt={`${side} — ${r[side].file.name}`} title={`${r[side].file.name} · ${r[side].w}×${r[side].h}`} /> : <span>no {side}</span>}
                             <figcaption>{side}</figcaption>
