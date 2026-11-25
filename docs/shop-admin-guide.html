@@ -1,0 +1,343 @@
+<title>IDENTEE Shop Admin Guide</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600&display=swap">
+<style>
+/* Layout: one reading column; each screen = words on the left, a drawn mock of the admin screen on the right (stacks on phones). */
+:root {
+  --bg: #f6f7f8; --paper: #ffffff; --ink: #17191c; --muted: #5c636b; --line: #dde1e5;
+  --accent: #0d6b6e; --accent-soft: #e2f1f1; --press: #e8930c; --press-soft: #fff1d9;
+  --good: #1f7a3d; --warn: #a65d00; --bad: #b3261e; --screen: #eef0f2;
+  --display: "Space Grotesk", "Segoe UI", system-ui, sans-serif;
+  --body: "Inter", "Segoe UI", system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #121416; --paper: #1b1e21; --ink: #eceef0; --muted: #a3aab2; --line: #30353a;
+  --accent: #5cc4c6; --accent-soft: #163536; --press: #f4a93a; --press-soft: #3a2a10;
+  --good: #6fd08f; --warn: #f0b45c; --bad: #ff8a80; --screen: #24282c; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #121416; --paper: #1b1e21; --ink: #eceef0; --muted: #a3aab2; --line: #30353a;
+  --accent: #5cc4c6; --accent-soft: #163536; --press: #f4a93a; --press-soft: #3a2a10;
+  --good: #6fd08f; --warn: #f0b45c; --bad: #ff8a80; --screen: #24282c; color-scheme: dark }
+
+body { background: var(--bg); color: var(--ink); font: 16px/1.6 var(--body); }
+.wrap { max-width: 1080px; margin: 0 auto; padding-block: 32px 64px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: grid; gap: 28px; }
+h1, h2, h3 { font-family: var(--display); line-height: 1.2; text-wrap: balance; margin: 0; }
+h1 { font-size: clamp(1.8rem, 4vw, 2.5rem); }
+h2 { font-size: 1.45rem; }
+h3 { font-size: 1.05rem; }
+p { margin: 0; }
+.kicker { font: 600 .78rem/1 var(--body); letter-spacing: .08em; text-transform: uppercase; color: var(--accent); }
+.lead { color: var(--muted); max-width: 62ch; }
+header { display: grid; gap: 10px; }
+b.btn, span.btn { display: inline-block; font-weight: 600; background: var(--press-soft); color: var(--ink); border: 1px solid var(--press); border-radius: 6px; padding: 0 6px; line-height: 1.5; white-space: nowrap; }
+
+/* the menu map */
+.menu { background: var(--paper); border: 1px solid var(--line); border-radius: 12px; padding: 20px; display: grid; gap: 14px; }
+.menu-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 10px; }
+.menu-item { display: grid; gap: 2px; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--line); text-decoration: none; color: inherit; }
+.menu-item:hover, .menu-item:focus-visible { border-color: var(--accent); outline: none; }
+.menu-item strong { font-family: var(--display); }
+.menu-item small { color: var(--muted); }
+.menu-item .tag { font-size: .72rem; font-weight: 600; color: var(--accent); }
+.menu-item.old .tag { color: var(--muted); }
+
+/* the flow strip */
+.flow { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.flow span { background: var(--paper); border: 1px solid var(--line); border-radius: 999px; padding: 4px 12px; font-weight: 600; font-size: .92rem; }
+.flow span.live { background: var(--accent); color: var(--paper); border-color: var(--accent); }
+.flow i { color: var(--muted); font-style: normal; }
+
+/* one screen = a lesson */
+.lesson { background: var(--paper); border: 1px solid var(--line); border-radius: 12px; padding: 24px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr); gap: 28px; scroll-margin-top: 16px; }
+.lesson > div { min-width: 0; display: grid; gap: 14px; align-content: start; }
+.where { font-size: .85rem; color: var(--muted); }
+ol.steps { margin: 0; padding: 0; list-style: none; counter-reset: s; display: grid; gap: 10px; }
+ol.steps li { counter-increment: s; display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 10px; }
+ol.steps li::before { content: counter(s); width: 26px; height: 26px; border-radius: 50%; background: var(--accent); color: var(--paper); font: 700 .85rem/26px var(--display); text-align: center; }
+.tip { background: var(--accent-soft); border-radius: 8px; padding: 10px 14px; font-size: .92rem; }
+.tip strong { color: var(--accent); }
+
+/* drawn mocks of the admin screens */
+.mock { background: var(--screen); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; font-size: .82rem; }
+.mock-bar { display: flex; gap: 6px; align-items: center; padding: 8px 12px; border-bottom: 1px solid var(--line); background: var(--paper); color: var(--muted); }
+.mock-bar i { width: 9px; height: 9px; border-radius: 50%; background: var(--line); }
+.mock-bar span { margin-left: 8px; }
+.mock-body { padding: 14px; display: grid; gap: 10px; }
+.card { background: var(--paper); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; display: grid; gap: 8px; }
+.card h4 { margin: 0; font: 600 .86rem/1.3 var(--display); display: flex; align-items: center; gap: 8px; }
+.n { width: 20px; height: 20px; border-radius: 50%; background: var(--ink); color: var(--paper); font-size: .72rem; display: inline-grid; place-items: center; flex: none; }
+.row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.field { border: 1px solid var(--line); border-radius: 6px; padding: 4px 8px; background: var(--bg); color: var(--ink); min-width: 0; }
+.field.grow { flex: 1 1 120px; }
+.lab { color: var(--muted); font-size: .74rem; }
+.chip { border: 1px solid var(--line); border-radius: 999px; padding: 2px 9px; background: var(--bg); }
+.chip.on { border-color: var(--accent); background: var(--accent-soft); font-weight: 600; }
+.dot { width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--line); display: inline-block; }
+.dot.on { border-color: var(--accent); box-shadow: 0 0 0 2px var(--paper) inset; }
+.mbtn { border: 1px solid var(--line); border-radius: 6px; padding: 4px 10px; background: var(--paper); font-weight: 600; color: var(--ink); }
+.mbtn.dark { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+.mbtn.red { color: var(--bad); border-color: var(--bad); }
+.mbtn.link { border-color: transparent; color: var(--accent); background: none; padding-inline: 2px; }
+.press { position: relative; outline: 3px solid var(--press); outline-offset: 2px; }
+.press::after { content: attr(data-k); position: absolute; top: -12px; right: -12px; width: 20px; height: 20px; border-radius: 50%; background: var(--press); color: #1a1100; font: 700 .7rem/20px var(--display); text-align: center; }
+.switch { width: 32px; height: 18px; border-radius: 999px; background: var(--accent); position: relative; flex: none; }
+.switch::after { content: ""; position: absolute; right: 2px; top: 2px; width: 14px; height: 14px; border-radius: 50%; background: var(--paper); }
+.pic { width: 54px; height: 54px; border-radius: 6px; border: 1px dashed var(--muted); display: grid; place-items: center; color: var(--muted); font-size: .68rem; text-align: center; background: var(--bg); flex: none; }
+.pic.full { border-style: solid; border-color: var(--line); background: linear-gradient(135deg, var(--accent-soft), var(--press-soft)); color: var(--ink); }
+.tee { width: 54px; height: 60px; flex: none; }
+.tee path { fill: var(--ink); }
+.tee rect { fill: var(--press); }
+.ok { color: var(--good); font-weight: 600; }
+.warnt { color: var(--warn); font-weight: 600; }
+.badt { color: var(--bad); font-weight: 600; }
+.bar { height: 8px; border-radius: 999px; background: var(--bg); border: 1px solid var(--line); overflow: hidden; }
+.bar i { display: block; height: 100%; width: 62%; background: var(--accent); }
+.legend { font-size: .8rem; color: var(--muted); display: flex; gap: 8px; align-items: center; }
+.legend b { width: 16px; height: 16px; border-radius: 50%; background: var(--press); display: inline-block; }
+
+/* recipes + good-to-know */
+.recipes { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+.recipe { background: var(--paper); border: 1px solid var(--line); border-radius: 10px; padding: 16px; display: grid; gap: 8px; align-content: start; }
+.recipe p { color: var(--muted); font-size: .92rem; }
+.recipe ol { margin: 0; padding-left: 20px; display: grid; gap: 4px; font-size: .93rem; }
+.facts { background: var(--paper); border: 1px solid var(--line); border-radius: 12px; padding: 20px 24px; display: grid; gap: 10px; }
+.facts ul { margin: 0; padding-left: 20px; display: grid; gap: 6px; }
+.practice { border: 2px dashed var(--accent); border-radius: 12px; padding: 18px 22px; display: grid; gap: 6px; }
+
+@media (max-width: 760px) {
+  .lesson { grid-template-columns: minmax(0, 1fr); padding: 18px; gap: 18px; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .press { animation: glow 2.4s ease-in-out infinite; }
+  @keyframes glow { 50% { outline-color: transparent; } }
+}
+</style>
+
+<div class="wrap">
+  <header>
+    <p class="kicker">Admin · Shop your IDENTEE</p>
+    <h1>How to use the new shop screens</h1>
+    <p class="lead">Four new screens let you put tees in the shop and add a new style (like a Polo) without any coding. Each part below shows one screen as a drawing. The <span class="btn">orange</span> rings are the buttons you press, in number order.</p>
+  </header>
+
+  <section class="menu" aria-labelledby="menu-h">
+    <h2 id="menu-h">The menu, top to bottom</h2>
+    <div class="menu-list">
+      <a class="menu-item" href="#add-tee"><span class="tag">NEW</span><strong>Add a tee</strong><small>One design, on as many styles as you tick</small></a>
+      <a class="menu-item" href="#add-many"><span class="tag">NEW</span><strong>Add many tees</strong><small>Drop in lots of pictures, make them all at once</small></a>
+      <a class="menu-item" href="#check"><span class="tag">NEW</span><strong>Check and show</strong><small>Look at new tees, then put them in the shop</small></a>
+      <a class="menu-item" href="#manage"><span class="tag">NEW BUTTON</span><strong>Manage the shop</strong><small>Now has <b>+ style</b> to copy a tee onto another style</small></a>
+      <a class="menu-item" href="#styles"><span class="tag">NEW</span><strong>Styles</strong><small>Which garments the shop sells, their colours and prices</small></a>
+      <a class="menu-item old" href="#stock"><span class="tag">SAME AS BEFORE</span><strong>All products</strong><small>Every tee in the shop, with stock and restock</small></a>
+    </div>
+    <div class="flow" aria-label="How a tee goes live">
+      <span>Add a tee / Add many tees</span><i>→</i><span>Draft (only you see it)</span><i>→</i><span>Check and show</span><i>→</i><span class="live">Live in the shop</span>
+    </div>
+    <p class="lead">Nothing goes live while you are making tees. A tee is only in the shop after you press <b class="btn">Show in the shop</b>.</p>
+  </section>
+
+  <!-- STYLES -->
+  <section class="lesson" id="styles" aria-labelledby="styles-h">
+    <div>
+      <p class="kicker">Do this once per style</p>
+      <h2 id="styles-h">Styles: switch a garment on for the shop</h2>
+      <p class="where">Menu → Shop your IDENTEE → Styles</p>
+      <p>Oversized and Round Neck (Men and Women) are already on. You only come here to add a new style, change which colours are sold, or change a price.</p>
+      <ol class="steps">
+        <li><span>First make the garment live in <b>Create your IDENTEE</b> as usual: White front and back hanger photos, colours, sizes, size chart, print areas, price.</span></li>
+        <li><span>Open <b>Styles</b>. Your garment is under “Not used for shop tees”. Press <b class="btn">Show them</b> and open it.</span></li>
+        <li><span>Switch <b>Use for shop tees</b> on.</span></li>
+        <li><span>Check the name the shop shows (“Polo”), who it is for, its place in the list, the shop category, and the fit words.</span></li>
+        <li><span>Tap colours to tick or untick them. Only ticked colours are sold in the shop.</span></li>
+        <li><span>Press <b class="btn">Save</b>.</span></li>
+      </ol>
+      <p class="tip"><strong>Two garments, one name.</strong> Men's and Women's Round Neck both use the name “Round Neck”, so the shop shows one Round Neck tab. Give a new garment the same name only if it should join that tab.</p>
+    </div>
+    <div class="mock" aria-hidden="true">
+      <div class="mock-bar"><i></i><i></i><i></i><span>Admin → Styles</span></div>
+      <div class="mock-body">
+        <div class="card">
+          <h4>Polo (Men)</h4>
+          <div class="row"><span class="switch press" data-k="3"></span><span>Use for shop tees</span></div>
+          <div class="row"><span class="lab">Name in the shop</span><span class="field grow press" data-k="4">Polo</span></div>
+          <div class="row"><span class="lab">Who it's for</span><span class="field">Men</span><span class="lab">Place</span><span class="field">3</span></div>
+          <div class="row"><span class="lab">Shop category</span><span class="field grow">t-shirts</span></div>
+          <div class="row"><span class="lab">The tee page shows</span><span class="field grow">Front, back and both sides</span></div>
+          <div class="row"><span class="lab">Fit words</span><span class="field grow">Regular fit</span></div>
+          <span class="lab">Colours sold in the shop (4 of 9)</span>
+          <div class="row press" data-k="5"><span class="dot on" style="background:#111"></span><span class="dot on" style="background:#1d2b4f"></span><span class="dot on" style="background:#4a1c24"></span><span class="dot on" style="background:#fafafa"></span><span class="dot" style="background:#e9d9a8"></span><span class="dot" style="background:#9fc7e8"></span><span class="dot" style="background:#f2b8c6"></span></div>
+          <div class="row"><span class="mbtn">Undo</span><span class="mbtn dark press" data-k="6">Save</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ADD A TEE -->
+  <section class="lesson" id="add-tee" aria-labelledby="addtee-h">
+    <div>
+      <p class="kicker">One design</p>
+      <h2 id="addtee-h">Add a tee</h2>
+      <p class="where">Menu → Shop your IDENTEE → Add a tee</p>
+      <ol class="steps">
+        <li><span><b>Collection and name.</b> Pick a collection (or “+ New collection…”) and type the tee's name. You see the full shop name under it, for example <i>AYYAPPA · Tiger Saranam</i>.</span></li>
+        <li><span><b>Pictures.</b> Add the front picture, the back picture, or both. Use full-size files; they are never made smaller. <b>Remove background</b> is there if a picture has a plain background.</span></li>
+        <li><span><b>Where it prints.</b> Front: small logo on the chest, centre of the chest, big on the front, or nothing. Back: big on the back, small under the collar, or nothing. Tick <b>Lock the front picture</b> if customers must not change it (like the GTA logo).</span></li>
+        <li><span><b>Styles, colours and price.</b> Tick each style to make (Oversized, Round Neck…). Colours and prices come from Styles; untick a colour or type a price only if this tee is different.</span></li>
+        <li><span>Press <b class="btn">See it on the tee</b> to check the look, then <b class="btn">Make</b>. One draft is made per ticked style.</span></li>
+      </ol>
+      <p class="tip"><strong>Picture sharpness.</strong> Next to each picture you see its print sharpness (DPI). Green is fine. Orange means it may print soft, so use a bigger file if you have one.</p>
+    </div>
+    <div class="mock" aria-hidden="true">
+      <div class="mock-bar"><i></i><i></i><i></i><span>Admin → Add a tee</span></div>
+      <div class="mock-body">
+        <div class="card"><h4><span class="n">1</span>Collection and name</h4>
+          <div class="row"><span class="field grow press" data-k="1">AYYAPPA</span><span class="field grow">Tiger Saranam</span></div>
+          <span class="lab">In the shop: <b>AYYAPPA · Tiger Saranam</b></span></div>
+        <div class="card"><h4><span class="n">2</span>Pictures</h4>
+          <div class="row press" data-k="2"><span class="pic full">front<br>.png</span><span class="pic full">back<br>.png</span><span class="ok">312 DPI ✓</span></div></div>
+        <div class="card"><h4><span class="n">3</span>Where it prints</h4>
+          <div class="row"><span class="chip">Small logo on the chest</span><span class="chip on press" data-k="3">Centre of the chest</span><span class="chip">Big on the front</span></div>
+          <div class="row"><span class="chip on">Big on the back</span><span class="chip">Small, under the collar</span></div></div>
+        <div class="card"><h4><span class="n">4</span>Styles, colours and price</h4>
+          <div class="row press" data-k="4"><span class="chip on">✓ Oversized ₹699</span><span class="chip on">✓ Round Neck Men ₹499</span><span class="chip">Round Neck Women</span></div></div>
+        <div class="row"><span class="mbtn press" data-k="5">See it on the tee</span><span class="mbtn dark">Make 2 tees</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ADD MANY -->
+  <section class="lesson" id="add-many" aria-labelledby="many-h">
+    <div>
+      <p class="kicker">Many designs at once</p>
+      <h2 id="many-h">Add many tees</h2>
+      <p class="where">Menu → Shop your IDENTEE → Add many tees</p>
+      <p>Same idea as Add a tee, but the settings are chosen once for all the tees.</p>
+      <ol class="steps">
+        <li><span>Choose the <b>collection</b>, <b>where they print</b>, and the <b>styles</b>. These apply to every tee in this batch.</span></li>
+        <li><span>Name your files before you start: <b>tiger-front.png</b> and <b>tiger-back.png</b> become one tee called “Tiger”. A file with only one side is fine.</span></li>
+        <li><span>Drop all the pictures in. Each tee becomes a row. You can fix a name, press <b>Swap front/back</b>, or <b>Remove</b> a row.</span></li>
+        <li><span>Pictures whose name doesn't end in -front or -back go to the <b>loose tray</b>. For each one, choose “front of a new tee”, “back of Tiger”, or the bin.</span></li>
+        <li><span>Fix any red notes (no name, same name twice, picture too small, already made). Then press <b class="btn">Make all</b>. You can press <b>Stop</b> any time.</span></li>
+      </ol>
+      <p class="tip"><strong>If some fail.</strong> The good ones are kept. Press <b>Make all</b> again; only the missing ones are made, and they join the same design.</p>
+    </div>
+    <div class="mock" aria-hidden="true">
+      <div class="mock-bar"><i></i><i></i><i></i><span>Admin → Add many tees</span></div>
+      <div class="mock-body">
+        <div class="card"><h4><span class="n">1</span>Settings for all</h4>
+          <div class="row press" data-k="1"><span class="chip on">AYYAPPA</span><span class="chip on">Centre chest + big back</span><span class="chip on">Oversized, Round Neck</span></div></div>
+        <div class="card"><h4><span class="n">2</span>Pictures</h4>
+          <div class="row press" data-k="3"><span class="pic full">front</span><span class="pic full">back</span><span class="field grow">Tiger</span><span class="ok">ready ✓</span></div>
+          <div class="row"><span class="pic full">front</span><span class="pic">no back</span><span class="field grow">Lotus Om</span><span class="ok">ready ✓</span></div>
+          <div class="row"><span class="pic full">front</span><span class="pic full">back</span><span class="field grow">Swami</span><span class="warnt">picture small</span></div>
+          <div class="row press" data-k="4" style="background:var(--press-soft);padding:6px;border-radius:6px"><span class="pic full">IMG<br>_204</span><span>1 loose picture. What is it?</span><span class="field">back of Lotus Om ▾</span></div>
+        </div>
+        <div class="card"><div class="row"><span class="mbtn dark press" data-k="5">Make all</span><span class="mbtn">Stop</span><span class="lab">5 of 8 made</span></div><div class="bar"><i></i></div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CHECK AND SHOW -->
+  <section class="lesson" id="check" aria-labelledby="check-h">
+    <div>
+      <p class="kicker">Nothing is live until here</p>
+      <h2 id="check-h">Check and show</h2>
+      <p class="where">Menu → Shop your IDENTEE → Check and show</p>
+      <p>Every new tee waits here as a draft. Tees of one design sit together (Oversized, Round Neck Men, Round Neck Women…).</p>
+      <ol class="steps">
+        <li><span>Click a picture to see it big. Use the colour dots to look at each colour.</span></li>
+        <li><span>Happy? Press <b class="btn">Show in the shop</b> on one tee, or <b class="btn">Show all</b> for the whole design. It is live at once.</span></li>
+        <li><span>Print in the wrong place or too big? Press <b>Fix</b>. It opens the tee in the Studio so you can move or resize the print.</span></li>
+        <li><span>Don't want it? Press <b>Throw away</b>.</span></li>
+        <li><span>Many at once: tick tees and use <b>Show ticked in the shop</b> or <b>Throw away ticked</b>.</span></li>
+      </ol>
+    </div>
+    <div class="mock" aria-hidden="true">
+      <div class="mock-bar"><i></i><i></i><i></i><span>Admin → Check and show</span></div>
+      <div class="mock-body">
+        <div class="card">
+          <h4>AYYAPPA · Tiger Saranam <span class="mbtn press" data-k="2" style="margin-left:auto">Show all 2 in the shop</span></h4>
+          <div class="row">
+            <svg class="tee press" data-k="1" viewBox="0 0 54 60"><path d="M15 4 L22 2 Q27 7 32 2 L39 4 L52 14 L45 22 L41 19 L41 58 L13 58 L13 19 L9 22 L2 14 Z"/><rect x="21" y="18" width="12" height="12" rx="2"/></svg>
+            <div style="display:grid;gap:4px;min-width:0"><b>Oversized</b><div class="row"><span class="mbtn dark">Show in the shop</span><span class="mbtn press" data-k="3">Fix</span><span class="mbtn link press" data-k="4" style="color:var(--bad)">Throw away</span></div></div>
+          </div>
+          <div class="row">
+            <svg class="tee" viewBox="0 0 54 60"><path d="M15 4 L22 2 Q27 7 32 2 L39 4 L48 12 L43 19 L40 17 L40 58 L14 58 L14 17 L11 19 L6 12 Z"/><rect x="21" y="18" width="12" height="12" rx="2"/></svg>
+            <div style="display:grid;gap:4px;min-width:0"><b>Round Neck · Men</b><div class="row"><span class="mbtn dark">Show in the shop</span><span class="mbtn">Fix</span><span class="mbtn link" style="color:var(--bad)">Throw away</span></div></div>
+          </div>
+        </div>
+        <div class="row"><span class="mbtn">Tick all</span><span class="mbtn red">Throw away ticked</span><span class="mbtn dark press" data-k="5">Show ticked in the shop</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- MANAGE -->
+  <section class="lesson" id="manage" aria-labelledby="manage-h">
+    <div>
+      <p class="kicker">Old tees, new style</p>
+      <h2 id="manage-h">+ style in Manage the shop</h2>
+      <p class="where">Menu → Shop your IDENTEE → Manage the shop</p>
+      <p>Use this when a tee is already in the shop and you want it on another style too. For example, all your Oversized GTA tees on the new Polo.</p>
+      <ol class="steps">
+        <li><span>For one tee: press <b class="btn">+ style</b> on its row.</span></li>
+        <li><span>For many: tick them, then press <b class="btn">+ Add to a style…</b> at the top.</span></li>
+        <li><span>Choose the style. It uses the same pictures and print places, and the colours that style sells.</span></li>
+        <li><span>Press <b>Make</b>. Designs that already have that style are skipped, and you are told how many.</span></li>
+        <li><span>The new tees are drafts. Press <b>Open Check and show →</b> to look and put them live.</span></li>
+      </ol>
+      <p class="tip"><strong>Only the main prints are copied</strong> (front and back). If a tee had extra prints, like a sleeve, you see a note, and you can add them with <b>Fix</b>.</p>
+    </div>
+    <div class="mock" aria-hidden="true">
+      <div class="mock-bar"><i></i><i></i><i></i><span>Admin → Manage the shop</span></div>
+      <div class="mock-body">
+        <div class="row"><span class="lab">3 ticked</span><span class="mbtn press" data-k="2">+ Add to a style…</span></div>
+        <div class="card"><div class="row"><span>☑</span><b>GTA · Vice Night</b><span class="lab">Oversized</span><span class="mbtn link press" data-k="1" style="margin-left:auto">+ style</span></div></div>
+        <div class="card"><div class="row"><span>☑</span><b>GTA · Los Santos</b><span class="lab">Oversized</span><span class="mbtn link" style="margin-left:auto">+ style</span></div></div>
+        <div class="card"><div class="row"><span>☑</span><b>GTA · Grove</b><span class="lab">Oversized, Polo</span><span class="mbtn link" style="margin-left:auto">+ style</span></div></div>
+        <div class="card" style="border-color:var(--accent)">
+          <h4>Add to a style</h4>
+          <div class="row"><span class="lab">Style</span><span class="field grow press" data-k="3">Polo ▾</span></div>
+          <span class="lab">1 design already has Polo — skipped</span>
+          <div class="row"><span class="mbtn dark press" data-k="4">Make 2 tees</span><span class="mbtn link press" data-k="5">Open Check and show →</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="facts" id="stock" aria-labelledby="stock-h">
+    <h2 id="stock-h">All products</h2>
+    <p class="lead">The list of every tee in the shop. Use it to search, restock a size, or hide a tee. Shop your IDENTEE is only for printed design tees, so the old <b>Add a product</b> and <b>Add many (spreadsheet)</b> are gone from the menu. To add a tee, use <b>Add a tee</b> or <b>Add many tees</b>.</p>
+  </section>
+
+  <section aria-labelledby="rec-h" style="display:grid;gap:14px">
+    <h2 id="rec-h">Everyday jobs</h2>
+    <div class="recipes">
+      <div class="recipe"><h3>A new design for the shop</h3><p>One picture set, on every style.</p>
+        <ol><li>Add a tee</li><li>Tick all the styles</li><li>See it on the tee → Make</li><li>Check and show → Show all</li></ol></div>
+      <div class="recipe"><h3>A whole new collection</h3><p>Twenty designs from the designer.</p>
+        <ol><li>Name files <i>name-front</i> / <i>name-back</i></li><li>Add many tees → + New collection</li><li>Drop them in → Make all</li><li>Check and show → Show ticked</li></ol></div>
+      <div class="recipe"><h3>Launch a Polo</h3><p>A new garment in the shop.</p>
+        <ol><li>Make it live in Create your IDENTEE</li><li>Styles → switch on → Save</li><li>Manage the shop → tick tees → + Add to a style</li><li>Check and show → Show all</li></ol></div>
+      <div class="recipe"><h3>Stop selling a colour</h3><p>Pink isn't selling on Round Neck.</p>
+        <ol><li>Styles → Round Neck</li><li>Tap Pink to untick it</li><li>Save. The shop hides Pink within a minute</li></ol></div>
+    </div>
+  </section>
+
+  <section class="facts" aria-labelledby="know-h">
+    <h2 id="know-h">Good to know</h2>
+    <ul>
+      <li>Making tees never changes the shop. Only <b>Show in the shop</b> does.</li>
+      <li>A tee already made in a style is skipped, so pressing Make twice won't make doubles.</li>
+      <li>If something fails, press the button again. Only the missing tees are made.</li>
+      <li>Prices come from Styles unless you type a price on the tee.</li>
+      <li>Pictures are always kept full size, so prints stay sharp.</li>
+      <li>The shop looks the same to customers. Only these admin screens are new.</li>
+    </ul>
+  </section>
+
+  <section class="practice" aria-labelledby="prac-h">
+    <h2 id="prac-h">Try it before it goes live</h2>
+    <p class="lead">The laptop copy of the website has all these screens with test tees in it. Nothing there reaches the real shop, so you can click everything freely.</p>
+  </section>
+</div>
