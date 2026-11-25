@@ -7,9 +7,9 @@ import reviewService from "../../services/reviewServices";
 
 const QUICK_LINKS = [
   {
-    to: "/admin/upload-product",
-    title: "Upload Product",
-    desc: "Add a new product with colour variants",
+    to: "/admin/shop-add",
+    title: "Add a tee",
+    desc: "A new design tee for Shop your IDENTEE",
     icon: "+",
   },
   {

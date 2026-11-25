@@ -46,8 +46,8 @@ export const ADMIN_MENU = [
       { to: "/admin/products", label: "All products" },
       // (the Collection maker — many tees from one prompt — is parked since 25 Oct 2026: the Studio does the job;
       //  its code stays in pages/admin/CollectionMakerPage.jsx for a later "rough drafts" feature)
-      { to: "/admin/upload-product", label: "Add a stock item" }, // was "Add a product": stock per size, combos (25 Nov 2026)
-      { to: "/admin/bulk-upload", label: "Add many (spreadsheet)" },
+      // (stock items — "Add a product" / "Add many (spreadsheet)" — are off the menu since 25 Nov 2026: the owner said Shop your
+      //  IDENTEE is only for printed design tees; the pages stay at /admin/upload-product and /admin/bulk-upload)
     ],
   },
   {

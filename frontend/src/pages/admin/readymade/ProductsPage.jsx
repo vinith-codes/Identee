@@ -179,11 +179,11 @@ export default function ProductsPage() {
       <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "flex-end", flexWrap: "wrap" }}>
         <div>
           <h1 style={AW.h1}>Shop your IDENTEE · products</h1>
-          <p style={AW.lead}>Finished tees you keep in stock. Each card is one product with all its colours.</p>
+          <p style={AW.lead}>Every tee in the shop. Each card is one tee with all its colours.</p>
         </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <Link to="/admin/bulk-upload" className="aw-btn light">Add many (spreadsheet)</Link>
-          <Link to="/admin/upload-product" className="aw-btn dark">+ Add a stock item</Link>
+          <Link to="/admin/shop-add-many" className="aw-btn light">Add many tees</Link>
+          <Link to="/admin/shop-add" className="aw-btn dark">+ Add a tee</Link>
         </div>
       </div>
 
@@ -222,7 +222,7 @@ export default function ProductsPage() {
         <p className="rm-empty" style={{ marginTop: 16 }}>
           {data.counts.all === 0 && !query && !category ? (
             <>
-              No ready-made products yet. <Link to="/admin/upload-product" className="aw-link">Add the first one →</Link>
+              No shop tees yet. <Link to="/admin/shop-add" className="aw-link">Add the first one →</Link>
             </>
           ) : (
             "Nothing matches — try another search or filter."
