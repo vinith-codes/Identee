@@ -13,7 +13,8 @@ import Category from "../models/categoryModel.js";
 import ReadyDesign from "../models/readyDesignModel.js";
 import GarmentType from "../models/garmentTypeModel.js";
 import { applySubscriptionPrice } from "../utils/applySubscriptionPrice.js";
-import { collectionOf, collectionTitle, shownInShop } from "../utils/shopRules.js";
+import { collectionOf, collectionTitle } from "../utils/shopRules.js";
+import { shopRulesNow } from "../utils/shopStyles.js";
 import { backFirst, studioPrice, wearerFor } from "../services/studioService.js";
 import { readCollections, withSettings } from "../utils/shopCollections.js";
 import { twinKeys } from "../utils/shopTwins.js";
@@ -70,12 +71,14 @@ export const listShopProducts = asyncHandler(async (req, res) => {
   };
   const wearerOf = (d) => wearerFor(`${ownCategory(d)?.name || ""} ${ownCategory(d)?.slug || ""}`);
 
-  // every live colour document (light colours, and Royal Blue Round Neck, are not on sale in this shop)
+  // every live colour document on sale: each style's colours are the admin's (Admin → Shop your IDENTEE → Styles,
+  // utils/shopStyles.js — until set: only dark colours and White, no Royal Blue on Round Neck)
+  const rules = await shopRulesNow();
   const all = (
     await Product.find(LIVE)
       .select("brandname description price oldPrice discount images productGroupId productdetails rating numReviews soldCount createdAt isFeatured readyDesign")
       .lean()
-  ).filter((d) => shownInShop(d.productdetails?.color, d.productdetails?.garmentStyle));
+  ).filter((d) => rules.colourShown(d.productdetails?.color, d.productdetails?.garmentStyle, d.productdetails?.gender));
   // a Studio tee (printed to order) opens its own page: its slug goes on the card. Its price is worked out here from
   // its garment (Round Neck ₹499, Oversized ₹699), so a tee saved before a price change shows the right price.
   const designIds = [...new Set(all.filter((d) => d.readyDesign).map((d) => String(d.readyDesign)))];
@@ -301,10 +304,11 @@ export const listShopProducts = asyncHandler(async (req, res) => {
             .filter((c) => c.count > 0),
       // (the admin's names, text, order and home page picks: Manage the shop, 24 Nov 2026)
       collections: withSettings(
-        [...collections.values()].map((c) => ({ key: c.key, name: c.name, count: countCards(c.docs), styles: [...c.styles].sort(), photos: c.photos })),
+        [...collections.values()].map((c) => ({ key: c.key, name: c.name, count: countCards(c.docs), styles: rules.sortStyles([...c.styles]), photos: c.photos })),
         await readCollections(),
       ),
-      styles: [...new Set(facetDocs.map((d) => d.productdetails?.garmentStyle).filter(Boolean))].sort(),
+      // in the admin's order (Styles: Oversized 1, Round Neck 2 …)
+      styles: rules.sortStyles([...new Set(facetDocs.map((d) => d.productdetails?.garmentStyle).filter(Boolean))]),
       genders: ["Unisex", "Men", "Women"]
         .map((name) => ({ name, count: countCards(styleDocs.filter((d) => genderOf(d) === name)) }))
         .filter((g) => g.count > 0),

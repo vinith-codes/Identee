@@ -23,6 +23,7 @@ import MockupCamera from "../../studio/MockupCamera";
 import ListShopTees from "./shop/ListShopTees";
 import { minutesFor, remakePictures } from "./shop/newPictures";
 import TeeViewer from "./shop/TeeViewer";
+import AddToStyle from "./shop/AddToStyle";
 import "./shopManage.css";
 
 const apiError = (err) => err?.response?.data?.message || err?.message || "That didn't work. Please try again.";
@@ -454,7 +455,8 @@ function TeeList({ tees, busy, run }) {
   const [f, setF] = useState({ q: "", collection: "", style: "", gender: "", colour: "", status: "" });
   const [ticked, setTicked] = useState(() => new Set());
   const [shown, setShown] = useState(PAGE);
-  const [panel, setPanel] = useState(""); // "price" | "colour" | "delete"
+  const [panel, setPanel] = useState(""); // "price" | "colour" | "delete" | "style"
+  const [garments, setGarments] = useState(null); // the Studio's garments, loaded when "+ Add to a style" opens
   // (25 Nov 2026) a tee clicked: big front + back (shop/TeeViewer); ‹ › walk the list as filtered at that moment
   const [view, setView] = useState(null); // { id, order }
   const list = useMemo(() => filterTees(tees, f), [tees, f]);
@@ -479,6 +481,19 @@ function TeeList({ tees, busy, run }) {
     if (ok) {
       setPanel("");
       if (body.action === "delete") setTicked(new Set());
+    }
+  };
+  // (25 Nov 2026) "+ Add to a style": the ticked tees — or one tee's "+ style" — made in another style as drafts
+  const openStyle = async (only) => {
+    if (only) setTicked(new Set([only]));
+    setPanel("style");
+    if (!garments) {
+      try {
+        setGarments((await studioService.getSetup()).garments || []);
+      } catch (err) {
+        toast.error(err?.response?.data?.message || err.message || "The styles couldn't be loaded.");
+        setPanel("");
+      }
     }
   };
   const colls = collectionRows(tees);
@@ -564,6 +579,9 @@ function TeeList({ tees, busy, run }) {
                 {t.oldPrice > t.price && <s>{money(t.oldPrice)}</s>}
               </span>
               <span className={`sm-badge${t.inShop ? " in" : ""}`}>{t.inShop ? "In the shop" : "Taken out"}</span>
+              <button type="button" className="sm-btn sm-btn-link sm-add-one" disabled={busy} onClick={() => openStyle(t._id)} title="Make this design in another style (as a draft)">
+                + style
+              </button>
               {t.inShop && t.slug && (
                 <a className="sm-see" href={shopHref(`/ready-made/design/${t.slug}`)} target="_blank" rel="noreferrer">
                   See it ↗
@@ -597,6 +615,9 @@ function TeeList({ tees, busy, run }) {
             <button type="button" className={`sm-btn${panel === "colour" ? " sm-btn-dark" : ""}`} disabled={busy} onClick={() => setPanel(panel === "colour" ? "" : "colour")}>
               Colour…
             </button>
+            <button type="button" className={`sm-btn${panel === "style" ? " sm-btn-dark" : ""}`} disabled={busy} onClick={() => (panel === "style" ? setPanel("") : openStyle())}>
+              + Add to a style…
+            </button>
             <button type="button" className="sm-btn sm-btn-danger" disabled={busy} onClick={() => setPanel(panel === "delete" ? "" : "delete")}>
               Delete for good…
             </button>
@@ -622,6 +643,7 @@ function TeeList({ tees, busy, run }) {
             </ul>
           )}
           {panel === "price" && <PriceInputs busy={busy} count={picked.length} onApply={(price, oldPrice) => act("New price", { action: "price", price, oldPrice }, `Sell ${plural(picked.length, "tee")} at ${money(price)}${oldPrice ? ` (was ${money(oldPrice)})` : ""}?`)} />}
+          {panel === "style" && (garments ? <AddToStyle tees={tees} picked={picked} garments={garments} busy={busy} onClose={() => setPanel("")} /> : <p className="sm-note">Loading the styles…</p>)}
           {panel === "delete" && <DeleteBox count={picked.length} what={`the ${plural(picked.length, "ticked tee")}`} onCancel={() => setPanel("")} onDelete={() => act("Delete for good", { action: "delete" })} />}
         </div>
       )}

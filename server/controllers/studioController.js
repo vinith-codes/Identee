@@ -2,6 +2,7 @@
 // in the Studio and publishes it to Shop your IDENTEE (a ReadyDesign, sold print on demand like the Collection
 // maker's). The AI pictures are made in services/studioService.js.
 import asyncHandler from "express-async-handler";
+import { FAMILY, familyId } from "../utils/shopFamily.js";
 import crypto from "crypto";
 import mongoose from "mongoose";
 import ReadyDesign from "../models/readyDesignModel.js";
@@ -205,6 +206,8 @@ const saveBody = async (req, res, design) => {
     sizes,
     priceInr,
     product: cleanProductDetails(body.product, design?.product || {}),
+    // its family: the same design in other styles (25 Nov 2026, Add a tee / + Add to a style) — kept when not sent
+    family: FAMILY.test(String(body.family || "")) ? String(body.family) : design?.family || "",
   };
   // where it is listed: every ticked category must exist; the first one is the tee's own category (27 Oct 2026)
   const known = await shopCategories();
@@ -235,6 +238,7 @@ const saveBody = async (req, res, design) => {
 };
 export const createStudioDesign = asyncHandler(async (req, res) => {
   const patch = await saveBody(req, res, null);
+  if (!patch.family) patch.family = familyId(patch.name); // a new design starts its own family (25 Nov 2026)
   const design = await ReadyDesign.create({ ...patch, slug: slugify(patch.name), source: "studio", createdBy: req.user._id, collectionId: null, plan: { idea: "Designed by hand in the Studio" } });
   res.status(201).json(design);
 });

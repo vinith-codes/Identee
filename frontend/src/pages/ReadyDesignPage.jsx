@@ -37,8 +37,9 @@ const SIDES = [
   ["left", "Left"],
   ["right", "Right"],
 ];
-// an Oversized tee shows its front and back only, no side views (the user, 31 Oct 2026)
-const frontBackOnly = (design) => design.style === "Oversized" || design.garmentType === "oversized-tee";
+// an Oversized tee shows its front and back only, no side views (the user, 31 Oct 2026) — since 25 Nov 2026 the style's own
+// setting (Admin → Shop your IDENTEE → Styles: "front-back" | "all"); an older server without it: the old rule
+const frontBackOnly = (design) => (design.sides ? design.sides === "front-back" : design.style === "Oversized" || design.garmentType === "oversized-tee");
 const token = () => {
   try {
     return JSON.parse(localStorage.getItem("userInfo") || "null")?.token || null;
@@ -270,7 +271,8 @@ export default function ReadyDesignPage() {
 
   // where it is: Home › Shop your IDENTEE › Ayyappa › Oversized › the tee — the step it was opened from goes back
   // there (same filters, same place on the page)
-  const info = collectionInfo(key);
+  // (a collection made in Add a tee, not in the built-in list: its own name, "TESTSHOP" not "testshop" — 25 Nov 2026)
+  const info = collectionInfo(key, String(design.name || "").split(" · ")[0].trim());
   const fromIsHere = sameGrid;
   const crumbs = [
     { label: "Home", to: "/", wide: true },

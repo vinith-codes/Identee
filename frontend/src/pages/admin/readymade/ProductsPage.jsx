@@ -183,7 +183,7 @@ export default function ProductsPage() {
         </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           <Link to="/admin/bulk-upload" className="aw-btn light">Add many (spreadsheet)</Link>
-          <Link to="/admin/upload-product" className="aw-btn dark">+ Add a product</Link>
+          <Link to="/admin/upload-product" className="aw-btn dark">+ Add a stock item</Link>
         </div>
       </div>
 

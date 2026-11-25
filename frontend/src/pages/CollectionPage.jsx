@@ -35,8 +35,9 @@ export default function CollectionPage() {
   };
   const [found, setFound] = useState(null); // the collection from the shop's list; false = not in the shop
   const info = collectionInfo(key, found?.name);
-  // the tab a collection opens on: Oversized when it has it
-  const firstStyle = (found?.styles || []).includes("Oversized") ? "Oversized" : found?.styles?.[0] || "";
+  // the tab a collection opens on: its first style — the server lists them in the admin's order (Admin → Shop your
+  // IDENTEE → Styles, 25 Nov 2026: Oversized first, as before)
+  const firstStyle = found?.styles?.[0] || "";
   // a trend's collection (GTA, 23 Nov 2026): "Make your own" first — which tee to start from (its "Make your own" tees)
   const trend = useTrend(key);
   const [starts, setStarts] = useState(null);
@@ -49,14 +50,17 @@ export default function CollectionPage() {
         if (!alive) return;
         const own = (d.items || []).filter((p) => /·\s*make your own\s*$/i.test(p.brandname || "") && p.readyDesignSlug);
         const label = (p) => (p.garmentStyle === "Oversized" ? "Oversized tee" : `${p.garmentStyle || "Tee"}${p.gender && p.gender !== "Unisex" ? ` · ${p.gender}` : ""}`);
-        const order = (p) => (p.garmentStyle === "Oversized" ? 0 : p.gender === "Men" ? 1 : 2);
+        // in the styles' order (the server's, the admin's), then Men before Women
+        const styles = found?.styles || [];
+        const at = (p) => (styles.indexOf(p.garmentStyle) < 0 ? styles.length : styles.indexOf(p.garmentStyle));
+        const order = (p) => at(p) * 3 + (p.gender === "Men" ? 1 : p.gender === "Women" ? 2 : 0);
         setStarts([...own].sort((a, b) => order(a) - order(b)).map((p) => ({ label: label(p), to: `/ready-made/design/${p.readyDesignSlug}` })));
       })
       .catch(() => alive && setStarts([]));
     return () => {
       alive = false;
     };
-  }, [trend, key, shop.open]);
+  }, [trend, key, shop.open, (found?.styles || []).join("|")]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // /ready-made/gta#designs (the shop card's "See the designs"): straight to the ready designs once they are there
   useEffect(() => {

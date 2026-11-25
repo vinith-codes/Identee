@@ -68,6 +68,10 @@ const readyDesignSchema = new mongoose.Schema(
     product: { type: mongoose.Schema.Types.Mixed, default: {} },
     productGroupId: { type: String, default: "" }, // its product in the shop once published (the first category's)
     productGroups: { type: mongoose.Schema.Types.Mixed, default: {} }, // { categorySlug: productGroupId } — one group per category (27 Oct 2026)
+    // one design in several styles (25 Nov 2026): the Oversized, Round Neck Men's and Women's tees of one design share
+    // this id, so the shop's Style choice and the admin's "+ Add to a style" find each other without matching names.
+    // "" = an older tee (still found by its name until scripts/fillShopFamilies.mjs gives it one)
+    family: { type: String, default: "", index: true },
     // the Studio's earlier saves of this tee, newest last (Step 3, 25 Oct 2026): Restore brings one back
     versions: { type: [new mongoose.Schema({ at: Date, note: String, color: String, size: String, elements: [mongoose.Schema.Types.Mixed] }, { _id: false })], default: [] },
     status: { type: String, enum: ["planned", "drafted", "ready", "published", "rejected", "failed", "removed"], default: "planned", index: true },

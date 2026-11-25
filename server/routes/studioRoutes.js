@@ -5,6 +5,7 @@ import { protect, admin } from "../middleware/authMiddleware.js";
 import rateLimit from "../middleware/rateLimit.js";
 import { readStudioRefs } from "../multer/multer.js";
 import { bulkShopTees, listShopTees, saveShopCollections } from "../controllers/shopManageController.js";
+import { listShopStyles, saveShopStyle } from "../controllers/shopStylesController.js";
 import { addSizesToShopTees, changePicture, createStudioDesign, deleteStudioDesign, enlargeDesign, getStudioDesign, getStudioSetup, improvePrompt, listStudioDesigns, makeModelPhotos, makePicture, planTee, printCheck, publishStudioDesign, removeModelPhoto, studioPrintPack, updateStudioDesign } from "../controllers/studioController.js";
 
 const router = express.Router();
@@ -33,5 +34,8 @@ router.post("/add-sizes", protect, admin, addSizesToShopTees);
 router.get("/shop", protect, admin, listShopTees);
 router.post("/shop/bulk", protect, admin, bulkShopTees);
 router.put("/shop/collections", protect, admin, saveShopCollections);
+// the shop's styles (25 Nov 2026): each garment used for shop tees or not, its name, wearer, order, category, colours
+router.get("/shop/styles", protect, admin, listShopStyles);
+router.put("/shop/styles/:key", protect, admin, saveShopStyle);
 
 export default router;

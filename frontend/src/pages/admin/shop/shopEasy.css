@@ -1,0 +1,168 @@
+/* Admin → Shop your IDENTEE → Styles / Add a tee / Add many tees / Check and show (25 Nov 2026) — on top of shopManage.css */
+
+/* Styles */
+.se-how ol { margin: 8px 0 0; padding-left: 20px; display: grid; gap: 6px; line-height: 1.5; color: #3F3A31; }
+.se-styles { display: grid; gap: 14px; min-width: 0; }
+.se-styles-off { margin-top: 14px; }
+.se-card.is-on { border-color: #C9A24B; }
+.se-card-top { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 10px 16px; }
+.se-meta { margin: 2px 0 0; }
+.se-switch { display: inline-flex; align-items: center; gap: 10px; padding: 8px 14px; border-radius: 999px; background: #FBF7EE; border: 1px solid #ECE4D2;
+  font-weight: 800; cursor: pointer; }
+.se-switch input { width: 20px; height: 20px; accent-color: #15130F; }
+.se-problems { margin: 10px 0 0; padding: 10px 14px 10px 30px; border-radius: 12px; background: #FFF6DF; color: #6B4B05; line-height: 1.5; }
+.se-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 14px; }
+.se-colours { margin: 14px 0 0; padding: 0; border: 0; min-width: 0; }
+.se-colours legend { padding: 0; margin-bottom: 8px; font-size: 12px; font-weight: 700; color: #71695B; }
+.se-colours legend small { font-weight: 500; }
+.se-swatches { display: flex; flex-wrap: wrap; gap: 8px; }
+.se-swatch { display: inline-flex; align-items: center; gap: 7px; min-height: 36px; padding: 0 12px 0 8px; border-radius: 999px; border: 1.5px solid #DDD3BE;
+  background: #fff; color: #9A917F; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; text-decoration: line-through; }
+.se-swatch i { width: 20px; height: 20px; border-radius: 50%; border: 1px solid rgba(0, 0, 0, .18); opacity: .45; }
+.se-swatch.is-on { border-color: #15130F; color: #15130F; text-decoration: none; }
+.se-swatch.is-on i { opacity: 1; }
+.se-swatch:focus-visible { outline: 2px solid #C9A24B; outline-offset: 2px; }
+.se-save { margin-top: 14px; align-items: center; }
+.se-save .sm-note { margin: 0; flex: 1 1 280px; }
+
+@media (max-width: 760px) {
+  .se-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+}
+@media (max-width: 480px) {
+  .se-grid { grid-template-columns: minmax(0, 1fr); }
+  .se-switch { width: 100%; justify-content: center; }
+}
+
+/* Add a tee */
+.sa-layout { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 18px; align-items: start; min-width: 0; }
+.sa-steps { display: grid; gap: 14px; min-width: 0; }
+.sa-step h2, .sa-more summary { display: flex; align-items: center; gap: 10px; }
+.sa-n { display: inline-grid; place-items: center; flex: none; width: 26px; height: 26px; border-radius: 50%; background: #15130F; color: #F0D585; font-size: 13px; font-weight: 800; }
+.sa-grid-2 { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); margin-top: 10px; }
+.sa-full { margin: 10px 0 0; }
+.sa-warn { margin: 6px 0 0; color: #8A5A00; font-size: 13px; font-weight: 600; line-height: 1.45; }
+.sa-ok { margin: 6px 0 0; color: #2F6B2A; font-size: 13px; font-weight: 600; }
+.sa-pics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.sa-pic { min-width: 0; }
+.sa-pic-label { display: block; margin-bottom: 6px; font-size: 13px; }
+.sa-drop { position: relative; display: grid; place-items: center; aspect-ratio: 1; border-radius: 14px; border: 2px dashed #DDD3BE; background: #FBF9F4; overflow: hidden;
+  background-image: linear-gradient(45deg, #F1ECE2 25%, transparent 25%, transparent 75%, #F1ECE2 75%), linear-gradient(45deg, #F1ECE2 25%, transparent 25%, transparent 75%, #F1ECE2 75%);
+  background-size: 16px 16px; background-position: 0 0, 8px 8px; }
+.sa-drop.is-over { border-color: #C9A24B; background-color: #FFF6DF; }
+.sa-drop.has-pic { border-style: solid; }
+.sa-drop img { width: 100%; height: 100%; object-fit: contain; }
+.sa-drop-btn { display: grid; gap: 4px; place-items: center; width: 100%; height: 100%; border: 0; background: transparent; font: inherit; font-weight: 700; color: #3F3A31; cursor: pointer; }
+.sa-drop-btn small { font-weight: 500; color: #71695B; }
+.sa-pic-size { margin: 6px 0 0; }
+.sa-pic-btns { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.sa-pic-btns .sm-btn { min-height: 34px; padding: 0 11px; font-size: 12.5px; }
+.sa-spots { margin: 0 0 12px; padding: 0; border: 0; min-width: 0; }
+.sa-spots:disabled { opacity: .5; }
+.sa-spots legend { padding: 0; margin-bottom: 8px; font-weight: 800; }
+.sa-spots legend small { font-weight: 500; color: #71695B; }
+.sa-spot-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 8px; }
+.sa-spot { display: grid; justify-items: center; gap: 4px; padding: 8px 6px; border-radius: 12px; border: 1.5px solid #E4DCCB; background: #fff; text-align: center;
+  font-size: 12.5px; font-weight: 600; cursor: pointer; }
+.sa-spot input { position: absolute; opacity: 0; pointer-events: none; }
+.sa-spot.is-on { border: 2px solid #15130F; background: #FBF7EE; }
+.sa-spot:focus-within { outline: 2px solid #C9A24B; outline-offset: 2px; }
+.sa-lock { margin-top: 4px; line-height: 1.4; }
+.sa-styles { display: grid; gap: 10px; }
+.sa-style { display: grid; gap: 10px; padding: 12px; border-radius: 12px; border: 1px solid #ECE4D2; background: #FBF9F4; }
+.sa-style.is-on { background: #fff; border-color: #C9A24B; }
+.sa-style-name { font-size: 15px; font-weight: 800; flex-wrap: wrap; }
+.sa-style-name small { font-size: 12.5px; font-weight: 500; color: #71695B; }
+.sa-price { display: grid; grid-template-columns: repeat(2, minmax(0, 180px)); gap: 10px; }
+.sa-more { display: grid; gap: 10px; }
+.sa-more summary { cursor: pointer; font-size: 19px; font-weight: 800; list-style: none; }
+.sa-more summary::-webkit-details-marker { display: none; }
+.sa-more summary small { font-size: 13px; font-weight: 500; color: #71695B; }
+.sa-more[open] summary { margin-bottom: 6px; }
+.sa-more textarea { width: 100%; padding: 8px 11px; border-radius: 10px; border: 1px solid #DDD3BE; font: inherit; font-size: 13.5px; font-weight: 500; resize: vertical; }
+.sa-side { position: sticky; top: 12px; display: grid; gap: 10px; }
+.sa-side h2 { margin: 0; }
+.sa-preview { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.sa-preview img { width: 100%; aspect-ratio: 4 / 5; object-fit: cover; border-radius: 10px; background: #EDEAE3; }
+.sa-hr { width: 100%; border: 0; border-top: 1px solid #ECE4D2; margin: 4px 0; }
+.sa-missing { padding: 10px 12px; border-radius: 12px; background: #FBF7EE; font-size: 13px; color: #5B544A; }
+.sa-missing ul { margin: 4px 0 0; padding-left: 18px; }
+.sa-make { width: 100%; min-height: 46px; font-size: 15px; }
+.sa-status { margin: 0; }
+.sa-side .sm-failed { margin: 0; padding-left: 30px; font-size: 13px; }
+
+@media (max-width: 980px) {
+  .sa-layout { grid-template-columns: minmax(0, 1fr); }
+  .sa-side { position: static; }
+}
+@media (max-width: 480px) {
+  .sa-pics { grid-template-columns: minmax(0, 1fr); }
+  .sa-price { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .sa-spot-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* Check and show */
+.sd-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; position: sticky; top: 8px; z-index: 4; }
+.sd-list { display: grid; gap: 14px; }
+.sd-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
+.sd-head b { font-size: 16px; }
+.sd-head small { margin: 0; }
+.sd-tees { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 12px; margin-top: 12px; }
+.sd-tee { display: grid; gap: 8px; padding: 10px; border-radius: 14px; border: 1px solid #ECE4D2; background: #FBF9F4; min-width: 0; }
+.sd-tee.is-ticked { border-color: #15130F; background: #fff; }
+.sd-pics { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 0; border: 0; background: none; cursor: zoom-in; }
+.sd-pics img { width: 100%; aspect-ratio: 4 / 5; object-fit: cover; border-radius: 8px; background: #EDEAE3; }
+.sd-tee-name { font-weight: 800; }
+.sd-swatches { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.sd-swatches i { width: 16px; height: 16px; border-radius: 50%; border: 1px solid rgba(0, 0, 0, .2); }
+.sd-swatches small { margin-left: 4px; color: #71695B; font-size: 12px; }
+.sd-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.sd-actions .sm-btn { min-height: 34px; padding: 0 12px; font-size: 12.5px; display: inline-flex; align-items: center; text-decoration: none; }
+.sd-big { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; padding: 16px; background: rgba(21, 19, 15, .7); }
+.sd-big-box { display: grid; gap: 12px; width: min(100%, 860px); max-height: calc(100vh - 32px); overflow: auto; padding: 16px; border-radius: 16px; background: #fff; }
+.sd-big-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.sd-big-pics { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.sd-big-pics img { width: 100%; aspect-ratio: 4 / 5; max-height: calc(100vh - 190px); object-fit: contain; border-radius: 12px; background: #EDEAE3; } /* (the colour buttons stay in view) */
+@media (max-width: 480px) {
+  .sd-big-pics { grid-template-columns: minmax(0, 1fr); }
+  .sd-bar { position: static; }
+}
+
+/* Add many tees */
+.am-drop { display: grid; place-items: center; min-height: 150px; margin-top: 10px; border-radius: 14px; border: 2px dashed #DDD3BE; background: #FBF9F4; }
+.am-drop.is-over { border-color: #C9A24B; background: #FFF6DF; }
+.am-refused, .am-loose { margin-top: 12px; }
+.am-refused .sm-btn { margin-top: 6px; }
+.am-loose { padding: 12px; border-radius: 12px; background: #FFF6DF; color: #5B4407; }
+.am-loose ul { display: grid; gap: 8px; margin: 8px 0 0; padding: 0; list-style: none; }
+.am-loose li { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
+.am-loose img { width: 44px; height: 44px; object-fit: contain; border-radius: 8px; background: #fff; }
+.am-loose select { min-height: 36px; max-width: 100%; padding: 0 8px; border-radius: 10px; border: 1px solid #DDD3BE; font: inherit; font-size: 13px; }
+.am-file { flex: 1 1 140px; min-width: 0; overflow-wrap: anywhere; font-size: 13px; font-weight: 600; }
+.am-listbar { margin-top: 14px; }
+.am-rows { display: grid; gap: 8px; margin: 8px 0 0; padding: 0; list-style: none; }
+.am-row { display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 12px; border: 1px solid #ECE4D2; background: #fff; }
+.am-row > input[type="checkbox"] { width: 18px; height: 18px; accent-color: #15130F; }
+.am-row.is-off { opacity: .55; }
+.am-row.is-bad { border-color: #E3B2A6; background: #FFF8F6; }
+.am-pics { display: flex; gap: 4px; }
+.am-pics figure { position: relative; display: grid; place-items: center; width: 58px; height: 58px; margin: 0; border-radius: 8px; background: #EDEAE3; overflow: hidden; }
+.am-pics figure.is-empty { background: #F6F3EC; border: 1px dashed #DDD3BE; }
+.am-pics img { width: 100%; height: 100%; object-fit: contain; }
+.am-pics figure > span { font-size: 10.5px; color: #9A917F; }
+.am-pics figcaption { position: absolute; left: 0; right: 0; bottom: 0; padding: 1px 0; background: rgba(21, 19, 15, .6); color: #fff; font-size: 9.5px; text-align: center; text-transform: uppercase; }
+.am-body { display: grid; gap: 2px; min-width: 0; }
+.am-body .sm-note, .am-body .sa-warn { margin: 0; font-size: 12px; overflow-wrap: anywhere; }
+.am-name { min-height: 36px; width: 100%; padding: 0 10px; border-radius: 10px; border: 1px solid #DDD3BE; font: inherit; font-size: 14px; font-weight: 700; }
+.am-stop { color: #A0321C; font-size: 12px; font-weight: 700; }
+.am-btns { display: grid; justify-items: end; }
+.am-btns .sm-btn { min-height: 30px; padding: 0 6px; font-size: 12.5px; }
+@media (max-width: 620px) {
+  .am-row { grid-template-columns: auto auto minmax(0, 1fr); }
+  .am-btns { grid-column: 1 / -1; display: flex; justify-content: flex-end; gap: 4px; }
+}
+@media (max-width: 480px) {
+  .am-body { grid-column: 1 / -1; } /* (a phone: the name gets the whole width) */
+}
+@media (max-width: 400px) {
+  .am-pics figure { width: 46px; height: 46px; }
+}

@@ -41,6 +41,7 @@ export function teeRow(d, garment, price) {
     gender: d.product?.gender || "Unisex",
     garmentType: d.garmentType,
     garmentLabel: garment?.label || d.garmentType,
+    family: d.family || "", // its other styles share this (25 Nov 2026)
     colours: colours.map((c) => {
       const g = garment?.colours?.find((x) => x.slug === c.slug);
       return { slug: c.slug, name: g?.name || c.slug, hex: g?.hex || "#1C1C1D", hidden: hidden.has(c.slug) };
@@ -55,7 +56,7 @@ export function teeRow(d, garment, price) {
 // GET /api/studio/shop  (admin)
 export const listShopTees = asyncHandler(async (req, res) => {
   const [docs, garments, conf] = await Promise.all([
-    ReadyDesign.find(SHOP_TEE).select("name slug status garmentType color colours.slug colours.mockups mockups product priceInr hiddenColours elements.side elements.fixed elements.type updatedAt publishedAt").sort({ publishedAt: -1 }).lean(),
+    ReadyDesign.find(SHOP_TEE).select("name slug status family garmentType color colours.slug colours.mockups mockups product priceInr hiddenColours elements.side elements.fixed elements.type updatedAt publishedAt").sort({ publishedAt: -1 }).lean(),
     studioGarments(),
     readCollections(),
   ]);

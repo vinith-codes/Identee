@@ -38,11 +38,15 @@ export const ADMIN_MENU = [
     icon: "readymade",
     to: "/admin/products",
     children: [
+      { to: "/admin/shop-add", label: "Add a tee" }, // two pictures in, the styles ticked (25 Nov 2026)
+      { to: "/admin/shop-add-many", label: "Add many tees" }, // a whole collection: name-front / name-back pictures (25 Nov 2026)
+      { to: "/admin/shop-drafts", label: "Check and show" }, // new tees wait here until shown (25 Nov 2026)
       { to: "/admin/shop-manage", label: "Manage the shop" }, // styles, colours, prices, collections (24 Nov 2026)
+      { to: "/admin/shop-styles", label: "Styles" }, // the kinds of tee sold: Oversized, Round Neck, a new one (25 Nov 2026)
       { to: "/admin/products", label: "All products" },
       // (the Collection maker — many tees from one prompt — is parked since 25 Oct 2026: the Studio does the job;
       //  its code stays in pages/admin/CollectionMakerPage.jsx for a later "rough drafts" feature)
-      { to: "/admin/upload-product", label: "Add a product" },
+      { to: "/admin/upload-product", label: "Add a stock item" }, // was "Add a product": stock per size, combos (25 Nov 2026)
       { to: "/admin/bulk-upload", label: "Add many (spreadsheet)" },
     ],
   },

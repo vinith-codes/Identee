@@ -13,6 +13,8 @@ export const imageUrl = (url, width) => {
     return url.replace("/upload/", `/upload/${t}/`);
   }
   if (/^https?:\/\//.test(url)) return url;
+  // a picture made in the page (the hanger camera's preview, a picked file): used as it is (25 Nov 2026)
+  if (/^(data|blob):/.test(url)) return url;
   const own = `${BACKEND_URL}${url.startsWith("/") ? "" : "/"}${url}`;
   return width && /^\/?uploads\//.test(url) && !/\.(mp4|webm|mov|pdf|gif)$/i.test(url) ? `${own}?w=${Math.round(width)}` : own;
 };

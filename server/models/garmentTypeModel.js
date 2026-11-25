@@ -81,6 +81,19 @@ const garmentTypeSchema = new mongoose.Schema(
       topPct: { type: Number, default: null },
       hemPct: { type: Number, default: null },
     },
+    // Shop your IDENTEE's settings for this garment (Admin → Shop your IDENTEE → Styles, 25 Nov 2026; utils/shopStyles.js).
+    // saved: false = never set by the admin — the built-in rules apply (the same as before this was added).
+    shop: {
+      saved: { type: Boolean, default: false },
+      on: { type: Boolean, default: false },
+      style: { type: String, default: "", trim: true },
+      wearer: { type: String, default: "" },
+      order: { type: Number, default: 0 },
+      category: { type: String, default: "", trim: true },
+      colours: { type: [String], default: [] },
+      sides: { type: String, default: "" },
+      fitText: { type: String, default: "", trim: true },
+    },
   },
   { timestamps: true },
 );

@@ -33,6 +33,7 @@ import { isDark } from "./collectionService.js";
 import mongoose from "mongoose";
 import Product from "../models/productModel.js";
 import Category from "../models/categoryModel.js";
+import { styleOf } from "../utils/shopStyles.js";
 
 export const PROMPT_MAX = 1500;
 export const MAX_REFS = 3;
@@ -106,6 +107,7 @@ export async function studioGarments() {
         positions,
         colours: (garment.colors || []).map((c) => ({ slug: c.slug, name: c.name, hex: c.hex, dark: isDark(c.hex) })),
         wearers: wearersOf(garment), // who is shown wearing it in the model photos
+        shop: styleOf(garment), // its Shop your IDENTEE settings (Admin → Shop your IDENTEE → Styles, utils/shopStyles.js)
       };
     })
     .filter(Boolean);

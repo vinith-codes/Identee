@@ -39,6 +39,10 @@ const TestModePage = lazyPage(() => import("../pages/admin/TestModePage")); // D
 const DesignHelpPage = lazyPage(() => import("../pages/admin/DesignHelpPage")); // Design Studio → Help requests (8 Nov 2026)
 const TrendsPage = lazyPage(() => import("../pages/admin/TrendsPage")); // Design Studio → Trends (23 Nov 2026)
 const ShopManagePage = lazyPage(() => import("../pages/admin/ShopManagePage")); // Shop your IDENTEE → Manage the shop (24 Nov 2026)
+const ShopStylesPage = lazyPage(() => import("../pages/admin/shop/ShopStylesPage")); // Shop your IDENTEE → Styles (25 Nov 2026)
+const ShopAddPage = lazyPage(() => import("../pages/admin/shop/ShopAddPage")); // Shop your IDENTEE → Add a tee (25 Nov 2026)
+const ShopDraftsPage = lazyPage(() => import("../pages/admin/shop/ShopDraftsPage")); // Shop your IDENTEE → Check and show (25 Nov 2026)
+const ShopAddManyPage = lazyPage(() => import("../pages/admin/shop/ShopAddManyPage")); // Shop your IDENTEE → Add many tees (25 Nov 2026)
 // Review moderation
 const AdminReviewsPage = lazyPage(() => import("../pages/admin/AdminReviewsPage"));
 // Settings module
@@ -137,6 +141,10 @@ export function adminRoutes() {
         <Route path="studio/:id" element={<StudioPage />} />
         <Route path="test-mode" element={<TestModePage />} />
         <Route path="shop-manage" element={<ShopManagePage />} />
+        <Route path="shop-styles" element={<ShopStylesPage />} />
+        <Route path="shop-add" element={<ShopAddPage />} />
+        <Route path="shop-drafts" element={<ShopDraftsPage />} />
+        <Route path="shop-add-many" element={<ShopAddManyPage />} />
         <Route path="design-help" element={<DesignHelpPage />} />
         <Route path="trends" element={<TrendsPage />} />
         <Route path="invoices/:orderId" element={<InvoicePreviewPage />} />

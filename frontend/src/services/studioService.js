@@ -53,6 +53,9 @@ const act = async (id, action) => (await axios.post(`${COLLECTIONS}/designs/${id
 const shopTees = async () => (await axios.get(`${API}/shop`, auth())).data;
 const shopBulk = async (body) => (await axios.post(`${API}/shop/bulk`, body, { ...auth(), timeout: 300000 })).data;
 const saveShopCollections = async (body) => (await axios.put(`${API}/shop/collections`, body, auth())).data;
+// the shop's styles (Admin → Shop your IDENTEE → Styles, 25 Nov 2026)
+const shopStyles = async () => (await axios.get(`${API}/shop/styles`, auth())).data;
+const saveShopStyle = async (key, body) => (await axios.put(`${API}/shop/styles/${encodeURIComponent(key)}`, body, auth())).data;
 
-const studioService = { shopTees, shopBulk, saveShopCollections, getSetup, makePicture, changePicture, improve, plan, printCheck, printPack, enlarge, listDesigns, getDesign, saveDesign, publish, modelPhotos, removeModelPhoto, removeDesign, act };
+const studioService = { shopTees, shopBulk, saveShopCollections, shopStyles, saveShopStyle, getSetup, makePicture, changePicture, improve, plan, printCheck, printPack, enlarge, listDesigns, getDesign, saveDesign, publish, modelPhotos, removeModelPhoto, removeDesign, act };
 export default studioService;

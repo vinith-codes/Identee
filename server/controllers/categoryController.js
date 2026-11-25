@@ -4,7 +4,7 @@ import Product, { LIVE } from "../models/productModel.js";
 import GarmentType from "../models/garmentTypeModel.js";
 import { uploadImage, deleteImage } from "../utils/imageStorage.js";
 import { applySubscriptionPrice } from "../utils/applySubscriptionPrice.js";
-import { SHOWN_IN_SHOP } from "../utils/shopRules.js";
+import { shopRulesNow } from "../utils/shopStyles.js";
 
 const escapeRegex = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 // Case-insensitive exact match on a list of style names.
@@ -59,7 +59,7 @@ const productMatch = async (category) => {
 // Number of distinct product groups (a product in 3 colours counts once).
 const countProducts = async (category) => {
   if (!category.styles.length) return 0;
-  const groups = await Product.distinct("productGroupId", { ...(await productMatch(category)), ...LIVE, ...SHOWN_IN_SHOP });
+  const groups = await Product.distinct("productGroupId", { ...(await productMatch(category)), ...LIVE, ...(await shopRulesNow()).query });
   return groups.length;
 };
 
@@ -126,7 +126,7 @@ export const getCategoryProducts = asyncHandler(async (req, res) => {
     ...(await productMatch(category)),
     ...(style ? { "productdetails.garmentStyle": styleMatcher([style]) } : {}),
     ...LIVE,
-    ...SHOWN_IN_SHOP, // only dark colours and White in Shop your IDENTEE, no Royal Blue Round Neck (30 Oct 2026)
+    ...(await shopRulesNow()).query, // each style's shop colours (Admin → Shop your IDENTEE → Styles; until set: dark ones and White, no Royal Blue Round Neck)
   };
   if (req.query.size) {
     match["productdetails.stockBySize"] = {

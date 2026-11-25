@@ -10,6 +10,7 @@ import Setting from "../models/settingModel.js";
 import Product, { LIVE } from "../models/productModel.js";
 import Category from "../models/categoryModel.js";
 import { shownInShop } from "../utils/shopRules.js";
+import { shopRulesNow, styleOf } from "../utils/shopStyles.js";
 import { aiDesignAddOn } from "../utils/aiPricing.js";
 import { backFirst, wearerFor } from "../services/studioService.js";
 import { genderLabel, pickVersions } from "../utils/shopTwins.js";
@@ -27,12 +28,14 @@ function priceOf(design, garment) {
   return { price, comparePrice: was };
 }
 // the colours a tee is sold in: the designed one, plus the ones the admin ticked (each with its own pictures) —
-// only the dark ones and White, no Royal Blue on Round Neck (utils/shopRules.js)
+// only the colours its style sells in the shop (Admin → Shop your IDENTEE → Styles, utils/shopStyles.js; until set: the
+// dark ones and White, no Royal Blue on Round Neck). A colour the garment no longer has keeps the old rule.
 const coloursOf = (design, garment) => {
   const list = design.colours?.length ? design.colours : [{ slug: design.color, mockups: design.mockups }];
+  const sold = new Set(styleOf(garment)?.colours || []);
   return list
     .map((c) => ({ slug: c.slug, name: colourOf(garment, c.slug)?.name || c.slug, hex: colourOf(garment, c.slug)?.hex || "#1C1C1D", mockups: c.mockups, photos: c.photos || [] }))
-    .filter((c) => shownInShop(c.name, `${design.product?.style || ""} ${garment?.label || ""}`))
+    .filter((c) => (colourOf(garment, c.slug) ? sold.has(c.slug) : shownInShop(c.name, `${design.product?.style || ""} ${garment?.label || ""}`)))
     .filter((c) => !(design.hiddenColours || []).includes(c.slug)); // (a colour the admin took out of the shop, 24 Nov 2026)
 };
 const sizesOf = (design, garment) => {
@@ -86,11 +89,14 @@ export const listReadyDesigns = asyncHandler(async (req, res) => {
 // the tee's versions in the shop (25 Nov 2026): the live tees with its name — Oversized, Round Neck Men's, Round Neck
 // Women's — so its page can offer Style: Oversized / Round Neck and Men / Women (utils/shopTwins.js)
 async function versionsOf(design) {
-  if (!design.name) return [];
-  const docs = await Product.find({ ...LIVE, brandname: design.name, readyDesign: { $ne: null } })
+  if (!design.name && !design.family) return [];
+  // its family's tees (25 Nov 2026, the family id) and — older tees without one — the tees with its name
+  const family = design.family ? (await ReadyDesign.find({ family: design.family, status: "published" }).select("_id").lean()).map((r) => r._id) : [];
+  const docs = await Product.find({ ...LIVE, $or: [...(family.length ? [{ readyDesign: { $in: family } }] : []), ...(design.name ? [{ brandname: design.name, readyDesign: { $ne: null } }] : [])] })
     .select("readyDesign productdetails.garmentStyle productdetails.category productdetails.color productdetails.gender")
     .lean();
-  const shown = docs.filter((d) => shownInShop(d.productdetails?.color, d.productdetails?.garmentStyle));
+  const rules = await shopRulesNow();
+  const shown = docs.filter((d) => rules.colourShown(d.productdetails?.color, d.productdetails?.garmentStyle, d.productdetails?.gender));
   if (!shown.length) return [];
   const active = await Category.find({ isActive: true }).select("name slug").lean();
   const byName = new Map(active.map((c) => [String(c.name).trim().toLowerCase(), c]));
@@ -112,6 +118,7 @@ async function versionsOf(design) {
       return { id: String(r._id), slug: r.slug, createdAt: r.createdAt, style: b.style, gender: genderLabel(b.wearers.size ? b.wearers : said) };
     }),
     String(design._id),
+    rules.styleRank,
   );
 }
 
@@ -132,6 +139,8 @@ export const getReadyDesign = asyncHandler(async (req, res) => {
     blurb: design.blurb,
     description: design.product?.description || "", // the product page text given when publishing (26 Oct 2026)
     style: design.product?.style || "",
+    // which sides the tee page shows: "front-back" (Oversized) or "all" — the style's own setting (utils/shopStyles.js)
+    sides: styleOf(garment)?.sides || "all",
     fabric: design.product?.fabric || "",
     washCare: design.product?.washCare || [],
     garmentType: design.garmentType,

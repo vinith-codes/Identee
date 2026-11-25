@@ -86,7 +86,7 @@
 .sm-tee-body { display: grid; gap: 2px; min-width: 0; }
 .sm-tee-body b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sm-tee-body small { color: #71695B; }
-.sm-tee-colours { display: flex; gap: 4px; margin-top: 2px; }
+.sm-tee-colours { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 2px; } /* (25 Nov: 9+ colours wrap on a phone) */
 .sm-tee-colours .sm-dot { width: 13px; height: 13px; }
 .sm-tee-end { display: grid; justify-items: end; gap: 4px; font-size: 13px; }
 .sm-tee-price { font-weight: 800; }
@@ -172,3 +172,11 @@
 @media (min-width: 641px) {
   .sm-view-pics:not(.sm-view-sleeves) .sm-view-pic a, .sm-view-pics:not(.sm-view-sleeves) .sm-view-wait { aspect-ratio: auto; height: max(300px, calc(100dvh - 330px)); }
 }
+
+/* "+ Add to a style" (25 Nov 2026) */
+.sm-add-one { min-height: 28px; padding: 0 6px; font-size: 12.5px; }
+.sm-add-style { display: grid; gap: 8px; margin-top: 10px; padding: 12px; border-radius: 12px; background: #FBF7EE; border: 1px solid #ECE4D2; }
+.sm-add-style .sm-row { align-items: flex-end; }
+.sm-add-style .sm-field { width: min(100%, 300px); }
+.sm-add-style .sm-note { margin: 0; }
+.sm-add-style .sa-warn { margin: 0; color: #8A5A00; font-size: 13px; font-weight: 600; }

@@ -43,7 +43,9 @@ const at = (list, v) => {
 
 // rows: [{ id, slug, style, gender, createdAt }] — the live designs with the tee's name. One per style + gender (the
 // tee itself wins, else the newest), Oversized first, then Men before Women.
-export function pickVersions(rows = [], currentId = null) {
+// rank(style): the style's place — the admin's order (utils/shopStyles.js styleRank); without it, STYLE_ORDER
+export function pickVersions(rows = [], currentId = null, rank = null) {
+  const placeOf = rank || ((style) => at(STYLE_ORDER, norm(style)));
   const best = new Map();
   for (const r of rows) {
     if (!r?.slug || !r.style) continue;
@@ -53,6 +55,6 @@ export function pickVersions(rows = [], currentId = null) {
     if (!had || mine || (String(had.id) !== String(currentId) && new Date(r.createdAt || 0) > new Date(had.createdAt || 0))) best.set(k, r);
   }
   return [...best.values()]
-    .sort((a, b) => at(STYLE_ORDER, norm(a.style)) - at(STYLE_ORDER, norm(b.style)) || norm(a.style).localeCompare(norm(b.style)) || at(GENDER_ORDER, a.gender) - at(GENDER_ORDER, b.gender))
+    .sort((a, b) => placeOf(a.style) - placeOf(b.style) || norm(a.style).localeCompare(norm(b.style)) || at(GENDER_ORDER, a.gender) - at(GENDER_ORDER, b.gender))
     .map((r) => ({ slug: r.slug, style: r.style, gender: r.gender }));
 }
