@@ -7,9 +7,11 @@
 //   Quick switches  a whole style, Men / Women, or a colour out of the shop (or back) — for one collection or all
 //   Prices          a new price (and struck "was" price) for a collection, or one style of it
 //   Every tee       a list with search and filters; tick many, then take out / put back / price / delete for good
+// (25 Nov 2026, moved here from the Design Studio page — the owner: "why this is in design studio") a collection's
+// "New pictures" (its tees on the hanger photo again) and "Add tees from a list" (shop/ListShopTees.jsx).
 // "Take out" loses nothing: the tee stays here and goes back in one click. "Delete for good" takes it out of this
 // admin too (orders already placed keep working). Every change is live on the website at once.
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "react-toastify";
 import studioService from "../../services/studioService";
 import { imageUrl } from "../../utils/imageUrl";
@@ -17,6 +19,9 @@ import { money } from "../../utils/money";
 import { collectionInfo } from "../../utils/shopRules";
 import { shopHref } from "../../utils/siteUrls";
 import { chunks, collectionRows, collectionsBody, colourGroups, filterTees, groupBy, inScope, priceGroups } from "../../utils/shopManage";
+import MockupCamera from "../../studio/MockupCamera";
+import ListShopTees from "./shop/ListShopTees";
+import { minutesFor, remakePictures } from "./shop/newPictures";
 import "./shopManage.css";
 
 const apiError = (err) => err?.response?.data?.message || err?.message || "That didn't work. Please try again.";
@@ -73,6 +78,50 @@ export default function ShopManagePage() {
     return true;
   };
 
+  // a collection's tees in the shop: their pictures taken again on the hanger photo (shop/newPictures.js), one by one,
+  // by the MockupCamera on this page
+  const [shotJob, setShotJob] = useState(null);
+  const shotDone = useRef(null);
+  const shoot = (job) =>
+    new Promise((resolve) => {
+      shotDone.current = resolve;
+      setShotJob({ ...job, id: `pic${Date.now()}${Math.random()}` });
+    });
+  const onShots = (pictures) => {
+    setShotJob(null);
+    const done = shotDone.current;
+    shotDone.current = null;
+    done?.(pictures);
+  };
+  const newPictures = async (row, name) => {
+    const ids = data.tees.filter((t) => t.collection === row.key && t.inShop).map((t) => t._id);
+    if (!ids.length || busy) return;
+    if (!window.confirm(`Make new pictures for the ${plural(ids.length, `${name} tee`)} in the shop (on the hanger photo, every colour)? Keep this page open — about ${plural(minutesFor(ids.length), "minute")}.`)) return;
+    const label = `New pictures for ${name}`;
+    setBusy({ label, done: 0, total: ids.length });
+    setFailed([]);
+    const bad = [];
+    try {
+      const { garments = [] } = await studioService.getSetup();
+      const where = new Map();
+      for (const [i, id] of ids.entries()) {
+        try {
+          await remakePictures(id, { garments, where, shoot });
+        } catch (err) {
+          bad.push({ name: nameOf(data.tees.find((t) => t._id === id) || {}) || id, message: apiError(err) });
+        }
+        setBusy({ label, done: i + 1, total: ids.length });
+      }
+    } catch (err) {
+      bad.push({ name, message: apiError(err) });
+    }
+    setBusy(null);
+    setFailed(bad);
+    if (bad.length) toast.error(`${label}: ${bad.length} kept the old pictures — see the list at the top.`);
+    else toast.success(`${label}: done (${plural(ids.length, "tee")}).`);
+    await load();
+  };
+
   if (error && !data) return <p className="sm-error">{error}</p>;
   if (!data) return <p className="sm-note">Loading the shop's tees…</p>;
 
@@ -90,7 +139,7 @@ export default function ShopManagePage() {
 
       {busy && (
         <div className="sm-busy" role="status">
-          {busy.label}… {busy.done} / {busy.total}
+          {busy.label}…{busy.total ? ` ${busy.done} / ${busy.total}` : ""}
           <span style={{ width: `${Math.round((busy.done / Math.max(1, busy.total)) * 100)}%` }} />
         </div>
       )}
@@ -107,10 +156,12 @@ export default function ShopManagePage() {
         </div>
       )}
 
-      <Collections key={version} data={data} busy={Boolean(busy)} run={run} onSaved={load} />
+      <Collections key={version} data={data} busy={Boolean(busy)} run={run} onSaved={load} onPictures={newPictures} />
+      <ListShopTees busy={Boolean(busy)} onBusy={(on) => setBusy(on ? { label: "Adding tees from a list", done: 0, total: 0 } : null)} onMade={load} />
       <Switches tees={data.tees} collections={data.collections} busy={Boolean(busy)} run={run} />
       <Prices tees={data.tees} busy={Boolean(busy)} run={run} />
       <TeeList tees={data.tees} busy={Boolean(busy)} run={run} />
+      {shotJob && <MockupCamera key={shotJob.id} job={shotJob} onDone={onShots} />}
     </div>
   );
 }
@@ -118,7 +169,7 @@ export default function ShopManagePage() {
 // a collection's own words on the website (the admin's, else the built-in ones)
 const shownName = (row) => row.name || collectionInfo(row.key, row.title).name;
 
-function Collections({ data, busy, run, onSaved }) {
+function Collections({ data, busy, run, onSaved, onPictures }) {
   const start = useMemo(() => collectionRows(data.tees, data.collections, data.defaultHome), [data]);
   const [rows, setRows] = useState(start);
   const [saving, setSaving] = useState(false);
@@ -186,6 +237,11 @@ function Collections({ data, busy, run, onSaved }) {
                 {r.inShop > 0 && (
                   <button type="button" className="sm-btn" disabled={busy} onClick={() => run(`Take ${shownName(r)} out`, r.ids, { action: "out" }, `Take all ${r.inShop} ${shownName(r)} tees out of the shop? They stay here and can be put back.`)}>
                     Take all out
+                  </button>
+                )}
+                {r.inShop > 0 && (
+                  <button type="button" className="sm-btn" disabled={busy} title="Take each tee's pictures again, on the hanger photo, in every colour" onClick={() => onPictures(r, shownName(r))}>
+                    New pictures
                   </button>
                 )}
                 {r.out > 0 && (
@@ -397,7 +453,7 @@ function TeeList({ tees, busy, run }) {
   const [f, setF] = useState({ q: "", collection: "", style: "", gender: "", colour: "", status: "" });
   const [ticked, setTicked] = useState(() => new Set());
   const [shown, setShown] = useState(PAGE);
-  const [panel, setPanel] = useState(""); // "price" | "delete"
+  const [panel, setPanel] = useState(""); // "price" | "colour" | "delete"
   const list = useMemo(() => filterTees(tees, f), [tees, f]);
   // (a tee deleted or no longer there leaves the ticks)
   const ids = new Set(tees.map((t) => t._id));
@@ -530,10 +586,34 @@ function TeeList({ tees, busy, run }) {
             <button type="button" className={`sm-btn${panel === "price" ? " sm-btn-dark" : ""}`} disabled={busy} onClick={() => setPanel(panel === "price" ? "" : "price")}>
               Set price…
             </button>
+            {/* (25 Nov 2026, the owner: the Sun Rider tees out in Black, kept in White) one colour of the ticked tees */}
+            <button type="button" className={`sm-btn${panel === "colour" ? " sm-btn-dark" : ""}`} disabled={busy} onClick={() => setPanel(panel === "colour" ? "" : "colour")}>
+              Colour…
+            </button>
             <button type="button" className="sm-btn sm-btn-danger" disabled={busy} onClick={() => setPanel(panel === "delete" ? "" : "delete")}>
               Delete for good…
             </button>
           </div>
+          {panel === "colour" && (
+            <ul className="sm-switches sm-colour-panel">
+              {colourGroups(tees.filter((t) => ticked.has(t._id))).map((c) => (
+                <li key={c.slug} className="sm-switch">
+                  <span className="sm-dot" style={{ background: c.hex }} />
+                  <span className="sm-switch-name">{c.name}</span>
+                  <small>
+                    {c.shown} on sale{c.hidden ? ` · ${c.hidden} taken out` : ""}
+                  </small>
+                  <span className="sm-gap" />
+                  <button type="button" className="sm-btn" disabled={busy || !c.shown} onClick={() => act(`Take ${c.name} out`, { action: "colourOut", colour: c.slug }, `Stop selling ${c.name} on the ${plural(picked.length, "ticked tee")}? They stay in the shop in their other colours; a tee sold only in ${c.name} leaves the shop until ${c.name} is put back.`)}>
+                    Take {c.name} out
+                  </button>
+                  <button type="button" className="sm-btn sm-btn-dark" disabled={busy || !c.hidden} onClick={() => act(`Put ${c.name} back`, { action: "colourBack", colour: c.slug }, `Sell ${c.name} again on the ${plural(picked.length, "ticked tee")}?`)}>
+                    Put back
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
           {panel === "price" && <PriceInputs busy={busy} count={picked.length} onApply={(price, oldPrice) => act("New price", { action: "price", price, oldPrice }, `Sell ${plural(picked.length, "tee")} at ${money(price)}${oldPrice ? ` (was ${money(oldPrice)})` : ""}?`)} />}
           {panel === "delete" && <DeleteBox count={picked.length} what={`the ${plural(picked.length, "ticked tee")}`} onCancel={() => setPanel("")} onDelete={() => act("Delete for good", { action: "delete" })} />}
         </div>

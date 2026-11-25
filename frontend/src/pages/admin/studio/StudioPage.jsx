@@ -5,14 +5,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import studioService from "../../../services/studioService";
-import customizationService from "../../../services/customizationService";
-import MockupCamera from "../../../studio/MockupCamera";
-import { withSpots } from "../../../studio/panelModel";
 import { modelForGarment } from "../../../studio/teeModel";
 import { hasWebGL } from "../../../studio/webgl";
 import { imageUrl } from "../../../utils/imageUrl";
 import { shopHref } from "../../../utils/siteUrls";
-import ListShopTees from "./ListShopTees";
 import StudioRoom from "./StudioRoom";
 import { clearDraft, readDraft } from "./studioBits";
 import "./studio.css";
@@ -98,111 +94,6 @@ export default function StudioPage() {
     }
   };
 
-  // (24 Nov 2026, the owner: "remove all the SCENE t-shirts from the shop") a whole collection out of the shop — or back
-  // in — in one press: each of its tees is unpublished (kept here, its orders untouched) / published again. "Back in"
-  // only takes tees that were in the shop before (publishedAt), never a draft.
-  const collections = useMemo(() => {
-    const map = new Map();
-    for (const d of designs) {
-      const parts = String(d.name || "").split(" · ");
-      if (parts.length < 2) continue;
-      const key = parts[0].trim();
-      if (!map.has(key)) map.set(key, { key, live: [], out: [] });
-      if (d.status === "published") map.get(key).live.push(d);
-      else if (d.status === "ready" && d.publishedAt) map.get(key).out.push(d);
-    }
-    return [...map.values()];
-  }, [designs]);
-  const [bulk, setBulk] = useState(null); // { key, done, total }
-  const bulkAct = async (c, action) => {
-    const list = action === "unpublish" ? c.live : c.out;
-    const words = action === "unpublish" ? `Take all ${list.length} ${c.key} tees out of the shop? They stay here and can be put back.` : `Put ${list.length} ${c.key} tees back in the shop?`;
-    if (!list.length || !window.confirm(words)) return;
-    setBulk({ key: c.key, done: 0, total: list.length });
-    let done = 0;
-    for (const d of list) {
-      try {
-        const doc = await studioService.act(d._id, action);
-        setDesigns((cur) => cur.map((x) => (x._id === doc._id ? doc : x)));
-      } catch (err) {
-        setError(`${d.name}: ${apiError(err)}`);
-      }
-      done += 1;
-      setBulk({ key: c.key, done, total: list.length });
-    }
-    setBulk(null);
-  };
-
-  // (24 Nov 2026, the owner: "make the front image like this for all the tees in Shop your IDENTEE" — the SCENE tees on
-  // a wooden hanger) a collection's tees in the shop get new pictures, the way Review takes them now: each print on the
-  // garment's hanger photo, true to size. Every colour on sale is taken again; the design, price and details stay.
-  const [shotJob, setShotJob] = useState(null);
-  const shotDone = useRef(null);
-  const shoot = (job) =>
-    new Promise((resolve) => {
-      shotDone.current = resolve;
-      setShotJob({ ...job, id: `pic${Date.now()}${Math.random()}` });
-    });
-  const onShots = (pictures) => {
-    setShotJob(null);
-    const done = shotDone.current;
-    shotDone.current = null;
-    done?.(pictures);
-  };
-  const repicture = async (c) => {
-    const list = c.live;
-    if (!list.length || !window.confirm(`Make new pictures for the ${list.length} ${c.key} tees in the shop (on the hanger photo, every colour)? Keep this page open — about ${Math.max(1, Math.round((list.length * 6) / 60))} minutes.`)) return;
-    setBulk({ key: c.key, done: 0, total: list.length });
-    const where = new Map();
-    const failed = [];
-    let done = 0;
-    for (const d of list) {
-      try {
-        const garment = garments.find((g) => g.key === d.garmentType);
-        if (!garment) throw new Error("its product is not live");
-        const full = await studioService.getDesign(d._id);
-        if (!where.has(garment.key)) where.set(garment.key, await customizationService.getPrintPositions(garment.key));
-        const { positions: catalog, maxPrint } = where.get(garment.key);
-        const positions = withSpots(catalog, full.elements || [], garment, maxPrint);
-        const slugs = (full.colours?.length ? full.colours.map((x) => x.slug) : [full.color]).filter((s) => garment.colours.some((x) => x.slug === s));
-        const colours = [];
-        for (const slug of slugs) {
-          const colour = garment.colours.find((x) => x.slug === slug);
-          const job = { garment, positions, size: full.size || "M", colourHex: colour.hex, colourSlug: slug, elements: full.elements || [] };
-          const pics = (await shoot(job)) || (await shoot(job));
-          if (!pics) throw new Error(`the pictures in ${colour.name} couldn't be taken`);
-          colours.push({ slug, mockups: pics });
-        }
-        const doc = await studioService.saveDesign(
-          {
-            garmentType: full.garmentType,
-            color: full.color,
-            size: full.size,
-            name: full.name,
-            blurb: full.blurb,
-            elements: full.elements,
-            issues: full.issues,
-            costInr: full.costInr,
-            service: full.service,
-            category: full.category,
-            sizes: full.sizes,
-            priceInr: full.priceInr,
-            product: full.product,
-            colours,
-          },
-          full._id,
-        );
-        setDesigns((cur) => cur.map((x) => (x._id === doc._id ? doc : x)));
-      } catch (err) {
-        failed.push(`${d.name}: ${apiError(err)}`);
-      }
-      done += 1;
-      setBulk({ key: c.key, done, total: list.length });
-    }
-    setBulk(null);
-    setError(failed.length ? `${failed.length} tee${failed.length === 1 ? "" : "s"} kept the old pictures — ${failed.slice(0, 5).join(" · ")}` : "");
-  };
-
   if (room) return <StudioRoom key={`${room.garment.key}:${room.design?._id || "new"}`} setup={setup} garment={room.garment} colourSlug={room.colourSlug} design={room.design} draft={room.draft} onLeave={leave} />;
 
   const draftGarment = draft && !draft.designId && garments.find((g) => g.key === draft.garment);
@@ -263,47 +154,14 @@ export default function StudioPage() {
             {!garments.length && <p className="st-note">No live products. Make one live in Admin → Create your IDENTEE first.</p>}
           </div>
 
-          <h2 className="st-h2">Collections in the shop</h2>
-          <div className="st-list" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 280px), 1fr))" }}>
-            <ListShopTees onMade={load} />
-          </div>
-          {collections.length > 0 && (
-            <>
-              <div className="st-list" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 280px), 1fr))", marginTop: 12 }}>
-                {collections.map((c) => (
-                  <article key={c.key} className="st-tee" style={{ display: "grid", gap: 8, padding: 14 }}>
-                    <b>{c.key}</b>
-                    <small className="st-note">
-                      {c.live.length} in the shop{c.out.length ? ` · ${c.out.length} taken out` : ""}
-                    </small>
-                    {bulk?.key === c.key ? (
-                      <small className="st-note">Working… {bulk.done} / {bulk.total}</small>
-                    ) : (
-                      <div className="st-row">
-                        {c.live.length > 0 && (
-                          <button type="button" className="st-btn st-btn-small" disabled={Boolean(bulk)} onClick={() => bulkAct(c, "unpublish")}>
-                            Take all out of the shop
-                          </button>
-                        )}
-                        {c.out.length > 0 && (
-                          <button type="button" className="st-btn st-btn-small st-btn-primary" disabled={Boolean(bulk)} onClick={() => bulkAct(c, "publish")}>
-                            Put back in the shop
-                          </button>
-                        )}
-                        {c.live.length > 0 && (
-                          <button type="button" className="st-btn st-btn-small" disabled={Boolean(bulk)} onClick={() => repicture(c)}>
-                            New pictures (hanger photo)
-                          </button>
-                        )}
-                      </div>
-                    )}
-                  </article>
-                ))}
-              </div>
-            </>
-          )}
-
-          {shotJob && <MockupCamera key={shotJob.id} job={shotJob} onDone={onShots} />}
+          {/* (25 Nov 2026) the shop's collections — new pictures, tees from a list, out / back — are in Manage the shop */}
+          <p className="st-note st-moved">
+            Collections, new hanger pictures and “Add tees from a list” are in{" "}
+            <button type="button" className="st-link" onClick={() => navigate("/admin/shop-manage")}>
+              Shop your IDENTEE → Manage the shop
+            </button>
+            .
+          </p>
           <h2 className="st-h2">Tees made in the Studio</h2>
           {!designs.length && <p className="st-note">Nothing yet. Open the studio above and design your first tee.</p>}
           <div className="st-list">

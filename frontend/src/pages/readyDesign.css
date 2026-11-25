@@ -334,3 +334,14 @@
   .rd-walk-btn span { font-size: 22px; }
   .rd-more { margin-top: 40px; padding-top: 24px; }
 }
+
+/* one design, many tees (25 Nov 2026): Style: Oversized / Round Neck and Fit: Men / Women, just above the sizes */
+.rd-pick { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 12px 0 4px; }
+.rd-pick + .rd-pick { margin-top: 8px; }
+.rd-pick-label { min-width: 44px; font-size: 13px; font-weight: 700; color: #71695b; }
+.rd-pick-btn { min-height: 40px; padding: 0 18px; border-radius: 999px; border: 1.5px solid #ddd3bf; background: #fff; color: #15130f;
+  font-size: 14px; font-weight: 700; cursor: pointer; transition: border-color .2s, background .2s; }
+.rd-pick-btn:hover { border-color: #15130f; }
+.rd-pick-btn.on { border-color: #15130f; background: #15130f; color: #fff; }
+.rd-pick-btn:focus-visible { outline: 2px solid #c9a24b; outline-offset: 2px; }
+.rd-pick ~ .rd-sizes { margin-top: 14px; }

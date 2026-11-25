@@ -27,6 +27,8 @@ export default function CollectionPage() {
   const { hash } = useLocation();
   const [found, setFound] = useState(null); // the collection from the shop's list; false = not in the shop
   const info = collectionInfo(key, found?.name);
+  // the tab a collection opens on: Oversized when it has it
+  const firstStyle = (found?.styles || []).includes("Oversized") ? "Oversized" : found?.styles?.[0] || "";
   // a trend's collection (GTA, 23 Nov 2026): "Make your own" first — which tee to start from (its "Make your own" tees)
   const trend = useTrend(key);
   const [starts, setStarts] = useState(null);
@@ -115,7 +117,8 @@ export default function CollectionPage() {
             key={key}
             collection={key}
             collectionName={info.name}
-            defaultStyle={(found.styles || []).includes("Oversized") ? "Oversized" : found.styles?.[0] || ""}
+            defaultStyle={firstStyle}
+            lineTabs
             hideOwn
             heading={
               <div id="designs" className="sh-ready-head">
@@ -128,7 +131,8 @@ export default function CollectionPage() {
             }
           />
         ) : (
-          found && <ShopGrid key={key} collection={key} collectionName={info.name} allTab />
+          // (25 Nov 2026: Oversized · Round Neck tabs, no "All styles" mixing the same design in every style)
+          found && <ShopGrid key={key} collection={key} collectionName={info.name} defaultStyle={firstStyle} lineTabs />
         )}
       </div>
     </div>

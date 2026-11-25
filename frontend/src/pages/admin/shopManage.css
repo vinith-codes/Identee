@@ -115,3 +115,12 @@
   .sm-tee-end { grid-column: 2 / -1; display: flex; flex-wrap: wrap; justify-content: flex-start; align-items: center; gap: 8px; }
   .sm-actions .sm-row .sm-btn { flex: 1 1 calc(50% - 10px); }
 }
+
+/* Add tees from a list (25 Nov 2026, moved from the Design Studio page): the file picker is a button */
+.sm-file { position: relative; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
+.sm-file input { position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden; }
+.sm-file:focus-within { outline: 2px solid #C9A24B; outline-offset: 2px; }
+.sm-file.is-off { opacity: .5; cursor: default; }
+.sm-add-note { margin: 10px 0 0; font-weight: 600; color: #15130F; }
+.sm-card .sm-failed { margin-top: 10px; }
+.sm-colour-panel { margin-top: 12px; }

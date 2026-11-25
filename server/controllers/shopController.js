@@ -16,6 +16,7 @@ import { applySubscriptionPrice } from "../utils/applySubscriptionPrice.js";
 import { collectionOf, collectionTitle, shownInShop } from "../utils/shopRules.js";
 import { backFirst, studioPrice, wearerFor } from "../services/studioService.js";
 import { readCollections, withSettings } from "../utils/shopCollections.js";
+import { twinKeys } from "../utils/shopTwins.js";
 
 const SIZE_ORDER = ["XXS", "XS", "S", "M", "L", "XL", "XXL", "2XL", "3XL", "4XL", "5XL", "FREE SIZE"];
 const sizeRank = (s) => {
@@ -115,7 +116,34 @@ export const listShopProducts = asyncHandler(async (req, res) => {
     return g.startsWith("wom") || g.startsWith("girl") ? "Women" : g.startsWith("men") || g.startsWith("boy") ? "Men" : "Unisex";
   };
   // one card per tee and style: a Studio tee in two categories is one card (its colours from both)
-  const cardKey = (d) => (d.readyDesign ? `${d.readyDesign}|${norm(d.productdetails?.garmentStyle)}` : d.productGroupId);
+  // (25 Nov 2026, the owner: "remove all styles it confuses like repeating the same design") and a design made as a
+  // Men's tee and a Women's tee of one style (two Studio designs, one name: Ayyappa Round Neck) is one card too, here
+  // on the server — joined in the browser only when both landed on the same page of 48, they showed twice live
+  const twinOf = twinKeys(
+    [...new Map(all.filter((d) => d.readyDesign).map((d) => [String(d.readyDesign), d])).values()].map((d) => ({
+      id: String(d.readyDesign),
+      name: d.brandname,
+      style: d.productdetails?.garmentStyle,
+      gender: genderOf(d),
+    })),
+  );
+  const cardKey = (d) => (d.readyDesign ? twinOf.get(String(d.readyDesign)) || `${d.readyDesign}|${norm(d.productdetails?.garmentStyle)}` : d.productGroupId);
+  // a pair card's two halves, for its Men / Women buttons ({ gender, p } as utils/shopPairs.js in the browser makes them)
+  const half = (d) => ({
+    _id: d._id,
+    brandname: d.brandname,
+    gender: genderOf(d),
+    category: ownCategory(d) ? { name: ownCategory(d).name, slug: ownCategory(d).slug } : null,
+    colors: [{ _id: d._id, name: d.productdetails?.color }],
+    readyDesignSlug: designOf.get(String(d.readyDesign))?.slug || null,
+  });
+  const pairOf = (docs, rep) => {
+    if (!rep.readyDesign || !twinOf.has(String(rep.readyDesign))) return null;
+    const pick = (g) => [...docs].filter((d) => genderOf(d) === g).sort((a, b) => (norm(a.productdetails?.color) === norm(rep.productdetails?.color) ? -1 : 0) - (norm(b.productdetails?.color) === norm(rep.productdetails?.color) ? -1 : 0))[0];
+    const m = pick("Men");
+    const w = pick("Women");
+    return m && w ? [{ gender: "Men", p: half(m) }, { gender: "Women", p: half(w) }] : null;
+  };
 
   // ?collection=scene: one collection's tees; "none": the tees with no collection name
   const collection = norm(req.query.collection);
@@ -212,6 +240,7 @@ export const listShopProducts = asyncHandler(async (req, res) => {
       customisable: !!rep.readyDesign, // a Studio tee: the customer can change it in the design room
       readyDesignSlug: rep.readyDesign ? designOf.get(String(rep.readyDesign))?.slug || null : null,
       art: artOfDoc(rep),
+      ...(pairOf(docs, rep) ? { pair: pairOf(docs, rep) } : {}),
     };
   });
   cards.sort(SORTS[sort]);

@@ -1,4 +1,5 @@
-// Admin → Design Studio → Studio → "Make shop tees from a list" (24 Nov 2026)
+// Admin → Shop your IDENTEE → Manage the shop → "Add tees from a list" (24 Nov 2026; on the Studio page until
+// 25 Nov 2026 — the owner: "why this is in design studio", "move it to manage the shop")
 // The owner sent 20 Ayyappa pictures and picked all 45 tees made from them: "All three" garments (Oversized, Round Neck
 // Men and Women), the shop's prices, a card of its own in Shop your IDENTEE. Made by hand that is 114 tees, so the admin
 // picks a list file (which pictures make which tee, in which colours) together with its pictures, and this makes them:
@@ -19,7 +20,8 @@ import { trendShopTee } from "../../../studio/trendTee";
 
 const why = (err) => err?.response?.data?.message || err?.message || "That didn’t work.";
 
-export default function ListShopTees({ onMade }) {
+// busy: another job on the page is running (nothing starts on top of it); onBusy(true | false): this one starts / ends
+export default function ListShopTees({ onMade, busy = false, onBusy }) {
   const [state, setState] = useState(null); // null | { making, done, total, failed: [], note }
   const [job, setJob] = useState(null);
   const jobDone = useRef(null);
@@ -44,6 +46,7 @@ export default function ListShopTees({ onMade }) {
     const listFile = files.filter((f) => /\.json$/i.test(f.name));
     if (listFile.length !== 1) return setState({ making: false, done: 0, total: 0, failed: [], note: "Pick one list file (.json) together with its pictures." });
     stop.current = false;
+    onBusy?.(true);
     setState({ making: true, done: 0, total: 0, failed: [], note: "Reading the list…" });
     try {
       const pictures = files.filter((f) => f !== listFile[0]);
@@ -112,36 +115,47 @@ export default function ListShopTees({ onMade }) {
       if (done) onMade?.();
     } catch (err) {
       setState((s) => ({ making: false, done: s?.done || 0, total: s?.total || 0, failed: [...(s?.failed || []), why(err)], note: "Stopped by a problem." }));
+    } finally {
+      onBusy?.(false);
     }
   };
 
+  const making = Boolean(state?.making);
   return (
-    <article className="st-tee" style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: 8, padding: 14 }}>
-      <b>Make shop tees from a list</b>
-      <small className="st-note">
-        Pick a list file (.json) and all its pictures together. Each tee is made on every garment in the list, in its colours, with its pictures on the hanger photo, and goes straight into Shop your IDENTEE. Tees already made are skipped.
-      </small>
-      <div className="st-row">
-        <label className={`st-btn st-btn-small st-btn-primary${state?.making ? " is-disabled" : ""}`} style={{ position: "relative", cursor: state?.making ? "default" : "pointer", opacity: state?.making ? 0.5 : 1 }}>
-          {state?.making ? `Making… ${state.done} / ${state.total}` : "Pick the list + pictures"}
-          <input ref={picker} type="file" multiple accept=".json,application/json,image/png,image/jpeg,image/webp" disabled={state?.making} onChange={(e) => make(e.target.files)} style={{ position: "absolute", width: 1, height: 1, opacity: 0, overflow: "hidden" }} />
+    <section className="sm-card" aria-labelledby="sm-add">
+      <h2 id="sm-add">Add tees from a list</h2>
+      <p className="sm-note">
+        Pick a list file (.json) and all its pictures together. Each tee is made on every garment in the list, in its colours, with its
+        pictures on the hanger photo, and goes straight into the shop. Tees already made are skipped, so picking the same files again only
+        makes what is missing.
+      </p>
+      <div className="sm-row">
+        <label className={`sm-btn sm-btn-dark sm-file${making || busy ? " is-off" : ""}`} aria-disabled={making || busy}>
+          {making ? `Making… ${state.done} / ${state.total}` : "Pick the list + pictures"}
+          <input ref={picker} type="file" multiple accept=".json,application/json,image/png,image/jpeg,image/webp" disabled={making || busy} onChange={(e) => make(e.target.files)} />
         </label>
-        {state?.making && (
-          <button type="button" className="st-btn st-btn-small" onClick={() => (stop.current = true)}>
+        {making && (
+          <button type="button" className="sm-btn" onClick={() => (stop.current = true)}>
             Stop after this tee
           </button>
         )}
       </div>
-      {state?.note && <small className="st-note" role="status">{state.note}</small>}
+      {state?.note && (
+        <p className="sm-note sm-add-note" role="status">
+          {state.note}
+        </p>
+      )}
       {state?.failed?.length > 0 && (
-        <ul className="st-error" style={{ margin: 0, paddingLeft: 18 }}>
-          {state.failed.slice(0, 12).map((f) => (
-            <li key={f}>{f}</li>
-          ))}
-          {state.failed.length > 12 && <li>… and {state.failed.length - 12} more</li>}
-        </ul>
+        <div className="sm-failed">
+          <ul>
+            {state.failed.slice(0, 12).map((f) => (
+              <li key={f}>{f}</li>
+            ))}
+            {state.failed.length > 12 && <li>… and {state.failed.length - 12} more</li>}
+          </ul>
+        </div>
       )}
       {job && <MockupCamera key={job.id} job={job} onDone={onShots} />}
-    </article>
+    </section>
   );
 }

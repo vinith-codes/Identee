@@ -7,9 +7,12 @@ import ReadyDesign from "../models/readyDesignModel.js";
 import Customization from "../models/customizationModel.js";
 import GarmentType from "../models/garmentTypeModel.js";
 import Setting from "../models/settingModel.js";
+import Product, { LIVE } from "../models/productModel.js";
+import Category from "../models/categoryModel.js";
 import { shownInShop } from "../utils/shopRules.js";
 import { aiDesignAddOn } from "../utils/aiPricing.js";
-import { backFirst } from "../services/studioService.js";
+import { backFirst, wearerFor } from "../services/studioService.js";
+import { genderLabel, pickVersions } from "../utils/shopTwins.js";
 
 const shopOpen = async () => (await Setting.findOne({ key: "general.shopOpen" }).select("value").lean())?.value === true;
 const SLUG = /^[a-z0-9-]{3,60}$/;
@@ -80,6 +83,38 @@ export const listReadyDesigns = asyncHandler(async (req, res) => {
   res.json({ open: true, designs: out });
 });
 
+// the tee's versions in the shop (25 Nov 2026): the live tees with its name — Oversized, Round Neck Men's, Round Neck
+// Women's — so its page can offer Style: Oversized / Round Neck and Men / Women (utils/shopTwins.js)
+async function versionsOf(design) {
+  if (!design.name) return [];
+  const docs = await Product.find({ ...LIVE, brandname: design.name, readyDesign: { $ne: null } })
+    .select("readyDesign productdetails.garmentStyle productdetails.category productdetails.color productdetails.gender")
+    .lean();
+  const shown = docs.filter((d) => shownInShop(d.productdetails?.color, d.productdetails?.garmentStyle));
+  if (!shown.length) return [];
+  const active = await Category.find({ isActive: true }).select("name slug").lean();
+  const byName = new Map(active.map((c) => [String(c.name).trim().toLowerCase(), c]));
+  const byDesign = new Map(); // design id → { style, wearers, said } (said: the tee's own Men / Women, as the shop list)
+  for (const d of shown) {
+    const cat = byName.get(String(d.productdetails?.category || "").trim().toLowerCase());
+    if (!cat) continue; // its category is not in the shop
+    const id = String(d.readyDesign);
+    if (!byDesign.has(id)) byDesign.set(id, { style: d.productdetails?.garmentStyle || "", wearers: new Set(), said: String(d.productdetails?.gender || "").trim().toLowerCase() });
+    const who = wearerFor(`${cat.name} ${cat.slug}`);
+    if (who) byDesign.get(id).wearers.add(who);
+  }
+  const designs = await ReadyDesign.find({ _id: { $in: [...byDesign.keys()] }, status: "published" }).select("slug createdAt").lean();
+  return pickVersions(
+    designs.map((r) => {
+      const b = byDesign.get(String(r._id));
+      // its categories' wearers; none (a "T-Shirts" category) → the gender written on the tee (shopController genderOf)
+      const said = b.said.startsWith("wom") || b.said.startsWith("girl") ? ["woman"] : b.said.startsWith("men") || b.said.startsWith("boy") ? ["man"] : [];
+      return { id: String(r._id), slug: r.slug, createdAt: r.createdAt, style: b.style, gender: genderLabel(b.wearers.size ? b.wearers : said) };
+    }),
+    String(design._id),
+  );
+}
+
 // GET /api/ready-designs/:slug  (public) — one design, with its sizes and the elements (for "Change it")
 export const getReadyDesign = asyncHandler(async (req, res) => {
   const slug = String(req.params.slug || "");
@@ -113,6 +148,7 @@ export const getReadyDesign = asyncHandler(async (req, res) => {
     sizeChart: garment.sizeChart || [],
     ...priceOf(design, garment),
     pictureAddOn: await aiDesignAddOn(), // what a picture of the customer's own adds when they customize it
+    versions: await versionsOf(design).catch(() => []),
   });
 });
 

@@ -1,6 +1,6 @@
 // studio/shopTeeMaker.js — what the admin's shop-tee makers share (24 Nov 2026).
 // Made for the Ayyappa collection: the owner sent 20 pictures and picked all 45 tees ("All three" garments, shop prices,
-// a card of its own). The GTA maker (TrendShopTees) and the new "Make shop tees from a list" (Studio page) both list a
+// a card of its own). The GTA maker (TrendShopTees) and the new "Add tees from a list" (Manage the shop) both list a
 // tee the way the shop's other tees of that garment are listed, and both check a picture's size first.
 
 // the garments shop tees are made on, and how a garment is listed when there is no SCENE / GTA tee of it to copy

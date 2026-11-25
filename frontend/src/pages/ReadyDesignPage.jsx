@@ -7,6 +7,8 @@
 // (24 Nov 2026, the owner: "think as a user and implement proper navigation") it says where it is (Home › Shop your
 // IDENTEE › Ayyappa › Oversized), ‹ › walk to the tee before / after it in the grid it was opened from (3 of 45), and
 // "More from Ayyappa" under it shows the next tees — all without going back to the grid.
+// (25 Nov 2026) a design made in several tees (Oversized, Round Neck Men's, Round Neck Women's) shows once in the shop;
+// here the customer picks Style: Oversized / Round Neck and Men / Women, just above the sizes (design.versions).
 import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { useDispatch } from "react-redux";
@@ -115,7 +117,9 @@ export default function ReadyDesignPage() {
   const from = location.state?.from;
   const key = collectionOf(design?.name);
   const fromGrid = gridQuery(from?.to);
-  const query = !design || !key ? null : fromGrid?.collection === key ? fromGrid : { collection: key, ...(design.style ? { style: design.style } : {}) };
+  // (a tee switched to another style on its page walks that style's tees, 25 Nov 2026)
+  const sameGrid = Boolean(fromGrid && key && fromGrid.collection === key && (!fromGrid.style || !design?.style || fromGrid.style === design.style));
+  const query = !design || !key ? null : sameGrid ? fromGrid : { collection: key, ...(design.style ? { style: design.style } : {}) };
   const queryKey = query ? JSON.stringify(query) : "";
   const [walk, setWalk] = useState({ key: "", items: [] });
   useEffect(() => {
@@ -238,11 +242,36 @@ export default function ReadyDesignPage() {
       if (copy) navigate(`/customize/${copy.garmentType}?design=${copy.customizationId}`, { state: { trend: { key: trend.key, name: trend.name, colours: trend.colours || [] } } });
     });
   const ownTee = isOwnTee(design);
+  // its other versions (the server's design.versions): another style, or Men / Women of this style. Picking one opens
+  // that tee in this page's place (Back still goes to the grid), in the same colour when it has it.
+  const versions = design.versions || [];
+  const styleList = [...new Set(versions.map((v) => v.style))];
+  const fits = versions.filter((v) => v.style === design.style && v.gender !== "Unisex");
+  const mine = versions.find((v) => v.slug === design.slug);
+  // (the Men / Women the customer chose rides along in the page's state too, so ‹ › through a Men's-only tee keep it)
+  const askedFor = location.state?.fit || new URLSearchParams(location.search).get("for");
+  // (a tee with a Men / Women choice says which one this is; a Men's-only or Unisex tee keeps the one asked for)
+  const wantedFor = fits.length > 1 && mine?.gender === "Men" ? "man" : fits.length > 1 && mine?.gender === "Women" ? "woman" : askedFor === "man" || askedFor === "woman" ? askedFor : null;
+  const openVersion = (v) => {
+    if (!v || v.slug === design.slug) return;
+    const q = new URLSearchParams();
+    // (Men / Women goes along to an Oversized tee too, so coming back to Round Neck opens the one they chose)
+    const who = v.gender === "Men" ? "man" : v.gender === "Women" ? "woman" : wantedFor;
+    if (who) q.set("for", who);
+    q.set("colour", picked.slug);
+    navigate(`/ready-made/design/${v.slug}?${q}`, { replace: true, state: { ...location.state, fit: who || undefined } });
+  };
+  // another style: the same Men / Women when it has it, else Men's, else its first
+  const toStyle = (st) => {
+    const all = versions.filter((v) => v.style === st);
+    const want = wantedFor === "woman" ? "Women" : wantedFor === "man" ? "Men" : null;
+    openVersion(all.find((v) => v.gender === want) || all.find((v) => v.gender === "Men") || all[0]);
+  };
 
   // where it is: Home › Shop your IDENTEE › Ayyappa › Oversized › the tee — the step it was opened from goes back
   // there (same filters, same place on the page)
   const info = collectionInfo(key);
-  const fromIsHere = Boolean(fromGrid && key && fromGrid.collection === key);
+  const fromIsHere = sameGrid;
   const crumbs = [
     { label: "Home", to: "/", wide: true },
     { label: SHOPS.shop.name, to: "/ready-made", wide: true },
@@ -258,7 +287,10 @@ export default function ReadyDesignPage() {
   const cards = walk.key === queryKey ? walkList(walk.items, { keepOwn: ownTee }) : [];
   const near = neighbours(cards, design.slug || slug);
   const more = moreFrom(cards, design.slug || slug, 8);
-  const hrefOf = (c) => teeHref(c, c.colors?.find((x) => x._id === c._id));
+  // (a Men's + Women's card: ‹ › keep to the half the customer is looking at)
+  const halfOf = (c) => c.pair?.find((h) => (wantedFor === "woman" ? h.gender === "Women" : wantedFor === "man" ? h.gender === "Men" : false))?.p || c;
+  const hrefOf = (c) => teeHref(halfOf(c), halfOf(c).colors?.find((x) => x._id === halfOf(c)._id));
+  const walkState = from || wantedFor ? { ...(from ? { from } : {}), ...(wantedFor ? { fit: wantedFor } : {}) } : undefined;
   const nameOf = (c) => String(c.brandname || "").replace(/^[^·]*·\s*/, "");
 
   return (
@@ -267,13 +299,13 @@ export default function ReadyDesignPage() {
         <Crumbs items={crumbs} />
         {near.prev && (
           <div className="rd-walk" role="group" aria-label="Other tees">
-            <Link className="rd-walk-btn" to={hrefOf(near.prev)} state={from ? { from } : undefined} replace title={nameOf(near.prev)} aria-label={`Previous tee: ${nameOf(near.prev)}`}>
+            <Link className="rd-walk-btn" to={hrefOf(near.prev)} state={walkState} replace title={nameOf(near.prev)} aria-label={`Previous tee: ${nameOf(near.prev)}`}>
               <span aria-hidden="true">‹</span> <em>Previous</em>
             </Link>
             <span className="rd-walk-count">
               {near.index + 1} of {near.total}
             </span>
-            <Link className="rd-walk-btn" to={hrefOf(near.next)} state={from ? { from } : undefined} replace title={nameOf(near.next)} aria-label={`Next tee: ${nameOf(near.next)}`}>
+            <Link className="rd-walk-btn" to={hrefOf(near.next)} state={walkState} replace title={nameOf(near.next)} aria-label={`Next tee: ${nameOf(near.next)}`}>
               <em>Next</em> <span aria-hidden="true">›</span>
             </Link>
           </div>
@@ -314,6 +346,27 @@ export default function ReadyDesignPage() {
             </div>
           )}
           <PriceTag price={design.price} was={design.comparePrice} offer size={22} />
+          {styleList.length > 1 && (
+            <div className="rd-pick" role="radiogroup" aria-label="Style">
+              <span className="rd-pick-label">Style</span>
+              {styleList.map((st) => (
+                <button key={st} type="button" role="radio" aria-checked={st === design.style} className={`rd-pick-btn${st === design.style ? " on" : ""}`} onClick={() => toStyle(st)}>
+                  {st}
+                </button>
+              ))}
+            </div>
+          )}
+          {fits.length > 1 && (
+            <div className="rd-pick" role="radiogroup" aria-label="Men or women">
+              <span className="rd-pick-label">Fit</span>
+              {fits.map((v) => (
+                <button key={v.slug} type="button" role="radio" aria-checked={v.slug === design.slug} className={`rd-pick-btn${v.slug === design.slug ? " on" : ""}`} onClick={() => openVersion(v)}>
+                  {v.gender}
+                </button>
+              ))}
+            </div>
+          )}
+          {styleList.length > 1 && fits.length < 2 && mine?.gender === "Unisex" && <p className="rd-note" style={{ margin: "-2px 0 8px" }}>Unisex · made to fit men and women</p>}
           <div className="rd-sizes" role="group" aria-label="Sizes and quantities">
             {design.sizes.map((size) => {
               const row = chart(size);

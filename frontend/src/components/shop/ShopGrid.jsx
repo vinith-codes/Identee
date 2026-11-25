@@ -130,10 +130,12 @@ function StyleCard({ style, query, onOpen }) {
  * "Make your own" tees stay out of this grid (the banner above it is for them); every page is loaded so the count is
  * right (a Men's + Women's pair split over two pages counted twice).
  *
- * allTab (a collection's page, 24 Nov 2026 — the owner: "think as a user and implement proper navigation"): no card per
- * style to tap through first; the tees show straight away with All · Oversized · Round Neck tabs over them.
+ * lineTabs (a collection's page, 24 Nov 2026 — the owner: "think as a user and implement proper navigation"): the style
+ * tabs are underlined tabs (Oversized · Round Neck). (25 Nov 2026, the owner: "remove all styles it confuses like
+ * repeating the same design") no "All styles" tab and no Men / Women chips on a collection: each design shows once per
+ * style, and Men / Women is chosen on the tee's page.
  */
-export default function ShopGrid({ category = null, collection = null, collectionName = "", id = "shop", defaultStyle = "", hideOwn = false, heading = null, allTab = false }) {
+export default function ShopGrid({ category = null, collection = null, collectionName = "", id = "shop", defaultStyle = "", hideOwn = false, heading = null, lineTabs = false }) {
   const location = useLocation();
   const [params, setParams] = useSearchParams();
   const f = Object.fromEntries(KEYS.map((k) => [k, params.get(k) || ""]));
@@ -158,7 +160,7 @@ export default function ShopGrid({ category = null, collection = null, collectio
   const list = useProductPages(query);
   const { data, loading, error } = list;
   const style = f.style || defaultStyle;
-  const tabs = Boolean(defaultStyle) || allTab;
+  const tabs = Boolean(defaultStyle);
   // a Men's + Women's pair is one card, so it counts once (and the "Make your own" tees left out are not counted)
   const ownShown = hideOwn ? data.items.filter(isOwnTee).length : 0;
   const shownTotal = data.total - ownShown - (data.items.length - ownShown - pairMenWomen(hideOwn ? data.items.filter((p) => !isOwnTee(p)) : data.items).length);
@@ -224,11 +226,14 @@ export default function ShopGrid({ category = null, collection = null, collectio
   const byStyle = oneCategory && styles.length > 1;
   // where a product card was opened from, for the product page's back link ("SCENE Movie Products · Oversized")
   const catName = collectionName || (oneCategory ? oneCategoryName(data.items[0]?.category?.name) : "");
-  const from = { to: location.pathname + location.search, label: [catName || "Shop your IDENTEE", style].filter(Boolean).join(" · ") };
+  // (the tab shown first has no ?style= in the address; it goes along, so the tee page walks that style's tees)
+  const here = new URLSearchParams(location.search);
+  if (tabs && style && !here.get("style")) here.set("style", style);
+  const from = { to: location.pathname + (here.toString() ? `?${here}` : ""), label: [catName || "Shop your IDENTEE", style].filter(Boolean).join(" · ") };
   // Unisex / Men / Women (only when the tees shown are for more than one of them)
   const genders = facets?.genders || [];
 
-  if (byStyle && !style && !allTab) {
+  if (byStyle && !style) {
     return (
       <section id={id} className="sh-wrap" aria-label="Styles">
         <style>{SHOP_CSS}</style>
@@ -266,10 +271,10 @@ export default function ShopGrid({ category = null, collection = null, collectio
       {heading}
 
       {byStyle && tabs && (
-        <div className={allTab ? "sh-styletabs" : "sh-cats sh-tabs"} role="group" aria-label="Style">
-          {(allTab ? ["", ...styles] : styles).map((s) => (
-            <button key={s || "all"} type="button" className={`${allTab ? "" : "sh-chip"}${s === style ? " on" : ""}`} onClick={() => pickTab(s)} aria-pressed={s === style}>
-              {s || (allTab ? "All styles" : "All")}
+        <div className={lineTabs ? "sh-styletabs" : "sh-cats sh-tabs"} role="group" aria-label="Style">
+          {styles.map((s) => (
+            <button key={s} type="button" className={`${lineTabs ? "" : "sh-chip"}${s === style ? " on" : ""}`} onClick={() => pickTab(s)} aria-pressed={s === style}>
+              {s}
             </button>
           ))}
         </div>
@@ -284,7 +289,7 @@ export default function ShopGrid({ category = null, collection = null, collectio
         </div>
       )}
 
-      {genders.length > 1 && (
+      {genders.length > 1 && !collection && (
         <div className="sh-cats" role="group" aria-label="Who it is for">
           <button type="button" className={`sh-chip${!f.gender ? " on" : ""}`} onClick={() => set("gender", "")} aria-pressed={!f.gender}>
             All
