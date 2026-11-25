@@ -1,7 +1,41 @@
 // apps/common.jsx — what the shop and the admin websites both use: the loading dot and the login checks.
 /* eslint-disable react-refresh/only-export-components -- a list of pages, not a page: editing it reloads the page in dev */
+import { lazy } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 import { APP } from "../utils/siteUrls";
+
+// a page that loads when it is opened, and that mends itself when its download fails (24 Nov 2026 — the owner: "in the
+// admin if i click the design studio the endpoint is changed ... but the page is not changed. If i click reload it is
+// changing"): a broken download (a network blip, or a tab opened before a new release) reloads the page once — the
+// same as pressing Reload — instead of leaving the old page on screen. A second failure in a row shows the error.
+const RELOADED = "identee-page-reload";
+export const lazyPage = (load) =>
+  lazy(() =>
+    load().then(
+      (page) => {
+        try {
+          sessionStorage.removeItem(RELOADED);
+        } catch {
+          /* private mode: nothing kept */
+        }
+        return page;
+      },
+      (err) => {
+        const again = (() => {
+          try {
+            if (sessionStorage.getItem(RELOADED) === "1") return true;
+            sessionStorage.setItem(RELOADED, "1");
+            return false;
+          } catch {
+            return true; // (can't remember: don't risk reloading for ever)
+          }
+        })();
+        if (again) throw err;
+        window.location.reload();
+        return new Promise(() => {}); // (the page is going away)
+      },
+    ),
+  );
 
 // While a page downloads (each page loads only when it is opened — the first download stays small for phones)
 export const PageLoading = () => (

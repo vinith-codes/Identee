@@ -1,6 +1,7 @@
 // layouts/AdminLayout.jsx
-import { useEffect, useState } from "react";
-import { Outlet } from "react-router-dom";
+import { Suspense, useEffect, useState } from "react";
+import { Outlet, useLocation } from "react-router-dom";
+import { PageLoading } from "../apps/common";
 import AdminSidebar from "../components/AdminSidebar";
 import AdminTopbar from "../components/AdminTopbar";
 import UnsavedChangesProvider from "./UnsavedChangesProvider";
@@ -39,6 +40,10 @@ function AdminLayoutInner() {
     return () => mq.removeEventListener("change", change);
   }, []);
   const open = !collapsed;
+  // the menu's section (/admin/studio, /admin/orders …): a new section gets its own loading box, so the loading dot
+  // shows at once while its page downloads — before, the old page stayed on screen with the new address above it
+  // until the download ended (24 Nov 2026). (/admin/studio → /admin/studio/123 is the same section: no reload of it.)
+  const section = useLocation().pathname.split("/").slice(0, 3).join("/");
   // on a phone the open menu covers the page: the browser's Back folds it (16 Nov 2026)
   useBackClose(phone && open, () => setCollapsed(true));
 
@@ -68,7 +73,9 @@ function AdminLayoutInner() {
         <AdminTopbar />
         {/* a phone: less space around the page, so forms and tables get the width (see index.css) */}
         <div className="adm-content" style={{ padding: phone ? 12 : 24 }}>
-          <Outlet />
+          <Suspense key={section} fallback={<PageLoading />}>
+            <Outlet />
+          </Suspense>
         </div>
       </main>
     </div>

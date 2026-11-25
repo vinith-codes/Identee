@@ -2,48 +2,47 @@
 // Used by the admin website (apps/AdminApp.jsx) and by the both-together website on the laptop (App.jsx), so a page
 // is added in one place only. adminRoutes() returns <Route> elements to put inside <Routes>.
 /* eslint-disable react-refresh/only-export-components -- a list of pages, not a page: editing it reloads the page in dev */
-import { lazy } from "react";
 import { Route, Navigate } from "react-router-dom";
-import { AdminRoute, SellerRoute } from "./common";
+import { AdminRoute, SellerRoute, lazyPage } from "./common";
 
-const AdminLayout = lazy(() => import("../layouts/AdminLayout"));
-const AdminDashboard = lazy(() => import("../pages/admin/AdminDashboard"));
-const AdminHome = lazy(() => import("../pages/admin/AdminHome"));
-const CustomizableListPage = lazy(() => import("../pages/admin/CustomizableListPage"));
-const GarmentSetupWizard = lazy(() => import("../pages/admin/GarmentSetupWizard"));
-const ProductWizard = lazy(() => import("../pages/admin/readymade/ProductWizard"));
-const ProductsPage = lazy(() => import("../pages/admin/readymade/ProductsPage"));
-const OfferBannerPage = lazy(() => import("../pages/admin/OfferBannerPage"));
-const VideoBannerPage = lazy(() => import("../pages/admin/VideoBannerPage"));
-const CategoryBannerPage = lazy(() => import("../pages/admin/CategoryBannerPage"));
-const CategoriesPage = lazy(() => import("../pages/admin/CategoriesPage"));
-const AdminUsersPage = lazy(() => import("../pages/admin/AdminUserPage"));
-const AdminEditUserPage = lazy(() => import("../pages/admin/AdminEditUserPage"));
-const AdminUserDetailsPage = lazy(() => import("../pages/admin/AdminUserDetailsPage"));
-const AdminShippingPage = lazy(() => import("../pages/admin/AdminShippingPage"));
-const OffersPage = lazy(() => import("../pages/admin/OffersPage"));
-const SubscriptionPlansPage = lazy(() => import("../pages/admin/SubscriptionPlansPage"));
-const SubscribersPage = lazy(() => import("../pages/admin/SubscribersPage"));
-const WaitlistPage = lazy(() => import("../pages/admin/WaitlistPage"));
-const ArtCategoriesPage = lazy(() => import("../pages/admin/ArtCategoriesPage"));
-const ArtDesignsPage = lazy(() => import("../pages/admin/ArtDesignsPage"));
-const AdminInvoicesPage = lazy(() => import("../pages/admin/AdminInvoicesPage"));
-const PrintSheetsPage = lazy(() => import("../pages/admin/PrintSheetsPage"));
-const InvoicePreviewPage = lazy(() => import("../pages/admin/InvoicePreviewPage"));
-const AdminOrdersPage = lazy(() => import("../pages/admin/AdminOrdersPage"));
-const ProductBulkUploadPage = lazy(() => import("../pages/admin/ProductBulkUploadPage"));
-const ArtBulkUploadPage = lazy(() => import("../pages/admin/ArtBulkUploadPage"));
+const AdminLayout = lazyPage(() => import("../layouts/AdminLayout"));
+const AdminDashboard = lazyPage(() => import("../pages/admin/AdminDashboard"));
+const AdminHome = lazyPage(() => import("../pages/admin/AdminHome"));
+const CustomizableListPage = lazyPage(() => import("../pages/admin/CustomizableListPage"));
+const GarmentSetupWizard = lazyPage(() => import("../pages/admin/GarmentSetupWizard"));
+const ProductWizard = lazyPage(() => import("../pages/admin/readymade/ProductWizard"));
+const ProductsPage = lazyPage(() => import("../pages/admin/readymade/ProductsPage"));
+const OfferBannerPage = lazyPage(() => import("../pages/admin/OfferBannerPage"));
+const VideoBannerPage = lazyPage(() => import("../pages/admin/VideoBannerPage"));
+const CategoryBannerPage = lazyPage(() => import("../pages/admin/CategoryBannerPage"));
+const CategoriesPage = lazyPage(() => import("../pages/admin/CategoriesPage"));
+const AdminUsersPage = lazyPage(() => import("../pages/admin/AdminUserPage"));
+const AdminEditUserPage = lazyPage(() => import("../pages/admin/AdminEditUserPage"));
+const AdminUserDetailsPage = lazyPage(() => import("../pages/admin/AdminUserDetailsPage"));
+const AdminShippingPage = lazyPage(() => import("../pages/admin/AdminShippingPage"));
+const OffersPage = lazyPage(() => import("../pages/admin/OffersPage"));
+const SubscriptionPlansPage = lazyPage(() => import("../pages/admin/SubscriptionPlansPage"));
+const SubscribersPage = lazyPage(() => import("../pages/admin/SubscribersPage"));
+const WaitlistPage = lazyPage(() => import("../pages/admin/WaitlistPage"));
+const ArtCategoriesPage = lazyPage(() => import("../pages/admin/ArtCategoriesPage"));
+const ArtDesignsPage = lazyPage(() => import("../pages/admin/ArtDesignsPage"));
+const AdminInvoicesPage = lazyPage(() => import("../pages/admin/AdminInvoicesPage"));
+const PrintSheetsPage = lazyPage(() => import("../pages/admin/PrintSheetsPage"));
+const InvoicePreviewPage = lazyPage(() => import("../pages/admin/InvoicePreviewPage"));
+const AdminOrdersPage = lazyPage(() => import("../pages/admin/AdminOrdersPage"));
+const ProductBulkUploadPage = lazyPage(() => import("../pages/admin/ProductBulkUploadPage"));
+const ArtBulkUploadPage = lazyPage(() => import("../pages/admin/ArtBulkUploadPage"));
 // (the Collection maker page, pages/admin/CollectionMakerPage.jsx, is parked since 25 Oct 2026 — not routed, not built)
 // Shop your IDENTEE: the Studio — one tee designed by hand, AI pictures on request (25 Oct 2026)
-const StudioPage = lazy(() => import("../pages/admin/studio/StudioPage"));
-const TestModePage = lazy(() => import("../pages/admin/TestModePage")); // Design Studio → Test as a customer (5 Nov 2026)
-const DesignHelpPage = lazy(() => import("../pages/admin/DesignHelpPage")); // Design Studio → Help requests (8 Nov 2026)
-const TrendsPage = lazy(() => import("../pages/admin/TrendsPage")); // Design Studio → Trends (23 Nov 2026)
-const ShopManagePage = lazy(() => import("../pages/admin/ShopManagePage")); // Shop your IDENTEE → Manage the shop (24 Nov 2026)
+const StudioPage = lazyPage(() => import("../pages/admin/studio/StudioPage"));
+const TestModePage = lazyPage(() => import("../pages/admin/TestModePage")); // Design Studio → Test as a customer (5 Nov 2026)
+const DesignHelpPage = lazyPage(() => import("../pages/admin/DesignHelpPage")); // Design Studio → Help requests (8 Nov 2026)
+const TrendsPage = lazyPage(() => import("../pages/admin/TrendsPage")); // Design Studio → Trends (23 Nov 2026)
+const ShopManagePage = lazyPage(() => import("../pages/admin/ShopManagePage")); // Shop your IDENTEE → Manage the shop (24 Nov 2026)
 // Review moderation
-const AdminReviewsPage = lazy(() => import("../pages/admin/AdminReviewsPage"));
+const AdminReviewsPage = lazyPage(() => import("../pages/admin/AdminReviewsPage"));
 // Settings module
-const SettingsLayout = lazy(() => import("../pages/admin/settings/SettingsLayout"));
+const SettingsLayout = lazyPage(() => import("../pages/admin/settings/SettingsLayout"));
 
 function PlaceholderAdminPage({ title, desc }) {
   return (
