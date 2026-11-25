@@ -5,9 +5,9 @@
 // here comes with: it can be customized, and it ships free.
 // (24 Nov 2026, the owner: "think as a user and implement proper navigation") the tees show straight away, with
 // All styles · Oversized · Round Neck tabs over them (no card per style to tap through first), and a chip per
-// collection under the heading goes to another collection in one tap.
+// collection under the heading goes to another collection in one tap. (25 Nov 2026: the heading box is gone.)
 import { useEffect, useState } from "react";
-import { Link, useLocation, useParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import shopService from "../services/shopService";
 import ShopGrid from "../components/shop/ShopGrid";
 import ShopComingSoon from "../components/ShopComingSoon";
@@ -17,14 +17,22 @@ import { SHOPS } from "../utils/shopNames";
 import { collectionInfo } from "../utils/shopRules";
 import TrendBanner from "../components/shop/TrendBanner";
 import useTrend from "../utils/useTrend";
-import { Crumbs, CollectionSwitch } from "../components/shop/ShopTrail";
 
-const C = { ink: "#15130F", gold: "#C9A24B" };
+const C = { ink: "#15130F" };
 
 export default function CollectionPage() {
   const key = String(useParams().collection || "").toLowerCase();
   const shop = useShopOpen();
   const { hash } = useLocation();
+  const navigate = useNavigate();
+  // ← back (25 Nov 2026, the owner: "how can they navigate back?" "keep an back arrow"): a real step back when the
+  // customer came from a page of this site (the phone's back button and this arrow agree), else Shop your IDENTEE
+  const goBack = (e) => {
+    if (window.history.state?.idx > 0) {
+      e.preventDefault();
+      navigate(-1);
+    }
+  };
   const [found, setFound] = useState(null); // the collection from the shop's list; false = not in the shop
   const info = collectionInfo(key, found?.name);
   // the tab a collection opens on: Oversized when it has it
@@ -86,26 +94,15 @@ export default function CollectionPage() {
 
   return (
     <div style={{ minHeight: "100vh", background: "#fff" }}>
-      <div style={{ background: `linear-gradient(120deg, ${C.ink} 0%, #2A2620 60%, ${C.gold} 140%)` }}>
-        <div style={{ maxWidth: 1280, margin: "0 auto", padding: "40px 20px 28px", color: "#fff" }}>
-          <Crumbs
-            dark
-            items={[
-              { label: "Home", to: "/" },
-              { label: SHOPS.shop.name, to: "/ready-made" },
-              { label: found ? info.name : "…" },
-            ]}
-          />
-          <h1 style={{ margin: "6px 0 4px", fontSize: "clamp(28px, 4vw, 38px)", fontWeight: 800 }}>{found ? info.name : "…"}</h1>
-          {info.text && <p style={{ margin: 0, fontSize: 14.5, opacity: 0.88, maxWidth: 620 }}>{info.text}</p>}
-          <div style={{ marginTop: 18 }}>
-            <CollectionSwitch current={key} dark />
-          </div>
-        </div>
-      </div>
+      {/* (25 Nov 2026, the owner: "after i click ayyapan this should not be seen") no dark heading box: the page starts with
+          the tees; the title stays for screen readers and search engines only */}
+      <h1 className="sh-sr-only">{found ? `${info.name} · ${SHOPS.shop.name}` : SHOPS.shop.name}</h1>
 
       <div className="sh-wrap" style={{ maxWidth: 1280, margin: "0 auto", padding: "20px 20px 64px" }}>
         <style>{SHOP_CSS}</style>
+        <Link to="/ready-made" className="sh-backlink" onClick={goBack} aria-label="Back">
+          <span aria-hidden="true">←</span> Back
+        </Link>
         <p className="sh-perks">
           <span>✎ Every tee can be customized: change the words, add your name or a photo.</span>
           <span>Free shipping on {SHOPS.shop.name} tees</span>

@@ -85,6 +85,12 @@ export const SHOP_CSS = `
   .sh-tag { position: absolute; left: 10px; bottom: 10px; display: inline-flex; align-items: center; gap: 5px; padding: 5px 10px;
     border-radius: 999px; background: rgba(255,255,255,.92); color: var(--ink); font-size: 11.5px; font-weight: 700; box-shadow: 0 2px 8px rgba(0,0,0,.12); }
   .sh-for { margin: 0 0 14px; font-size: 13.5px; font-weight: 600; color: var(--muted); }
+  .sh-sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+  .sh-backlink { display: inline-flex; align-items: center; gap: 8px; min-height: 40px; margin: 0 0 12px; padding: 0 16px 0 12px; border-radius: 999px;
+    border: 1px solid #ece4d2; background: #fff; color: var(--ink); font-size: 14px; font-weight: 700; text-decoration: none; transition: border-color .2s, background .2s; }
+  .sh-backlink span { font-size: 18px; line-height: 1; }
+  .sh-backlink:hover { border-color: var(--ink); background: #fbf7ee; }
+  .sh-backlink:focus-visible { outline: 2px solid #c9a24b; outline-offset: 2px; }
   .sh-perks { display: flex; gap: 8px 18px; flex-wrap: wrap; margin: 0 0 18px; padding: 12px 16px; border-radius: 14px; background: var(--cream);
     font-size: 13.5px; color: var(--ink); }
   .sh-perks span { display: inline-flex; gap: 6px; align-items: center; font-weight: 600; }
